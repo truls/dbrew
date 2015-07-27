@@ -135,12 +135,12 @@ typedef struct _Code {
 #define REX_MASK_R 4
 #define REX_MASK_W 8
 
-Code* allocCode(int cap)
+Code* allocCode(int capacity)
 {
     Code* c = (Code*) malloc(sizeof(Code));
     c->count = 0;
-    c->capacity = cap;
-    c->instr = (Instr*) malloc(sizeof(Instr) * cap);
+    c->capacity = capacity;
+    c->instr = (Instr*) malloc(sizeof(Instr) * capacity);
     return c;
 }
 
@@ -148,6 +148,30 @@ void freeCode(Code* c)
 {
     free(c->instr);
     free(c);
+}
+
+int opWidth(OpType ot)
+{
+    switch(ot) {
+    case OT_Imm8:
+    case OT_Reg8:
+    case OT_Ind8:
+	return 8;
+    case OT_Imm16:
+    case OT_Reg16:
+    case OT_Ind16:
+	return 16;
+    case OT_Imm32:
+    case OT_Reg32:
+    case OT_Ind32:
+	return 32;
+    case OT_Imm64:
+    case OT_Reg64:
+    case OT_Ind64:
+	return 64;
+    default: assert(0);
+    }
+    return 0; // invalid;
 }
 
 Operand* getRegOp(int w, Reg r)
@@ -253,19 +277,19 @@ int parseModRM(unsigned char* p, int rex, Operand* o1, Operand* o2)
     reg = (modrm & 56) >> 3;
     rm = modrm & 7;
 
-    // Operand 1: always reg
+    // Operand 2: always reg
     r = Reg_AX + reg;
     if (hasRex && (rex & REX_MASK_R)) reg += 8;
     OpType reg_ot = (hasRex && (rex & REX_MASK_W)) ? OT_Reg64 : OT_Reg32;
-    o1->type = reg_ot;
-    o1->reg = r;
+    o2->type = reg_ot;
+    o2->reg = r;
 
     if (mod == 3) {
 	// r, r
 	r = Reg_AX + rm;
 	if (hasRex && (rex & REX_MASK_B)) r += 8;
-	o2->type = reg_ot;
-	o2->reg = r;
+	o1->type = reg_ot;
+	o1->reg = r;
 	return o;
     }
 
@@ -289,28 +313,28 @@ int parseModRM(unsigned char* p, int rex, Operand* o1, Operand* o2)
 	o += 4;
     }
 
-    o2->type = (hasRex && (rex & REX_MASK_W)) ? OT_Ind64 : OT_Ind32;
-    o2->scale = scale;
-    o2->val = (uint64_t) disp;
+    o1->type = (hasRex && (rex & REX_MASK_W)) ? OT_Ind64 : OT_Ind32;
+    o1->scale = scale;
+    o1->val = (uint64_t) disp;
     if (scale == 0) {
 	r = Reg_AX + rm;
 	if (hasRex && (rex & REX_MASK_B)) r += 8;
-	o2->reg = ((mod == 0) && (rm == 5)) ? Reg_None : r;
+	o1->reg = ((mod == 0) && (rm == 5)) ? Reg_None : r;
 	return o;
     }
 
     r = Reg_AX + idx;
     if (hasRex && (rex & REX_MASK_X)) r += 8;
-    o2->ireg = (idx == 4) ? Reg_None : r;
+    o1->ireg = (idx == 4) ? Reg_None : r;
 
     r = Reg_AX + base;
     if (hasRex && (rex & REX_MASK_B)) r += 8;
-    o2->reg = ((base == 5) && (mod == 0)) ? Reg_None : r;
+    o1->reg = ((base == 5) && (mod == 0)) ? Reg_None : r;
 
     return o;
 }
 
-void parseCode(Code* c, void_func f, int max, int stopAtRet)
+void decodeFunc(Code* c, void_func f, int max, int stopAtRet)
 {
     unsigned char* fp = (unsigned char*) f;
     int hasRex, rex; // REX prefix
@@ -357,7 +381,7 @@ void parseCode(Code* c, void_func f, int max, int stopAtRet)
 	    break;
 
 	case 0x89: {
-	    // mov r/m,r 16/32/64
+	    // mov r/m,r 32/64 (r/m = dst, r = src)
 	    Operand o1, o2;
 	    o++;
 	    o += parseModRM(fp+o, hasRex ? rex:0, &o1, &o2);
@@ -396,8 +420,6 @@ void parseCode(Code* c, void_func f, int max, int stopAtRet)
 /* x86_64 printer
  */
 
-// debug output
-
 char* regName(Reg r)
 {
     switch(r) {
@@ -409,6 +431,14 @@ char* regName(Reg r)
     case Reg_SI: return "si";
     case Reg_BP: return "bp";
     case Reg_SP: return "sp";
+    case Reg_8:  return "8";
+    case Reg_9:  return "9";
+    case Reg_10: return "10";
+    case Reg_11: return "11";
+    case Reg_12: return "12";
+    case Reg_13: return "13";
+    case Reg_14: return "14";
+    case Reg_15: return "15";
     }
     assert(0);
 }
@@ -451,13 +481,13 @@ char* op2string(Operand* o)
     return buf;
 }
 
-char* instr2string(Instr* i)
+char* instr2string(Instr* instr)
 {
     static char buf[100];
     char* n = "<Invalid>";
     int oc = 0, off = 0;
 
-    switch(i->type) {
+    switch(instr->type) {
     case IT_NOP:  n = "nop"; break;
     case IT_RET:  n = "ret"; break;
     case IT_PUSH: n = "push"; oc = 1; break;
@@ -467,10 +497,12 @@ char* instr2string(Instr* i)
     case IT_SUB:  n = "sub";  oc = 2; break;
     }
     off += sprintf(buf, "%-6s", n);
-    if (oc>0)
-	off += sprintf(buf+off, "%s", op2string(&(i->dst)));
-    if (oc>1)
-	off += sprintf(buf+off, ",%s", op2string(&(i->src)));
+    if (oc == 1)
+	off += sprintf(buf+off, "%s", op2string(&(instr->dst)));
+    if (oc == 2) {
+	off += sprintf(buf+off, "%s", op2string(&(instr->src)));
+	off += sprintf(buf+off, ",%s", op2string(&(instr->dst)));
+    }
     return buf;
 }
 
@@ -482,7 +514,258 @@ void printCode(Code* c)
 	       (void*)c->instr[i].addr, instr2string(c->instr + i));
 }
 
+/*------------------------------------------------------------*/
+/* x86_64 emulator
+ */
 
+// emulator state. for memory, use the real memory apart from stack
+typedef struct _EState {
+
+    // general registers: Reg_AX .. Reg_R15
+    uint64_t r[Reg_Max];
+
+    int stack_capacity;
+    unsigned char* stack;
+
+} EmuState;
+
+EmuState emuState;
+
+void initEmulatorState(int stacksize)
+{
+    int i;
+
+    emuState.stack = (unsigned char*) malloc(stacksize);
+    emuState.stack_capacity = stacksize;
+
+    for(i=0; i<stacksize; i++)
+	emuState.stack[i] = 0;
+    for(i=0; i<Reg_Max; i++)
+	emuState.r[i] = 0;
+}
+
+void printEState(EmuState* es)
+{
+    int i;
+    unsigned char *sp, *smin, *smax, *a, *aa;
+
+    printf("Registers:\n");
+    for(i=Reg_AX; i<Reg_8; i++) {
+	printf(" %%r%-2s = 0x%016lx\n", regName(i), es->r[i]);
+    }
+    printf("Stack:\n");
+    sp   = (unsigned char*) es->r[Reg_SP];
+    smax = (unsigned char*) (es->r[Reg_SP]/8*8 + 24);
+    smin = (unsigned char*) (es->r[Reg_SP]/8*8 - 16);
+    if (smin < es->stack)
+	smin = es->stack;
+    if (smax >= es->stack + es->stack_capacity)
+	smax = es->stack + es->stack_capacity -1;
+    for(a = smin; a <= smax; a += 8) {
+	printf(" %016lx ", (uint64_t)a);
+	for(aa = a; aa < a+8 && aa <= smax; aa++)
+	    printf(" %s%02x", (aa == sp) ? "*" : " ", *aa);
+	printf("\n");
+    }
+}
+
+uint64_t getOpAddr(EmuState* es, Operand* o)
+{
+    uint64_t a;
+
+    assert((o->type == OT_Ind8)  || (o->type == OT_Ind16) ||
+	   (o->type == OT_Ind32) || (o->type == OT_Ind64));
+
+    a = o->val;
+    if (o->reg != Reg_None) a += es->r[o->reg];
+    if (o->scale>0) a += o->scale * es->r[o->ireg];
+
+    return a;
+}
+
+// returned value should be casted to expected type (8/16/32 bit)
+uint64_t getOpValue(EmuState* es, Operand* o)
+{
+    switch(o->type) {
+    case OT_Reg32:
+	return (uint32_t) es->r[o->reg];
+
+    case OT_Reg64:
+	return es->r[o->reg];
+
+    case OT_Ind32:
+	return *(uint32_t*) getOpAddr(es, o);
+
+    case OT_Ind64:
+	return *(uint64_t*) getOpAddr(es, o);
+
+    default: assert(0);
+    }
+    return 0;
+}
+
+// only the bits of v are used which are required for operand type
+void setOpValue(EmuState* es, Operand* o, uint64_t v)
+{
+    uint32_t* a32;
+    uint64_t* a64;
+
+    switch(o->type) {
+    case OT_Reg32:
+	es->r[o->reg] = (uint32_t) v;
+	return;
+
+    case OT_Reg64:
+	es->r[o->reg] = v;
+	return;
+
+    case OT_Ind32:
+	a32 = (uint32_t*) getOpAddr(es, o);
+	*a32 = (uint32_t) v;
+	return;
+
+    case OT_Ind64:
+	a64 = (uint64_t*) getOpAddr(es, o);
+	*a64 = v;
+	return;
+
+    default: assert(0);
+    }
+}
+
+void checkStackAddr(EmuState* es)
+{
+    unsigned char* a = (unsigned char*) es->r[Reg_SP];
+    assert((a >= es->stack) && (a < es->stack + es->stack_capacity));
+}
+
+
+uint64_t emulate(Code* c, ...)
+{
+    int i, foundRet;
+    uint32_t* a32;
+    uint64_t* a64;
+    uint32_t v32;
+    uint64_t v64;
+
+    // setup int parameters for virtual CPU according to x86_64 calling conv.
+    // see https://en.wikipedia.org/wiki/X86_calling_conventions
+    asm("mov %%rsi, %0;" : "=r" (v64) : ); emuState.r[Reg_DI] = v64;
+    asm("mov %%rdx, %0;" : "=r" (v64) : ); emuState.r[Reg_SI] = v64;
+    asm("mov %%rcx, %0;" : "=r" (v64) : ); emuState.r[Reg_DX] = v64;
+    asm("mov %%r8, %0;" : "=r" (v64) : );  emuState.r[Reg_CX] = v64;
+    asm("mov %%r9, %0;" : "=r" (v64) : );  emuState.r[Reg_8] = v64;
+    emuState.r[Reg_SP] = (uint64_t) (emuState.stack + emuState.stack_capacity);
+
+    foundRet = 0;
+    i = 0;
+    while((i < c->count) && !foundRet) {
+
+	Instr* instr = c->instr + i;
+	printEState(&emuState);
+	printf("Emulating '%s'...\n", instr2string(instr));
+
+	switch(instr->type) {
+	case IT_PUSH:
+	    switch(instr->dst.type) {
+	    case OT_Reg32:
+		emuState.r[Reg_SP] -= 4;
+		checkStackAddr(&emuState);
+		a32 = (uint32_t*) emuState.r[Reg_SP];
+		*a32 = (uint32_t) getOpValue(&emuState, &(instr->dst));
+		break;
+
+	    case OT_Reg64:
+		emuState.r[Reg_SP] -= 8;
+		checkStackAddr(&emuState);
+		a64 = (uint64_t*) emuState.r[Reg_SP];
+		*a64 = (uint64_t) getOpValue(&emuState, &(instr->dst));
+		break;
+
+	    default: assert(0);
+	    }
+	    break;
+
+	case IT_POP:
+	    switch(instr->dst.type) {
+	    case OT_Reg32:
+		checkStackAddr(&emuState);
+		a32 = (uint32_t*) emuState.r[Reg_SP];
+		setOpValue(&emuState, &(instr->dst), *a32);
+		emuState.r[Reg_SP] += 4;
+		break;
+
+	    case OT_Reg64:
+		checkStackAddr(&emuState);
+		a64 = (uint64_t*) emuState.r[Reg_SP];
+		setOpValue(&emuState, &(instr->dst), *a64);
+		emuState.r[Reg_SP] += 8;
+		break;
+
+	    default: assert(0);
+	    }
+	    break;
+
+	case IT_MOV:
+	    switch(instr->src.type) {
+	    case OT_Reg32:
+	    case OT_Ind32:
+		assert(opWidth(instr->dst.type) == 32);
+		v32 = (uint32_t) getOpValue(&emuState, &(instr->src));
+		setOpValue(&emuState, &(instr->dst), v32);
+		break;
+
+	    case OT_Reg64:
+	    case OT_Ind64:
+		assert(opWidth(instr->dst.type) == 64);
+		v64 = (uint64_t) getOpValue(&emuState, &(instr->src));
+		setOpValue(&emuState, &(instr->dst), v64);
+		break;
+
+	    default:assert(0);
+	    }
+	    break;
+
+	case IT_ADD:
+	    switch(instr->src.type) {
+	    case OT_Reg32:
+	    case OT_Ind32:
+		assert(opWidth(instr->dst.type) == 32);
+		v32 = (uint32_t) getOpValue(&emuState, &(instr->src));
+		v32 += (uint32_t) getOpValue(&emuState, &(instr->dst));
+		setOpValue(&emuState, &(instr->dst), v32);
+		break;
+
+	    case OT_Reg64:
+	    case OT_Ind64:
+		assert(opWidth(instr->dst.type) == 64);
+		v64 = (uint64_t) getOpValue(&emuState, &(instr->src));
+		v64 += (uint64_t) getOpValue(&emuState, &(instr->dst));
+		setOpValue(&emuState, &(instr->dst), v64);
+		break;
+
+	    default:assert(0);
+	    }
+	    break;
+
+
+	case IT_RET:
+	    foundRet = 1;
+	    break;
+
+	default: assert(0);
+	}
+	i++;
+    }
+
+    // return value according calling convention
+    return emuState.r[Reg_AX];
+}
+
+
+/*------------------------------------------------------------*/
+/* x86_64 test/specialize functions
+ */
 
 void_func spec2(void_func f, ...)
 {
@@ -490,13 +773,12 @@ void_func spec2(void_func f, ...)
     Code* c;
 
     c = allocCode(100);
-    parseCode(c, f, 100, 1);
-    printf("Parsed Code:\n");
-    printCode(c);
+    decodeFunc(c, f, 100, 1);
 
     CStorage* cs = initCodeStorage(4096);
     p = getCodeStorage(cs, 50);
 
+    // TODO: Specialize for constant parameter 2
     memcpy(p, (unsigned char*)f, 50);
 
     return (void_func)p;
