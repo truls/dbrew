@@ -1,3 +1,8 @@
+/**
+ * Simple x86_64 emulator/re-generator
+ * (c) 2015, Josef Weidendorfer, GPLv2+
+ */
+
 #include "spec.h"
 
 #include <assert.h>
@@ -95,7 +100,8 @@ typedef enum _InstrType {
     IT_None = 0, IT_Invalid,
     IT_NOP,
     IT_PUSH, IT_POP,
-    IT_MOV, IT_ADD, IT_SUB,
+    IT_MOV, IT_LEA,
+    IT_ADD, IT_SUB,
     IT_CALL, IT_RET,
     IT_Max
 } InstrType;
@@ -120,6 +126,7 @@ typedef struct _Operand
 
 typedef struct _Instr {
     uint64_t addr;
+    int len;
     InstrType type;
     Operand dst, src;
 } Instr;
@@ -292,39 +299,42 @@ void copyOperand(Operand* dst, Operand* src)
     }
 }
 
-Instr* nextInstr(Code* c, uint64_t a)
+Instr* nextInstr(Code* c, uint64_t a, int len)
 {
     Instr* i = c->instr + c->count;
     assert(c->count < c->capacity);
     c->count++;
 
     i->addr = a;
+    i->len = len;
     return i;
 }
 
-void addSimple(Code* c, uint64_t a, InstrType it)
+void addSimple(Code* c, uint64_t a, uint64_t a2, InstrType it)
 {
-    Instr* i = nextInstr(c, a);
+    Instr* i = nextInstr(c, a, a2 - a);
     i->type = it;
 }
 
-void addUnaryOp(Code* c, uint64_t a, InstrType it, Operand* o)
+void addUnaryOp(Code* c, uint64_t a, uint64_t a2,
+		InstrType it, Operand* o)
 {
-    Instr* i = nextInstr(c, a);
+    Instr* i = nextInstr(c, a, a2 - a);
     i->type = it;
     copyOperand( &(i->dst), o);
 }
 
-void addBinaryOp(Code* c, uint64_t a, InstrType it, Operand* o1, Operand* o2)
+void addBinaryOp(Code* c, uint64_t a, uint64_t a2,
+		 InstrType it, Operand* o1, Operand* o2)
 {
-    Instr* i = nextInstr(c, a);
+    Instr* i = nextInstr(c, a, a2 - a);
     i->type = it;
     copyOperand( &(i->dst), o1);
     copyOperand( &(i->src), o2);
 }
 
 
-// see SDM 2.1
+// op2 always reg. Encoding see SDM 2.1
 int parseModRM(uint8_t* p, int rex, Operand* o1, Operand* o2)
 {
     int modrm, mod, rm, reg; // modRM byte
@@ -400,7 +410,7 @@ void decodeFunc(Code* c, uint8_t* fp, int max, int stopAtRet)
 {
     int hasRex, rex; // REX prefix
     uint64_t a;
-    int i, o, retFound;
+    int i, o, retFound, opc;
 
     o = 0;
     hasRex = 0;
@@ -419,58 +429,67 @@ void decodeFunc(Code* c, uint8_t* fp, int max, int stopAtRet)
 	    break;
 	}
 
-	switch(fp[o]) {
+	opc = fp[o++];
+	switch(opc) {
 	case 0xc3:
 	    // ret
-	    addSimple(c, a, IT_RET);
+	    addSimple(c, a, (uint64_t)(fp + o), IT_RET);
 	    if (stopAtRet) retFound = 1;
-	    o++;
 	    break;
 
 	case 0x50: case 0x51: case 0x52: case 0x53:
 	case 0x54: case 0x55: case 0x56: case 0x57:
 	    // push
-	    addUnaryOp(c, a, IT_PUSH, getRegOp(64, Reg_AX+(fp[o]-0x50)));
-	    o++;
+	    addUnaryOp(c, a, (uint64_t)(fp + o),
+		       IT_PUSH, getRegOp(64, Reg_AX+(opc-0x50)));
 	    break;
 
 	case 0x58: case 0x59: case 0x5A: case 0x5B:
 	case 0x5C: case 0x5D: case 0x5E: case 0x5F:
 	    // pop
-	    addUnaryOp(c, a, IT_POP, getRegOp(64, Reg_AX+(fp[o]-0x58)));
-	    o++;
+	    addUnaryOp(c, a, (uint64_t)(fp + o),
+		       IT_POP, getRegOp(64, Reg_AX+(opc-0x58)));
 	    break;
 
 	case 0x89: {
 	    // mov r/m,r 32/64 (dst: r/m, src: r)
 	    Operand o1, o2;
-	    o++;
 	    o += parseModRM(fp+o, hasRex ? rex:0, &o1, &o2);
-	    addBinaryOp(c, a, IT_MOV, &o1, &o2);
+	    addBinaryOp(c, a, (uint64_t)(fp + o),
+			IT_MOV, &o1, &o2);
 	    break;
 	}
 
 	case 0x8B: {
 	    // mov r,r/m 32/64 (dst: r, src: r/m)
 	    Operand o1, o2;
-	    o++;
 	    o += parseModRM(fp+o, hasRex ? rex:0, &o2, &o1);
-	    addBinaryOp(c, a, IT_MOV, &o1, &o2);
+	    addBinaryOp(c, a, (uint64_t)(fp + o),
+			IT_MOV, &o1, &o2);
 	    break;
 	}
 
 	case 0x01: {
 	    // add r/m,r 32/64 (dst: r/m, src: r)
 	    Operand o1, o2;
-	    o++;
 	    o += parseModRM(fp+o, hasRex ? rex:0, &o1, &o2);
-	    addBinaryOp(c, a, IT_ADD, &o1, &o2);
+	    addBinaryOp(c, a, (uint64_t)(fp + o),
+			IT_ADD, &o1, &o2);
+	    break;
+	}
+
+	case 0x8d: {
+	    // lea r32/64,m
+	    Operand o1, o2;
+	    o += parseModRM(fp+o, hasRex ? rex:0, &o2, &o1);
+	    assert(opIsInd(o2.type)); // TODO: bad code error
+	    addBinaryOp(c, a, (uint64_t)(fp + o),
+			IT_LEA, &o1, &o2);
 	    break;
 	}
 
 	default:
-	    addSimple(c, a, IT_Invalid);
-	    o++;
+	    addSimple(c, a, (uint64_t)(fp + o), IT_Invalid);
 	    break;
 	}
 	hasRex = 0;
@@ -525,16 +544,18 @@ char* op2string(Operand* o)
     case OT_Ind16:
     case OT_Ind32:
     case OT_Ind64:
-	if (o->val & (1l<<63))
-	    off = sprintf(buf, "-0x%lx", (~ o->val)+1);
-	else
-	    off = sprintf(buf, "0x%lx", o->val);
+	if (o->val != 0) {
+	    if (o->val & (1l<<63))
+		off = sprintf(buf, "-0x%lx", (~ o->val)+1);
+	    else
+		off = sprintf(buf, "0x%lx", o->val);
+	}
 	if (o->scale == 0)
 	    sprintf(buf+off,"(%%r%s)", regName(o->reg));
 	else {
 	    char* rb = (o->reg == Reg_None) ? "" : regName(o->reg);
 	    char* ri = regName(o->ireg);
-	    sprintf(buf+off,"(%s,%s,%d)", rb, ri, o->scale);
+	    sprintf(buf+off,"(%%r%s,%%r%s,%d)", rb, ri, o->scale);
 	}
 	break;
     default: assert(0);
@@ -556,6 +577,7 @@ char* instr2string(Instr* instr)
     case IT_MOV:  n = "mov";  oc = 2; break;
     case IT_ADD:  n = "add";  oc = 2; break;
     case IT_SUB:  n = "sub";  oc = 2; break;
+    case IT_LEA:  n = "lea";  oc = 2; break;
     }
     off += sprintf(buf, "%-6s", n);
     if (oc == 1)
@@ -567,12 +589,32 @@ char* instr2string(Instr* instr)
     return buf;
 }
 
+char* bytes2string(Instr* instr, int start, int count)
+{
+    static char buf[100];
+    int off = 0, i, j;
+    for(i = start, j=0; i < instr->len && j<count; i++, j++) {
+	uint8_t b = ((uint8_t*) instr->addr)[i];
+	off += sprintf(buf+off, " %02x", b);
+    }
+    for(;j<count;j++)
+	off += sprintf(buf+off, "   ");
+    return buf;
+}
+
 void printCode(Code* c)
 {
     int i;
-    for(i=0; i<c->count; i++)
-	printf("  %p  %s\n",
-	       (void*)c->instr[i].addr, instr2string(c->instr + i));
+    for(i=0; i<c->count; i++) {
+	printf("  %p %s %s\n", (void*)c->instr[i].addr,
+	       bytes2string(c->instr + i, 0, 5), instr2string(c->instr + i));
+	if (c->instr[i].len > 4)
+	    printf("  %p %s\n", (void*)c->instr[i].addr + 5,
+		   bytes2string(c->instr + i, 5, 5));
+	if (c->instr[i].len > 9)
+	    printf("  %p %s\n", (void*)c->instr[i].addr + 10,
+		   bytes2string(c->instr + i, 10, 5));
+    }
 }
 
 /*------------------------------------------------------------*/
@@ -628,7 +670,6 @@ uint8_t* calcModRM(Operand* o1, Operand* o2, int* prex, int* plen)
 	buf[o++] = modrm;
     }
     else {
-	assert(o1->scale == 0); // TODO: SIB
 	int64_t v = (int64_t) o1->val;
 	if (v != 0) {
 	    if ((v >= -128) && (v<128)) useDisp8 = 1;
@@ -638,11 +679,33 @@ uint8_t* calcModRM(Operand* o1, Operand* o2, int* prex, int* plen)
 	}
 	if (useDisp8) modrm |= 64;
 	if (useDisp32) modrm |= 128;
-	assert(o1->reg != Reg_SP); // rm 4 reserved for SIB encoding
-	r1 = o1->reg - Reg_AX;
-	if (r1 & 8) *prex |= REX_MASK_B;
-	modrm |= (r1 & 7);
-	buf[o++] = modrm;
+
+	if (o1->scale == 0) {
+	    assert(o1->reg != Reg_SP); // rm 4 reserved for SIB encoding
+	    r1 = o1->reg - Reg_AX;
+	    if (r1 & 8) *prex |= REX_MASK_B;
+	    modrm |= (r1 & 7);
+	    buf[o++] = modrm;
+	}
+	else {
+	    // SIB
+	    int sib = 0, ri, rb;
+	    if      (o1->scale == 2) sib |= 64;
+	    else if (o1->scale == 4) sib |= 128;
+	    else if (o1->scale == 8) sib |= 192;
+	    else
+		assert(o1->scale == 1);
+	    ri = o1->ireg - Reg_AX;
+	    if (ri & 8) *prex |= REX_MASK_X;
+	    sib |= (ri & 7) <<3;
+	    rb = o1->reg - Reg_AX;
+	    if (rb & 8) *prex |= REX_MASK_B;
+	    sib |= (rb & 7);
+	    modrm |= 4; // signal SIB
+	    buf[o++] = modrm;
+	    buf[o++] = sib;
+	}
+
 	if (useDisp8)
 	    buf[o++] = (int8_t) v;
 	if (useDisp32) {
@@ -733,6 +796,21 @@ int genAdd(uint8_t* buf, Operand* src, Operand* dst)
     return 0;
 }
 
+int genLea(uint8_t* buf, Operand* src, Operand* dst)
+{
+    assert(opIsInd(src->type));
+    assert(opIsReg(dst->type));
+    switch(dst->type) {
+    case OT_Reg32:
+    case OT_Reg64:
+	// use 'lea r/m,r 32/64' (0x8d)
+	return genModRM(buf, 0x8d, src, dst);
+
+    default: assert(0);
+    }
+    return 0;
+}
+
 void capture(CodeStorage* cs, Instr* instr)
 {
     uint8_t* buf;
@@ -752,6 +830,9 @@ void capture(CodeStorage* cs, Instr* instr)
 	break;
     case IT_ADD:
 	used = genAdd(buf, &(instr->src), &(instr->dst));
+	break;
+    case IT_LEA:
+	used = genLea(buf, &(instr->src), &(instr->dst));
 	break;
     case IT_RET:
 	used = genRet(buf);
@@ -906,13 +987,14 @@ uint64_t emulate(Code* c, ...)
     asm("mov %%r9, %0;" : "=r" (v64) : );  emuState.r[Reg_8] = v64;
     emuState.r[Reg_SP] = (uint64_t) (emuState.stack + emuState.stack_capacity);
 
+    printEState(&emuState);
+
     foundRet = 0;
     i = 0;
     while((i < c->count) && !foundRet) {
 
-	Instr ii;
 	Instr* instr = c->instr + i;
-	printEState(&emuState);
+	// printEState(&emuState);
 	printf("Emulating '%s'...\n", instr2string(instr));
 
 	switch(instr->type) {
@@ -1006,6 +1088,25 @@ uint64_t emulate(Code* c, ...)
 	    }
 	    break;
 
+	case IT_LEA:
+	    switch(instr->dst.type) {
+	    case OT_Reg64:
+		assert(opIsInd(instr->src.type));
+		v64 = (uint64_t) getOpAddr(&emuState, &(instr->src));
+		setOpValue(&emuState, &(instr->dst), v64);
+		capture(c->cs, instr);
+		break;
+
+	    case OT_Reg32:
+		assert(opIsInd(instr->src.type));
+		v32 = (uint32_t) getOpAddr(&emuState, &(instr->src));
+		setOpValue(&emuState, &(instr->dst), v32);
+		capture(c->cs, instr);
+		break;
+
+	    default:assert(0);
+	    }
+	    break;
 
 	case IT_RET:
 	    capture(c->cs, instr);
@@ -1016,6 +1117,8 @@ uint64_t emulate(Code* c, ...)
 	}
 	i++;
     }
+
+    printEState(&emuState);
 
     // return value according calling convention
     return emuState.r[Reg_AX];

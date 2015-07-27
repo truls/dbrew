@@ -1,7 +1,6 @@
 /**
- * Simple x86_64 emulator
- * (c) Josef Weidendorfer, GPLv2+
- *
+ * Simple x86_64 emulator/re-generator
+ * (c) 2015, Josef Weidendorfer, GPLv2+
  */
 
 #ifndef SPEC_H
