@@ -92,6 +92,7 @@ typedef enum _Reg {
     // general purpose (order is important, aligned to x86 encoding)
     Reg_AX, Reg_CX, Reg_DX, Reg_BX, Reg_SP, Reg_BP, Reg_SI, Reg_DI,
     Reg_8,  Reg_9,  Reg_10, Reg_11, Reg_12, Reg_13, Reg_14, Reg_15,
+    Reg_IP,
     //
     Reg_Max
 } Reg;
@@ -248,14 +249,14 @@ Operand* getRegOp(int w, Reg r)
     static Operand o;
     switch(w) {
     case 32:
-	assert((r > Reg_None) && (r < Reg_Max));
+	assert((r >= Reg_AX) && (r <= Reg_15));
 	o.type = OT_Reg32;
 	o.reg = r;
 	o.scale = 0;
 	break;
 
     case 64:
-	assert((r > Reg_None) && (r < Reg_Max));
+	assert((r >= Reg_AX) && (r <= Reg_15));
 	o.type = OT_Reg64;
 	o.reg = r;
 	o.scale = 0;
@@ -279,19 +280,19 @@ void copyOperand(Operand* dst, Operand* src)
 	break;
     case OT_Reg32:
     case OT_Reg64:
-	assert((src->reg > Reg_None) && (src->reg < Reg_Max));
+	assert((src->reg >= Reg_AX) && (src->reg <= Reg_15));
 	dst->reg = src->reg;
 	break;
     case OT_Ind32:
     case OT_Ind64:
-	assert((src->reg >= Reg_None) && (src->reg < Reg_Max));
+	assert((src->reg >= Reg_AX) && (src->reg <= Reg_IP));
 	dst->reg = src->reg;
 	dst->val = src->val;
 	dst->scale = src->scale;
 	if (src->scale >0) {
 	    assert((src->scale == 1) || (src->scale == 2) ||
 		   (src->scale == 4) || (src->scale == 8));
-	    assert((src->ireg >= Reg_None) && (src->ireg < Reg_Max));
+	    assert((src->ireg >= Reg_AX) && (src->ireg <= Reg_15));
 	    dst->ireg = src->ireg;
 	}
 	break;
@@ -381,6 +382,7 @@ int parseModRM(uint8_t* p, int rex, Operand* o1, Operand* o2)
 	o++;
     }
     else if ((mod == 2) || ((mod == 0) && (rm == 5))) {
+	// mod 2 + rm 5: RIP relative
 	disp = *((int32_t*) (p+o));
 	o += 4;
     }
@@ -391,7 +393,7 @@ int parseModRM(uint8_t* p, int rex, Operand* o1, Operand* o2)
     if (scale == 0) {
 	r = Reg_AX + rm;
 	if (hasRex && (rex & REX_MASK_B)) r += 8;
-	o1->reg = ((mod == 0) && (rm == 5)) ? Reg_None : r;
+	o1->reg = ((mod == 0) && (rm == 5)) ? Reg_IP : r;
 	return o;
     }
 
@@ -519,6 +521,7 @@ char* regName(Reg r)
     case Reg_13: return "13";
     case Reg_14: return "14";
     case Reg_15: return "15";
+    case Reg_IP: return "ip";
     }
     assert(0);
 }
@@ -606,14 +609,14 @@ void printCode(Code* c)
 {
     int i;
     for(i=0; i<c->count; i++) {
-	printf("  %p %s %s\n", (void*)c->instr[i].addr,
-	       bytes2string(c->instr + i, 0, 5), instr2string(c->instr + i));
-	if (c->instr[i].len > 4)
-	    printf("  %p %s\n", (void*)c->instr[i].addr + 5,
-		   bytes2string(c->instr + i, 5, 5));
-	if (c->instr[i].len > 9)
-	    printf("  %p %s\n", (void*)c->instr[i].addr + 10,
-		   bytes2string(c->instr + i, 10, 5));
+	printf("  %p %s  %s\n", (void*)c->instr[i].addr,
+	       bytes2string(c->instr + i, 0, 6), instr2string(c->instr + i));
+	if (c->instr[i].len > 6)
+	    printf("  %p %s\n", (void*)c->instr[i].addr + 6,
+		   bytes2string(c->instr + i, 6, 6));
+	if (c->instr[i].len > 12)
+	    printf("  %p %s\n", (void*)c->instr[i].addr + 12,
+		   bytes2string(c->instr + i, 12, 6));
     }
 }
 
@@ -683,6 +686,14 @@ uint8_t* calcModRM(Operand* o1, Operand* o2, int* prex, int* plen)
 	if (o1->scale == 0) {
 	    assert(o1->reg != Reg_SP); // rm 4 reserved for SIB encoding
 	    r1 = o1->reg - Reg_AX;
+	    assert((modrm >63) || (r1 != 5)); // do not use RIP encoding
+	    if (o1->reg == Reg_IP) {
+		// RIP relative
+		// BUG: Should be relative to original code, not generated
+		r1 = 5;
+		modrm &= 63;
+		useDisp32 = 1;
+	    }
 	    if (r1 & 8) *prex |= REX_MASK_B;
 	    modrm |= (r1 & 7);
 	    buf[o++] = modrm;
@@ -996,6 +1007,9 @@ uint64_t emulate(Code* c, ...)
 	Instr* instr = c->instr + i;
 	// printEState(&emuState);
 	printf("Emulating '%s'...\n", instr2string(instr));
+
+	// for RIP-relative accesses
+	emuState.r[Reg_IP] = instr->addr + instr->len;
 
 	switch(instr->type) {
 	case IT_PUSH:

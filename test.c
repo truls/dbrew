@@ -6,9 +6,13 @@
 #include <stdio.h>
 #include "spec.h"
 
+int counter = 0;
+
 int sum(int a, int b)
 {
-  return a + b;
+    int res = a + b;
+    counter += res;
+    return res;
 }
 
 typedef int (*sum_func)(int,int);
@@ -17,15 +21,20 @@ int main()
 {
     uint8_t* captured;
     Code *c1, *c2;
+    int res;
+
+    res = sum(1,2);
+    printf("Native: 1 + 2 = %d (counter %d)\n", res, counter);
 
     c1 = allocCode(100, 1000);
     decodeFunc(c1, (uint8_t*) sum, 100, 1);
-    printf("Sum Code:\n");
+    printf("Code:\n");
     printCode(c1);
 
     printf("\nRun emulator:\n");
     initEmulatorState(1024);
-    printf("Emulated: 1 + 2 = %d\n", (int)emulate(c1, 1, 2));
+    res = (int)emulate(c1, 1, 2);
+    printf("Emulated: 1 + 2 = %d (counter %d)\n", res, counter);
     //printf("55 + 12345 = %d\n", (int)emulate(c1, 55, 12345));
 
     // regenerate code
@@ -36,11 +45,13 @@ int main()
 	   capturedCodeSize(c1));
     printCode(c2);
     sum_func cap_func = (sum_func) captured;
-    printf("Captured: 1 + 2 = %d\n", cap_func(1, 2));
+    res = cap_func(1, 2);
+    printf("Run captured: 1 + 2 = %d (counter %d)\n", res, counter);
 
     // specialized (TODO: does nothing for now)
     sum_func f = (sum_func) spec2((uint8_t*) sum, 1, 1);
-    printf("\nSpec: 1 + 2 = %d\n", f(1, 2));
+    res = f(1, 2);
+    printf("\nSpec: 1 + 2 = %d (counter %d)\n", res, counter);
 
     return 0;
 }
