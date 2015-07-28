@@ -1,0 +1,93 @@
+Binary Specialization
+=====================
+
+Goals:
+* low-level functionality for binary code modification at runtime:
+  library, independent on programming language (but on processor ISA)
+  
+* optimizations which demonstrate benefits
+  - inlining of libc functions (removing function call overhead)
+  - specialization/partial evaluation: take advantage of values known
+
+Approach:
+* use function call interface/calling convention to influence generator
+* code generation by following emulator executing other code
+* use generator request struct to specify actions
+
+Wanted features:
+* for x86_64/Linux
+* mark function parameters as constant for specialization
+* generation of new code: replace/insert/remove function calls/wrappers
+* dynamic detection of data region overlapping (conflicts/dependencies/PGAS)
+* dynamic locality optimization: reorder execution, generate conversions
+* dynamic prefetch insertion
+* generation of binary templates for fast code generation
+* data access remapping
+* explicit/implicit code management
+* external to binary (LD_PRELOAD + breakpoint handler, config file)
+* NOT: make it type-safe
+
+Open questions:
+* need for Pin-like API? (hook for each instruction/memory access/...)
+* how to add cache optimization/tiling strategies?
+* persistent code (generate into object files/shared libs?)
+* how to help for (better) SIMD code ?
+* for GPU: PTX/SPIR ?
+
+Show case:
+* 2D Jacobi
+  * stencil specified as arbitrary function
+  * include 2D looping with variable with/height, but border handling
+  * capture border and generate pack/unpack handler for MPI
+  * ...
+* Cache-oblivious algorithm
+
+
+Prototype
+=========
+
+* simple example (add two integers)
+  * binary x86_64 parser (DONE)
+  * binary emulator (DONE)
+  * binary re-generator (DONE)
+  * (nested) specialization of parameters
+* loop example: with variable/fixed loop count, special code for ranges
+  * complete unrolling
+  * fixed factor unrolling (how to specify?)
+  * series of subloops for ranges
+* SPMV with sparse matrix structure from input file
+* ...
+
+
+TODO:
+=====
+
+* Test suite to cover
+  * implemented instructions (parser/generator)
+  * calling convention (different number/types of parameters)
+  * all types of specialization transformations
+* ISA coverage
+  * examples
+  * x86_64 base
+  * x87, SSE, AVX, AVX512
+* code generator
+  * control flow support: needs relocation (RIP-relative bug)
+  * register re-allocation: live-ness analysis of registers/stack frame
+    - benefits: avoid spilling, save/restore, prolog/epilog
+    - easier by maintaining a virtual register mapping in emulation?
+
+MA Theses
+=========
+* Extend Parser/Emulator/Specializer for 2D Jacobi show case,
+  with control flow support, register-reallocation
+* PGAS abstractions as library
+  (domains, affinity mappings, iteration order, partitioning)
+* adaptive prefetching (assuming prefetcher model, extension for MIC)
+* fast code generator using dynamically generated templates & patching
+* dynamic data structure conversion
+* LLVM-IR generation
+
+BA Theses
+=========
+* Extend ISA coverage, test suite
+* SPMV: comparison with compiled code
