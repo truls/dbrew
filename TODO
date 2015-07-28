@@ -29,6 +29,7 @@ Wanted features:
 
 Open questions:
 * need for Pin-like API? (hook for each instruction/memory access/...)
+* config via function calls enough to reimplement Valgrind/Pin tools?
 * how to add cache optimization/tiling strategies?
 * persistent code (generate into object files/shared libs?)
 * how to help for (better) SIMD code ?
@@ -83,9 +84,10 @@ MA Theses
 * PGAS abstractions as library
   (domains, affinity mappings, iteration order, partitioning)
 * adaptive prefetching (assuming prefetcher model, extension for MIC)
+  + data structure reordering for better hardware prefetching
 * fast code generator using dynamically generated templates & patching
-* dynamic data structure conversion
 * LLVM-IR generation
+* re-implement simple tool from Valgrind/Pin
 
 BA Theses
 =========
