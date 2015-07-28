@@ -11,7 +11,6 @@ int counter = 0;
 int sum(int a, int b)
 {
     int res = a + b;
-    counter += res;
     return res;
 }
 

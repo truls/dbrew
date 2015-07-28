@@ -13,6 +13,8 @@
 #include <stdint.h>
 
 
+typedef struct _CaptureConfig CaptureConfig;
+
 /*------------------------------------------------------------
  * Code Storage
  */
@@ -107,6 +109,12 @@ typedef enum _InstrType {
     IT_Max
 } InstrType;
 
+typedef enum _ValType {
+    VT_None = 0,
+    VT_8, VT_16, VT_32, VT_64,
+    VT_Max
+} ValType;
+
 typedef enum _OpType {
     OT_None = 0,
     OT_Imm8, OT_Imm16, OT_Imm32, OT_Imm64,
@@ -136,8 +144,10 @@ typedef struct _Code {
     // decoded instructions
     int count, capacity;
     Instr* instr;
-    // buffer to capture emulation
+
+    // buffer/config to capture emulation (see below)
     CodeStorage* cs;
+    CaptureConfig* cc;
 } Code;
 
 // REX prefix, used in parseModRM
@@ -157,6 +167,8 @@ Code* allocCode(int capacity, int capture_capacity)
 	c->cs = initCodeStorage(capture_capacity);
     else
 	c->cs = 0;
+
+    c->cc = 0;
 
     return c;
 }
@@ -183,33 +195,33 @@ void freeCode(Code* c)
     free(c);
 }
 
-int opWidth(OpType ot)
+ValType opValType(Operand* o)
 {
-    switch(ot) {
+    switch(o->type) {
     case OT_Imm8:
     case OT_Reg8:
     case OT_Ind8:
-	return 8;
+	return VT_8;
     case OT_Imm16:
     case OT_Reg16:
     case OT_Ind16:
-	return 16;
+	return VT_16;
     case OT_Imm32:
     case OT_Reg32:
     case OT_Ind32:
-	return 32;
+	return VT_32;
     case OT_Imm64:
     case OT_Reg64:
     case OT_Ind64:
-	return 64;
+	return VT_64;
     default: assert(0);
     }
     return 0; // invalid;
 }
 
-int opIsImm(OpType ot)
+int opIsImm(Operand* o)
 {
-    switch(ot) {
+    switch(o->type) {
     case OT_Imm8:
     case OT_Imm16:
     case OT_Imm32:
@@ -219,9 +231,9 @@ int opIsImm(OpType ot)
     return 0;
 }
 
-int opIsReg(OpType ot)
+int opIsReg(Operand* o)
 {
-    switch(ot) {
+    switch(o->type) {
     case OT_Reg8:
     case OT_Reg16:
     case OT_Reg32:
@@ -231,9 +243,9 @@ int opIsReg(OpType ot)
     return 0;
 }
 
-int opIsInd(OpType ot)
+int opIsInd(Operand* o)
 {
-    switch(ot) {
+    switch(o->type) {
     case OT_Ind8:
     case OT_Ind16:
     case OT_Ind32:
@@ -243,19 +255,19 @@ int opIsInd(OpType ot)
     return 0;
 }
 
-
-Operand* getRegOp(int w, Reg r)
+Operand* getRegOp(ValType t, Reg r)
 {
     static Operand o;
-    switch(w) {
-    case 32:
+
+    switch(t) {
+    case VT_32:
 	assert((r >= Reg_AX) && (r <= Reg_15));
 	o.type = OT_Reg32;
 	o.reg = r;
 	o.scale = 0;
 	break;
 
-    case 64:
+    case VT_64:
 	assert((r >= Reg_AX) && (r <= Reg_15));
 	o.type = OT_Reg64;
 	o.reg = r;
@@ -267,6 +279,38 @@ Operand* getRegOp(int w, Reg r)
 
     return &o;
 }
+
+Operand* getImmOp(ValType t, uint64_t v)
+{
+    static Operand o;
+
+    switch(t) {
+    case VT_8:
+	o.type = OT_Imm8;
+	o.val = v;
+	break;
+
+    case VT_16:
+	o.type = OT_Imm16;
+	o.val = v;
+	break;
+
+    case VT_32:
+	o.type = OT_Imm32;
+	o.val = v;
+	break;
+
+    case VT_64:
+	o.type = OT_Imm64;
+	o.val = v;
+	break;
+
+    default: assert(0);
+    }
+
+    return &o;
+}
+
 
 void copyOperand(Operand* dst, Operand* src)
 {
@@ -443,14 +487,14 @@ void decodeFunc(Code* c, uint8_t* fp, int max, int stopAtRet)
 	case 0x54: case 0x55: case 0x56: case 0x57:
 	    // push
 	    addUnaryOp(c, a, (uint64_t)(fp + o),
-		       IT_PUSH, getRegOp(64, Reg_AX+(opc-0x50)));
+		       IT_PUSH, getRegOp(VT_64, Reg_AX+(opc-0x50)));
 	    break;
 
 	case 0x58: case 0x59: case 0x5A: case 0x5B:
 	case 0x5C: case 0x5D: case 0x5E: case 0x5F:
 	    // pop
 	    addUnaryOp(c, a, (uint64_t)(fp + o),
-		       IT_POP, getRegOp(64, Reg_AX+(opc-0x58)));
+		       IT_POP, getRegOp(VT_64, Reg_AX+(opc-0x58)));
 	    break;
 
 	case 0x89: {
@@ -484,7 +528,7 @@ void decodeFunc(Code* c, uint8_t* fp, int max, int stopAtRet)
 	    // lea r32/64,m
 	    Operand o1, o2;
 	    o += parseModRM(fp+o, hasRex ? rex:0, &o2, &o1);
-	    assert(opIsInd(o2.type)); // TODO: bad code error
+	    assert(opIsInd(&o2)); // TODO: bad code error
 	    addBinaryOp(c, a, (uint64_t)(fp + o),
 			IT_LEA, &o1, &o2);
 	    break;
@@ -652,19 +696,19 @@ uint8_t* calcModRM(Operand* o1, Operand* o2, int* prex, int* plen)
     int modrm, r1, r2;
     int o = 0, useDisp8 = 0, useDisp32 = 0;
 
-    assert(opWidth(o1->type) == opWidth(o2->type));
-    assert((opWidth(o1->type) == 32) || (opWidth(o1->type) == 64));
-    assert(opIsReg(o1->type) || opIsInd(o1->type));
-    assert(opIsReg(o2->type));
+    assert(opValType(o1) == opValType(o2));
+    assert((opValType(o1) == VT_32) || (opValType(o1) == VT_64));
+    assert(opIsReg(o1) || opIsInd(o1));
+    assert(opIsReg(o2));
 
-    if (opWidth(o1->type) == 64) *prex |= REX_MASK_W;
+    if (opValType(o1) == VT_64) *prex |= REX_MASK_W;
 
     // o2 always r
     r2 = o2->reg - Reg_AX;
     if (r2 & 8) *prex |= REX_MASK_R;
     modrm = (r2 & 7) << 3;
 
-    if (opIsReg(o1->type)) {
+    if (opIsReg(o1)) {
 	// r,r: mod 3
 	modrm |= 192;
 	r1 = o1->reg - Reg_AX;
@@ -748,7 +792,7 @@ int genModRM(uint8_t* buf, int opc, Operand* o1, Operand* o2)
 
 int genMov(uint8_t* buf, Operand* src, Operand* dst)
 {
-    assert(opWidth(src->type) == opWidth(dst->type));
+    assert(opValType(src) == opValType(dst));
     switch(dst->type) {
     case OT_Ind32:
     case OT_Ind64:
@@ -785,7 +829,7 @@ int genMov(uint8_t* buf, Operand* src, Operand* dst)
 
 int genAdd(uint8_t* buf, Operand* src, Operand* dst)
 {
-    assert(opWidth(src->type) == opWidth(dst->type));
+    assert(opValType(src) == opValType(dst));
     switch(src->type) {
     case OT_Reg32:
     case OT_Reg64:
@@ -809,8 +853,8 @@ int genAdd(uint8_t* buf, Operand* src, Operand* dst)
 
 int genLea(uint8_t* buf, Operand* src, Operand* dst)
 {
-    assert(opIsInd(src->type));
-    assert(opIsReg(dst->type));
+    assert(opIsInd(src));
+    assert(opIsReg(dst));
     switch(dst->type) {
     case OT_Reg32:
     case OT_Reg64:
@@ -856,19 +900,57 @@ void capture(CodeStorage* cs, Instr* instr)
 
 
 /*------------------------------------------------------------*/
-/* x86_64 emulator
+/* x86_64 capturing emulator
  */
 
+// emulator capture states
+typedef enum _CapState {
+    CS_DEAD = 0, CS_UNKNOWN, CS_CONSTANT, CS_KNOWN,
+    CS_Max
+} CapState;
+
+
 // emulator state. for memory, use the real memory apart from stack
-typedef struct _EState {
+typedef struct _EmuState {
 
     // general registers: Reg_AX .. Reg_R15
     uint64_t r[Reg_Max];
 
+    // stack
     int stack_capacity;
     uint8_t* stack;
 
+    // capture state
+    CapState reg_state[Reg_Max];
+    CapState *stack_state;
 } EmuState;
+
+// a single value with type and capture state
+typedef struct _EmuValue {
+    uint64_t val;
+    ValType type;
+    CapState state;
+} EmuValue;
+
+#define CC_MAXPARAM 4
+typedef struct _CaptureConfig
+{
+    CapState par_state[CC_MAXPARAM];
+} CaptureConfig;
+
+void initCaptureConfig(Code* c, int constPos)
+{
+    CaptureConfig* cc = (CaptureConfig*) malloc(sizeof(CaptureConfig));
+    int i;
+    for(i=0; i < CC_MAXPARAM; i++)
+	cc->par_state[i] = CS_UNKNOWN;
+    assert(constPos < CC_MAXPARAM);
+    if (constPos >= 0)
+	cc->par_state[constPos] = CS_CONSTANT;
+
+    c->cc = cc;
+}
+
 
 EmuState emuState;
 
@@ -883,6 +965,19 @@ void initEmulatorState(int stacksize)
 	emuState.stack[i] = 0;
     for(i=0; i<Reg_Max; i++)
 	emuState.r[i] = 0;
+
+    emuState.stack_state = (CapState*) malloc(stacksize);
+    for(i=0; i<Reg_Max; i++)
+	emuState.reg_state[i] = CS_DEAD;
+    for(i=0; i<stacksize; i++)
+	emuState.stack_state[i] = CS_DEAD;
+    // rbp, rbx, r12-r15 have to be preserved by callee
+    emuState.reg_state[Reg_BP] = CS_UNKNOWN;
+    emuState.reg_state[Reg_BX] = CS_UNKNOWN;
+    emuState.reg_state[Reg_12] = CS_UNKNOWN;
+    emuState.reg_state[Reg_13] = CS_UNKNOWN;
+    emuState.reg_state[Reg_14] = CS_UNKNOWN;
+    emuState.reg_state[Reg_15] = CS_UNKNOWN;
 }
 
 void printEState(EmuState* es)
@@ -892,101 +987,283 @@ void printEState(EmuState* es)
 
     printf("Registers:\n");
     for(i=Reg_AX; i<Reg_8; i++) {
-	printf(" %%r%-2s = 0x%016lx\n", regName(i), es->r[i]);
+	printf(" %%r%-2s = 0x%016lx %c\n",
+	       regName(i), es->r[i], "DUCK"[es->reg_state[i]]);
     }
     printf("Stack:\n");
     sp   = (uint8_t*) es->r[Reg_SP];
     smax = (uint8_t*) (es->r[Reg_SP]/8*8 + 24);
-    smin = (uint8_t*) (es->r[Reg_SP]/8*8 - 16);
+    smin = (uint8_t*) (es->r[Reg_SP]/8*8 - 32);
     if (smin < es->stack)
 	smin = es->stack;
     if (smax >= es->stack + es->stack_capacity)
 	smax = es->stack + es->stack_capacity -1;
     for(a = smin; a <= smax; a += 8) {
 	printf(" %016lx ", (uint64_t)a);
-	for(aa = a; aa < a+8 && aa <= smax; aa++)
-	    printf(" %s%02x", (aa == sp) ? "*" : " ", *aa);
+	for(aa = a; aa < a+8 && aa <= smax; aa++) {
+	    CapState s = es->stack_state[aa - es->stack];
+	    assert(s < CS_Max);
+	    printf(" %s%02x %c", (aa == sp) ? "*" : " ", *aa,"DUCK"[s]);
+	}
 	printf("\n");
+    }
+    printf(" %016lx  %s\n", (uint64_t)a, (a == sp) ? "*" : " ");
+}
+
+char combineState(char s1, char s2)
+{
+    // dead/invalid: combining with something invalid makes result invalid
+    if ((s1 == CS_DEAD) || (s2 == CS_DEAD)) return CS_DEAD;
+    // combining known/constant with unknown makes result unknown
+    if ((s1 == CS_UNKNOWN) || (s2 == CS_UNKNOWN)) return CS_UNKNOWN;
+    // combining constant with known makes result only known
+    if ((s1 == CS_KNOWN) || (s2 == CS_KNOWN)) return CS_KNOWN;
+    return CS_CONSTANT;
+}
+
+// return stack offset
+int checkStackAddr(EmuState* es, uint64_t addr)
+{
+    uint8_t* a = (uint8_t*) addr;
+    assert((a >= es->stack) && (a < es->stack + es->stack_capacity));
+    return a - es->stack;
+}
+
+void getRegValue(EmuValue* v, EmuState* es, Reg r, ValType t)
+{
+    v->type = t;
+    v->val = es->r[r];
+    v->state = es->reg_state[r];
+}
+
+void setRegValue(EmuValue* v, EmuState* es, Reg r, ValType t)
+{
+    assert(v->type == t);
+    es->r[r] = v->val;
+    es->reg_state[r] = v->state;
+}
+
+void getStackValue(EmuValue* v, EmuState* es, uint64_t a, ValType t)
+{
+    int off = checkStackAddr(es, a);
+    char state = es->stack_state[off];
+    int i;
+    v->type = t;
+    switch(t) {
+    case VT_32:
+	v->val = *(uint32_t*) a;
+	for(i=1; i<4; i++)
+	    state = combineState(state, es->stack_state[off+i]);
+	v->state = state;
+	break;
+
+    case VT_64:
+	v->val = *(uint64_t*) a;
+	for(i=1; i<8; i++)
+	    state = combineState(state, es->stack_state[off+i]);
+	v->state = state;
+	break;
+
+    default: assert(0);
     }
 }
 
-uint64_t getOpAddr(EmuState* es, Operand* o)
+void setStackValue(EmuValue* v, EmuState* es, uint64_t a, ValType t)
 {
-    uint64_t a;
+    int off = checkStackAddr(es, a);
+    uint32_t* a32;
+    uint64_t* a64;
+    int i;
+    assert(v->type == t);
+    switch(t) {
+    case VT_32:
+	a32 = (uint32_t*) a;
+	*a32 = (uint32_t) v->val;
+	for(i=0; i<4; i++)
+	    es->stack_state[off+i] = v->state;
+	break;
 
-    assert((o->type == OT_Ind8)  || (o->type == OT_Ind16) ||
-	   (o->type == OT_Ind32) || (o->type == OT_Ind64));
+    case VT_64:
+	a64 = (uint64_t*) a;
+	*a64 = (uint64_t) v->val;
+	for(i=0; i<8; i++)
+	    es->stack_state[off+i] = v->state;
+	break;
 
-    a = o->val;
-    if (o->reg != Reg_None) a += es->r[o->reg];
-    if (o->scale>0) a += o->scale * es->r[o->ireg];
+    default: assert(0);
+    }
+}
 
-    return a;
+void getOpAddr(EmuValue* v, EmuState* es, Operand* o)
+{
+    char state = CS_CONSTANT;
+    uint64_t addr = o->val;
+
+    assert(opIsInd(o));
+
+    v->type = VT_64;
+    if (o->reg != Reg_None) {
+	addr += es->r[o->reg];
+	state = combineState(state, es->reg_state[o->reg]);
+    }
+    if (o->scale > 0) {
+	addr += o->scale * es->r[o->ireg];
+	state = combineState(state, es->reg_state[o->ireg]);
+    }
+    v->state = state;
+    v->val = addr;
 }
 
 // returned value should be casted to expected type (8/16/32 bit)
-uint64_t getOpValue(EmuState* es, Operand* o)
+void getOpValue(EmuValue* v, EmuState* es, Operand* o)
 {
+    static EmuValue av;
+
     switch(o->type) {
     case OT_Reg32:
-	return (uint32_t) es->r[o->reg];
+	v->type = VT_32;
+	v->val = (uint32_t) es->r[o->reg];
+	v->state = es->reg_state[o->reg];
+	return;
 
     case OT_Reg64:
-	return es->r[o->reg];
+	v->type = VT_64;
+	v->val = (uint64_t) es->r[o->reg];
+	v->state = es->reg_state[o->reg];
+	return;
 
     case OT_Ind32:
-	return *(uint32_t*) getOpAddr(es, o);
+	getOpAddr(&av, es, o);
+	v->val = *(uint32_t*) av.val;
+	v->type = VT_32;
+	v->state = CS_UNKNOWN;
+	return;
 
     case OT_Ind64:
-	return *(uint64_t*) getOpAddr(es, o);
+	getOpAddr(&av, es, o);
+	v->val = *(uint64_t*) av.val;
+	v->type = VT_64;
+	v->state = CS_UNKNOWN;
+	return;
 
     default: assert(0);
     }
-    return 0;
 }
 
 // only the bits of v are used which are required for operand type
-void setOpValue(EmuState* es, Operand* o, uint64_t v)
+void setOpValue(EmuValue* v, EmuState* es, Operand* o)
 {
+    static EmuValue av;
     uint32_t* a32;
     uint64_t* a64;
 
+    assert(v->type == opValType(o));
     switch(o->type) {
     case OT_Reg32:
-	es->r[o->reg] = (uint32_t) v;
+	es->r[o->reg] = (uint32_t) v->val;
+	es->reg_state[o->reg] = v->state;
 	return;
 
     case OT_Reg64:
-	es->r[o->reg] = v;
+	es->r[o->reg] = v->val;
+	es->reg_state[o->reg] = v->state;
 	return;
 
     case OT_Ind32:
-	a32 = (uint32_t*) getOpAddr(es, o);
-	*a32 = (uint32_t) v;
+	getOpAddr(&av, es, o);
+	a32 = (uint32_t*) av.val;
+	*a32 = (uint32_t) v->val;
 	return;
 
     case OT_Ind64:
-	a64 = (uint64_t*) getOpAddr(es, o);
-	*a64 = v;
+	getOpAddr(&av, es, o);
+	a64 = (uint64_t*) av.val;
+	*a64 = v->val;
 	return;
 
     default: assert(0);
     }
 }
 
-void checkStackAddr(EmuState* es)
+void captureMov(CodeStorage* cs, Instr* orig, EmuValue* res)
 {
-    uint8_t* a = (uint8_t*) es->r[Reg_SP];
-    assert((a >= es->stack) && (a < es->stack + es->stack_capacity));
+    Instr i;
+
+    if (res->state == CS_DEAD) return;
+
+    i.type = IT_MOV;
+    if(res->state == CS_KNOWN || res->state == CS_CONSTANT)
+	copyOperand(&(i.src), getImmOp(res->type, res->val));
+    else
+	copyOperand(&(i.src), &(orig->src));
+    copyOperand(&(i.dst), &(orig->dst));
+
+    // generate code if result unknown or goes to memory
+    if ((res->state == CS_UNKNOWN) || opIsInd(&(orig->dst)))
+	capture(cs, &i);
+}
+
+void captureAdd(CodeStorage* cs, Instr* orig, EmuState* es, EmuValue* res)
+{
+    EmuValue opval;
+    Instr i;
+
+    if (res->state == CS_DEAD) return;
+
+    // if value is known and goes to memory, generate imm store
+    if ((res->state == CS_KNOWN) || (res->state == CS_CONSTANT)) {
+	if (!opIsInd(&(orig->dst))) return;
+	i.type = IT_MOV;
+	copyOperand(&(i.src), getImmOp(res->type, res->val));
+	copyOperand(&(i.dst), &(orig->dst));
+	capture(cs, &i);
+	return;
+    }
+
+    // if 2nd source (=dst) is known/constant and a reg, we need to update it
+    getOpValue(&opval, es, &(orig->dst));
+    if (!opIsInd(&(orig->dst)) &&
+	((opval.state == CS_KNOWN) || (opval.state == CS_CONSTANT))) {
+	i.type = IT_MOV;
+	copyOperand(&(i.src), getImmOp(opval.type, opval.val));
+	copyOperand(&(i.dst), &(orig->dst));
+	capture(cs, &i);
+    }
+
+    i.type = IT_ADD;
+    copyOperand(&(i.src), &(orig->src));
+    copyOperand(&(i.dst), &(orig->dst));
+
+    // if 1st source (=src) is known/constant and a reg, make it immediate
+    getOpValue(&opval, es, &(orig->src));
+    if (!opIsInd(&(orig->src)) &&
+	((opval.state == CS_KNOWN) || (opval.state == CS_CONSTANT)))
+	copyOperand(&(i.src), getImmOp(opval.type, opval.val));
+
+    capture(cs, &i);
+}
+
+void captureRet(CodeStorage* cs, Instr* orig, EmuState* es)
+{
+    EmuValue v;
+    Instr i;
+
+    getRegValue(&v, es, Reg_AX, VT_64);
+    if ((v.state == CS_KNOWN) || (v.state == CS_CONSTANT)) {
+	i.type = IT_MOV;
+	copyOperand(&(i.src), getImmOp(v.type, v.val));
+	copyOperand(&(i.dst), getRegOp(VT_64, Reg_AX));
+	capture(cs, &i);
+    }
+
+    capture(cs, orig);
 }
 
 
 uint64_t emulate(Code* c, ...)
 {
+    EmuValue v1, v2;
     int i, foundRet;
-    uint32_t* a32;
-    uint64_t* a64;
-    uint32_t v32;
     uint64_t v64;
 
     // setup int parameters for virtual CPU according to x86_64 calling conv.
@@ -997,15 +1274,18 @@ uint64_t emulate(Code* c, ...)
     asm("mov %%r8, %0;" : "=r" (v64) : );  emuState.r[Reg_CX] = v64;
     asm("mov %%r9, %0;" : "=r" (v64) : );  emuState.r[Reg_8] = v64;
     emuState.r[Reg_SP] = (uint64_t) (emuState.stack + emuState.stack_capacity);
-
-    printEState(&emuState);
+    emuState.reg_state[Reg_SP] = CS_UNKNOWN;
+    emuState.reg_state[Reg_DI] = c->cc ? c->cc->par_state[0] : CS_UNKNOWN;
+    emuState.reg_state[Reg_SI] = c->cc ? c->cc->par_state[1] : CS_UNKNOWN;
+    emuState.reg_state[Reg_DX] = c->cc ? c->cc->par_state[1] : CS_UNKNOWN;
+    emuState.reg_state[Reg_CX] = c->cc ? c->cc->par_state[1] : CS_UNKNOWN;
 
     foundRet = 0;
     i = 0;
     while((i < c->count) && !foundRet) {
 
 	Instr* instr = c->instr + i;
-	// printEState(&emuState);
+	printEState(&emuState);
 	printf("Emulating '%s'...\n", instr2string(instr));
 
 	// for RIP-relative accesses
@@ -1016,18 +1296,20 @@ uint64_t emulate(Code* c, ...)
 	    switch(instr->dst.type) {
 	    case OT_Reg32:
 		emuState.r[Reg_SP] -= 4;
-		checkStackAddr(&emuState);
-		a32 = (uint32_t*) emuState.r[Reg_SP];
-		*a32 = (uint32_t) getOpValue(&emuState, &(instr->dst));
-		capture(c->cs, instr);
+		checkStackAddr(&emuState, emuState.r[Reg_SP]);
+		getOpValue(&v1, &emuState, &(instr->dst));
+		setStackValue(&v1, &emuState, emuState.r[Reg_SP], VT_32);
+		if (v1.state == CS_UNKNOWN)
+		    capture(c->cs, instr);
 		break;
 
 	    case OT_Reg64:
 		emuState.r[Reg_SP] -= 8;
-		checkStackAddr(&emuState);
-		a64 = (uint64_t*) emuState.r[Reg_SP];
-		*a64 = (uint64_t) getOpValue(&emuState, &(instr->dst));
-		capture(c->cs, instr);
+		checkStackAddr(&emuState, emuState.r[Reg_SP]);
+		getOpValue(&v1, &emuState, &(instr->dst));
+		setStackValue(&v1, &emuState, emuState.r[Reg_SP], VT_64);
+		if (v1.state == CS_UNKNOWN)
+		    capture(c->cs, instr);
 		break;
 
 	    default: assert(0);
@@ -1037,19 +1319,21 @@ uint64_t emulate(Code* c, ...)
 	case IT_POP:
 	    switch(instr->dst.type) {
 	    case OT_Reg32:
-		checkStackAddr(&emuState);
-		a32 = (uint32_t*) emuState.r[Reg_SP];
-		setOpValue(&emuState, &(instr->dst), *a32);
+		checkStackAddr(&emuState, emuState.r[Reg_SP]);
+		getStackValue(&v1, &emuState, emuState.r[Reg_SP], VT_32);
+		setOpValue(&v1, &emuState, &(instr->dst));
 		emuState.r[Reg_SP] += 4;
-		capture(c->cs, instr);
+		if (v1.state == CS_UNKNOWN)
+		    capture(c->cs, instr);
 		break;
 
 	    case OT_Reg64:
-		checkStackAddr(&emuState);
-		a64 = (uint64_t*) emuState.r[Reg_SP];
-		setOpValue(&emuState, &(instr->dst), *a64);
+		checkStackAddr(&emuState, emuState.r[Reg_SP]);
+		getStackValue(&v1, &emuState, emuState.r[Reg_SP], VT_64);
+		setOpValue(&v1, &emuState, &(instr->dst));
 		emuState.r[Reg_SP] += 8;
-		capture(c->cs, instr);
+		if (v1.state == CS_UNKNOWN)
+		    capture(c->cs, instr);
 		break;
 
 	    default: assert(0);
@@ -1060,18 +1344,18 @@ uint64_t emulate(Code* c, ...)
 	    switch(instr->src.type) {
 	    case OT_Reg32:
 	    case OT_Ind32:
-		assert(opWidth(instr->dst.type) == 32);
-		v32 = (uint32_t) getOpValue(&emuState, &(instr->src));
-		setOpValue(&emuState, &(instr->dst), v32);
-		capture(c->cs, instr);
+		assert(opValType(&(instr->dst)) == VT_32);
+		getOpValue(&v1, &emuState, &(instr->src));
+		setOpValue(&v1, &emuState, &(instr->dst));
+		captureMov(c->cs, instr, &v1);
 		break;
 
 	    case OT_Reg64:
 	    case OT_Ind64:
-		assert(opWidth(instr->dst.type) == 64);
-		v64 = (uint64_t) getOpValue(&emuState, &(instr->src));
-		setOpValue(&emuState, &(instr->dst), v64);
-		capture(c->cs, instr);
+		assert(opValType(&(instr->dst)) == VT_64);
+		getOpValue(&v1, &emuState, &(instr->src));
+		setOpValue(&v1, &emuState, &(instr->dst));
+		captureMov(c->cs, instr, &v1);
 		break;
 
 	    default:assert(0);
@@ -1082,21 +1366,24 @@ uint64_t emulate(Code* c, ...)
 	    switch(instr->src.type) {
 	    case OT_Reg32:
 	    case OT_Ind32:
-		assert(opWidth(instr->dst.type) == 32);
-		v32 = (uint32_t) getOpValue(&emuState, &(instr->src));
-		v32 += (uint32_t) getOpValue(&emuState, &(instr->dst));
-		setOpValue(&emuState, &(instr->dst), v32);
-		capture(c->cs, instr);
+		assert(opValType(&(instr->dst)) == VT_32);
+		getOpValue(&v1, &emuState, &(instr->src));
+		getOpValue(&v2, &emuState, &(instr->dst));
+		v1.val = ((uint32_t) v1.val + (uint32_t) v2.val);
+		v1.state = combineState(v1.state, v2.state);
+		setOpValue(&v1, &emuState, &(instr->dst));
+		captureAdd(c->cs, instr, &emuState, &v1);
 		break;
 
 	    case OT_Reg64:
 	    case OT_Ind64:
-		assert(opWidth(instr->dst.type) == 64);
-		v64 = (uint64_t) getOpValue(&emuState, &(instr->src));
-		v64 += (uint64_t) getOpValue(&emuState, &(instr->dst));
-		setOpValue(&emuState, &(instr->dst), v64);
-		capture(c->cs, instr);
-		break;
+		assert(opValType(&(instr->dst)) == VT_64);
+		getOpValue(&v1, &emuState, &(instr->src));
+		getOpValue(&v2, &emuState, &(instr->dst));
+		v1.val = v1.val + v2.val;
+		v1.state = combineState(v1.state, v2.state);
+		setOpValue(&v1, &emuState, &(instr->dst));
+		captureAdd(c->cs, instr, &emuState, &v1);
 
 	    default:assert(0);
 	    }
@@ -1104,18 +1391,13 @@ uint64_t emulate(Code* c, ...)
 
 	case IT_LEA:
 	    switch(instr->dst.type) {
-	    case OT_Reg64:
-		assert(opIsInd(instr->src.type));
-		v64 = (uint64_t) getOpAddr(&emuState, &(instr->src));
-		setOpValue(&emuState, &(instr->dst), v64);
-		capture(c->cs, instr);
-		break;
-
 	    case OT_Reg32:
-		assert(opIsInd(instr->src.type));
-		v32 = (uint32_t) getOpAddr(&emuState, &(instr->src));
-		setOpValue(&emuState, &(instr->dst), v32);
-		capture(c->cs, instr);
+	    case OT_Reg64:
+		assert(opIsInd(&(instr->src)));
+		getOpAddr(&v1, &emuState, &(instr->src));
+		setOpValue(&v1, &emuState, &(instr->dst));
+		if (v1.state == CS_UNKNOWN)
+		    capture(c->cs, instr);
 		break;
 
 	    default:assert(0);
@@ -1123,7 +1405,8 @@ uint64_t emulate(Code* c, ...)
 	    break;
 
 	case IT_RET:
-	    capture(c->cs, instr);
+	    // TODO: if AX constant, generate mov imm, rax
+	    captureRet(c->cs, instr, &emuState);
 	    foundRet = 1;
 	    break;
 

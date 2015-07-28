@@ -1,0 +1,7 @@
+Current Bugs:
+=============
+
+* Stack may be accessed via regular MOV:
+  Need to maintain CapState / Capture behavior also this way.
+
+* RIP-relative addressing needs relocation

@@ -47,7 +47,15 @@ Show case:
 Prototype
 =========
 
-* simple example (add two integers)
+Capturing
+* const-ness for parameters for specialization
+* influence capturing/code generation
+  * keep call to given function in generated code
+  * hook to call for remapping memory access
+
+
+Example driven implementation
+* simple example: add two integers
   * binary x86_64 parser (DONE)
   * binary emulator (DONE)
   * binary re-generator (DONE)
@@ -60,9 +68,7 @@ Prototype
 * ...
 
 
-TODO:
-=====
-
+Tasks/Todo
 * Test suite to cover
   * implemented instructions (parser/generator)
   * calling convention (different number/types of parameters)
@@ -77,8 +83,12 @@ TODO:
     - benefits: avoid spilling, save/restore, prolog/epilog
     - easier by maintaining a virtual register mapping in emulation?
 
+
+
+Students Work
+=============
+
 MA Theses
-=========
 * Extend Parser/Emulator/Specializer for 2D Jacobi show case,
   with control flow support, register-reallocation
 * PGAS abstractions as library
@@ -90,6 +100,5 @@ MA Theses
 * re-implement simple tool from Valgrind/Pin
 
 BA Theses
-=========
 * Extend ISA coverage, test suite
 * SPMV: comparison with compiled code
