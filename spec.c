@@ -1697,6 +1697,10 @@ uint64_t emulate(Code* c, ...)
 	    case OT_Reg64:
 		assert(opIsInd(&(instr->src)));
                 getOpAddr(&v1, es, &(instr->src));
+                if (opValType(&(instr->dst)) == VT_32) {
+                    v1.val = (uint32_t) v1.val;
+                    v1.type = VT_32;
+                }
                 setOpValue(&v1, es, &(instr->dst));
 		if (v1.state == CS_DYNAMIC)
 		    capture(c->cs, instr);

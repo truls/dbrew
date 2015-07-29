@@ -1,3 +1,6 @@
 Bugs:
 
+* propagate static-ness/specialize also in addressing modes
+    lea (rax),ebx  captures mov 1,ebx if rax is static with value 1
+    mov (rax),ebx  with rax dynamic can never give a static ebx (for stack!)
 * RIP-relative addressing needs relocation
