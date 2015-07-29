@@ -53,7 +53,7 @@ CodeStorage* initCodeStorage(int size)
     cs->buf = buf;
     cs->used = 0;
 
-    fprintf(stderr, "Allocated Code Storage (size %d)\n", fullsize);
+    //fprintf(stderr, "Allocated Code Storage (size %d)\n", fullsize);
 
     return cs;
 }
@@ -177,12 +177,12 @@ Code* allocCode(int capacity, int capture_capacity)
     return c;
 }
 
-uint8_t* capturedCode(Code* c)
+uint64_t capturedCode(Code* c)
 {
     if ((c->cs == 0) || (c->cs->used == 0))
 	return 0;
 
-    return c->cs->buf;
+    return (uint64_t) c->cs->buf;
 }
 
 int capturedCodeSize(Code* c)
@@ -481,12 +481,14 @@ int parseModRM(uint8_t* p, int rex, Operand* o1, Operand* o2, int* digit)
     return o;
 }
 
-void decodeFunc(Code* c, uint8_t* fp, int max, int stopAtRet)
+void decodeFunc(Code* c, uint64_t f, int max, int stopAtRet)
 {
     int hasRex, rex; // REX prefix
     uint64_t a;
-    int i, o, retFound, opc;
+    int o, retFound, opc;
+    uint8_t* fp;
 
+    fp = (uint8_t*) f;
     c->count = 0;
 
     o = 0;
@@ -1060,6 +1062,28 @@ void setCaptureConfig(Code* c, int constPos)
     c->cc = cc;
 }
 
+void setCaptureConfig2(Code* c, int constPos1, int constPos2)
+{
+    CaptureConfig* cc;
+    int i;
+
+    if (c->cc)
+        free(c->cc);
+
+    cc = (CaptureConfig*) malloc(sizeof(CaptureConfig));
+    for(i=0; i < CC_MAXPARAM; i++)
+        cc->par_state[i] = CS_DYNAMIC;
+    assert(constPos1 < CC_MAXPARAM);
+    assert(constPos2 < CC_MAXPARAM);
+    if (constPos1 >= 0)
+        cc->par_state[constPos1] = CS_STATIC;
+    if (constPos2 >= 0)
+        cc->par_state[constPos2] = CS_STATIC;
+
+    c->cc = cc;
+}
+
+
 EmuValue emuValue(uint64_t v, ValType t, CapState s)
 {
     EmuValue ev;
@@ -1478,7 +1502,7 @@ uint64_t emulate(Code* c, ...)
 
 	Instr* instr = c->instr + i;
         printEmuState(es);
-	printf("Emulating '%s'...\n", instr2string(instr));
+        printf("Emulate '%s'\n", instr2string(instr));
 
 	// for RIP-relative accesses
         es->reg[Reg_IP] = instr->addr + instr->len;
@@ -1565,8 +1589,9 @@ uint64_t emulate(Code* c, ...)
                 getOpValue(&v2, es, &(instr->dst));
 		v1.val = ((uint32_t) v1.val + (uint32_t) v2.val);
 		v1.state = combineState(v1.state, v2.state);
-                setOpValue(&v1, es, &(instr->dst));
+                // for capture we need state of dst, do before setting dst
                 captureAdd(c->cs, instr, es, &v1);
+                setOpValue(&v1, es, &(instr->dst));
 		break;
 
 	    case OT_Reg64:
@@ -1576,8 +1601,9 @@ uint64_t emulate(Code* c, ...)
                 getOpValue(&v2, es, &(instr->dst));
 		v1.val = v1.val + v2.val;
 		v1.state = combineState(v1.state, v2.state);
-                setOpValue(&v1, es, &(instr->dst));
+                // for capture we need state of dst, do before setting dst
                 captureAdd(c->cs, instr, es, &v1);
+                setOpValue(&v1, es, &(instr->dst));
 
 	    default:assert(0);
 	    }
@@ -1615,24 +1641,3 @@ uint64_t emulate(Code* c, ...)
     return es->reg[Reg_AX];
 }
 
-
-/*------------------------------------------------------------*/
-/* x86_64 test/specialize functions
- */
-
-void_func spec2(uint8_t* f, ...)
-{
-    uint8_t* p;
-    Code* c;
-
-    c = allocCode(100, 0);
-    decodeFunc(c, f, 100, 1);
-
-    CodeStorage* cs = initCodeStorage(4096);
-    p = useCodeStorage(cs, 50);
-
-    // TODO: Specialize for constant parameter 2
-    memcpy(p, (uint8_t*)f, 50);
-
-    return (void_func)p;
-}

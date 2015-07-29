@@ -8,6 +8,19 @@
 
 int counter = 0;
 
+/* Compiled with -O0:
+ *   55         push  %rbp
+ *   48 89 e5   mov   %rsp,%rbp
+ *   89 7d ec   mov   %edi,-0x14(%rbp)
+ *   89 75 e8   mov   %esi,-0x18(%rbp)
+ *   8b 55 ec   mov   -0x14(%rbp),%edx
+ *   8b 45 e8   mov   -0x18(%rbp),%eax
+ *   01 d0      add   %edx,%eax
+ *   89 45 fc   mov   %eax,-0x4(%rbp)
+ *   8b 45 fc   mov   -0x4(%rbp),%eax
+ *   5d         pop   %rbp
+ *   c3         ret
+*/
 int sum(int a, int b)
 {
     int res = a + b;
@@ -16,48 +29,65 @@ int sum(int a, int b)
 
 typedef int (*sum_func)(int,int);
 
+// decode captured code from c1 into c2
+void emulateCaptureRun(char* t1, char* t2, char* t3, Code* c1, Code* c2)
+{
+    int res;
+    sum_func f;
+
+    printf("\nRun emulator for %s, capturing %s:\n", t1, t2);
+    res = (int)emulate(c1, 1, 2);
+    printf(" Result: %d\n", res);
+
+    printf("\nCaptured code (size %d):\n", capturedCodeSize(c1));
+    decodeFunc(c2, capturedCode(c1), capturedCodeSize(c1), 0);
+    printCode(c2);
+
+    f = (sum_func) capturedCode(c1);
+    res = f(4, 7);
+    printf("Run captured: %s = %d\n", t3, res);
+}
+
 int main()
 {
-    uint8_t *captured;
-    sum_func cap_func;
-    Code *c1, *c2;
+    Code *c1, *c2, *c3;
     int res;
 
-    res = sum(1,2);
-    printf("Native: 1 + 2 = %d (counter %d)\n", res, counter);
-
     c1 = allocCode(100, 1000);
-    decodeFunc(c1, (uint8_t*) sum, 100, 1);
-    printf("Code:\n");
+    c2 = allocCode(100, 1000);
+    c3 = allocCode(100, 0);
+
+    res = sum(1,2);
+    printf("Run native: 1 + 2 = %d\n", res);
+    printf("Native code:\n");
+    decodeFunc(c1, (uint64_t)sum, 100, 1);
     printCode(c1);
 
-    printf("\nRun emulator for sum(1,2), capturing unmodified:\n");
-    res = (int)emulate(c1, 1, 2);
-    printf(" Result: %d\n", res);
+    emulateCaptureRun("sum(1,2)", "unmodified", "4 + 7", c1, c2);
 
-    c2 = allocCode(100, 0);
-    captured = capturedCode(c1);
-    decodeFunc(c2, captured, capturedCodeSize(c1), 0);
-    printf("\nCaptured code (size %d):\n", capturedCodeSize(c1));
-    printCode(c2);
+    // Specialize sum for par 1
+    setCaptureConfig(c1, 0);
+    emulateCaptureRun("sum(1,2)", "with par1=1", "4 (1) + 7", c1, c2);
 
-    cap_func = (sum_func) captured;
-    res = cap_func(1, 2);
-    printf("Run captured: 1 + 2 = %d\n", res);
+    // Nesting
+    setCaptureConfig(c2, 1);
+    emulateCaptureRun("sum1(x,2)", "with par2=2", "4 (1) + 7 (2)", c2, c3);
 
+    // Specialize sum for par 2
     setCaptureConfig(c1, 1);
-    printf("\nRun emulator capturing specialized par2 = 2:\n");
-    res = (int)emulate(c1, 1, 2);
-    printf(" Result: %d\n", res);
+    emulateCaptureRun("sum(1,2)", "with par2=2", "4 + 7 (2)", c1, c2);
 
-    captured = capturedCode(c1);
-    decodeFunc(c2, captured, capturedCodeSize(c1), 0);
-    printf("\nCaptured code (size %d):\n", capturedCodeSize(c1));
-    printCode(c2);
+    // Nesting
+    setCaptureConfig(c2, 0);
+    emulateCaptureRun("sum2(1,x)", "with par1=1", "4 (1) + 7 (2)", c2, c3);
 
-    cap_func = (sum_func) captured;
-    res = cap_func(3, 4);
-    printf("Run captured: 3 + 4 = %d\n", res);
+    // Specialize Par 1 and 2
+    setCaptureConfig2(c1, 0,1);
+    emulateCaptureRun("sum(1,2)", "with par1/2=1/2", "4 (1) + 7 (2)", c1, c2);
+
+    // Nesting (should do nothing)
+    setCaptureConfig2(c2, 0,1);
+    emulateCaptureRun("sum12(x,x)", "with par1/2=1/2", "4 (1) + 7 (2)", c2, c3);
 
     return 0;
 }

@@ -17,7 +17,7 @@ typedef struct _Code Code;
 Code* allocCode(int capacity, int capture_capacity);
 
 // decode binary code starting at function pointer <f> into <c>
-void decodeFunc(Code* c, uint8_t *fp, int max, int stopAtRet);
+void decodeFunc(Code* c, uint64_t f, int max, int stopAtRet);
 
 // print instructions in <c>
 void printCode(Code* c);
@@ -30,10 +30,11 @@ void configEmuState(Code *c, int stacksize);
 uint64_t emulate(Code* c, ...);
 
 // buffer with regenerated code, captured from emulation
-uint8_t* capturedCode(Code* c);
+uint64_t capturedCode(Code* c);
 int capturedCodeSize(Code* c);
 
-// define a parameter to assume static for emulation
+// define a parameter(s) to assume static for emulation
 void setCaptureConfig(Code* c, int constPos);
+void setCaptureConfig2(Code* c, int constPos1, int constPos2);
 
 #endif // SPEC_H
