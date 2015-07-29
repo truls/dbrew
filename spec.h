@@ -23,7 +23,7 @@ void decodeFunc(Code* c, uint8_t *fp, int max, int stopAtRet);
 void printCode(Code* c);
 
 // initialize emulator, use given stack size
-void initEmuState(int stacksize);
+void configEmuState(Code *c, int stacksize);
 
 // emulate the given decoded binary code
 // initialize state with function parameters ('...')
@@ -33,7 +33,7 @@ uint64_t emulate(Code* c, ...);
 uint8_t* capturedCode(Code* c);
 int capturedCodeSize(Code* c);
 
-// specialize function for constant parameter 2
-void_func spec2(uint8_t*, ...);
+// define a parameter to assume static for emulation
+void setCaptureConfig(Code* c, int constPos);
 
 #endif // SPEC_H

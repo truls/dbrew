@@ -18,7 +18,8 @@ typedef int (*sum_func)(int,int);
 
 int main()
 {
-    uint8_t* captured;
+    uint8_t *captured;
+    sum_func cap_func;
     Code *c1, *c2;
     int res;
 
@@ -30,27 +31,33 @@ int main()
     printf("Code:\n");
     printCode(c1);
 
-    printf("\nRun emulator:\n");
-    initEmuState(1024);
+    printf("\nRun emulator for sum(1,2), capturing unmodified:\n");
     res = (int)emulate(c1, 1, 2);
-    printf("Emulated: 1 + 2 = %d (counter %d)\n", res, counter);
-    //printf("55 + 12345 = %d\n", (int)emulate(c1, 55, 12345));
+    printf(" Result: %d\n", res);
 
-    // regenerate code
-    captured = capturedCode(c1);
     c2 = allocCode(100, 0);
+    captured = capturedCode(c1);
     decodeFunc(c2, captured, capturedCodeSize(c1), 0);
-    printf("\nCaptured code (size %d):\n",
-	   capturedCodeSize(c1));
+    printf("\nCaptured code (size %d):\n", capturedCodeSize(c1));
     printCode(c2);
-    sum_func cap_func = (sum_func) captured;
-    res = cap_func(1, 2);
-    printf("Run captured: 1 + 2 = %d (counter %d)\n", res, counter);
 
-    // specialized (TODO: does nothing for now)
-    sum_func f = (sum_func) spec2((uint8_t*) sum, 1, 1);
-    res = f(1, 2);
-    printf("\nSpec: 1 + 2 = %d (counter %d)\n", res, counter);
+    cap_func = (sum_func) captured;
+    res = cap_func(1, 2);
+    printf("Run captured: 1 + 2 = %d\n", res);
+
+    setCaptureConfig(c1, 1);
+    printf("\nRun emulator capturing specialized par2 = 2:\n");
+    res = (int)emulate(c1, 1, 2);
+    printf(" Result: %d\n", res);
+
+    captured = capturedCode(c1);
+    decodeFunc(c2, captured, capturedCodeSize(c1), 0);
+    printf("\nCaptured code (size %d):\n", capturedCodeSize(c1));
+    printCode(c2);
+
+    cap_func = (sum_func) captured;
+    res = cap_func(3, 4);
+    printf("Run captured: 3 + 4 = %d\n", res);
 
     return 0;
 }
