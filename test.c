@@ -31,7 +31,7 @@ int main()
     printCode(c1);
 
     printf("\nRun emulator:\n");
-    initEmulatorState(1024);
+    initEmuState(1024);
     res = (int)emulate(c1, 1, 2);
     printf("Emulated: 1 + 2 = %d (counter %d)\n", res, counter);
     //printf("55 + 12345 = %d\n", (int)emulate(c1, 55, 12345));

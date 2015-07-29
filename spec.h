@@ -23,7 +23,7 @@ void decodeFunc(Code* c, uint8_t *fp, int max, int stopAtRet);
 void printCode(Code* c);
 
 // initialize emulator, use given stack size
-void initEmulatorState(int stacksize);
+void initEmuState(int stacksize);
 
 // emulate the given decoded binary code
 // initialize state with function parameters ('...')

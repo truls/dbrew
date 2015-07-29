@@ -50,6 +50,7 @@ CodeStorage* initCodeStorage(int size)
     cs->size = size;
     cs->fullsize = fullsize;
     cs->buf = buf;
+    cs->used = 0;
 
     fprintf(stderr, "Allocated Code Storage (size %d)\n", fullsize);
 
@@ -343,6 +344,27 @@ void copyOperand(Operand* dst, Operand* src)
     default: assert(0);
     }
 }
+
+void initSimpleInstr(Instr* i, InstrType it)
+{
+    i->addr = 0; // unknown: created, not parsed
+    i->len = 0;
+    i->type = it;
+}
+
+void initUnaryInstr(Instr* i, InstrType it, Operand* o)
+{
+    initSimpleInstr(i, it);
+    copyOperand( &(i->dst), o);
+}
+
+void initBinaryInstr(Instr* i, InstrType it, Operand *o1, Operand *o2)
+{
+    initSimpleInstr(i, it);
+    copyOperand( &(i->dst), o1);
+    copyOperand( &(i->src), o2);
+}
+
 
 Instr* nextInstr(Code* c, uint64_t a, int len)
 {
@@ -872,6 +894,8 @@ void capture(CodeStorage* cs, Instr* instr)
     int used;
     if (cs == 0) return;
 
+    printf("Captured '%s'\n", instr2string(instr));
+
     buf = reserveCodeStorage(cs,15);
     switch(instr->type) {
     case IT_PUSH:
@@ -903,9 +927,14 @@ void capture(CodeStorage* cs, Instr* instr)
 /* x86_64 capturing emulator
  */
 
+// we trace execution in an emulator for code generation
+// TODO: branching depending on dynamic data
+
 // emulator capture states
 typedef enum _CapState {
-    CS_DEAD = 0, CS_UNKNOWN, CS_CONSTANT, CS_KNOWN,
+    CS_DEAD = 0, // uninitialized, should be invalid to access
+    CS_DYNAMIC,  // data unknown at code generation time
+    CS_STATIC,   // data known at code generation time
     CS_Max
 } CapState;
 
@@ -943,18 +972,27 @@ void initCaptureConfig(Code* c, int constPos)
     CaptureConfig* cc = (CaptureConfig*) malloc(sizeof(CaptureConfig));
     int i;
     for(i=0; i < CC_MAXPARAM; i++)
-	cc->par_state[i] = CS_UNKNOWN;
+	cc->par_state[i] = CS_DYNAMIC;
     assert(constPos < CC_MAXPARAM);
     if (constPos >= 0)
-	cc->par_state[constPos] = CS_CONSTANT;
+	cc->par_state[constPos] = CS_STATIC;
 
     c->cc = cc;
 }
 
+EmuValue emuValue(uint64_t v, ValType t, CapState s)
+{
+    EmuValue ev;
+    ev.val = v;
+    ev.type = t;
+    ev.state = s;
+
+    return ev;
+}
 
 EmuState emuState;
 
-void initEmulatorState(int stacksize)
+void initEmuState(int stacksize)
 {
     int i;
 
@@ -966,29 +1004,30 @@ void initEmulatorState(int stacksize)
     for(i=0; i<Reg_Max; i++)
 	emuState.r[i] = 0;
 
-    emuState.stack_state = (CapState*) malloc(stacksize);
+    emuState.stack_state = (CapState*) malloc(sizeof(CapState) * stacksize);
     for(i=0; i<Reg_Max; i++)
 	emuState.reg_state[i] = CS_DEAD;
     for(i=0; i<stacksize; i++)
 	emuState.stack_state[i] = CS_DEAD;
-    // rbp, rbx, r12-r15 have to be preserved by callee
-    emuState.reg_state[Reg_BP] = CS_UNKNOWN;
-    emuState.reg_state[Reg_BX] = CS_UNKNOWN;
-    emuState.reg_state[Reg_12] = CS_UNKNOWN;
-    emuState.reg_state[Reg_13] = CS_UNKNOWN;
-    emuState.reg_state[Reg_14] = CS_UNKNOWN;
-    emuState.reg_state[Reg_15] = CS_UNKNOWN;
+    // calling convention: rbp, rbx, r12-r15 have to be preserved by callee
+    emuState.reg_state[Reg_BP] = CS_DYNAMIC;
+    emuState.reg_state[Reg_BX] = CS_DYNAMIC;
+    emuState.reg_state[Reg_12] = CS_DYNAMIC;
+    emuState.reg_state[Reg_13] = CS_DYNAMIC;
+    emuState.reg_state[Reg_14] = CS_DYNAMIC;
+    emuState.reg_state[Reg_15] = CS_DYNAMIC;
 }
 
-void printEState(EmuState* es)
+void printEmuState(EmuState* es)
 {
     int i;
     uint8_t *sp, *smin, *smax, *a, *aa;
 
     printf("Registers:\n");
     for(i=Reg_AX; i<Reg_8; i++) {
-	printf(" %%r%-2s = 0x%016lx %c\n",
-	       regName(i), es->r[i], "DUCK"[es->reg_state[i]]);
+	CapState s = es->reg_state[i];
+	assert(s < CS_Max);
+	printf(" %%r%-2s = 0x%016lx %c\n", regName(i), es->r[i], "-DS"[s]);
     }
     printf("Stack:\n");
     sp   = (uint8_t*) es->r[Reg_SP];
@@ -1003,7 +1042,7 @@ void printEState(EmuState* es)
 	for(aa = a; aa < a+8 && aa <= smax; aa++) {
 	    CapState s = es->stack_state[aa - es->stack];
 	    assert(s < CS_Max);
-	    printf(" %s%02x %c", (aa == sp) ? "*" : " ", *aa,"DUCK"[s]);
+	    printf(" %s%02x %c", (aa == sp) ? "*" : " ", *aa,"-DS"[s]);
 	}
 	printf("\n");
     }
@@ -1015,18 +1054,18 @@ char combineState(char s1, char s2)
     // dead/invalid: combining with something invalid makes result invalid
     if ((s1 == CS_DEAD) || (s2 == CS_DEAD)) return CS_DEAD;
     // combining known/constant with unknown makes result unknown
-    if ((s1 == CS_UNKNOWN) || (s2 == CS_UNKNOWN)) return CS_UNKNOWN;
-    // combining constant with known makes result only known
-    if ((s1 == CS_KNOWN) || (s2 == CS_KNOWN)) return CS_KNOWN;
-    return CS_CONSTANT;
+    if ((s1 == CS_DYNAMIC) || (s2 == CS_DYNAMIC)) return CS_DYNAMIC;
+
+    return CS_STATIC;
 }
 
-// return stack offset
+// return stack offset or -1 if not on stack
 int checkStackAddr(EmuState* es, uint64_t addr)
 {
     uint8_t* a = (uint8_t*) addr;
-    assert((a >= es->stack) && (a < es->stack + es->stack_capacity));
-    return a - es->stack;
+    if ((a >= es->stack) && (a < es->stack + es->stack_capacity))
+	return a - es->stack;
+    return -1;
 }
 
 void getRegValue(EmuValue* v, EmuState* es, Reg r, ValType t)
@@ -1045,9 +1084,14 @@ void setRegValue(EmuValue* v, EmuState* es, Reg r, ValType t)
 
 void getStackValue(EmuValue* v, EmuState* es, uint64_t a, ValType t)
 {
-    int off = checkStackAddr(es, a);
-    char state = es->stack_state[off];
+    int off;
+    CapState state;
     int i;
+
+    off = checkStackAddr(es, a);
+    assert(off >= 0);
+    state = es->stack_state[off];
+
     v->type = t;
     switch(t) {
     case VT_32:
@@ -1070,10 +1114,13 @@ void getStackValue(EmuValue* v, EmuState* es, uint64_t a, ValType t)
 
 void setStackValue(EmuValue* v, EmuState* es, uint64_t a, ValType t)
 {
-    int off = checkStackAddr(es, a);
+    int off;
     uint32_t* a32;
     uint64_t* a64;
     int i;
+
+    off = checkStackAddr(es, a);
+    assert(off >= 0);
     assert(v->type == t);
     switch(t) {
     case VT_32:
@@ -1096,7 +1143,7 @@ void setStackValue(EmuValue* v, EmuState* es, uint64_t a, ValType t)
 
 void getOpAddr(EmuValue* v, EmuState* es, Operand* o)
 {
-    char state = CS_CONSTANT;
+    char state = CS_STATIC;
     uint64_t addr = o->val;
 
     assert(opIsInd(o));
@@ -1136,14 +1183,14 @@ void getOpValue(EmuValue* v, EmuState* es, Operand* o)
 	getOpAddr(&av, es, o);
 	v->val = *(uint32_t*) av.val;
 	v->type = VT_32;
-	v->state = CS_UNKNOWN;
+	v->state = CS_DYNAMIC;
 	return;
 
     case OT_Ind64:
 	getOpAddr(&av, es, o);
 	v->val = *(uint64_t*) av.val;
 	v->type = VT_64;
-	v->state = CS_UNKNOWN;
+	v->state = CS_DYNAMIC;
 	return;
 
     default: assert(0);
@@ -1154,6 +1201,7 @@ void getOpValue(EmuValue* v, EmuState* es, Operand* o)
 void setOpValue(EmuValue* v, EmuState* es, Operand* o)
 {
     static EmuValue av;
+    int i, off;
     uint32_t* a32;
     uint64_t* a64;
 
@@ -1173,73 +1221,94 @@ void setOpValue(EmuValue* v, EmuState* es, Operand* o)
 	getOpAddr(&av, es, o);
 	a32 = (uint32_t*) av.val;
 	*a32 = (uint32_t) v->val;
+        // if address is on stack, update state
+        off = checkStackAddr(es, av.val);
+        if (off >= 0)
+           for(i = 0; i < 4; i++)
+               es->stack_state[off+i] = v->state;
 	return;
 
     case OT_Ind64:
 	getOpAddr(&av, es, o);
 	a64 = (uint64_t*) av.val;
 	*a64 = v->val;
+        // if address is on stack, update state
+        off = checkStackAddr(es, av.val);
+        if (off >= 0)
+           for(i = 0; i < 8; i++)
+               es->stack_state[off+i] = v->state;
 	return;
 
     default: assert(0);
     }
 }
 
-void captureMov(CodeStorage* cs, Instr* orig, EmuValue* res)
+// true if operand is memory access not going into stack range
+int destinationIsMemory(EmuState* es, Operand* o)
+{
+    EmuValue addr;
+    int off;
+
+    if (!opIsInd(o)) return 0;
+    getOpAddr(&addr, es, o);
+    off = checkStackAddr(es, addr.val);
+    return (off >= 0) ? 1:0;
+}
+
+void captureMov(CodeStorage* cs, Instr* orig, EmuState* es, EmuValue* res)
 {
     Instr i;
+    Operand *o;
+
+    // data movement from orig->src to orig->dst, value is res
 
     if (res->state == CS_DEAD) return;
 
-    i.type = IT_MOV;
-    if(res->state == CS_KNOWN || res->state == CS_CONSTANT)
-	copyOperand(&(i.src), getImmOp(res->type, res->val));
-    else
-	copyOperand(&(i.src), &(orig->src));
-    copyOperand(&(i.dst), &(orig->dst));
+    o = &(orig->src);
+    if (res->state == CS_STATIC) {
+        // no need to update static data in reg or on stack
+        if (!destinationIsMemory(es, &(orig->dst))) return;
 
-    // generate code if result unknown or goes to memory
-    if ((res->state == CS_UNKNOWN) || opIsInd(&(orig->dst)))
-	capture(cs, &i);
+	// source is static, use immediate
+        o = getImmOp(res->type, res->val);
+    }
+    initBinaryInstr(&i, IT_MOV, &(orig->dst), o);
+    capture(cs, &i);
 }
 
 void captureAdd(CodeStorage* cs, Instr* orig, EmuState* es, EmuValue* res)
 {
     EmuValue opval;
     Instr i;
+    Operand *o;
 
     if (res->state == CS_DEAD) return;
 
-    // if value is known and goes to memory, generate imm store
-    if ((res->state == CS_KNOWN) || (res->state == CS_CONSTANT)) {
-	if (!opIsInd(&(orig->dst))) return;
-	i.type = IT_MOV;
-	copyOperand(&(i.src), getImmOp(res->type, res->val));
-	copyOperand(&(i.dst), &(orig->dst));
+    // if result is known and goes to memory, generate imm store
+    if (res->state == CS_STATIC) {
+	if (!destinationIsMemory(es, &(orig->dst))) return;
+
+        initBinaryInstr(&i, IT_MOV,
+                        &(orig->dst), getImmOp(res->type, res->val));
 	capture(cs, &i);
 	return;
     }
 
     // if 2nd source (=dst) is known/constant and a reg, we need to update it
     getOpValue(&opval, es, &(orig->dst));
-    if (!opIsInd(&(orig->dst)) &&
-	((opval.state == CS_KNOWN) || (opval.state == CS_CONSTANT))) {
-	i.type = IT_MOV;
-	copyOperand(&(i.src), getImmOp(opval.type, opval.val));
-	copyOperand(&(i.dst), &(orig->dst));
+    if (!opIsInd(&(orig->dst)) && (opval.state == CS_STATIC)) {
+        initBinaryInstr(&i, IT_MOV,
+                        &(orig->dst), getImmOp(opval.type, opval.val));
 	capture(cs, &i);
     }
 
-    i.type = IT_ADD;
-    copyOperand(&(i.src), &(orig->src));
-    copyOperand(&(i.dst), &(orig->dst));
-
-    // if 1st source (=src) is known/constant and a reg, make it immediate
+    o = &(orig->src);
     getOpValue(&opval, es, &(orig->src));
-    if (!opIsInd(&(orig->src)) &&
-	((opval.state == CS_KNOWN) || (opval.state == CS_CONSTANT)))
-	copyOperand(&(i.src), getImmOp(opval.type, opval.val));
-
+    if (!opIsInd(&(orig->src)) && (opval.state == CS_STATIC)) {
+	// if 1st source (=src) is known/constant and a reg, make it immediate
+        o = getImmOp(opval.type, opval.val);
+    }
+    initBinaryInstr(&i, IT_ADD, &(orig->dst), o);
     capture(cs, &i);
 }
 
@@ -1249,13 +1318,11 @@ void captureRet(CodeStorage* cs, Instr* orig, EmuState* es)
     Instr i;
 
     getRegValue(&v, es, Reg_AX, VT_64);
-    if ((v.state == CS_KNOWN) || (v.state == CS_CONSTANT)) {
-	i.type = IT_MOV;
-	copyOperand(&(i.src), getImmOp(v.type, v.val));
-	copyOperand(&(i.dst), getRegOp(VT_64, Reg_AX));
+    if (v.state == CS_STATIC) {
+        initBinaryInstr(&i, IT_MOV,
+                        getRegOp(VT_64, Reg_AX), getImmOp(v.type, v.val));
 	capture(cs, &i);
     }
-
     capture(cs, orig);
 }
 
@@ -1263,7 +1330,7 @@ void captureRet(CodeStorage* cs, Instr* orig, EmuState* es)
 uint64_t emulate(Code* c, ...)
 {
     EmuValue v1, v2;
-    int i, foundRet;
+    int i, foundRet, off;
     uint64_t v64;
 
     // setup int parameters for virtual CPU according to x86_64 calling conv.
@@ -1274,18 +1341,18 @@ uint64_t emulate(Code* c, ...)
     asm("mov %%r8, %0;" : "=r" (v64) : );  emuState.r[Reg_CX] = v64;
     asm("mov %%r9, %0;" : "=r" (v64) : );  emuState.r[Reg_8] = v64;
     emuState.r[Reg_SP] = (uint64_t) (emuState.stack + emuState.stack_capacity);
-    emuState.reg_state[Reg_SP] = CS_UNKNOWN;
-    emuState.reg_state[Reg_DI] = c->cc ? c->cc->par_state[0] : CS_UNKNOWN;
-    emuState.reg_state[Reg_SI] = c->cc ? c->cc->par_state[1] : CS_UNKNOWN;
-    emuState.reg_state[Reg_DX] = c->cc ? c->cc->par_state[1] : CS_UNKNOWN;
-    emuState.reg_state[Reg_CX] = c->cc ? c->cc->par_state[1] : CS_UNKNOWN;
+    emuState.reg_state[Reg_SP] = CS_DYNAMIC;
+    emuState.reg_state[Reg_DI] = c->cc ? c->cc->par_state[0] : CS_DYNAMIC;
+    emuState.reg_state[Reg_SI] = c->cc ? c->cc->par_state[1] : CS_DYNAMIC;
+    emuState.reg_state[Reg_DX] = c->cc ? c->cc->par_state[1] : CS_DYNAMIC;
+    emuState.reg_state[Reg_CX] = c->cc ? c->cc->par_state[1] : CS_DYNAMIC;
 
     foundRet = 0;
     i = 0;
     while((i < c->count) && !foundRet) {
 
 	Instr* instr = c->instr + i;
-	printEState(&emuState);
+	printEmuState(&emuState);
 	printf("Emulating '%s'...\n", instr2string(instr));
 
 	// for RIP-relative accesses
@@ -1296,19 +1363,21 @@ uint64_t emulate(Code* c, ...)
 	    switch(instr->dst.type) {
 	    case OT_Reg32:
 		emuState.r[Reg_SP] -= 4;
-		checkStackAddr(&emuState, emuState.r[Reg_SP]);
+                off = checkStackAddr(&emuState, emuState.r[Reg_SP]);
+                assert(off >= 0);
 		getOpValue(&v1, &emuState, &(instr->dst));
 		setStackValue(&v1, &emuState, emuState.r[Reg_SP], VT_32);
-		if (v1.state == CS_UNKNOWN)
+		if (v1.state == CS_DYNAMIC)
 		    capture(c->cs, instr);
 		break;
 
 	    case OT_Reg64:
 		emuState.r[Reg_SP] -= 8;
-		checkStackAddr(&emuState, emuState.r[Reg_SP]);
+                off = checkStackAddr(&emuState, emuState.r[Reg_SP]);
+                assert(off >= 0);
 		getOpValue(&v1, &emuState, &(instr->dst));
 		setStackValue(&v1, &emuState, emuState.r[Reg_SP], VT_64);
-		if (v1.state == CS_UNKNOWN)
+		if (v1.state == CS_DYNAMIC)
 		    capture(c->cs, instr);
 		break;
 
@@ -1323,7 +1392,7 @@ uint64_t emulate(Code* c, ...)
 		getStackValue(&v1, &emuState, emuState.r[Reg_SP], VT_32);
 		setOpValue(&v1, &emuState, &(instr->dst));
 		emuState.r[Reg_SP] += 4;
-		if (v1.state == CS_UNKNOWN)
+		if (v1.state == CS_DYNAMIC)
 		    capture(c->cs, instr);
 		break;
 
@@ -1332,7 +1401,7 @@ uint64_t emulate(Code* c, ...)
 		getStackValue(&v1, &emuState, emuState.r[Reg_SP], VT_64);
 		setOpValue(&v1, &emuState, &(instr->dst));
 		emuState.r[Reg_SP] += 8;
-		if (v1.state == CS_UNKNOWN)
+		if (v1.state == CS_DYNAMIC)
 		    capture(c->cs, instr);
 		break;
 
@@ -1347,7 +1416,7 @@ uint64_t emulate(Code* c, ...)
 		assert(opValType(&(instr->dst)) == VT_32);
 		getOpValue(&v1, &emuState, &(instr->src));
 		setOpValue(&v1, &emuState, &(instr->dst));
-		captureMov(c->cs, instr, &v1);
+		captureMov(c->cs, instr, &emuState, &v1);
 		break;
 
 	    case OT_Reg64:
@@ -1355,7 +1424,7 @@ uint64_t emulate(Code* c, ...)
 		assert(opValType(&(instr->dst)) == VT_64);
 		getOpValue(&v1, &emuState, &(instr->src));
 		setOpValue(&v1, &emuState, &(instr->dst));
-		captureMov(c->cs, instr, &v1);
+		captureMov(c->cs, instr, &emuState, &v1);
 		break;
 
 	    default:assert(0);
@@ -1396,7 +1465,7 @@ uint64_t emulate(Code* c, ...)
 		assert(opIsInd(&(instr->src)));
 		getOpAddr(&v1, &emuState, &(instr->src));
 		setOpValue(&v1, &emuState, &(instr->dst));
-		if (v1.state == CS_UNKNOWN)
+		if (v1.state == CS_DYNAMIC)
 		    capture(c->cs, instr);
 		break;
 
@@ -1415,7 +1484,7 @@ uint64_t emulate(Code* c, ...)
 	i++;
     }
 
-    printEState(&emuState);
+    printEmuState(&emuState);
 
     // return value according calling convention
     return emuState.r[Reg_AX];
