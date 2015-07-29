@@ -59,7 +59,7 @@ Example driven implementation
   * binary x86_64 parser (DONE)
   * binary emulator (DONE)
   * binary re-generator (DONE)
-  * (nested) specialization of parameters
+  * (nested) specialization of parameters (DONE)
 * loop example: with variable/fixed loop count, special code for ranges
   * complete unrolling
   * fixed factor unrolling (how to specify?)

@@ -570,11 +570,29 @@ void decodeFunc(Code* c, uint64_t f, int max, int stopAtRet)
             o += parseModRM(fp+o, hasRex ? rex:0, &o1, 0, &digit);
             switch(digit) {
             case 0:
-                assert(!hasRex);
+                // mov r/m 32/64, imm32
                 o2.type = OT_Imm32;
                 o2.val = *(uint32_t*)(fp + o);
                 o += 4;
                 addBinaryOp(c, a, (uint64_t)(fp + o), IT_MOV, &o1, &o2);
+                break;
+
+            default: assert(0);
+            }
+            break;
+        }
+
+        case 0x81: {
+            Operand o1, o2;
+            int digit;
+            o += parseModRM(fp+o, hasRex ? rex:0, &o1, 0, &digit);
+            switch(digit) {
+            case 0:
+                // add r/m 32/64, imm32
+                o2.type = OT_Imm32;
+                o2.val = *(uint32_t*)(fp + o);
+                o += 4;
+                addBinaryOp(c, a, (uint64_t)(fp + o), IT_ADD, &o1, &o2);
                 break;
 
             default: assert(0);
@@ -658,7 +676,7 @@ char* op2string(Operand* o)
     return buf;
 }
 
-char* instr2string(Instr* instr)
+char* instr2string(Instr* instr, int align)
 {
     static char buf[100];
     char* n = "<Invalid>";
@@ -674,11 +692,14 @@ char* instr2string(Instr* instr)
     case IT_SUB:  n = "sub";  oc = 2; break;
     case IT_LEA:  n = "lea";  oc = 2; break;
     }
-    off += sprintf(buf, "%-6s", n);
+    if (align)
+        off += sprintf(buf, "%-6s", n);
+    else
+        off += sprintf(buf, "%s", n);
     if (oc == 1)
-	off += sprintf(buf+off, "%s", op2string(&(instr->dst)));
+        off += sprintf(buf+off, " %s", op2string(&(instr->dst)));
     if (oc == 2) {
-	off += sprintf(buf+off, "%s", op2string(&(instr->src)));
+        off += sprintf(buf+off, " %s", op2string(&(instr->src)));
 	off += sprintf(buf+off, ",%s", op2string(&(instr->dst)));
     }
     return buf;
@@ -702,7 +723,7 @@ void printCode(Code* c)
     int i;
     for(i=0; i<c->count; i++) {
 	printf("  %p %s  %s\n", (void*)c->instr[i].addr,
-	       bytes2string(c->instr + i, 0, 6), instr2string(c->instr + i));
+               bytes2string(c->instr + i, 0, 6), instr2string(c->instr + i, 1));
 	if (c->instr[i].len > 6)
 	    printf("  %p %s\n", (void*)c->instr[i].addr + 6,
 		   bytes2string(c->instr + i, 6, 6));
@@ -895,7 +916,7 @@ int genMov(uint8_t* buf, Operand* src, Operand* dst)
 	    return genModRM(buf, 0x89, dst, src);
 
         case OT_Imm32:
-            // use 'mov r/m,imm 32' (0xC7/0)
+            // use 'mov r/m 32/64, imm 32' (0xC7/0)
             return genDigitMI(buf, 0xC7, 0, dst, src);
 
         default: assert(0);
@@ -914,8 +935,17 @@ int genMov(uint8_t* buf, Operand* src, Operand* dst)
 	    return genModRM(buf, 0x8B, src, dst);
 
         case OT_Imm32:
-            // use 'mov r/m,imm 32' (0xC7/0)
+            // use 'mov r/m 32/64, imm 32' (0xC7/0)
             return genDigitMI(buf, 0xC7, 0, dst, src);
+
+        case OT_Imm64: {
+            // try to convert 64-bit immediate to 32bit if value fits
+            Operand o;
+            assert(src->val < (1l<<32));
+            o.type = OT_Imm32;
+            o.val = (uint32_t) src->val;
+            return genDigitMI(buf, 0xC7, 0, dst, &o);
+        }
 
         default: assert(0);
 	}
@@ -945,6 +975,20 @@ int genAdd(uint8_t* buf, Operand* src, Operand* dst)
 	}
 	break;
 
+    case OT_Imm32:
+        // src imm
+        switch(dst->type) {
+        case OT_Reg32:
+        case OT_Reg64:
+        case OT_Ind32:
+        case OT_Ind64:
+            // use 'add r/m 32/64, imm32' (0x81/0)
+            return genDigitMI(buf, 0x81, 0, dst, src);
+
+        default: assert(0);
+        }
+        break;
+
     default: assert(0);
     }
     return 0;
@@ -971,7 +1015,7 @@ void capture(CodeStorage* cs, Instr* instr)
     int used;
     if (cs == 0) return;
 
-    printf("Captured '%s'\n", instr2string(instr));
+    printf("Capture '%s'\n", instr2string(instr, 0));
 
     buf = reserveCodeStorage(cs,15);
     switch(instr->type) {
@@ -1288,6 +1332,19 @@ void getOpValue(EmuValue* v, EmuState* es, Operand* o)
     CapState s;
 
     switch(o->type) {
+    case OT_Imm8:
+        *v = emuValue(o->val, VT_8, CS_STATIC);
+        return;
+    case OT_Imm16:
+        *v = emuValue(o->val, VT_16, CS_STATIC);
+        return;
+    case OT_Imm32:
+        *v = emuValue(o->val, VT_32, CS_STATIC);
+        return;
+    case OT_Imm64:
+        *v = emuValue(o->val, VT_64, CS_STATIC);
+        return;
+
     case OT_Reg32:
 	v->type = VT_32;
         v->val = (uint32_t) es->reg[o->reg];
@@ -1502,7 +1559,7 @@ uint64_t emulate(Code* c, ...)
 
 	Instr* instr = c->instr + i;
         printEmuState(es);
-        printf("Emulate '%s'\n", instr2string(instr));
+        printf("Emulate '%s'\n", instr2string(instr, 0));
 
 	// for RIP-relative accesses
         es->reg[Reg_IP] = instr->addr + instr->len;
@@ -1562,14 +1619,23 @@ uint64_t emulate(Code* c, ...)
 	    switch(instr->src.type) {
 	    case OT_Reg32:
 	    case OT_Ind32:
-		assert(opValType(&(instr->dst)) == VT_32);
+            case OT_Imm32: {
+                ValType dst_t = opValType(&(instr->dst));
+                assert(dst_t == VT_32 || dst_t == VT_64);
                 getOpValue(&v1, es, &(instr->src));
+                if (dst_t == VT_64) {
+                    // sign extend lower 32 bit to 64 bit
+                    v1.val = (int32_t) v1.val;
+                    v1.type = VT_64;
+                }
                 setOpValue(&v1, es, &(instr->dst));
                 captureMov(c->cs, instr, es, &v1);
 		break;
+            }
 
 	    case OT_Reg64:
 	    case OT_Ind64:
+            case OT_Imm64:
 		assert(opValType(&(instr->dst)) == VT_64);
                 getOpValue(&v1, es, &(instr->src));
                 setOpValue(&v1, es, &(instr->dst));
@@ -1604,6 +1670,22 @@ uint64_t emulate(Code* c, ...)
                 // for capture we need state of dst, do before setting dst
                 captureAdd(c->cs, instr, es, &v1);
                 setOpValue(&v1, es, &(instr->dst));
+
+            case OT_Imm32: {
+                ValType dst_ot = opValType(&(instr->dst));
+                assert(dst_ot == VT_32 || dst_ot == VT_64);
+                getOpValue(&v1, es, &(instr->src));
+                getOpValue(&v2, es, &(instr->dst));
+                if (dst_ot == VT_32)
+                    v1.val = ((uint32_t) v1.val + (uint32_t) v2.val);
+                else
+                    v1.val = (uint64_t) ((int32_t) v1.val + (int64_t) v2.val);
+                v1.state = combineState(v1.state, v2.state);
+                // for capture we need state of dst, do before setting dst
+                captureAdd(c->cs, instr, es, &v1);
+                setOpValue(&v1, es, &(instr->dst));
+                break;
+            }
 
 	    default:assert(0);
 	    }
