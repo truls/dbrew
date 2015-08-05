@@ -1,0 +1,59 @@
+Various Ideas/Concepts
+======================
+
+
+Addressing Modes with register indirection/scaling (ModRM/SIB)
+----
+
+We can 'flatten' the address expression for simplifying the
+ISA subset used for capturing, and catch the pattern to generate
+instructions with complex addressing in the end.
+
+Is it worth it?
+It may make optimization passes simpler. We could simplify captured
+instructions by converting operands with memory access to own mov
+instructions (RISC-like load/store architecture).
+But this needs temporary registers, and complex pattern matching.
+
+
+
+Detection of Stack Accesses
+----
+
+Problem:
+To maintain static/dynamic metainfo for data on the stack,
+we need to know the address to tell the offset within the stack. This
+is not straight-forward, as accesses are done by register-relative
+addressing, and addresses may change between multiple invocations of
+the captured code.
+
+Solution:
+Maintain a new meta-info about whether a value is a fixed offset
+from the stack pointer (%rsp) at capture start, which also is the
+offset from top of our stack. That is, we need to maintain the offset.
+
+Generalization:
+We could maintain the information if a value has a fixed difference from
+another value (ie. whether it was derived from it with constant changes).
+If so, we could reconstruct the value from the original.
+
+Subproblem:
+What to do if the stack pointer is modified by an unknown amount (but
+in growing directio!), e.g. on alloca()? We still want to maintain the
+static/dynamic state of a value pushed and pop'ped afterwards.
+
+Solution (?): after the unknown change, remember the new stack value,
+start a new stack, and maintain the distance. This needs versioning of
+stack pointer and stack itself. Can we "garbage collect" such new
+stacks during capturing? Probably not needed.
+
+
+
+Fast Code Generator
+---
+
+* do not do complete unrolling at capture time, but record the
+  fact that we should do it, for delaying that to the code generator
+* can we do this by capturing a loop with e.g. 3 iterations for
+  a generic code generator with N iterations?
+
