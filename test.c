@@ -57,6 +57,9 @@ int main()
     c2 = allocCode(100, 1000);
     c3 = allocCode(100, 0);
 
+    configEmuState(c1, 1000);
+    useSameStack(c2, c1);
+
     res = sum(1,2);
     printf("Run native: 1 + 2 = %d\n", res);
     printf("Native code:\n");

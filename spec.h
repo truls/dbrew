@@ -25,6 +25,9 @@ void printCode(Code* c);
 // initialize emulator, use given stack size
 void configEmuState(Code *c, int stacksize);
 
+// initialize emulator, use stack from cc
+void useSameStack(Code* c, Code* cc);
+
 // emulate the given decoded binary code
 // initialize state with function parameters ('...')
 uint64_t emulate(Code* c, ...);
