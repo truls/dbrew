@@ -15,8 +15,9 @@ Approach:
 * use generator request struct to specify actions
 
 Wanted features:
-* for x86_64/Linux
-* mark function parameters as constant for specialization
+* x86_64/Linux
+* mark function parameters as constant for specialization (DONE)
+* hooks for memory accesses, ...
 * generation of new code: replace/insert/remove function calls/wrappers
 * dynamic detection of data region overlapping (conflicts/dependencies/PGAS)
 * dynamic locality optimization: reorder execution, generate conversions
@@ -91,6 +92,7 @@ Students Work
 MA Theses
 * Extend Parser/Emulator/Specializer for 2D Jacobi show case,
   with control flow support, register-reallocation
+* rewrite to add tags to pointers (dynamic assertions)
 * PGAS abstractions as library
   (domains, affinity mappings, iteration order, partitioning)
 * adaptive prefetching (assuming prefetcher model, extension for MIC)
