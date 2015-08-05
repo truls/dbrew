@@ -1192,9 +1192,21 @@ EmuValue emuValue(uint64_t v, ValType t, CapState s)
     return ev;
 }
 
+EmuValue staticEmuValue(uint64_t v, ValType t)
+{
+    EmuValue ev;
+    ev.val = v;
+    ev.type = t;
+    ev.state = CS_STATIC;
+
+    return ev;
+}
+
 void resetEmuState(EmuState* es)
 {
     int i;
+    static Reg calleeSave[] = {
+        Reg_BP, Reg_BX, Reg_12, Reg_13, Reg_14, Reg_15, Reg_None };
 
     for(i=0; i< es->stacksize; i++)
         es->stack[i] = 0;
@@ -1206,13 +1218,10 @@ void resetEmuState(EmuState* es)
     for(i=0; i<Reg_Max; i++)
         es->reg_state[i] = CS_DEAD;
 
-    // calling convention: rbp, rbx, r12-r15 have to be preserved by callee
-    es->reg_state[Reg_BP] = CS_DYNAMIC;
-    es->reg_state[Reg_BX] = CS_DYNAMIC;
-    es->reg_state[Reg_12] = CS_DYNAMIC;
-    es->reg_state[Reg_13] = CS_DYNAMIC;
-    es->reg_state[Reg_14] = CS_DYNAMIC;
-    es->reg_state[Reg_15] = CS_DYNAMIC;
+    // calling convention:
+    //  rbp, rbx, r12-r15 have to be preserved by callee
+    for(i=0; calleeSave[i] != Reg_None; i++)
+        es->reg_state[calleeSave[i]] = CS_DYNAMIC;
 }
 
 void configEmuState(Code* c, int stacksize)
@@ -1277,9 +1286,9 @@ char combineState(char s1, char s2)
 }
 
 // return stack offset or -1 if not on stack
-int checkStackAddr(EmuState* es, uint64_t addr)
+int checkStackAddr(EmuState* es, EmuValue* addr)
 {
-    uint8_t* a = (uint8_t*) addr;
+    uint8_t* a = (uint8_t*) addr->val;
     if ((a >= es->stack) && (a < es->stack + es->stacksize))
 	return a - es->stack;
     return -1;
@@ -1299,59 +1308,75 @@ void setRegValue(EmuValue* v, EmuState* es, Reg r, ValType t)
     es->reg_state[r] = v->state;
 }
 
-void getStackValue(EmuValue* v, EmuState* es, uint64_t a, ValType t)
+void getMemValue(EmuValue* v, EmuValue* addr, EmuState* es, ValType t,
+                 int shouldBeStack)
 {
     int off;
     CapState state;
     int i;
 
-    off = checkStackAddr(es, a);
-    assert(off >= 0);
-    state = es->stack_state[off];
+    off = checkStackAddr(es, addr);
+    if (off >= 0) {
+        state = es->stack_state[off];
+    }
+    else {
+        assert(!shouldBeStack);
+        state = CS_DYNAMIC;
+    }
 
-    v->type = t;
     switch(t) {
     case VT_32:
-	v->val = *(uint32_t*) a;
-	for(i=1; i<4; i++)
-	    state = combineState(state, es->stack_state[off+i]);
-	v->state = state;
+        v->val = *(uint32_t*) addr->val;
+        if (off >= 0) {
+            for(i=1; i<4; i++)
+                state = combineState(state, es->stack_state[off+i]);
+        }
 	break;
 
     case VT_64:
-	v->val = *(uint64_t*) a;
-	for(i=1; i<8; i++)
-	    state = combineState(state, es->stack_state[off+i]);
-	v->state = state;
+        v->val = *(uint64_t*) addr->val;
+        if (off >= 0) {
+            for(i=1; i<8; i++)
+                state = combineState(state, es->stack_state[off+i]);
+        }
 	break;
 
     default: assert(0);
     }
+    v->type = t;
+    v->state = state;
 }
 
-void setStackValue(EmuValue* v, EmuState* es, uint64_t a, ValType t)
+void setMemValue(EmuValue* v, EmuValue* addr, EmuState* es, ValType t,
+                 int shouldBeStack)
 {
     int off;
     uint32_t* a32;
     uint64_t* a64;
     int i;
 
-    off = checkStackAddr(es, a);
-    assert(off >= 0);
+    off = checkStackAddr(es, addr);
+    if (off < 0)
+        assert(!shouldBeStack);
+
     assert(v->type == t);
     switch(t) {
     case VT_32:
-	a32 = (uint32_t*) a;
+        a32 = (uint32_t*) addr->val;
 	*a32 = (uint32_t) v->val;
-	for(i=0; i<4; i++)
-	    es->stack_state[off+i] = v->state;
+        if (off >= 0) {
+            for(i=0; i<4; i++)
+                es->stack_state[off+i] = v->state;
+        }
 	break;
 
     case VT_64:
-	a64 = (uint64_t*) a;
+        a64 = (uint64_t*) addr->val;
 	*a64 = (uint64_t) v->val;
-	for(i=0; i<8; i++)
-	    es->stack_state[off+i] = v->state;
+        if (off >= 0) {
+            for(i=0; i<8; i++)
+                es->stack_state[off+i] = v->state;
+        }
 	break;
 
     default: assert(0);
@@ -1390,22 +1415,14 @@ void getOpAddr(EmuValue* v, EmuState* es, Operand* o)
 // returned value should be casted to expected type (8/16/32 bit)
 void getOpValue(EmuValue* v, EmuState* es, Operand* o)
 {
-    EmuValue av;
-    int i, off;
-    CapState s;
+    EmuValue addr;
 
     switch(o->type) {
     case OT_Imm8:
-        *v = emuValue(o->val, VT_8, CS_STATIC);
-        return;
     case OT_Imm16:
-        *v = emuValue(o->val, VT_16, CS_STATIC);
-        return;
     case OT_Imm32:
-        *v = emuValue(o->val, VT_32, CS_STATIC);
-        return;
     case OT_Imm64:
-        *v = emuValue(o->val, VT_64, CS_STATIC);
+        *v = staticEmuValue(o->val, opValType(o));
         return;
 
     case OT_Reg32:
@@ -1421,33 +1438,9 @@ void getOpValue(EmuValue* v, EmuState* es, Operand* o)
 	return;
 
     case OT_Ind32:
-	getOpAddr(&av, es, o);
-        v->val = *(uint32_t*) av.val;
-        v->type = VT_32;
-        off = checkStackAddr(es, av.val);
-        if (off<0)
-            v->state = CS_DYNAMIC;
-        else {
-            s = es->stack_state[off];
-            for(i=1; i<4; i++)
-                s = combineState(s, es->stack_state[off+i]);
-            v->state = s;
-        }
-	return;
-
     case OT_Ind64:
-	getOpAddr(&av, es, o);
-	v->val = *(uint64_t*) av.val;
-	v->type = VT_64;
-        off = checkStackAddr(es, av.val);
-        if (off<0)
-            v->state = CS_DYNAMIC;
-        else {
-            s = es->stack_state[off];
-            for(i=1; i<8; i++)
-                s = combineState(s, es->stack_state[off+i]);
-            v->state = s;
-        }
+        getOpAddr(&addr, es, o);
+        getMemValue(v, &addr, es, opValType(o), 0);
 	return;
 
     default: assert(0);
@@ -1457,10 +1450,7 @@ void getOpValue(EmuValue* v, EmuState* es, Operand* o)
 // only the bits of v are used which are required for operand type
 void setOpValue(EmuValue* v, EmuState* es, Operand* o)
 {
-    static EmuValue av;
-    int i, off;
-    uint32_t* a32;
-    uint64_t* a64;
+    EmuValue addr;
 
     assert(v->type == opValType(o));
     switch(o->type) {
@@ -1475,25 +1465,9 @@ void setOpValue(EmuValue* v, EmuState* es, Operand* o)
 	return;
 
     case OT_Ind32:
-	getOpAddr(&av, es, o);
-	a32 = (uint32_t*) av.val;
-	*a32 = (uint32_t) v->val;
-        // if address is on stack, update state
-        off = checkStackAddr(es, av.val);
-        if (off >= 0)
-           for(i = 0; i < 4; i++)
-               es->stack_state[off+i] = v->state;
-	return;
-
     case OT_Ind64:
-	getOpAddr(&av, es, o);
-	a64 = (uint64_t*) av.val;
-	*a64 = v->val;
-        // if address is on stack, update state
-        off = checkStackAddr(es, av.val);
-        if (off >= 0)
-           for(i = 0; i < 8; i++)
-               es->stack_state[off+i] = v->state;
+        getOpAddr(&addr, es, o);
+        setMemValue(v, &addr, es, opValType(o), 0);
 	return;
 
     default: assert(0);
@@ -1508,7 +1482,7 @@ int destinationIsMemory(EmuState* es, Operand* o)
 
     if (!opIsInd(o)) return 0;
     getOpAddr(&addr, es, o);
-    off = checkStackAddr(es, addr.val);
+    off = checkStackAddr(es, &addr);
     // if off>=0, we are in stack, which is not regarded as memory
     return (off < 0) ? 1:0;
 }
@@ -1616,34 +1590,33 @@ void captureRet(CodeStorage* cs, Instr* orig, EmuState* es)
 
 uint64_t emulate(Code* c, ...)
 {
-    EmuValue v1, v2;
-    int i, foundRet, off;
-    uint64_t p1, p2, p3, p4;
-    EmuState* es;
+    // calling convention x86-64: parameters are stored in registers
+    static Reg parReg[4] = { Reg_DI, Reg_SI, Reg_DX, Reg_CX };
 
+    EmuValue v1, v2, addr;
+    int i, foundRet, off;
+    uint64_t par[4];
+    EmuState* es;
 
     // setup int parameters for virtual CPU according to x86_64 calling conv.
     // see https://en.wikipedia.org/wiki/X86_calling_conventions
-    asm("mov %%rsi, %0;" : "=r" (p1) : );
-    asm("mov %%rdx, %0;" : "=r" (p2) : );
-    asm("mov %%rcx, %0;" : "=r" (p3) : );
-    asm("mov %%r8, %0;" : "=r" (p4) : );
+    asm("mov %%rsi, %0;" : "=r" (par[0]) : );
+    asm("mov %%rdx, %0;" : "=r" (par[1]) : );
+    asm("mov %%rcx, %0;" : "=r" (par[2]) : );
+    asm("mov %%r8, %0;"  : "=r" (par[3]) : );
 
     if (!c->es) configEmuState(c, 1024);
     resetEmuState(c->es);
     if (c->cs) c->cs->used = 0;
     es = c->es;
 
-    es->reg[Reg_DI] = p1;
-    es->reg[Reg_SI] = p2;
-    es->reg[Reg_DX] = p3;
-    es->reg[Reg_CX] = p4;
+    for(i=0;i<4;i++) {
+        es->reg[parReg[i]] = par[i];
+        es->reg_state[parReg[i]] = c->cc ? c->cc->par_state[i] : CS_DYNAMIC;
+    }
+
     es->reg[Reg_SP] = (uint64_t) (es->stack + es->stacksize);
     es->reg_state[Reg_SP] = CS_DYNAMIC;
-    es->reg_state[Reg_DI] = c->cc ? c->cc->par_state[0] : CS_DYNAMIC;
-    es->reg_state[Reg_SI] = c->cc ? c->cc->par_state[1] : CS_DYNAMIC;
-    es->reg_state[Reg_DX] = c->cc ? c->cc->par_state[2] : CS_DYNAMIC;
-    es->reg_state[Reg_CX] = c->cc ? c->cc->par_state[3] : CS_DYNAMIC;
 
     foundRet = 0;
     i = 0;
@@ -1661,21 +1634,23 @@ uint64_t emulate(Code* c, ...)
 	    switch(instr->dst.type) {
 	    case OT_Reg32:
                 es->reg[Reg_SP] -= 4;
-                off = checkStackAddr(es, es->reg[Reg_SP]);
+                addr = emuValue(es->reg[Reg_SP], VT_64, es->reg_state[Reg_SP]);
+                off = checkStackAddr(es, &addr);
                 assert(off >= 0);
                 getOpValue(&v1, es, &(instr->dst));
-                setStackValue(&v1, es, es->reg[Reg_SP], VT_32);
-		if (v1.state == CS_DYNAMIC)
+                setMemValue(&v1, &addr, es, VT_32, 1);
+                if (v1.state == CS_DYNAMIC)
 		    capture(c->cs, instr);
 		break;
 
 	    case OT_Reg64:
                 es->reg[Reg_SP] -= 8;
-                off = checkStackAddr(es, es->reg[Reg_SP]);
+                addr = emuValue(es->reg[Reg_SP], VT_64, es->reg_state[Reg_SP]);
+                off = checkStackAddr(es, &addr);
                 assert(off >= 0);
                 getOpValue(&v1, es, &(instr->dst));
-                setStackValue(&v1, es, es->reg[Reg_SP], VT_64);
-		if (v1.state == CS_DYNAMIC)
+                setMemValue(&v1, &addr, es, VT_64, 1);
+                if (v1.state == CS_DYNAMIC)
 		    capture(c->cs, instr);
 		break;
 
@@ -1686,8 +1661,9 @@ uint64_t emulate(Code* c, ...)
 	case IT_POP:
 	    switch(instr->dst.type) {
 	    case OT_Reg32:
-                checkStackAddr(es, es->reg[Reg_SP]);
-                getStackValue(&v1, es, es->reg[Reg_SP], VT_32);
+                addr = emuValue(es->reg[Reg_SP], VT_64, es->reg_state[Reg_SP]);
+                checkStackAddr(es, &addr);
+                getMemValue(&v1, &addr, es, VT_32, 1);
                 setOpValue(&v1, es, &(instr->dst));
                 es->reg[Reg_SP] += 4;
 		if (v1.state == CS_DYNAMIC)
@@ -1695,8 +1671,9 @@ uint64_t emulate(Code* c, ...)
 		break;
 
 	    case OT_Reg64:
-                checkStackAddr(es, es->reg[Reg_SP]);
-                getStackValue(&v1, es, es->reg[Reg_SP], VT_64);
+                addr = emuValue(es->reg[Reg_SP], VT_64, es->reg_state[Reg_SP]);
+                checkStackAddr(es, &addr);
+                getMemValue(&v1, &addr, es, VT_64, 1);
                 setOpValue(&v1, es, &(instr->dst));
                 es->reg[Reg_SP] += 8;
 		if (v1.state == CS_DYNAMIC)
