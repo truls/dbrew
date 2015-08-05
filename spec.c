@@ -333,7 +333,6 @@ void copyOperand(Operand* dst, Operand* src)
 	break;
     case OT_Ind32:
     case OT_Ind64:
-	assert((src->reg >= Reg_AX) && (src->reg <= Reg_IP));
 	dst->reg = src->reg;
 	dst->val = src->val;
 	dst->scale = src->scale;
@@ -353,6 +352,8 @@ void initSimpleInstr(Instr* i, InstrType it)
     i->addr = 0; // unknown: created, not parsed
     i->len = 0;
     i->type = it;
+    i->dst.type = OT_None;
+    i->src.type = OT_None;
 }
 
 void initUnaryInstr(Instr* i, InstrType it, Operand* o)
@@ -413,6 +414,7 @@ int parseModRM(uint8_t* p, int rex, Operand* o1, Operand* o2, int* digit)
     Reg r;
     int o = 0;
     int hasRex = (rex>0);
+    int hasDisp8 = 0, hasDisp32 = 0;
 
     modrm = p[o++];
     mod = (modrm & 192) >> 6;
@@ -439,6 +441,13 @@ int parseModRM(uint8_t* p, int rex, Operand* o1, Operand* o2, int* digit)
 	return o;
     }
 
+    if (mod == 1) hasDisp8 = 1;
+    if (mod == 2) hasDisp32 = 1;
+    if ((mod == 0) && (rm == 5)) {
+        // mod 0 + rm 5: RIP relative
+        hasDisp32 = 1;
+    }
+
     scale = 0;
     if (rm == 4) {
 	// SIB
@@ -446,16 +455,17 @@ int parseModRM(uint8_t* p, int rex, Operand* o1, Operand* o2, int* digit)
 	scale = 1 << ((sib & 192) >> 6);
 	idx   = (sib & 56) >> 3;
 	base  = sib & 7;
+        if ((base == 5) && (mod == 0))
+            hasDisp32 = 1;
     }
 
     disp = 0;
-    if (mod == 1) {
+    if (hasDisp8) {
 	// 8bit disp: sign extend
 	disp = *((signed char*) (p+o));
 	o++;
     }
-    else if ((mod == 2) || ((mod == 0) && (rm == 5))) {
-	// mod 2 + rm 5: RIP relative
+    if (hasDisp32) {
 	disp = *((int32_t*) (p+o));
 	o += 4;
     }
@@ -663,12 +673,18 @@ char* op2string(Operand* o)
 	    else
 		off = sprintf(buf, "0x%lx", o->val);
 	}
-	if (o->scale == 0)
-	    sprintf(buf+off,"(%%r%s)", regName(o->reg));
+        if ((o->scale == 0) || (o->ireg == Reg_None)) {
+            if (o->reg != Reg_None)
+                sprintf(buf+off,"(%%r%s)", regName(o->reg));
+        }
 	else {
-	    char* rb = (o->reg == Reg_None) ? "" : regName(o->reg);
-	    char* ri = regName(o->ireg);
-	    sprintf(buf+off,"(%%r%s,%%r%s,%d)", rb, ri, o->scale);
+            char* ri = regName(o->ireg);
+            if (o->reg == Reg_None) {
+                sprintf(buf+off,"(,%%r%s,%d)", ri, o->scale);
+            }
+            else
+                sprintf(buf+off,"(%%r%s,%%r%s,%d)",
+                        regName(o->reg), ri, o->scale);
 	}
 	break;
     default: assert(0);
@@ -763,7 +779,7 @@ uint8_t* calcModRMDigit(Operand* o1, int digit, int* prex, int* plen)
 {
     static uint8_t buf[10];
     int modrm, r1;
-    int o = 0, useDisp8 = 0, useDisp32 = 0;
+    int o = 0;
 
     assert((digit>=0) && (digit<8));
     assert((opValType(o1) == VT_32) || (opValType(o1) == VT_64));
@@ -782,50 +798,85 @@ uint8_t* calcModRMDigit(Operand* o1, int digit, int* prex, int* plen)
 	buf[o++] = modrm;
     }
     else {
+        int useDisp8 = 0, useDisp32 = 0, useSIB = 0;
+        int sib = 0;
 	int64_t v = (int64_t) o1->val;
 	if (v != 0) {
 	    if ((v >= -128) && (v<128)) useDisp8 = 1;
 	    else if ((v >= -((int64_t)1<<31)) &&
 		     (v < ((int64_t)1<<31))) useDisp32 = 1;
 	    else assert(0);
+
+            if (useDisp8)
+                modrm |= 64;
+            if (useDisp32)
+                modrm |= 128;
 	}
-	if (useDisp8) modrm |= 64;
-	if (useDisp32) modrm |= 128;
 
 	if (o1->scale == 0) {
 	    assert(o1->reg != Reg_SP); // rm 4 reserved for SIB encoding
-	    r1 = o1->reg - Reg_AX;
-	    assert((modrm >63) || (r1 != 5)); // do not use RIP encoding
-	    if (o1->reg == Reg_IP) {
-		// RIP relative
-		// BUG: Should be relative to original code, not generated
-		r1 = 5;
-		modrm &= 63;
-		useDisp32 = 1;
-	    }
-	    if (r1 & 8) *prex |= REX_MASK_B;
-	    modrm |= (r1 & 7);
-	    buf[o++] = modrm;
+            if (o1->reg == Reg_None) {
+                useDisp32 = 1; // encoding needs disp32
+                useDisp8 = 0;
+                useSIB = 1;
+                sib = 4 << 3 + 5; // index 4 (= none) + base 5 (= none)
+            }
+            else {
+                r1 = o1->reg - Reg_AX;
+                assert((modrm >63) || (r1 != 5)); // do not use RIP encoding
+                if (o1->reg == Reg_IP) {
+                    // RIP relative
+                    // BUG: Should be relative to original code, not generated
+                    r1 = 5;
+                    modrm &= 63;
+                    useDisp32 = 1;
+                }
+                if (r1 & 8) *prex |= REX_MASK_B;
+                modrm |= (r1 & 7);
+            }
 	}
 	else {
 	    // SIB
-	    int sib = 0, ri, rb;
+            int ri, rb;
+            useSIB = 1;
 	    if      (o1->scale == 2) sib |= 64;
 	    else if (o1->scale == 4) sib |= 128;
 	    else if (o1->scale == 8) sib |= 192;
 	    else
 		assert(o1->scale == 1);
+
+            assert(o1->ireg != Reg_None);
 	    ri = o1->ireg - Reg_AX;
 	    if (ri & 8) *prex |= REX_MASK_X;
 	    sib |= (ri & 7) <<3;
-	    rb = o1->reg - Reg_AX;
-	    if (rb & 8) *prex |= REX_MASK_B;
-	    sib |= (rb & 7);
-	    modrm |= 4; // signal SIB
-	    buf[o++] = modrm;
-	    buf[o++] = sib;
+
+            if (o1->reg == Reg_None) {
+                // encoding requires disp32 with mod = 00 / base 5 = none
+                useDisp32 = 1;
+                useDisp8 = 0;
+                modrm &= 63;
+                sib |= 5;
+            }
+            else {
+                if (o1->reg == Reg_BP) {
+                    // cannot use mod == 00
+                    if (modrm & 192 == 0) {
+                        modrm |= 64;
+                        useDisp8 = 1;
+                    }
+                }
+                rb = o1->reg - Reg_AX;
+                if (rb & 8) *prex |= REX_MASK_B;
+                sib |= (rb & 7);
+            }
 	}
 
+
+        if (useSIB)
+            modrm |= 4; // signal SIB in modrm
+        buf[o++] = modrm;
+        if (useSIB)
+            buf[o++] = sib;
 	if (useDisp8)
 	    buf[o++] = (int8_t) v;
 	if (useDisp32) {
@@ -1009,10 +1060,13 @@ int genLea(uint8_t* buf, Operand* src, Operand* dst)
     return 0;
 }
 
+
+
 void capture(CodeStorage* cs, Instr* instr)
 {
     uint8_t* buf;
     int used;
+
     if (cs == 0) return;
 
     printf("Capture '%s'\n", instr2string(instr, 0));
@@ -1304,24 +1358,33 @@ void setStackValue(EmuValue* v, EmuState* es, uint64_t a, ValType t)
     }
 }
 
+void addRegToValue(EmuValue* v, EmuState* es, Reg r, int scale)
+{
+    if (r == Reg_None) return;
+
+    if ((v->state == CS_STATIC) && (es->reg_state[r] == CS_STATIC)) {
+        v->val += scale * es->reg[r];
+        return;
+    }
+
+    v->state = combineState(v->state, es->reg_state[r]);
+    v->val += scale * es->reg[r];
+}
+
+
 void getOpAddr(EmuValue* v, EmuState* es, Operand* o)
 {
-    char state = CS_STATIC;
-    uint64_t addr = o->val;
-
     assert(opIsInd(o));
 
-    v->type = VT_64;
-    if (o->reg != Reg_None) {
-        addr += es->reg[o->reg];
-	state = combineState(state, es->reg_state[o->reg]);
-    }
-    if (o->scale > 0) {
-        addr += o->scale * es->reg[o->ireg];
-	state = combineState(state, es->reg_state[o->ireg]);
-    }
-    v->state = state;
-    v->val = addr;
+     v->type = VT_64;
+     v->val = o->val;
+     v->state = CS_STATIC;
+
+     if (o->reg != Reg_None)
+         addRegToValue(v, es, o->reg, 1);
+
+     if (o->scale > 0)
+         addRegToValue(v, es, o->ireg, o->scale);
 }
 
 // returned value should be casted to expected type (8/16/32 bit)
@@ -1450,6 +1513,20 @@ int destinationIsMemory(EmuState* es, Operand* o)
     return (off < 0) ? 1:0;
 }
 
+void applyStaticToInd(Operand* o, EmuState* es)
+{
+    if (!opIsInd(o)) return;
+
+    if ((o->reg != Reg_None) && (es->reg_state[o->reg] == CS_STATIC)) {
+        o->val += es->reg[o->reg];
+        o->reg = Reg_None;
+    }
+    if ((o->scale > 0) && (es->reg_state[o->ireg] == CS_STATIC)) {
+        o->val += o->scale * es->reg[o->ireg];
+        o->scale = 0;
+    }
+}
+
 void captureMov(CodeStorage* cs, Instr* orig, EmuState* es, EmuValue* res)
 {
     Instr i;
@@ -1468,6 +1545,8 @@ void captureMov(CodeStorage* cs, Instr* orig, EmuState* es, EmuValue* res)
         o = getImmOp(res->type, res->val);
     }
     initBinaryInstr(&i, IT_MOV, &(orig->dst), o);
+    applyStaticToInd(&(i.dst), es);
+    applyStaticToInd(&(i.src), es);
     capture(cs, &i);
 }
 
@@ -1485,6 +1564,7 @@ void captureAdd(CodeStorage* cs, Instr* orig, EmuState* es, EmuValue* res)
 
         initBinaryInstr(&i, IT_MOV,
                         &(orig->dst), getImmOp(res->type, res->val));
+        applyStaticToInd(&(i.dst), es);
 	capture(cs, &i);
 	return;
     }
@@ -1504,6 +1584,18 @@ void captureAdd(CodeStorage* cs, Instr* orig, EmuState* es, EmuValue* res)
         o = getImmOp(opval.type, opval.val);
     }
     initBinaryInstr(&i, IT_ADD, &(orig->dst), o);
+    applyStaticToInd(&(i.dst), es);
+    applyStaticToInd(&(i.src), es);
+    capture(cs, &i);
+}
+
+void captureLea(CodeStorage* cs, Instr* orig, EmuState* es, EmuValue* res)
+{
+    Instr i;
+
+    if (res->state == CS_STATIC) return;
+    initBinaryInstr(&i, IT_LEA, &(orig->dst), &(orig->src));
+    applyStaticToInd(&(i.src), es);
     capture(cs, &i);
 }
 
@@ -1702,8 +1794,7 @@ uint64_t emulate(Code* c, ...)
                     v1.type = VT_32;
                 }
                 setOpValue(&v1, es, &(instr->dst));
-		if (v1.state == CS_DYNAMIC)
-		    capture(c->cs, instr);
+                captureLea(c->cs, instr, es, &v1);
 		break;
 
 	    default:assert(0);
