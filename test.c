@@ -6,7 +6,7 @@
 #include <stdio.h>
 #include "spec.h"
 
-int counter = 0;
+// Test 1
 
 /* Compiled with -O0:
  *   55         push  %rbp
@@ -21,11 +21,21 @@ int counter = 0;
  *   5d         pop   %rbp
  *   c3         ret
 */
+__attribute__ ((noinline))
 int sum(int a, int b)
 {
     int res = a + b;
     return res;
 }
+
+// Test 2
+
+int sum2(int a, int b)
+{
+    int res = sum(a, b) + b;
+    return res;
+}
+
 
 typedef int (*sum_func)(int,int);
 
@@ -63,7 +73,7 @@ int main()
     res = sum(1,2);
     printf("Run native: 1 + 2 = %d\n", res);
     printf("Native code:\n");
-    decodeFunc(c1, (uint64_t)sum, 100, 1);
+    decodeFunc(c1, (uint64_t)sum2, 100, 1);
     printCode(c1);
 
     emulateCaptureRun("sum(1,2)", "unmodified", "4 + 7", c1, c2);
