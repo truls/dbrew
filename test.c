@@ -50,7 +50,8 @@ void emulateCaptureRun(char* t1, char* t2, char* t3, Code* c1, Code* c2)
     printf(" Result: %d\n", res);
 
     printf("\nCaptured code (size %d):\n", capturedCodeSize(c1));
-    decodeFunc(c2, capturedCode(c1), capturedCodeSize(c1), 0);
+    setFunc(c2, capturedCode(c1));
+    decodeBB(c2, capturedCode(c1));
     printCode(c2);
 
     f = (sum_func) capturedCode(c1);
@@ -63,18 +64,17 @@ int main()
     Code *c1, *c2, *c3;
     int res;
 
-    c1 = allocCode(100, 1000);
-    c2 = allocCode(100, 1000);
-    c3 = allocCode(100, 0);
+    c1 = allocCode(200, 20, 1000);
+    c2 = allocCode(200, 20, 1000);
+    c3 = allocCode(200, 20, 0);
 
     configEmuState(c1, 1000);
     useSameStack(c2, c1);
 
     res = sum(1,2);
     printf("Run native: 1 + 2 = %d\n", res);
-    printf("Native code:\n");
-    decodeFunc(c1, (uint64_t)sum2, 100, 1);
-    printCode(c1);
+
+    setFunc(c1, (uint64_t)sum2);
 
     emulateCaptureRun("sum(1,2)", "unmodified", "4 + 7", c1, c2);
 

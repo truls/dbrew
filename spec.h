@@ -12,12 +12,16 @@ typedef void (*void_func)(void);
 
 // piece of decoded x86_64 instructions
 typedef struct _Code Code;
+typedef struct _BB BB;
 
 // allocate space for a given number of decoded instructions
-Code* allocCode(int capacity, int capture_capacity);
+Code* allocCode(int instr_capacity, int bb_capacity, int capture_capacity);
 
-// decode binary code starting at function pointer <f> into <c>
-void decodeFunc(Code* c, uint64_t f, int max, int stopAtRet);
+// clear <c> from decoded/captured instructions
+void setFunc(Code* c, uint64_t f);
+
+// decode the basic block starting at f (automatically triggered by emulator)
+BB* decodeBB(Code* c, uint64_t f);
 
 // print instructions in <c>
 void printCode(Code* c);
