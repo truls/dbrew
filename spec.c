@@ -1105,18 +1105,25 @@ void capture(CodeStorage* cs, Instr* instr)
 
 /*------------------------------------------------------------*/
 /* x86_64 capturing emulator
+ *
+ * We maintain states (known/static vs unknown/dynamic at capture time)
+ * for registers and values on stack. To be able to do the latter, we
+ * assume that the known values on stack do not get changed by
+ * memory writes with dynamic address. This assumption should be fine,
+ * as such behavior is dangerous and potentially a bug.
  */
 
 // we trace execution in an emulator for code generation
 // TODO: branching depending on dynamic data
 
 // emulator capture states
-typedef enum _CapState {
-    CS_DEAD = 0, // uninitialized, should be invalid to access
-    CS_DYNAMIC,  // data unknown at code generation time
-    CS_STATIC,   // data known at code generation time
+typedef enum _CaptureState {
+    CS_DEAD = 0,      // uninitialized, should be invalid to access
+    CS_DYNAMIC,       // data unknown at code generation time
+    CS_STATIC,        // data known at code generation time
+    CS_STACKRELATIVE, // address with known offset from stack top at start
     CS_Max
-} CapState;
+} CaptureState;
 
 
 // emulator state. for memory, use the real memory apart from stack
@@ -1130,22 +1137,30 @@ typedef struct _EmuState {
     uint8_t* stack;
 
     // capture state
-    CapState reg_state[Reg_Max];
-    CapState *stack_state;
+    CaptureState reg_state[Reg_Max];
+    CaptureState *stack_state;
 } EmuState;
 
 // a single value with type and capture state
 typedef struct _EmuValue {
     uint64_t val;
     ValType type;
-    CapState state;
+    CaptureState state;
 } EmuValue;
 
 #define CC_MAXPARAM 4
 typedef struct _CaptureConfig
 {
-    CapState par_state[CC_MAXPARAM];
+    CaptureState par_state[CC_MAXPARAM];
 } CaptureConfig;
+
+char captureState2Char(CaptureState s)
+{
+    assert((s >= 0) && (s < CS_Max));
+    assert(CS_Max == 4);
+    return "-DSR"[s];
+}
+
 
 void setCaptureConfig(Code* c, int constPos)
 {
@@ -1187,7 +1202,7 @@ void setCaptureConfig2(Code* c, int constPos1, int constPos2)
 }
 
 
-EmuValue emuValue(uint64_t v, ValType t, CapState s)
+EmuValue emuValue(uint64_t v, ValType t, CaptureState s)
 {
     EmuValue ev;
     ev.val = v;
@@ -1256,7 +1271,7 @@ void configEmuState(Code* c, int stacksize)
     }
     if (!c->es->stack) {
         c->es->stack = (uint8_t*) malloc(stacksize);
-        c->es->stack_state = (CapState*) malloc(sizeof(CapState) * stacksize);
+        c->es->stack_state = (CaptureState*) malloc(sizeof(CaptureState) * stacksize);
     }
 
     resetEmuState(c->es);
@@ -1269,9 +1284,8 @@ void printEmuState(EmuState* es)
 
     printf("Registers:\n");
     for(i=Reg_AX; i<Reg_8; i++) {
-	CapState s = es->reg_state[i];
-	assert(s < CS_Max);
-        printf(" %%r%-2s = 0x%016lx %c\n", regName(i), es->reg[i], "-DS"[s]);
+        printf(" %%r%-2s = 0x%016lx %c\n", regName(i), es->reg[i],
+               captureState2Char( es->reg_state[i] ));
     }
     printf("Stack:\n");
     sp   = (uint8_t*) es->reg[Reg_SP];
@@ -1284,32 +1298,48 @@ void printEmuState(EmuState* es)
     for(a = smin; a <= smax; a += 8) {
 	printf(" %016lx ", (uint64_t)a);
 	for(aa = a; aa < a+8 && aa <= smax; aa++) {
-	    CapState s = es->stack_state[aa - es->stack];
-	    assert(s < CS_Max);
-	    printf(" %s%02x %c", (aa == sp) ? "*" : " ", *aa,"-DS"[s]);
+            printf(" %s%02x %c", (aa == sp) ? "*" : " ", *aa,
+                   captureState2Char(es->stack_state[aa - es->stack]));
 	}
 	printf("\n");
     }
     printf(" %016lx  %s\n", (uint64_t)a, (a == sp) ? "*" : " ");
 }
 
-char combineState(char s1, char s2)
+char combineState(CaptureState s1, CaptureState s2, int isSameValue)
 {
     // dead/invalid: combining with something invalid makes result invalid
     if ((s1 == CS_DEAD) || (s2 == CS_DEAD)) return CS_DEAD;
-    // combining known/constant with unknown makes result unknown
-    if ((s1 == CS_DYNAMIC) || (s2 == CS_DYNAMIC)) return CS_DYNAMIC;
 
-    return CS_STATIC;
+    // if both are static, static-ness is preserved
+    if ((s1 == CS_STATIC) && (s2 == CS_STATIC)) return CS_STATIC;
+
+    // stack-relative handling:
+    // depends on combining of sub-state of one value or combining two values
+    if (isSameValue) {
+      // if both are stack-relative, it is preserved
+      if ((s1 == CS_STACKRELATIVE) && (s2 == CS_STACKRELATIVE))
+          return CS_STACKRELATIVE;
+    }
+    else {
+        // STACKRELATIVE is preserved if other is STATIC
+        if ((s1 == CS_STACKRELATIVE) && (s2 == CS_STATIC))
+            return CS_STACKRELATIVE;
+        if ((s1 == CS_STATIC) && (s2 == CS_STACKRELATIVE))
+            return CS_STACKRELATIVE;
+    }
+
+    return CS_DYNAMIC;
 }
 
 // if addr on stack, return 1 and stack offset in <off>, otherwise return 0
+// the returned offset only is static/known if the address was stack-relative
 int getStackOffset(EmuState* es, EmuValue* addr, EmuValue* off)
 {
     uint8_t* a = (uint8_t*) addr->val;
     if ((a >= es->stack) && (a < es->stack + es->stacksize)) {
         off->type = VT_32;
-        off->state = addr->state;
+        off->state = (addr->state == CS_STACKRELATIVE) ? CS_STATIC : CS_DYNAMIC;
         off->val = a - es->stack;
         return 1;
     }
@@ -1334,7 +1364,7 @@ void getMemValue(EmuValue* v, EmuValue* addr, EmuState* es, ValType t,
                  int shouldBeStack)
 {
     EmuValue off;
-    CapState state;
+    CaptureState state;
     int i, isOnStack;
 
     isOnStack = getStackOffset(es, addr, &off);
@@ -1354,7 +1384,7 @@ void getMemValue(EmuValue* v, EmuValue* addr, EmuState* es, ValType t,
         v->val = *(uint32_t*) addr->val;
         if (isOnStack && (off.state == CS_STATIC)) {
             for(i=1; i<4; i++)
-                state = combineState(state, es->stack_state[off.val + i]);
+                state = combineState(state, es->stack_state[off.val + i], 1);
         }
 	break;
 
@@ -1362,7 +1392,7 @@ void getMemValue(EmuValue* v, EmuValue* addr, EmuState* es, ValType t,
         v->val = *(uint64_t*) addr->val;
         if (isOnStack && (off.state == CS_STATIC)) {
             for(i=1; i<8; i++)
-                state = combineState(state, es->stack_state[off.val + i]);
+                state = combineState(state, es->stack_state[off.val + i], 1);
         }
 	break;
 
@@ -1412,12 +1442,7 @@ void addRegToValue(EmuValue* v, EmuState* es, Reg r, int scale)
 {
     if (r == Reg_None) return;
 
-    if ((v->state == CS_STATIC) && (es->reg_state[r] == CS_STATIC)) {
-        v->val += scale * es->reg[r];
-        return;
-    }
-
-    v->state = combineState(v->state, es->reg_state[r]);
+    v->state = combineState(v->state, es->reg_state[r], 0);
     v->val += scale * es->reg[r];
 }
 
@@ -1645,7 +1670,7 @@ uint64_t emulate(Code* c, ...)
     }
 
     es->reg[Reg_SP] = (uint64_t) (es->stack + es->stacksize);
-    es->reg_state[Reg_SP] = CS_STATIC; // CS_DYNAMIC;
+    es->reg_state[Reg_SP] = CS_STACKRELATIVE;
 
     foundRet = 0;
     i = 0;
@@ -1746,7 +1771,7 @@ uint64_t emulate(Code* c, ...)
                 getOpValue(&v1, es, &(instr->src));
                 getOpValue(&v2, es, &(instr->dst));
 		v1.val = ((uint32_t) v1.val + (uint32_t) v2.val);
-		v1.state = combineState(v1.state, v2.state);
+                v1.state = combineState(v1.state, v2.state, 0);
                 // for capture we need state of dst, do before setting dst
                 captureAdd(c->cs, instr, es, &v1);
                 setOpValue(&v1, es, &(instr->dst));
@@ -1758,7 +1783,7 @@ uint64_t emulate(Code* c, ...)
                 getOpValue(&v1, es, &(instr->src));
                 getOpValue(&v2, es, &(instr->dst));
 		v1.val = v1.val + v2.val;
-		v1.state = combineState(v1.state, v2.state);
+                v1.state = combineState(v1.state, v2.state, 0);
                 // for capture we need state of dst, do before setting dst
                 captureAdd(c->cs, instr, es, &v1);
                 setOpValue(&v1, es, &(instr->dst));
@@ -1772,7 +1797,7 @@ uint64_t emulate(Code* c, ...)
                     v1.val = ((uint32_t) v1.val + (uint32_t) v2.val);
                 else
                     v1.val = (uint64_t) ((int32_t) v1.val + (int64_t) v2.val);
-                v1.state = combineState(v1.state, v2.state);
+                v1.state = combineState(v1.state, v2.state, 0);
                 // for capture we need state of dst, do before setting dst
                 captureAdd(c->cs, instr, es, &v1);
                 setOpValue(&v1, es, &(instr->dst));
