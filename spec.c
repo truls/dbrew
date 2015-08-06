@@ -16,6 +16,8 @@
 typedef struct _EmuState EmuState;
 typedef struct _CaptureConfig CaptureConfig;
 
+typedef enum { False, True } Bool;
+
 /*------------------------------------------------------------
  * Code Storage
  */
@@ -223,40 +225,40 @@ ValType opValType(Operand* o)
     return 0; // invalid;
 }
 
-int opIsImm(Operand* o)
+Bool opIsImm(Operand* o)
 {
     switch(o->type) {
     case OT_Imm8:
     case OT_Imm16:
     case OT_Imm32:
     case OT_Imm64:
-	return 1;
+        return True;
     }
-    return 0;
+    return False;
 }
 
-int opIsReg(Operand* o)
+Bool opIsReg(Operand* o)
 {
     switch(o->type) {
     case OT_Reg8:
     case OT_Reg16:
     case OT_Reg32:
     case OT_Reg64:
-	return 1;
+        return True;
     }
-    return 0;
+    return False;
 }
 
-int opIsInd(Operand* o)
+Bool opIsInd(Operand* o)
 {
     switch(o->type) {
     case OT_Ind8:
     case OT_Ind16:
     case OT_Ind32:
     case OT_Ind64:
-	return 1;
+        return True;
     }
-    return 0;
+    return False;
 }
 
 Operand* getRegOp(ValType t, Reg r)
@@ -406,6 +408,7 @@ void addBinaryOp(Code* c, uint64_t a, uint64_t a2,
 
 
 // r/m, r. r parsed as op2/reg and digit. Encoding see SDM 2.1
+// return number of bytes parsed
 int parseModRM(uint8_t* p, int rex, Operand* o1, Operand* o2, int* digit)
 {
     int modrm, mod, rm, reg; // modRM byte
@@ -757,6 +760,8 @@ void printCode(Code* c)
 /* x86_64 code generation
  */
 
+// generator helpers: return number of bytes written
+
 int genRet(uint8_t* buf)
 {
     buf[0] = 0xc3;
@@ -1105,6 +1110,7 @@ void capture(CodeStorage* cs, Instr* instr)
 
 /*------------------------------------------------------------*/
 /* x86_64 capturing emulator
+ * trace execution in the emulator to capture code to generate
  *
  * We maintain states (known/static vs unknown/dynamic at capture time)
  * for registers and values on stack. To be able to do the latter, we
@@ -1112,9 +1118,6 @@ void capture(CodeStorage* cs, Instr* instr)
  * memory writes with dynamic address. This assumption should be fine,
  * as such behavior is dangerous and potentially a bug.
  */
-
-// we trace execution in an emulator for code generation
-// TODO: branching depending on dynamic data
 
 // emulator capture states
 typedef enum _CaptureState {
@@ -1306,7 +1309,7 @@ void printEmuState(EmuState* es)
     printf(" %016lx  %s\n", (uint64_t)a, (a == sp) ? "*" : " ");
 }
 
-char combineState(CaptureState s1, CaptureState s2, int isSameValue)
+char combineState(CaptureState s1, CaptureState s2, Bool isSameValue)
 {
     // dead/invalid: combining with something invalid makes result invalid
     if ((s1 == CS_DEAD) || (s2 == CS_DEAD)) return CS_DEAD;
@@ -1332,18 +1335,19 @@ char combineState(CaptureState s1, CaptureState s2, int isSameValue)
     return CS_DYNAMIC;
 }
 
-// if addr on stack, return 1 and stack offset in <off>, otherwise return 0
-// the returned offset only is static/known if the address was stack-relative
-int getStackOffset(EmuState* es, EmuValue* addr, EmuValue* off)
+// if addr on stack, return true and stack offset in <off>,
+//  otherwise return false
+// the returned offset is static only if address is stack-relative
+Bool getStackOffset(EmuState* es, EmuValue* addr, EmuValue* off)
 {
     uint8_t* a = (uint8_t*) addr->val;
     if ((a >= es->stack) && (a < es->stack + es->stacksize)) {
         off->type = VT_32;
         off->state = (addr->state == CS_STACKRELATIVE) ? CS_STATIC : CS_DYNAMIC;
         off->val = a - es->stack;
-        return 1;
+        return True;
     }
-    return 0;
+    return False;
 }
 
 void getRegValue(EmuValue* v, EmuState* es, Reg r, ValType t)
@@ -1361,7 +1365,7 @@ void setRegValue(EmuValue* v, EmuState* es, Reg r, ValType t)
 }
 
 void getMemValue(EmuValue* v, EmuValue* addr, EmuState* es, ValType t,
-                 int shouldBeStack)
+                 Bool shouldBeStack)
 {
     EmuValue off;
     CaptureState state;
@@ -1408,7 +1412,8 @@ void setMemValue(EmuValue* v, EmuValue* addr, EmuState* es, ValType t,
     EmuValue off;
     uint32_t* a32;
     uint64_t* a64;
-    int i, isOnStack;
+    int i;
+    Bool isOnStack;
 
     isOnStack = getStackOffset(es, addr, &off);
     if (!isOnStack)
@@ -1525,11 +1530,11 @@ void setOpValue(EmuValue* v, EmuState* es, Operand* o)
 }
 
 // false if not on stack or stack offset not static/known
-int keepsCaptureState(EmuState* es, Operand* o)
+Bool keepsCaptureState(EmuState* es, Operand* o)
 {
     EmuValue addr;
     EmuValue off;
-    int isOnStack;
+    Bool isOnStack;
 
     assert(!opIsImm(o));
     if (opIsReg(o)) return 1;
@@ -1537,7 +1542,7 @@ int keepsCaptureState(EmuState* es, Operand* o)
     getOpAddr(&addr, es, o);
     isOnStack = getStackOffset(es, &addr, &off);
     if (!isOnStack) return 0;
-    return (off.state == CS_STATIC) ? 1:0;
+    return (off.state == CS_STATIC);
 }
 
 void applyStaticToInd(Operand* o, EmuState* es)
@@ -1839,7 +1844,7 @@ uint64_t emulate(Code* c, ...)
 
     printEmuState(es);
 
-    // return value according calling convention
+    // return value according to calling convention
     return es->reg[Reg_AX];
 }
 
