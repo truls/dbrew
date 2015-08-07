@@ -638,7 +638,9 @@ BB* decodeBB(Code* c, uint64_t f)
                 addBinaryOp(c, a, (uint64_t)(fp + off), IT_ADD, &o1, &o2);
                 break;
 
-            default: assert(0);
+            default:
+                addSimple(c, a, (uint64_t)(fp + off), IT_Invalid);
+                break;
             }
             break;
 
@@ -661,7 +663,9 @@ BB* decodeBB(Code* c, uint64_t f)
                 addBinaryOp(c, a, (uint64_t)(fp + off), IT_SUB, &o1, &o2);
                 break;
 
-            default: assert(0);
+            default:
+                addSimple(c, a, (uint64_t)(fp + off), IT_Invalid);
+                break;
             }
             break;
 
@@ -702,7 +706,9 @@ BB* decodeBB(Code* c, uint64_t f)
                 addBinaryOp(c, a, (uint64_t)(fp + off), IT_MOV, &o1, &o2);
                 break;
 
-            default: assert(0);
+            default:
+                addSimple(c, a, (uint64_t)(fp + off), IT_Invalid);
+                break;
             }
             break;
 

@@ -29,11 +29,21 @@ int sum(int a, int b)
 }
 
 // Test 2
-
 int sum2(int a, int b)
 {
     int res = sum(a, b) + b;
     return res;
+}
+
+// Test 3
+int sum3(int a, int b)
+{
+    int sum = 0;
+    while(a>0) {
+        sum += b;
+        a--;
+    }
+    return sum;
 }
 
 
@@ -74,7 +84,7 @@ int main()
     res = sum(1,2);
     printf("Run native: 1 + 2 = %d\n", res);
 
-    setFunc(c1, (uint64_t)sum2);
+    setFunc(c1, (uint64_t)sum3);
 
     emulateCaptureRun("sum(1,2)", "unmodified", "4 + 7", c1, c2);
 
