@@ -6,6 +6,9 @@
 #include <stdio.h>
 #include "spec.h"
 
+typedef int (*i2_func)(int,int);
+typedef int (*i2p_func)(int,int*);
+
 // Test 1
 
 /* Compiled with -O0:
@@ -46,16 +49,19 @@ int sum3(int a, int b)
     return sum;
 }
 
-
-typedef int (*int2_func)(int,int);
+// Test 4
+int arr4[4] = {1,2,3,4};
+int test4(int a, int* b)
+{
+    return b[a];
+}
 
 // decode captured code from c1 into c2
-void emulateCaptureRun(char* t1, char* t2,
-                       int p1, int p2, int sp1, int sp2,
+void emulateCaptureRun(char* t1, char* t2, Bool use_i2p,
+                       int p1, uint64_t p2, int sp1, uint64_t sp2,
                        Code* c1, Code* c2)
 {
     int res;
-    int2_func f;
 
     printf("\nRun emulator for %s, capturing %s:\n", t1, t2);
     res = (int)emulate(c1, sp1, sp2);
@@ -68,13 +74,19 @@ void emulateCaptureRun(char* t1, char* t2,
     printCode(c2);
     setCodeVerbosity(c2, True, True, True);
 
-    f = (int2_func) capturedCode(c1);
-    res = f(p1, p2);
+    if (use_i2p) {
+        i2p_func f = (i2p_func) capturedCode(c1);
+        res = f(p1, (int*) p2);
+    }
+    else {
+        i2_func f = (i2_func) capturedCode(c1);
+        res = f(p1, p2);
+    }
     printf("Run captured: %s = %d\n", t1, res);
 }
 
-void runTest(char* fname, int2_func f,
-             int p1, int p2, int sp1, int sp2,
+void runTest(char* fname, uint64_t f, Bool use_i2p,
+             int p1, uint64_t p2, int sp1, uint64_t sp2,
              int runOrig, int runSpec1, int runSpec2)
 {
     Code *c1, *c2, *c3;
@@ -88,42 +100,49 @@ void runTest(char* fname, int2_func f,
     configEmuState(c1, 1000);
     useSameStack(c2, c1);
 
-    res = f(p1,p2);
+    if (use_i2p) {
+        i2p_func ff = (i2p_func) f;
+        res = ff(p1, (int*) p2);
+    }
+    else {
+        i2_func ff = (i2_func) f;
+        res = ff(p1, p2);
+    }
     printf("Run native: %s = %d\n", fname, res);
 
-    setFunc(c1, (uint64_t)f);
+    setFunc(c1, f);
 
     if (runOrig)
-        emulateCaptureRun(fname, "unmodified", p1,p2,sp1,sp2, c1, c2);
+        emulateCaptureRun(fname, "unmodified", use_i2p, p1,p2,sp1,sp2, c1, c2);
 
     if (runSpec1) {
         // Specialize for p1
         setCaptureConfig(c1, 0);
         sprintf(desc, "p1=%d fix", sp1);
-        emulateCaptureRun(fname, desc, p1,p2,sp1,sp2, c1, c2);
+        emulateCaptureRun(fname, desc, use_i2p, p1,p2,sp1,sp2, c1, c2);
 
         // Nesting
         setCaptureConfig(c2, 1);
-        sprintf(desc, "nested + p2=%d fix", sp2);
-        emulateCaptureRun(fname, desc, p1,p2,sp1,sp2, c2, c3);
+        sprintf(desc, "nested + p2=%ld fix", sp2);
+        emulateCaptureRun(fname, desc, use_i2p, p1,p2,sp1,sp2, c2, c3);
     }
 
     if (runSpec2) {
         // Specialize for p2
         setCaptureConfig(c1, 1);
-        sprintf(desc, "p2=%d fix", sp2);
-        emulateCaptureRun(fname, desc, p1,p2,sp1,sp2, c1, c2);
+        sprintf(desc, "p2=%ld fix", sp2);
+        emulateCaptureRun(fname, desc, use_i2p, p1,p2,sp1,sp2, c1, c2);
 
         // Nesting
         setCaptureConfig(c2, 0);
         sprintf(desc, "nested + p1=%d fix", sp1);
-        emulateCaptureRun(fname, desc, p1,p2,sp1,sp2, c2, c3);
+        emulateCaptureRun(fname, desc, use_i2p, p1,p2,sp1,sp2, c2, c3);
     }
 
     // Specialize Par 1 and 2
     setCaptureConfig2(c1, 0,1);
-    sprintf(desc, "p1=%d/p2=%d fix", sp1, sp2);
-    emulateCaptureRun(fname, desc, p1,p2,sp1,sp2, c1, c2);
+    sprintf(desc, "p1=%d/p2=%ld fix", sp1, sp2);
+    emulateCaptureRun(fname, desc, use_i2p, p1,p2,sp1,sp2, c1, c2);
 }
 
 
@@ -131,7 +150,8 @@ int main()
 {
     //runTest("sum(4,7)",  sum,  4,7,1,2, 1,1,1);
     //runTest("sum2(4,7)", sum2, 4,7,1,2, 1,1,1);
-    runTest("sum3(4,7)", sum3, 4,7, 0,5, 0,1,0);
-
+    //runTest("sum3(4,7)", sum3, 4,7, 3,5, 0,1,0);
+    runTest("test4(1,arr4)", (uint64_t) test4, True,
+            1, (uint64_t) arr4, 3, (uint64_t) arr4, 0,0,0);
     return 0;
 }

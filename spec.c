@@ -105,6 +105,7 @@ typedef enum _Reg {
 typedef enum _InstrType {
     IT_None = 0, IT_Invalid,
     IT_NOP,
+    IT_CLTQ,
     IT_PUSH, IT_POP, IT_LEAVE,
     IT_MOV, IT_LEA,
     IT_ADD, IT_SUB, IT_IMUL,
@@ -143,6 +144,7 @@ typedef struct _Instr {
     uint64_t addr;
     int len;
     InstrType type;
+    ValType vtype; // to store operand size without explicit operands
     Operand dst, src;
 } Instr;
 
@@ -478,6 +480,13 @@ void addSimple(Code* c, uint64_t a, uint64_t a2, InstrType it)
     i->type = it;
 }
 
+void addSimpleVType(Code* c, uint64_t a, uint64_t a2, InstrType it, ValType vt)
+{
+    Instr* i = nextInstr(c, a, a2 - a);
+    i->type = it;
+    i->vtype = vt;
+}
+
 void addUnaryOp(Code* c, uint64_t a, uint64_t a2,
 		InstrType it, Operand* o)
 {
@@ -771,6 +780,12 @@ BB* decodeBB(Code* c, uint64_t f)
 			IT_LEA, &o1, &o2);
 	    break;
 
+        case 0x98:
+            // cltq (Intel: cdqe - sign-extend eax to rax)
+            addSimpleVType(c, a, (uint64_t)(fp + off), IT_CLTQ,
+                           hasRex && (rex & REX_MASK_W) ? VT_64 : VT_32);
+            break;
+
         case 0xC3:
             // ret
             addSimple(c, a, (uint64_t)(fp + off), IT_RET);
@@ -926,6 +941,7 @@ char* instr2string(Instr* instr, int align)
     case IT_NOP:   n = "nop"; break;
     case IT_RET:   n = "ret"; break;
     case IT_LEAVE: n = "leave"; break;
+    case IT_CLTQ:  n = "cltq"; break;
     case IT_PUSH:  n = "push"; oc = 1; break;
     case IT_POP:   n = "pop";  oc = 1; break;
     case IT_CALL:  n = "call"; oc = 1; break;
@@ -977,10 +993,10 @@ void printBB(BB* bb)
         printf("  %p: %s  %s\n", (void*) instr->addr,
                bytes2string(instr, 0, 7), instr2string(instr, 1));
         if (instr->len > 7)
-            printf("  %p %s\n", (void*) instr->addr + 7,
+            printf("  %p: %s\n", (void*) instr->addr + 7,
                    bytes2string(instr, 7, 7));
         if (instr->len > 14)
-            printf("  %p %s\n", (void*) instr->addr + 14,
+            printf("  %p: %s\n", (void*) instr->addr + 14,
                    bytes2string(instr, 14, 7));
     }
 }
@@ -1429,6 +1445,17 @@ int genLea(uint8_t* buf, Operand* src, Operand* dst)
     return 0;
 }
 
+int genCltq(uint8_t* buf, ValType vt)
+{
+    switch(vt) {
+    case VT_32: buf[0] = 0x98; return 1;
+    case VT_64: buf[0] = 0x48; buf[1] = 0x98; return 2;
+    default: assert(0);
+    }
+    return 0;
+}
+
+
 int genCmp(uint8_t* buf, Operand* src, Operand* dst)
 {
     switch(src->type) {
@@ -1466,6 +1493,9 @@ void capture(Code* c, Instr* instr)
     switch(instr->type) {
     case IT_ADD:
         used = genAdd(buf, &(instr->src), &(instr->dst));
+        break;
+    case IT_CLTQ:
+        used = genCltq(buf, instr->vtype);
         break;
     case IT_CMP:
         used = genCmp(buf, &(instr->src), &(instr->dst));
@@ -1811,6 +1841,11 @@ void setFlagsAdd(EmuState* es, EmuValue* v1, EmuValue* v2)
         es->carry = (v1->val + v2->val >= (1l<<32));
         es->zero  = ((v1->val + v2->val) & ((1l<<32)-1) == 0);
         es->sign  = (((v1->val + v2->val) & (1l<<31)) != 0);
+        break;
+    case VT_64:
+        es->carry = ((v1->val + v2->val) < v1->val);
+        es->zero  = ((v1->val + v2->val) == 0);
+        es->sign  = (((v1->val + v2->val) & (1l<<63)) != 0);
         break;
     default: assert(0);
     }
@@ -2291,6 +2326,20 @@ uint64_t emulateInstr(Code* c, EmuState* es, Instr* instr)
         // address to jump to
         return instr->dst.val;
 
+    case IT_CLTQ:
+        switch(instr->vtype) {
+        case VT_32:
+            es->reg[Reg_AX] = (int32_t) (int16_t) es->reg[Reg_AX];
+            break;
+        case VT_64:
+            es->reg[Reg_AX] = (int64_t) (int32_t) es->reg[Reg_AX];
+            break;
+        default: assert(0);
+        }
+        if (es->reg_state[Reg_AX] != CS_STATIC)
+            capture(c, instr);
+        break;
+
     case IT_CMP:
         getOpValue(&v1, es, &(instr->dst));
         getOpValue(&v2, es, &(instr->src));
@@ -2344,8 +2393,9 @@ uint64_t emulateInstr(Code* c, EmuState* es, Instr* instr)
                 v1.val = (uint32_t) v1.val;
                 v1.type = VT_32;
             }
-            setOpValue(&v1, es, &(instr->dst));
             captureLea(c, instr, es, &v1);
+            // may overwrite a state needed for correct capturing
+            setOpValue(&v1, es, &(instr->dst));
             break;
 
         default:assert(0);
@@ -2386,8 +2436,8 @@ uint64_t emulateInstr(Code* c, EmuState* es, Instr* instr)
                 v1.val = (int32_t) v1.val;
                 v1.type = VT_64;
             }
-            setOpValue(&v1, es, &(instr->dst));
             captureMov(c, instr, es, &v1);
+            setOpValue(&v1, es, &(instr->dst));
             break;
         }
 
@@ -2396,8 +2446,8 @@ uint64_t emulateInstr(Code* c, EmuState* es, Instr* instr)
         case OT_Imm64:
             assert(opValType(&(instr->dst)) == VT_64);
             getOpValue(&v1, es, &(instr->src));
-            setOpValue(&v1, es, &(instr->dst));
             captureMov(c, instr, es, &v1);
+            setOpValue(&v1, es, &(instr->dst));
             break;
 
         default:assert(0);
