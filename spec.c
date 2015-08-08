@@ -1740,8 +1740,10 @@ void printEmuState(EmuState* es)
 
     printf("  Registers:\n");
     for(i=Reg_AX; i<Reg_8; i++) {
-        printf("   %%r%-2s = 0x%016lx %c\n", regName(i), es->reg[i],
+        printf("    %%r%-2s = 0x%016lx %c", regName(i), es->reg[i],
                captureState2Char( es->reg_state[i] ));
+        printf("    %%r%-2s = 0x%016lx %c\n", regName(i+8), es->reg[i+8],
+               captureState2Char( es->reg_state[i+8] ));
     }
 
     printf("  Flags: CF %d %c  ZF %d %c  SF %d %c\n",
