@@ -108,6 +108,7 @@ typedef enum _InstrType {
     IT_PUSH, IT_POP, IT_LEAVE,
     IT_MOV, IT_LEA,
     IT_ADD, IT_SUB, IT_IMUL,
+    IT_XOR, IT_AND, IT_OR,
     IT_CALL, IT_RET, IT_JMP,
     IT_JG, IT_JE, IT_JNE, IT_JLE,
     IT_CMP, IT_TEST,
@@ -326,6 +327,21 @@ Bool opIsInd(Operand* o)
         return True;
     }
     return False;
+}
+
+Bool opsAreSame(Operand* o1, Operand* o2)
+{
+    if (o1->type != o2->type)
+        return False;
+    if (opIsReg(o1))
+        return (o1->reg == o2->reg);
+    if (opIsImm(o1))
+        return (o1->val == o2->val);
+    // memory
+    if ((o1->val != o2->val) || (o1->reg != o2->reg)) return False;
+    if (o1->scale == 0) return True;
+    if ((o1->scale != o2->scale) || (o1->ireg != o2->ireg)) return False;
+    return True;
 }
 
 Operand* getRegOp(ValType t, Reg r)
@@ -623,7 +639,7 @@ BB* decodeBB(Code* c, uint64_t f)
 	switch(opc) {
 
         case 0x01:
-            // add r/m,r 32/64 (dst: r/m, src: r)
+            // add r/m,r 32/64 (MR, dst: r/m, src: r)
             off += parseModRM(fp+off, hasRex ? rex:0, &o1, &o2, 0);
             addBinaryOp(c, a, (uint64_t)(fp + off), IT_ADD, &o1, &o2);
             break;
@@ -632,7 +648,7 @@ BB* decodeBB(Code* c, uint64_t f)
             opc2 = fp[off++];
             switch(opc2) {
             case 0xAF:
-                // imul r 32/64, r/m 32/64 (dst: r)
+                // imul r 32/64, r/m 32/64 (RM, dst: r)
                 off += parseModRM(fp+off, hasRex ? rex:0, &o2, &o1, 0);
                 addBinaryOp(c, a, (uint64_t)(fp + off), IT_IMUL, &o1, &o2);
                 break;
@@ -641,6 +657,12 @@ BB* decodeBB(Code* c, uint64_t f)
                 addSimple(c, a, (uint64_t)(fp + off), IT_Invalid);
                 break;
             }
+            break;
+
+        case 0x31:
+            // xor r/m,r 32/64 (MR, dst: r/m, src: r)
+            off += parseModRM(fp+off, hasRex ? rex:0, &o1, &o2, 0);
+            addBinaryOp(c, a, (uint64_t)(fp + off), IT_XOR, &o1, &o2);
             break;
 
 	case 0x50: case 0x51: case 0x52: case 0x53:
@@ -916,6 +938,7 @@ char* instr2string(Instr* instr, int align)
     case IT_ADD:   n = "add";  oc = 2; break;
     case IT_SUB:   n = "sub";  oc = 2; break;
     case IT_IMUL:  n = "imul"; oc = 2; break;
+    case IT_XOR:   n = "xor";  oc = 2; break;
     case IT_LEA:   n = "lea";  oc = 2; break;
     case IT_CMP:   n = "cmp";  oc = 2; break;
     case IT_TEST:  n = "test"; oc = 2; break;
@@ -1366,6 +1389,30 @@ int genIMul(uint8_t* buf, Operand* src, Operand* dst)
     return 0;
 }
 
+int genXor(uint8_t* buf, Operand* src, Operand* dst)
+{
+    switch(src->type) {
+    // src reg
+    case OT_Reg32:
+    case OT_Reg64:
+        assert(opValType(src) == opValType(dst));
+        switch(dst->type) {
+        case OT_Reg32:
+        case OT_Ind32:
+        case OT_Reg64:
+        case OT_Ind64:
+            // use 'xor r/m,r 32/64' (0x31 MR)
+            return genModRM(buf, 0x31, dst, src);
+
+        default: assert(0);
+        }
+        break;
+
+    default: assert(0);
+    }
+    return 0;
+}
+
 
 int genLea(uint8_t* buf, Operand* src, Operand* dst)
 {
@@ -1425,6 +1472,9 @@ void capture(Code* c, Instr* instr)
         break;
     case IT_IMUL:
         used = genIMul(buf, &(instr->src), &(instr->dst));
+        break;
+    case IT_XOR:
+        used = genXor(buf, &(instr->src), &(instr->dst));
         break;
     case IT_LEA:
         used = genLea(buf, &(instr->src), &(instr->dst));
@@ -1766,7 +1816,9 @@ void setFlagsAdd(EmuState* es, EmuValue* v1, EmuValue* v2)
     }
 }
 
-CaptureState setFlagsAnd(EmuState* es, EmuValue* v1, EmuValue* v2)
+// for bitwise operations: And, Xor
+CaptureState setFlagsBit(EmuState* es, InstrType it,
+                         EmuValue* v1, EmuValue* v2, Bool sameOperands)
 {
     CaptureState s;
     uint64_t res;
@@ -1774,13 +1826,24 @@ CaptureState setFlagsAnd(EmuState* es, EmuValue* v1, EmuValue* v2)
     assert(v1->type == v2->type);
 
     s = combineState(v1->state, v2->state, 0);
-    if (s == CS_STACKRELATIVE) s = CS_DYNAMIC; // REL makes no sense for flags
-    es->carry_state = s;
+     // STACKRELATIVE makes no sense for flags
+    if (s == CS_STACKRELATIVE) s = CS_DYNAMIC;
+    // xor op,op results in known zero
+    if ((it == IT_XOR) && sameOperands) s = CS_STATIC;
+
+    // carry always cleared (TODO: also overflow)
+    es->carry = 0;
+    es->carry_state = CS_STATIC;
+
     es->zero_state = s;
     es->sign_state = s;
 
-    res = v1->val & v2->val;
-    es->carry = 0;
+    switch(it) {
+    case IT_AND: res = v1->val & v2->val; break;
+    case IT_XOR: res = v1->val ^ v2->val; break;
+    default: assert(0);
+    }
+
     es->zero  = (res == 0);
     switch(v1->type) {
     case VT_8:
@@ -2440,9 +2503,23 @@ uint64_t emulateInstr(Code* c, EmuState* es, Instr* instr)
         getOpValue(&v2, es, &(instr->src));
 
         assert(v1.type == v2.type);
-        s = setFlagsAnd(es, &v1, &v2);
+        s = setFlagsBit(es, IT_AND, &v1, &v2, False);
         captureTest(c, instr, es, s);
         break;
+
+    case IT_XOR:
+        getOpValue(&v1, es, &(instr->dst));
+        getOpValue(&v2, es, &(instr->src));
+
+        assert(v1.type == v2.type);
+        v1.state = setFlagsBit(es, IT_XOR, &v1, &v2,
+                               opsAreSame(&(instr->dst), &(instr->src)));
+        v1.val = v1.val ^ v2.val;
+        // for capturing we need state of original dst
+        captureBinaryOp(c, instr, es, &v1);
+        setOpValue(&v1, es, &(instr->dst));
+        break;
+
 
     default: assert(0);
     }

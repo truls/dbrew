@@ -131,7 +131,7 @@ int main()
 {
     //runTest("sum(4,7)",  sum,  4,7,1,2, 1,1,1);
     //runTest("sum2(4,7)", sum2, 4,7,1,2, 1,1,1);
-    runTest("sum3(4,7)", sum3, 4,7, 3,5, 0,1,0);
+    runTest("sum3(4,7)", sum3, 4,7, 0,5, 0,1,0);
 
     return 0;
 }
