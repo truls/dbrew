@@ -1548,6 +1548,7 @@ typedef enum _CaptureState {
     CS_DYNAMIC,       // data unknown at code generation time
     CS_STATIC,        // data known at code generation time
     CS_STACKRELATIVE, // address with known offset from stack top at start
+    CS_STATIC2,       // same as static + indirection from memory static
     CS_Max
 } CaptureState;
 
@@ -1593,10 +1594,15 @@ typedef struct _CaptureConfig
 char captureState2Char(CaptureState s)
 {
     assert((s >= 0) && (s < CS_Max));
-    assert(CS_Max == 4);
-    return "-DSR"[s];
+    assert(CS_Max == 5);
+    return "-DSR2"[s];
 }
 
+Bool stateIsStatic(CaptureState s)
+{
+    if ((s == CS_STATIC) || (s == CS_STATIC2)) return True;
+    return False;
+}
 
 void setCaptureConfig(Code* c, int constPos)
 {
@@ -1611,7 +1617,7 @@ void setCaptureConfig(Code* c, int constPos)
 	cc->par_state[i] = CS_DYNAMIC;
     assert(constPos < CC_MAXPARAM);
     if (constPos >= 0)
-        cc->par_state[constPos] = CS_STATIC;
+        cc->par_state[constPos] = CS_STATIC2;
 
     c->cc = cc;
 }
@@ -1630,9 +1636,9 @@ void setCaptureConfig2(Code* c, int constPos1, int constPos2)
     assert(constPos1 < CC_MAXPARAM);
     assert(constPos2 < CC_MAXPARAM);
     if (constPos1 >= 0)
-        cc->par_state[constPos1] = CS_STATIC;
+        cc->par_state[constPos1] = CS_STATIC2;
     if (constPos2 >= 0)
-        cc->par_state[constPos2] = CS_STATIC;
+        cc->par_state[constPos2] = CS_STATIC2;
 
     c->cc = cc;
 }
@@ -1768,7 +1774,10 @@ char combineState(CaptureState s1, CaptureState s2, Bool isSameValue)
     if ((s1 == CS_DEAD) || (s2 == CS_DEAD)) return CS_DEAD;
 
     // if both are static, static-ness is preserved
-    if ((s1 == CS_STATIC) && (s2 == CS_STATIC)) return CS_STATIC;
+    if (stateIsStatic(s1) && stateIsStatic(s2)) {
+        if ((s1 == CS_STATIC2) || (s2 == CS_STATIC2)) return CS_STATIC2;
+        return CS_STATIC;
+    }
 
     // stack-relative handling:
     // depends on combining of sub-state of one value or combining two values
@@ -1779,13 +1788,25 @@ char combineState(CaptureState s1, CaptureState s2, Bool isSameValue)
     }
     else {
         // STACKRELATIVE is preserved if other is STATIC
-        if ((s1 == CS_STACKRELATIVE) && (s2 == CS_STATIC))
+        if ((s1 == CS_STACKRELATIVE) && stateIsStatic(s2))
             return CS_STACKRELATIVE;
-        if ((s1 == CS_STATIC) && (s2 == CS_STACKRELATIVE))
+        if (stateIsStatic(s1) && (s2 == CS_STACKRELATIVE))
             return CS_STACKRELATIVE;
     }
 
     return CS_DYNAMIC;
+}
+
+char combineState4Flags(CaptureState s1, CaptureState s2)
+{
+    CaptureState s;
+
+    s = combineState(s1, s2, 0);
+     // STACKRELATIVE/STATIC2 makes no sense for flags
+    if (s == CS_STACKRELATIVE) s = CS_DYNAMIC;
+    if (s == CS_STATIC2) s = CS_STATIC;
+
+    return s;
 }
 
 // v1 - v2
@@ -1793,8 +1814,7 @@ CaptureState setFlagsSub(EmuState* es, EmuValue* v1, EmuValue* v2)
 {
     CaptureState s;
 
-    s = combineState(v1->state, v2->state, 0);
-    if (s == CS_STACKRELATIVE) s = CS_DYNAMIC; // REL makes no sense for flags
+    s = combineState4Flags(v1->state, v2->state);
     es->carry_state = s;
     es->zero_state = s;
     es->sign_state = s;
@@ -1823,8 +1843,7 @@ void setFlagsAdd(EmuState* es, EmuValue* v1, EmuValue* v2)
 {
     CaptureState s;
 
-    s = combineState(v1->state, v2->state, 0);
-    if (s == CS_STACKRELATIVE) s = CS_DYNAMIC; // REL makes no sense for flags
+    s = combineState4Flags(v1->state, v2->state);
     es->carry_state = s;
     es->zero_state = s;
     es->sign_state = s;
@@ -1860,9 +1879,7 @@ CaptureState setFlagsBit(EmuState* es, InstrType it,
 
     assert(v1->type == v2->type);
 
-    s = combineState(v1->state, v2->state, 0);
-     // STACKRELATIVE makes no sense for flags
-    if (s == CS_STACKRELATIVE) s = CS_DYNAMIC;
+    s = combineState4Flags(v1->state, v2->state);
     // xor op,op results in known zero
     if ((it == IT_XOR) && sameOperands) s = CS_STATIC;
 
@@ -1942,6 +1959,8 @@ void getMemValue(EmuValue* v, EmuValue* addr, EmuState* es, ValType t,
     else {
         assert(!shouldBeStack);
         state = CS_DYNAMIC;
+        // explicit request to make memory access result static
+        if (addr->state == CS_STATIC2) state = CS_STATIC;
     }
 
     switch(t) {
@@ -2103,18 +2122,18 @@ Bool keepsCaptureState(EmuState* es, Operand* o)
     getOpAddr(&addr, es, o);
     isOnStack = getStackOffset(es, &addr, &off);
     if (!isOnStack) return 0;
-    return (off.state == CS_STATIC);
+    return stateIsStatic(off.state);
 }
 
 void applyStaticToInd(Operand* o, EmuState* es)
 {
     if (!opIsInd(o)) return;
 
-    if ((o->reg != Reg_None) && (es->reg_state[o->reg] == CS_STATIC)) {
+    if ((o->reg != Reg_None) && stateIsStatic(es->reg_state[o->reg])) {
         o->val += es->reg[o->reg];
         o->reg = Reg_None;
     }
-    if ((o->scale > 0) && (es->reg_state[o->ireg] == CS_STATIC)) {
+    if ((o->scale > 0) && stateIsStatic(es->reg_state[o->ireg])) {
         o->val += o->scale * es->reg[o->ireg];
         o->scale = 0;
     }
@@ -2130,7 +2149,7 @@ void captureMov(Code* c, Instr* orig, EmuState* es, EmuValue* res)
     if (res->state == CS_DEAD) return;
 
     o = &(orig->src);
-    if (res->state == CS_STATIC) {
+    if (stateIsStatic(res->state)) {
         // no need to update data if capture state is maintained
         if (keepsCaptureState(es, &(orig->dst))) return;
 
@@ -2152,7 +2171,7 @@ void captureBinaryOp(Code* c, Instr* orig, EmuState* es, EmuValue* res)
 
     if (res->state == CS_DEAD) return;
 
-    if (res->state == CS_STATIC) {
+    if (stateIsStatic(res->state)) {
         // no need to update data if capture state is maintained
         if (keepsCaptureState(es, &(orig->dst))) return;
 
@@ -2166,7 +2185,7 @@ void captureBinaryOp(Code* c, Instr* orig, EmuState* es, EmuValue* res)
 
     // if dst (= 2.op) known/constant and a reg/stack, we need to update it
     getOpValue(&opval, es, &(orig->dst));
-    if (keepsCaptureState(es, &(orig->dst)) && (opval.state == CS_STATIC)) {
+    if (keepsCaptureState(es, &(orig->dst)) && stateIsStatic(opval.state)) {
         initBinaryInstr(&i, IT_MOV,
                         &(orig->dst), getImmOp(opval.type, opval.val));
         capture(c, &i);
@@ -2174,7 +2193,7 @@ void captureBinaryOp(Code* c, Instr* orig, EmuState* es, EmuValue* res)
 
     o = &(orig->src);
     getOpValue(&opval, es, &(orig->src));
-    if (!opIsInd(&(orig->src)) && (opval.state == CS_STATIC)) {
+    if (!opIsInd(&(orig->src)) && stateIsStatic(opval.state)) {
 	// if 1st source (=src) is known/constant and a reg, make it immediate
         o = getImmOp(opval.type, opval.val);
     }
@@ -2188,7 +2207,8 @@ void captureLea(Code* c, Instr* orig, EmuState* es, EmuValue* res)
 {
     Instr i;
 
-    if (res->state == CS_STATIC) return;
+    if (stateIsStatic(res->state)) return;
+
     initBinaryInstr(&i, IT_LEA, &(orig->dst), &(orig->src));
     applyStaticToInd(&(i.src), es);
     capture(c, &i);
@@ -2198,7 +2218,7 @@ void captureCmp(Code* c, Instr* orig, EmuState* es, CaptureState s)
 {
     Instr i;
 
-    if (s == CS_STATIC) return;
+    if (stateIsStatic(s)) return;
 
     initBinaryInstr(&i, IT_CMP, &(orig->dst), &(orig->src));
     applyStaticToInd(&(i.dst), es);
@@ -2210,7 +2230,7 @@ void captureTest(Code* c, Instr* orig, EmuState* es, CaptureState s)
 {
     Instr i;
 
-    if (s == CS_STATIC) return;
+    if (stateIsStatic(s)) return;
 
     initBinaryInstr(&i, IT_TEST, &(orig->dst), &(orig->src));
     applyStaticToInd(&(i.dst), es);
@@ -2224,7 +2244,7 @@ void captureRet(Code* c, Instr* orig, EmuState* es)
     Instr i;
 
     getRegValue(&v, es, Reg_AX, VT_64);
-    if (v.state == CS_STATIC) {
+    if (stateIsStatic(v.state)) {
         initBinaryInstr(&i, IT_MOV,
                         getRegOp(VT_64, Reg_AX), getImmOp(v.type, v.val));
         capture(c, &i);
@@ -2336,7 +2356,7 @@ uint64_t emulateInstr(Code* c, EmuState* es, Instr* instr)
             break;
         default: assert(0);
         }
-        if (es->reg_state[Reg_AX] != CS_STATIC)
+        if (!stateIsStatic(es->reg_state[Reg_AX]))
             capture(c, instr);
         break;
 
@@ -2419,7 +2439,8 @@ uint64_t emulateInstr(Code* c, EmuState* es, Instr* instr)
         getMemValue(&v1, &addr, es, VT_64, 1);
         setOpValue(&v1, es, &(i.dst));
         es->reg[Reg_SP] += 8;
-        if (v1.state != CS_STATIC) capture(c, &i);
+        if (!stateIsStatic(v1.state))
+            capture(c, &i);
         break;
     }
 
@@ -2461,7 +2482,7 @@ uint64_t emulateInstr(Code* c, EmuState* es, Instr* instr)
             getMemValue(&v1, &addr, es, VT_32, 1);
             setOpValue(&v1, es, &(instr->dst));
             es->reg[Reg_SP] += 4;
-            if (v1.state != CS_STATIC)
+            if (!stateIsStatic(v1.state))
                 capture(c, instr);
             break;
 
@@ -2470,7 +2491,7 @@ uint64_t emulateInstr(Code* c, EmuState* es, Instr* instr)
             getMemValue(&v1, &addr, es, VT_64, 1);
             setOpValue(&v1, es, &(instr->dst));
             es->reg[Reg_SP] += 8;
-            if (v1.state != CS_STATIC)
+            if (!stateIsStatic(v1.state))
                 capture(c, instr);
             break;
 
@@ -2485,7 +2506,7 @@ uint64_t emulateInstr(Code* c, EmuState* es, Instr* instr)
             addr = emuValue(es->reg[Reg_SP], VT_64, es->reg_state[Reg_SP]);
             getOpValue(&v1, es, &(instr->dst));
             setMemValue(&v1, &addr, es, VT_32, 1);
-            if (v1.state != CS_STATIC)
+            if (!stateIsStatic(v1.state))
                 capture(c, instr);
             break;
 
@@ -2494,7 +2515,7 @@ uint64_t emulateInstr(Code* c, EmuState* es, Instr* instr)
             addr = emuValue(es->reg[Reg_SP], VT_64, es->reg_state[Reg_SP]);
             getOpValue(&v1, es, &(instr->dst));
             setMemValue(&v1, &addr, es, VT_64, 1);
-            if (v1.state != CS_STATIC)
+            if (!stateIsStatic(v1.state))
                 capture(c, instr);
             break;
 
