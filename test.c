@@ -47,31 +47,38 @@ int sum3(int a, int b)
 }
 
 
-typedef int (*sum_func)(int,int);
+typedef int (*int2_func)(int,int);
 
 // decode captured code from c1 into c2
-void emulateCaptureRun(char* t1, char* t2, char* t3, Code* c1, Code* c2)
+void emulateCaptureRun(char* t1, char* t2,
+                       int p1, int p2, int sp1, int sp2,
+                       Code* c1, Code* c2)
 {
     int res;
-    sum_func f;
+    int2_func f;
 
     printf("\nRun emulator for %s, capturing %s:\n", t1, t2);
-    res = (int)emulate(c1, 1, 2);
+    res = (int)emulate(c1, sp1, sp2);
     printf(" Result: %d\n", res);
 
     printf("\nCaptured code (size %d):\n", capturedCodeSize(c1));
     setFunc(c2, capturedCode(c1));
+    setCodeVerbosity(c2, False, False, False);
     decodeBB(c2, capturedCode(c1));
     printCode(c2);
+    setCodeVerbosity(c2, True, True, True);
 
-    f = (sum_func) capturedCode(c1);
-    res = f(4, 7);
-    printf("Run captured: %s = %d\n", t3, res);
+    f = (int2_func) capturedCode(c1);
+    res = f(p1, p2);
+    printf("Run captured: %s = %d\n", t1, res);
 }
 
-int main()
+void runTest(char* fname, int2_func f,
+             int p1, int p2, int sp1, int sp2,
+             int runOrig, int runSpec1, int runSpec2)
 {
     Code *c1, *c2, *c3;
+    char desc[20];
     int res;
 
     c1 = allocCode(200, 20, 1000);
@@ -81,36 +88,50 @@ int main()
     configEmuState(c1, 1000);
     useSameStack(c2, c1);
 
-    res = sum(1,2);
-    printf("Run native: 1 + 2 = %d\n", res);
+    res = f(p1,p2);
+    printf("Run native: %s = %d\n", fname, res);
 
-    setFunc(c1, (uint64_t)sum3);
+    setFunc(c1, (uint64_t)f);
 
-    emulateCaptureRun("sum(1,2)", "unmodified", "4 + 7", c1, c2);
+    if (runOrig)
+        emulateCaptureRun(fname, "unmodified", p1,p2,sp1,sp2, c1, c2);
 
-    // Specialize sum for par 1
-    setCaptureConfig(c1, 0);
-    emulateCaptureRun("sum(1,2)", "with par1=1", "4 (1) + 7", c1, c2);
+    if (runSpec1) {
+        // Specialize for p1
+        setCaptureConfig(c1, 0);
+        sprintf(desc, "p1=%d fix", sp1);
+        emulateCaptureRun(fname, desc, p1,p2,sp1,sp2, c1, c2);
 
-    // Nesting
-    setCaptureConfig(c2, 1);
-    emulateCaptureRun("sum1(x,2)", "with par2=2", "4 (1) + 7 (2)", c2, c3);
+        // Nesting
+        setCaptureConfig(c2, 1);
+        sprintf(desc, "nested + p2=%d fix", sp2);
+        emulateCaptureRun(fname, desc, p1,p2,sp1,sp2, c2, c3);
+    }
 
-    // Specialize sum for par 2
-    setCaptureConfig(c1, 1);
-    emulateCaptureRun("sum(1,2)", "with par2=2", "4 + 7 (2)", c1, c2);
+    if (runSpec2) {
+        // Specialize for p2
+        setCaptureConfig(c1, 1);
+        sprintf(desc, "p2=%d fix", sp2);
+        emulateCaptureRun(fname, desc, p1,p2,sp1,sp2, c1, c2);
 
-    // Nesting
-    setCaptureConfig(c2, 0);
-    emulateCaptureRun("sum2(1,x)", "with par1=1", "4 (1) + 7 (2)", c2, c3);
+        // Nesting
+        setCaptureConfig(c2, 0);
+        sprintf(desc, "nested + p1=%d fix", sp1);
+        emulateCaptureRun(fname, desc, p1,p2,sp1,sp2, c2, c3);
+    }
 
     // Specialize Par 1 and 2
     setCaptureConfig2(c1, 0,1);
-    emulateCaptureRun("sum(1,2)", "with par1/2=1/2", "4 (1) + 7 (2)", c1, c2);
+    sprintf(desc, "p1=%d/p2=%d fix", sp1, sp2);
+    emulateCaptureRun(fname, desc, p1,p2,sp1,sp2, c1, c2);
+}
 
-    // Nesting (should do nothing)
-    setCaptureConfig2(c2, 0,1);
-    emulateCaptureRun("sum12(x,x)", "with par1/2=1/2", "4 (1) + 7 (2)", c2, c3);
+
+int main()
+{
+    runTest("sum(4,7)",  sum,  4,7,1,2, 1,1,1);
+    runTest("sum2(4,7)", sum2, 4,7,1,2, 1,1,1);
+    runTest("sum3(4,7)", sum3, 4,7,1,2, 0,1,0);
 
     return 0;
 }
