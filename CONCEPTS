@@ -57,3 +57,28 @@ Fast Code Generator
 * can we do this by capturing a loop with e.g. 3 iterations for
   a generic code generator with N iterations?
 
+
+Loops
+----
+
+If we branch depending on dynamic state, we need to trace both
+paths, as the generated code may be called with data going either way.
+We can call the branch our emulator wants to go the main path, and
+the other(s) ghost paths.
+We first go the main path, and remember dynamic branches on the way
+on a stack (with the complete emulator state) to allow for backtracking
+with state rollback to also capture all ghost paths.
+
+When capturing a BB, we mark it with a label and the capture state of
+the emulator. If we revisit the BB from a dynamic branch, we check for
+matching capture state. If the capture states do not match, we may
+(1) start another capturing of this BB, or (2) change static to dynamic states
+(by updating the register/stack element with the static data) to align the
+capture states before jumping to an already captured BB version.
+(Does this also need to check for liveness matching/call depth matching?).
+
+After a branch depending on a dynamic flag, this flag can be set to static.
+To get further static information, we can track back the reason which
+resulted in the flag value. This needs remembering how the flag was
+calculated. E.g. with "CMP rax, 0; BEQ <eq>", we know that rax has
+static value 0 on <eq> path.
