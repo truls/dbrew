@@ -107,10 +107,10 @@ typedef enum _InstrType {
     IT_NOP,
     IT_PUSH, IT_POP, IT_LEAVE,
     IT_MOV, IT_LEA,
-    IT_ADD, IT_SUB,
+    IT_ADD, IT_SUB, IT_IMUL,
     IT_CALL, IT_RET, IT_JMP,
-    IT_JG, IT_JE, IT_JNE,
-    IT_CMP,
+    IT_JG, IT_JE, IT_JNE, IT_JLE,
+    IT_CMP, IT_TEST,
     IT_Max
 } InstrType;
 
@@ -578,7 +578,7 @@ BB* decodeBB(Code* c, uint64_t f)
 {
     int hasRex, rex; // REX prefix
     uint64_t a;
-    int i, off, opc, digit, old_icount;
+    int i, off, opc, opc2, digit, old_icount;
     Bool exitLoop;
     uint8_t* fp;
     Operand o1, o2;
@@ -628,6 +628,21 @@ BB* decodeBB(Code* c, uint64_t f)
             addBinaryOp(c, a, (uint64_t)(fp + off), IT_ADD, &o1, &o2);
             break;
 
+        case 0x0F:
+            opc2 = fp[off++];
+            switch(opc2) {
+            case 0xAF:
+                // imul r 32/64, r/m 32/64 (dst: r)
+                off += parseModRM(fp+off, hasRex ? rex:0, &o2, &o1, 0);
+                addBinaryOp(c, a, (uint64_t)(fp + off), IT_IMUL, &o1, &o2);
+                break;
+
+            default:
+                addSimple(c, a, (uint64_t)(fp + off), IT_Invalid);
+                break;
+            }
+            break;
+
 	case 0x50: case 0x51: case 0x52: case 0x53:
 	case 0x54: case 0x55: case 0x56: case 0x57:
 	    // push
@@ -644,13 +659,16 @@ BB* decodeBB(Code* c, uint64_t f)
 
         case 0x74: // JE/JZ rel8
         case 0x75: // JNE/JNZ rel8
+        case 0x7E: // JLE/JNG rel8
         case 0x7F: // JG/JNLE rel8
             o1.type = OT_Imm64;
             o1.val = (uint64_t) (fp + off + 1 + *(int8_t*)(fp + off));
             off += 1;
             if      (opc == 0x74) it = IT_JE;
             else if (opc == 0x75) it = IT_JNE;
-            else                  it = IT_JG;
+            else if (opc == 0x7E) it = IT_JLE;
+            else if (opc == 0x7F) it = IT_JG;
+            else assert(0);
             addUnaryOp(c, a, (uint64_t)(fp + off), it, &o1);
             exitLoop = True;
             break;
@@ -703,6 +721,12 @@ BB* decodeBB(Code* c, uint64_t f)
                 addSimple(c, a, (uint64_t)(fp + off), IT_Invalid);
                 break;
             }
+            break;
+
+        case 0x85:
+            // test r/m,r 32/64 (dst: r/m, src: r)
+            off += parseModRM(fp+off, hasRex ? rex:0, &o1, &o2, 0);
+            addBinaryOp(c, a, (uint64_t)(fp + off), IT_TEST, &o1, &o2);
             break;
 
         case 0x89:
@@ -886,12 +910,15 @@ char* instr2string(Instr* instr, int align)
     case IT_JMP:   n = "jmp";  oc = 1; break;
     case IT_JE:    n = "je";   oc = 1; break;
     case IT_JNE:   n = "jne";  oc = 1; break;
+    case IT_JLE:   n = "jle";  oc = 1; break;
     case IT_JG:    n = "jg";   oc = 1; break;
     case IT_MOV:   n = "mov";  oc = 2; break;
     case IT_ADD:   n = "add";  oc = 2; break;
     case IT_SUB:   n = "sub";  oc = 2; break;
+    case IT_IMUL:  n = "imul"; oc = 2; break;
     case IT_LEA:   n = "lea";  oc = 2; break;
     case IT_CMP:   n = "cmp";  oc = 2; break;
+    case IT_TEST:  n = "test"; oc = 2; break;
     }
     if (align)
         off += sprintf(buf, "%-6s", n);
@@ -1314,6 +1341,32 @@ int genSub(uint8_t* buf, Operand* src, Operand* dst)
     return 0;
 }
 
+int genIMul(uint8_t* buf, Operand* src, Operand* dst)
+{
+    switch(src->type) {
+    case OT_Reg32:
+    case OT_Ind32:
+    case OT_Reg64:
+    case OT_Ind64:
+        assert(opValType(src) == opValType(dst));
+        // src reg
+        switch(dst->type) {
+        case OT_Reg32:
+        case OT_Reg64:
+            // use 'sub r,r/m 32/64' (0x0F 0xAF RM)
+            buf[0] = 0x0F;
+            return genModRM(buf + 1, 0xAF, src, dst) + 1;
+
+        default: assert(0);
+        }
+        break;
+
+    default: assert(0);
+    }
+    return 0;
+}
+
+
 int genLea(uint8_t* buf, Operand* src, Operand* dst)
 {
     assert(opIsInd(src));
@@ -1369,6 +1422,9 @@ void capture(Code* c, Instr* instr)
         break;
     case IT_CMP:
         used = genCmp(buf, &(instr->src), &(instr->dst));
+        break;
+    case IT_IMUL:
+        used = genIMul(buf, &(instr->src), &(instr->dst));
         break;
     case IT_LEA:
         used = genLea(buf, &(instr->src), &(instr->dst));
@@ -1710,6 +1766,37 @@ void setFlagsAdd(EmuState* es, EmuValue* v1, EmuValue* v2)
     }
 }
 
+CaptureState setFlagsAnd(EmuState* es, EmuValue* v1, EmuValue* v2)
+{
+    CaptureState s;
+    uint64_t res;
+
+    assert(v1->type == v2->type);
+
+    s = combineState(v1->state, v2->state, 0);
+    if (s == CS_STACKRELATIVE) s = CS_DYNAMIC; // REL makes no sense for flags
+    es->carry_state = s;
+    es->zero_state = s;
+    es->sign_state = s;
+
+    res = v1->val & v2->val;
+    es->carry = 0;
+    es->zero  = (res == 0);
+    switch(v1->type) {
+    case VT_8:
+        es->sign = ((res & (1l<<7)) != 0);
+        break;
+    case VT_32:
+        es->sign = ((res & (1l<<31)) != 0);
+        break;
+    case VT_64:
+        es->sign = ((res & (1l<<63)) != 0);
+        break;
+    default: assert(0);
+    }
+
+    return s;
+}
 
 // if addr on stack, return true and stack offset in <off>,
 //  otherwise return false
@@ -2021,6 +2108,17 @@ void captureCmp(Code* c, Instr* orig, EmuState* es, CaptureState s)
     capture(c, &i);
 }
 
+void captureTest(Code* c, Instr* orig, EmuState* es, CaptureState s)
+{
+    Instr i;
+
+    if (s == CS_STATIC) return;
+
+    initBinaryInstr(&i, IT_TEST, &(orig->dst), &(orig->src));
+    applyStaticToInd(&(i.dst), es);
+    applyStaticToInd(&(i.src), es);
+    capture(c, &i);
+}
 
 void captureRet(Code* c, Instr* orig, EmuState* es)
 {
@@ -2087,6 +2185,32 @@ uint64_t emulateInstr(Code* c, EmuState* es, Instr* instr)
         setOpValue(&v1, es, &(instr->dst));
         break;
 
+    case IT_IMUL:
+        getOpValue(&v1, es, &(instr->dst));
+        getOpValue(&v2, es, &(instr->src));
+
+        assert(opIsReg(&(instr->dst)));
+        assert(v1.type == v2.type);
+        switch(instr->src.type) {
+        case OT_Reg32:
+        case OT_Ind32:
+            v1.val = (uint64_t) ((int32_t) v1.val * (int32_t) v2.val);
+            break;
+
+        case OT_Reg64:
+        case OT_Ind64:
+            v1.val = (uint64_t) ((int64_t) v1.val * (int64_t) v2.val);
+            break;
+
+        default:assert(0);
+        }
+
+        v1.state = combineState(v1.state, v2.state, 0);
+        // for capture we need state of dst, do before setting dst
+        captureBinaryOp(c, instr, es, &v1);
+        setOpValue(&v1, es, &(instr->dst));
+        break;
+
     case IT_CALL:
         assert(instr->dst.type == OT_Imm64);
         assert(es->depth < MAX_CALLDEPTH);
@@ -2129,10 +2253,16 @@ uint64_t emulateInstr(Code* c, EmuState* es, Instr* instr)
         if (es->zero == False) return instr->dst.val;
         return instr->addr + instr->len;
 
+    case IT_JLE:
+        assert(es->zero_state == CS_STATIC);
+        assert(es->sign_state == CS_STATIC);
+        if ((es->zero == True) || (es->sign == True)) return instr->dst.val;
+        return instr->addr + instr->len;
+
     case IT_JG:
         assert(es->zero_state == CS_STATIC);
         assert(es->sign_state == CS_STATIC);
-        if ((es->zero == 0) && (es->sign == 0)) return instr->dst.val;
+        if ((es->zero == False) && (es->sign == False)) return instr->dst.val;
         return instr->addr + instr->len;
 
     case IT_JMP:
@@ -2303,6 +2433,15 @@ uint64_t emulateInstr(Code* c, EmuState* es, Instr* instr)
         // for capturing we need state of original dst, do before setting dst
         captureBinaryOp(c, instr, es, &v1);
         setOpValue(&v1, es, &(instr->dst));
+        break;
+
+    case IT_TEST:
+        getOpValue(&v1, es, &(instr->dst));
+        getOpValue(&v2, es, &(instr->src));
+
+        assert(v1.type == v2.type);
+        s = setFlagsAnd(es, &v1, &v2);
+        captureTest(c, instr, es, s);
         break;
 
     default: assert(0);
