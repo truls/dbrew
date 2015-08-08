@@ -16,8 +16,6 @@
 typedef struct _EmuState EmuState;
 typedef struct _CaptureConfig CaptureConfig;
 
-typedef enum { False, True } Bool;
-
 
 /*------------------------------------------------------------
  * Code Storage
@@ -107,10 +105,12 @@ typedef enum _Reg {
 typedef enum _InstrType {
     IT_None = 0, IT_Invalid,
     IT_NOP,
-    IT_PUSH, IT_POP,
+    IT_PUSH, IT_POP, IT_LEAVE,
     IT_MOV, IT_LEA,
     IT_ADD, IT_SUB,
-    IT_CALL, IT_RET, IT_LEAVE,
+    IT_CALL, IT_RET, IT_JMP,
+    IT_JG, IT_JE, IT_JNE,
+    IT_CMP,
     IT_Max
 } InstrType;
 
@@ -220,6 +220,13 @@ void setFunc(Code* c, uint64_t f)
     c->es = 0;
 }
 
+void setCodeVerbosity(Code* c, Bool decode, Bool emuState, Bool emuSteps)
+{
+    c->showDecoding = decode;
+    c->showEmuState = emuState;
+    c->showEmuSteps = emuSteps;
+}
+
 uint64_t capturedCode(Code* c)
 {
     if ((c->cs == 0) || (c->cs->used == 0))
@@ -238,6 +245,13 @@ int capturedCodeSize(Code* c)
 
 void freeCode(Code* c)
 {
+    if (c->cs)
+        freeCodeStorage(c->cs);
+
+    free(c->cc);
+    free(c->es);
+
+    free(c->bb);
     free(c->instr);
     free(c);
 }
@@ -568,6 +582,7 @@ BB* decodeBB(Code* c, uint64_t f)
     Bool exitLoop;
     uint8_t* fp;
     Operand o1, o2;
+    InstrType it;
     BB* bb;
 
     // already decoded?
@@ -627,6 +642,19 @@ BB* decodeBB(Code* c, uint64_t f)
 		       IT_POP, getRegOp(VT_64, Reg_AX+(opc-0x58)));
 	    break;
 
+        case 0x74: // JE/JZ rel8
+        case 0x75: // JNE/JNZ rel8
+        case 0x7F: // JG/JNLE rel8
+            o1.type = OT_Imm64;
+            o1.val = (uint64_t) (fp + off + 1 + *(int8_t*)(fp + off));
+            off += 1;
+            if      (opc == 0x74) it = IT_JE;
+            else if (opc == 0x75) it = IT_JNE;
+            else                  it = IT_JG;
+            addUnaryOp(c, a, (uint64_t)(fp + off), it, &o1);
+            exitLoop = True;
+            break;
+
         case 0x81:
             off += parseModRM(fp+off, hasRex ? rex:0, &o1, 0, &digit);
             switch(digit) {
@@ -661,6 +689,14 @@ BB* decodeBB(Code* c, uint64_t f)
                 o2.val = (int64_t) (*(int8_t*)(fp + off));
                 off += 1;
                 addBinaryOp(c, a, (uint64_t)(fp + off), IT_SUB, &o1, &o2);
+                break;
+
+            case 7:
+                // 83/7: CMP r/m 32/64, imm8
+                o2.type = OT_Imm8;
+                o2.val = (int64_t) (*(int8_t*)(fp + off));
+                off += 1;
+                addBinaryOp(c, a, (uint64_t)(fp + off), IT_CMP, &o1, &o2);
                 break;
 
             default:
@@ -712,17 +748,26 @@ BB* decodeBB(Code* c, uint64_t f)
             }
             break;
 
-        case 0xc9:
+        case 0xC9:
             // leave ( = mov rbp,rsp + pop rbp)
             addSimple(c, a, (uint64_t)(fp + off), IT_LEAVE);
             break;
 
         case 0xE8:
             // call rel32
-            o1.type = VT_64;
+            o1.type = OT_Imm64;
             o1.val = (uint64_t) (fp + off + 4 + *(int32_t*)(fp + off));
             off += 4;
             addUnaryOp(c, a, (uint64_t)(fp + off), IT_CALL, &o1);
+            exitLoop = True;
+            break;
+
+        case 0xEB:
+            // jmp rel8
+            o1.type = OT_Imm64;
+            o1.val = (uint64_t) (fp + off + 1 + *(int8_t*)(fp + off));
+            off += 1;
+            addUnaryOp(c, a, (uint64_t)(fp + off), IT_JMP, &o1);
             exitLoop = True;
             break;
 
@@ -838,10 +883,15 @@ char* instr2string(Instr* instr, int align)
     case IT_PUSH:  n = "push"; oc = 1; break;
     case IT_POP:   n = "pop";  oc = 1; break;
     case IT_CALL:  n = "call"; oc = 1; break;
+    case IT_JMP:   n = "jmp";  oc = 1; break;
+    case IT_JE:    n = "je";   oc = 1; break;
+    case IT_JNE:   n = "jne";  oc = 1; break;
+    case IT_JG:    n = "jg";   oc = 1; break;
     case IT_MOV:   n = "mov";  oc = 2; break;
     case IT_ADD:   n = "add";  oc = 2; break;
     case IT_SUB:   n = "sub";  oc = 2; break;
     case IT_LEA:   n = "lea";  oc = 2; break;
+    case IT_CMP:   n = "cmp";  oc = 2; break;
     }
     if (align)
         off += sprintf(buf, "%-6s", n);
@@ -1279,6 +1329,27 @@ int genLea(uint8_t* buf, Operand* src, Operand* dst)
     return 0;
 }
 
+int genCmp(uint8_t* buf, Operand* src, Operand* dst)
+{
+    switch(src->type) {
+    case OT_Imm8:
+        // src imm8
+        switch(dst->type) {
+        case OT_Reg32:
+        case OT_Reg64:
+        case OT_Ind32:
+        case OT_Ind64:
+            // use 'cmp r/m 32/64, imm8' (0x83/7 MI)
+            return genDigitMI(buf, 0x83, 5, dst, src);
+
+        default: assert(0);
+        }
+        break;
+
+    default: assert(0);
+    }
+    return 0;
+}
 
 
 void capture(Code* c, Instr* instr)
@@ -1296,17 +1367,20 @@ void capture(Code* c, Instr* instr)
     case IT_ADD:
         used = genAdd(buf, &(instr->src), &(instr->dst));
         break;
+    case IT_CMP:
+        used = genCmp(buf, &(instr->src), &(instr->dst));
+        break;
+    case IT_LEA:
+        used = genLea(buf, &(instr->src), &(instr->dst));
+        break;
+    case IT_MOV:
+        used = genMov(buf, &(instr->src), &(instr->dst));
+        break;
+    case IT_POP:
+        used = genPop(buf, &(instr->dst));
+        break;
     case IT_PUSH:
 	used = genPush(buf, &(instr->dst));
-	break;
-    case IT_POP:
-	used = genPop(buf, &(instr->dst));
-	break;
-    case IT_MOV:
-	used = genMov(buf, &(instr->src), &(instr->dst));
-	break;
-    case IT_LEA:
-	used = genLea(buf, &(instr->src), &(instr->dst));
 	break;
     case IT_RET:
 	used = genRet(buf);
@@ -1348,18 +1422,23 @@ typedef struct _EmuState {
 
     // general registers: Reg_AX .. Reg_R15
     uint64_t reg[Reg_Max];
+    CaptureState reg_state[Reg_Max];
+
+    // x86 flags: carry (CF), zero (ZF)
+    // TODO: sign, overflow, parity, auxiliary carry
+    Bool carry, zero, sign;
+    CaptureState carry_state, zero_state, sign_state;
 
     // stack
     int stacksize;
     uint8_t* stack;
+    // capture state of stack
+    CaptureState *stack_state;
 
     // own return stack
     uint64_t ret_stack[MAX_CALLDEPTH];
     int depth;
 
-    // capture state
-    CaptureState reg_state[Reg_Max];
-    CaptureState *stack_state;
 } EmuState;
 
 // a single value with type and capture state
@@ -1449,15 +1528,22 @@ void resetEmuState(EmuState* es)
     static Reg calleeSave[] = {
         Reg_BP, Reg_BX, Reg_12, Reg_13, Reg_14, Reg_15, Reg_None };
 
-    for(i=0; i< es->stacksize; i++)
-        es->stack[i] = 0;
-    for(i=0; i< es->stacksize; i++)
-        es->stack_state[i] = CS_DEAD;
-
     for(i=0; i<Reg_Max; i++)
         es->reg[i] = 0;
     for(i=0; i<Reg_Max; i++)
         es->reg_state[i] = CS_DEAD;
+
+    es->carry = False;
+    es->zero = False;
+    es->sign = False;
+    es->carry_state = CS_DEAD;
+    es->zero_state = CS_DEAD;
+    es->sign_state = CS_DEAD;
+
+    for(i=0; i< es->stacksize; i++)
+        es->stack[i] = 0;
+    for(i=0; i< es->stacksize; i++)
+        es->stack_state[i] = CS_DEAD;
 
     // calling convention:
     //  rbp, rbx, r12-r15 have to be preserved by callee
@@ -1516,6 +1602,11 @@ void printEmuState(EmuState* es)
                captureState2Char( es->reg_state[i] ));
     }
 
+    printf("  Flags: CF %d %c  ZF %d %c  SF %d %c\n",
+           es->carry, captureState2Char(es->carry_state),
+           es->zero,  captureState2Char(es->zero_state),
+           es->sign,  captureState2Char(es->sign_state) );
+
     printf("  Stack:\n");
     sp   = (uint8_t*) es->reg[Reg_SP];
     smax = (uint8_t*) (es->reg[Reg_SP]/8*8 + 24);
@@ -1560,6 +1651,65 @@ char combineState(CaptureState s1, CaptureState s2, Bool isSameValue)
 
     return CS_DYNAMIC;
 }
+
+// v1 - v2
+CaptureState setFlagsSub(EmuState* es, EmuValue* v1, EmuValue* v2)
+{
+    CaptureState s;
+
+    s = combineState(v1->state, v2->state, 0);
+    if (s == CS_STACKRELATIVE) s = CS_DYNAMIC; // REL makes no sense for flags
+    es->carry_state = s;
+    es->zero_state = s;
+    es->sign_state = s;
+
+    assert(v1->type == v2->type);
+
+    es->carry = (v1->val < v2->val);
+    es->zero  = (v1->val == v2->val);
+    switch(v1->type) {
+    case VT_8:
+        es->sign = (((v1->val - v2->val) & (1l<<7)) != 0);
+        break;
+    case VT_32:
+        es->sign = (((v1->val - v2->val) & (1l<<31)) != 0);
+        break;
+    case VT_64:
+        es->sign = (((v1->val - v2->val) & (1l<<63)) != 0);
+        break;
+    default: assert(0);
+    }
+
+    return s;
+}
+
+void setFlagsAdd(EmuState* es, EmuValue* v1, EmuValue* v2)
+{
+    CaptureState s;
+
+    s = combineState(v1->state, v2->state, 0);
+    if (s == CS_STACKRELATIVE) s = CS_DYNAMIC; // REL makes no sense for flags
+    es->carry_state = s;
+    es->zero_state = s;
+    es->sign_state = s;
+
+    assert(v1->type == v2->type);
+
+    switch(v1->type) {
+    case VT_8:
+        es->carry = (v1->val + v2->val >= (1<<8));
+        es->zero  = ((v1->val + v2->val) & ((1<<8)-1) == 0);
+        es->sign  = (((v1->val + v2->val) & (1l<<7)) != 0);
+        break;
+    case VT_32:
+        es->carry = (v1->val + v2->val >= (1l<<32));
+        es->zero  = ((v1->val + v2->val) & ((1l<<32)-1) == 0);
+        es->sign  = (((v1->val + v2->val) & (1l<<31)) != 0);
+        break;
+    default: assert(0);
+    }
+}
+
 
 // if addr on stack, return true and stack offset in <off>,
 //  otherwise return false
@@ -1829,9 +1979,9 @@ void captureBinaryOp(Code* c, Instr* orig, EmuState* es, EmuValue* res)
 	return;
     }
 
-    // if 2nd source (=dst) is known/constant and a reg, we need to update it
+    // if dst (= 2.op) known/constant and a reg/stack, we need to update it
     getOpValue(&opval, es, &(orig->dst));
-    if (!opIsInd(&(orig->dst)) && (opval.state == CS_STATIC)) {
+    if (keepsCaptureState(es, &(orig->dst)) && (opval.state == CS_STATIC)) {
         initBinaryInstr(&i, IT_MOV,
                         &(orig->dst), getImmOp(opval.type, opval.val));
         capture(c, &i);
@@ -1859,6 +2009,19 @@ void captureLea(Code* c, Instr* orig, EmuState* es, EmuValue* res)
     capture(c, &i);
 }
 
+void captureCmp(Code* c, Instr* orig, EmuState* es, CaptureState s)
+{
+    Instr i;
+
+    if (s == CS_STATIC) return;
+
+    initBinaryInstr(&i, IT_CMP, &(orig->dst), &(orig->src));
+    applyStaticToInd(&(i.dst), es);
+    applyStaticToInd(&(i.src), es);
+    capture(c, &i);
+}
+
+
 void captureRet(Code* c, Instr* orig, EmuState* es)
 {
     EmuValue v;
@@ -1878,12 +2041,15 @@ void captureRet(Code* c, Instr* orig, EmuState* es)
 uint64_t emulateInstr(Code* c, EmuState* es, Instr* instr)
 {
     EmuValue v1, v2, addr;
+    CaptureState s;
+    ValType vt;
 
     switch(instr->type) {
 
     case IT_ADD:
         getOpValue(&v1, es, &(instr->dst));
         getOpValue(&v2, es, &(instr->src));
+        setFlagsAdd(es, &v1, &v2);
 
         switch(instr->src.type) {
         case OT_Reg32:
@@ -1934,6 +2100,43 @@ uint64_t emulateInstr(Code* c, EmuState* es, Instr* instr)
         setMemValue(&v1, &addr, es, VT_64, 1);
 
         es->ret_stack[es->depth++] = v1.val;
+
+        // address to jump to
+        return instr->dst.val;
+
+    case IT_CMP:
+        getOpValue(&v1, es, &(instr->dst));
+        getOpValue(&v2, es, &(instr->src));
+
+        vt = opValType(&(instr->dst));
+        // sign-extend src/v2 if needed
+        if (instr->src.type == OT_Imm8) {
+            // sign-extend to 64bit (may be cutoff later)
+            v2.val = (int64_t) (int8_t) v2.val;
+            v2.type = (vt == VT_32) ? OT_Imm32 : OT_Imm64;
+        }
+        s = setFlagsSub(es, &v1, &v2);
+        captureCmp(c, instr, es, s);
+        break;
+
+    case IT_JE:
+        assert(es->zero_state == CS_STATIC);
+        if (es->zero == True) return instr->dst.val;
+        return instr->addr + instr->len;
+
+    case IT_JNE:
+        assert(es->zero_state == CS_STATIC);
+        if (es->zero == False) return instr->dst.val;
+        return instr->addr + instr->len;
+
+    case IT_JG:
+        assert(es->zero_state == CS_STATIC);
+        assert(es->sign_state == CS_STATIC);
+        if ((es->zero == 0) && (es->sign == 0)) return instr->dst.val;
+        return instr->addr + instr->len;
+
+    case IT_JMP:
+        assert(instr->dst.type == OT_Imm64);
 
         // address to jump to
         return instr->dst.val;
@@ -2073,38 +2276,31 @@ uint64_t emulateInstr(Code* c, EmuState* es, Instr* instr)
         getOpValue(&v1, es, &(instr->dst));
         getOpValue(&v2, es, &(instr->src));
 
-        switch(instr->src.type) {
-        case OT_Reg32:
-        case OT_Ind32:
-            assert(opValType(&(instr->dst)) == VT_32);
+        vt = opValType(&(instr->dst));
+        // sign-extend src/v2 if needed
+        if (instr->src.type == OT_Imm8) {
+            // sign-extend to 64bit (may be cutoff later)
+            v2.val = (int64_t) (int8_t) v2.val;
+            v2.type = (vt == VT_32) ? OT_Imm32 : OT_Imm64;
+        }
+
+        setFlagsSub(es, &v1, &v2);
+        assert(v1.type == v2.type);
+
+        switch(vt) {
+        case VT_32:
             v1.val = ((uint32_t) v1.val - (uint32_t) v2.val);
             break;
 
-        case OT_Reg64:
-        case OT_Ind64:
-            assert(opValType(&(instr->dst)) == VT_64);
+        case VT_64:
             v1.val = v1.val - v2.val;
             break;
-
-        case OT_Imm8:
-            // sign-extend to 64bit
-            v2.val = (int64_t) (int8_t) v2.val;
-            // fall through
-        case OT_Imm32: {
-            ValType dst_ot = opValType(&(instr->dst));
-            assert(dst_ot == VT_32 || dst_ot == VT_64);
-            if (dst_ot == VT_32)
-                v1.val = ((uint32_t) v1.val - (uint32_t) v2.val);
-            else
-                v1.val = (uint64_t) ((int64_t) v1.val - (int64_t) v2.val);
-            break;
-        }
 
         default: assert(0);
         }
 
         v1.state = combineState(v1.state, v2.state, 0);
-        // for capture we need state of dst, do before setting dst
+        // for capturing we need state of original dst, do before setting dst
         captureBinaryOp(c, instr, es, &v1);
         setOpValue(&v1, es, &(instr->dst));
         break;
