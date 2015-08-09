@@ -1862,7 +1862,8 @@ void printEmuState(EmuState* es)
     printf("   %016lx  %s\n", (uint64_t)a, (a == sp) ? "*" : " ");
 }
 
-char combineState(CaptureState s1, CaptureState s2, Bool isSameValue)
+char combineState(CaptureState s1, CaptureState s2,
+                  Bool isSameValue)
 {
     // dead/invalid: combining with something invalid makes result invalid
     if ((s1 == CS_DEAD) || (s2 == CS_DEAD)) return CS_DEAD;
@@ -1881,7 +1882,7 @@ char combineState(CaptureState s1, CaptureState s2, Bool isSameValue)
           return CS_STACKRELATIVE;
     }
     else {
-        // STACKRELATIVE is preserved if other is STATIC
+        // STACKRELATIVE is preserved if other is STATIC (FIXME: only ADD!)
         if ((s1 == CS_STACKRELATIVE) && stateIsStatic(s2))
             return CS_STACKRELATIVE;
         if (stateIsStatic(s1) && (s2 == CS_STACKRELATIVE))
@@ -2368,7 +2369,7 @@ void captureRet(Code* c, Instr* orig, EmuState* es)
 // return 0 to fall through to next instruction, are address to jump to
 uint64_t emulateInstr(Code* c, EmuState* es, Instr* instr)
 {
-    EmuValue v1, v2, addr;
+    EmuValue vres, v1, v2, addr;
     CaptureState s;
     ValType vt;
 
@@ -2416,21 +2417,29 @@ uint64_t emulateInstr(Code* c, EmuState* es, Instr* instr)
         switch(instr->src.type) {
         case OT_Reg32:
         case OT_Ind32:
-            v1.val = (uint64_t) ((int32_t) v1.val * (int32_t) v2.val);
+            vres.type = VT_32;
+            vres.val = (uint64_t) ((int32_t) v1.val * (int32_t) v2.val);
             break;
 
         case OT_Reg64:
         case OT_Ind64:
-            v1.val = (uint64_t) ((int64_t) v1.val * (int64_t) v2.val);
+            vres.type = VT_64;
+            vres.val = (uint64_t) ((int64_t) v1.val * (int64_t) v2.val);
             break;
 
         default:assert(0);
         }
 
-        v1.state = combineState(v1.state, v2.state, 0);
+        // optimization: muliply with static 0 results in static 0
+        if ((stateIsStatic(v1.state) && (v1.val == 0)) ||
+            (stateIsStatic(v2.state) && (v2.val == 0)))
+            vres.state = CS_STATIC;
+        else
+            vres.state = combineState(v1.state, v2.state, 0);
+
         // for capture we need state of dst, do before setting dst
-        captureBinaryOp(c, instr, es, &v1);
-        setOpValue(&v1, es, &(instr->dst));
+        captureBinaryOp(c, instr, es, &vres);
+        setOpValue(&vres, es, &(instr->dst));
         break;
 
     case IT_CALL:
