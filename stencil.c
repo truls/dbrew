@@ -70,6 +70,7 @@ int main(int argc, char* argv[])
 	configEmuState(c, 1000);
 	setFunc(c, (uint64_t) apply);
 	setCaptureConfig(c, 2);
+	//setCaptureConfig2(c, 1,2);
 	emulate(c, m1 + size + 1, size, s5);
 	af = (apply_func) capturedCode(c);
 

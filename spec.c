@@ -471,6 +471,11 @@ Instr* nextInstr(Code* c, uint64_t a, int len)
 
     i->addr = a;
     i->len = len;
+
+    i->vtype = VT_None;
+    i->dst.type = OT_None;
+    i->src.type = OT_None;
+
     return i;
 }
 
@@ -602,6 +607,7 @@ void printBB(BB* bb);
 BB* decodeBB(Code* c, uint64_t f)
 {
     int hasRex, rex; // REX prefix
+    Bool hasF2, hasF3, has66;
     uint64_t a;
     int i, off, opc, opc2, digit, old_icount;
     Bool exitLoop;
@@ -629,6 +635,9 @@ BB* decodeBB(Code* c, uint64_t f)
     fp = (uint8_t*) f;
     off = 0;
     hasRex = 0;
+    hasF2 = False;
+    hasF3 = False;
+    has66 = False;
     exitLoop = False;
     while(!exitLoop) {
         a = (uint64_t)(fp + off);
@@ -637,11 +646,27 @@ BB* decodeBB(Code* c, uint64_t f)
 	while(1) {
             if ((fp[off] >= 0x40) && (fp[off] <= 0x4F)) {
                 rex = fp[off] & 15;
-		hasRex = 1;
+                hasRex = True;
                 off++;
 		continue;
 	    }
-	    break;
+            if (fp[off] == 0xF2) {
+                hasF2 = True;
+                off++;
+                continue;
+            }
+            if (fp[off] == 0xF3) {
+                hasF3 = True;
+                off++;
+                continue;
+            }
+            if (fp[off] == 0x66) {
+                has66 = True;
+                off++;
+                continue;
+            }
+            // no further prefixes
+            break;
 	}
 
         opc = fp[off++];
@@ -653,6 +678,12 @@ BB* decodeBB(Code* c, uint64_t f)
             addBinaryOp(c, a, (uint64_t)(fp + off), IT_ADD, &o1, &o2);
             break;
 
+        case 0x03:
+            // add r,r/m 32/64 (RM, dst: r, src: r/m)
+            off += parseModRM(fp+off, hasRex ? rex:0, &o2, &o1, 0);
+            addBinaryOp(c, a, (uint64_t)(fp + off), IT_ADD, &o1, &o2);
+            break;
+
         case 0x0F:
             opc2 = fp[off++];
             switch(opc2) {
@@ -660,6 +691,20 @@ BB* decodeBB(Code* c, uint64_t f)
                 // imul r 32/64, r/m 32/64 (RM, dst: r)
                 off += parseModRM(fp+off, hasRex ? rex:0, &o2, &o1, 0);
                 addBinaryOp(c, a, (uint64_t)(fp + off), IT_IMUL, &o1, &o2);
+                break;
+
+            case 0x1F:
+                off += parseModRM(fp+off, hasRex ? rex:0, &o1, 0, &digit);
+                switch(digit) {
+                case 0:
+                    // 0F 1F /0: nop r/m 32
+                    addUnaryOp(c, a, (uint64_t)(fp + off), IT_NOP, &o1);
+                    break;
+
+                default:
+                    addSimple(c, a, (uint64_t)(fp + off), IT_Invalid);
+                    break;
+                }
                 break;
 
             default:
@@ -687,6 +732,19 @@ BB* decodeBB(Code* c, uint64_t f)
             addUnaryOp(c, a, (uint64_t)(fp + off),
 		       IT_POP, getRegOp(VT_64, Reg_AX+(opc-0x58)));
 	    break;
+
+        case 0x63:
+            // movsxd r64,r/m32 (RM) mov with sign extension
+            assert(hasRex && (rex & REX_MASK_W));
+            off += parseModRM(fp+off, hasRex ? rex:0, &o2, &o1, 0);
+            // src is 32 bit
+            switch(o2.type) {
+            case OT_Reg64: o2.type = OT_Reg32; break;
+            case OT_Ind64: o2.type = OT_Ind32; break;
+            default: assert(0);
+            }
+            addBinaryOp(c, a, (uint64_t)(fp + off), IT_MOV, &o1, &o2);
+            break;
 
         case 0x74: // JE/JZ rel8
         case 0x75: // JNE/JNZ rel8
@@ -780,6 +838,11 @@ BB* decodeBB(Code* c, uint64_t f)
 			IT_LEA, &o1, &o2);
 	    break;
 
+        case 0x90:
+            // nop
+            addSimple(c, a, (uint64_t)(fp + off), IT_NOP);
+            break;
+
         case 0x98:
             // cltq (Intel: cdqe - sign-extend eax to rax)
             addSimpleVType(c, a, (uint64_t)(fp + off), IT_CLTQ,
@@ -837,6 +900,9 @@ BB* decodeBB(Code* c, uint64_t f)
 	    break;
 	}
 	hasRex = 0;
+        hasF2 = 0;
+        hasF3 = 0;
+        has66 = 0;
     }
 
     assert(bb->addr == bb->instr->addr);
@@ -959,16 +1025,20 @@ char* instr2string(Instr* instr, int align)
     case IT_CMP:   n = "cmp";  oc = 2; break;
     case IT_TEST:  n = "test"; oc = 2; break;
     }
+
     if (align)
         off += sprintf(buf, "%-6s", n);
     else
         off += sprintf(buf, "%s", n);
-    if (oc == 1)
-        off += sprintf(buf+off, " %s", op2string(&(instr->dst)));
-    if (oc == 2) {
+
+    if (instr->src.type != OT_None) {
+        assert(instr->dst.type != OT_None);
         off += sprintf(buf+off, " %s", op2string(&(instr->src)));
-	off += sprintf(buf+off, ",%s", op2string(&(instr->dst)));
+        off += sprintf(buf+off, ",%s", op2string(&(instr->dst)));
     }
+    else if (instr->dst.type != OT_None)
+        off += sprintf(buf+off, " %s", op2string(&(instr->dst)));
+
     return buf;
 }
 
@@ -1169,7 +1239,7 @@ uint8_t* calcModRM(Operand* o1, Operand* o2, int* prex, int* plen)
 
 
 // Operand o1: r/m, o2: r
-int genModRM(uint8_t* buf, int opc, Operand* o1, Operand* o2)
+int genModRM(uint8_t* buf, int opc, int opc2, Operand* o1, Operand* o2)
 {
     int rex = 0, len = 0;
     int o = 0;
@@ -1179,6 +1249,8 @@ int genModRM(uint8_t* buf, int opc, Operand* o1, Operand* o2)
     if (rex)
 	buf[o++] = 0x40 | rex;
     buf[o++] = (uint8_t) opc;
+    if (opc2 >=0)
+        buf[o++] = (uint8_t) opc2;
     while(len>0) {
 	buf[o++] = *rmBuf++;
 	len--;
@@ -1224,16 +1296,16 @@ int genDigitMI(uint8_t* buf, int opc, int digit, Operand* o1, Operand* o2)
 
 int genMov(uint8_t* buf, Operand* src, Operand* dst)
 {
-    assert(opValType(src) == opValType(dst));
     switch(dst->type) {
     case OT_Ind32:
     case OT_Ind64:
 	// dst memory
+        assert(opValType(src) == opValType(dst));
 	switch(src->type) {
 	case OT_Reg32:
 	case OT_Reg64:
 	    // use 'mov r/m,r 32/64' (0x89)
-	    return genModRM(buf, 0x89, dst, src);
+            return genModRM(buf, 0x89, -1, dst, src);
 
         case OT_Imm32:
             // use 'mov r/m 32/64, imm 32' (0xC7/0)
@@ -1251,8 +1323,17 @@ int genMov(uint8_t* buf, Operand* src, Operand* dst)
 	case OT_Ind64:
 	case OT_Reg32:
 	case OT_Reg64:
-	    // use 'mov r,r/m 32/64' (0x8B)
-	    return genModRM(buf, 0x8B, src, dst);
+            if (opValType(src) == opValType(dst)) {
+                // use 'mov r,r/m 32/64' (0x8B)
+                return genModRM(buf, 0x8B, -1, src, dst);
+            }
+            else if ((opValType(src) == VT_32) &&
+                     (opValType(dst) == VT_64)) {
+                src->type = (src->type == OT_Reg32) ? OT_Reg64 : OT_Ind64;
+                // use 'movsx r64 ,r/m 32' (0x63)
+                return genModRM(buf, 0x63, -1, src, dst);
+            }
+            break;
 
         case OT_Imm32:
             // use 'mov r/m 32/64, imm 32' (0xC7/0)
@@ -1281,7 +1362,6 @@ int genAdd(uint8_t* buf, Operand* src, Operand* dst)
     switch(src->type) {
     case OT_Reg32:
     case OT_Reg64:
-	// src reg
         assert(opValType(src) == opValType(dst));
 	switch(dst->type) {
 	case OT_Reg32:
@@ -1289,11 +1369,24 @@ int genAdd(uint8_t* buf, Operand* src, Operand* dst)
 	case OT_Ind32:
 	case OT_Ind64:
 	    // use 'add r/m,r 32/64' (0x01)
-	    return genModRM(buf, 0x01, dst, src);
+            return genModRM(buf, 0x01, -1, dst, src);
 
 	default: assert(0);
 	}
 	break;
+
+    case OT_Ind32:
+    case OT_Ind64:
+        assert(opValType(src) == opValType(dst));
+        switch(dst->type) {
+        case OT_Reg32:
+        case OT_Reg64:
+            // use 'add r,r/m 32/64' (0x03)
+            return genModRM(buf, 0x03, -1, src, dst);
+
+        default: assert(0);
+        }
+        break;
 
     case OT_Imm8:
         // src imm8
@@ -1341,7 +1434,7 @@ int genSub(uint8_t* buf, Operand* src, Operand* dst)
         case OT_Ind32:
         case OT_Ind64:
             // use 'sub r/m,r 32/64' (0x29 MR)
-            return genModRM(buf, 0x29, dst, src);
+            return genModRM(buf, 0x29, -1, dst, src);
 
         default: assert(0);
         }
@@ -1393,8 +1486,7 @@ int genIMul(uint8_t* buf, Operand* src, Operand* dst)
         case OT_Reg32:
         case OT_Reg64:
             // use 'sub r,r/m 32/64' (0x0F 0xAF RM)
-            buf[0] = 0x0F;
-            return genModRM(buf + 1, 0xAF, src, dst) + 1;
+            return genModRM(buf, 0x0F, 0xAF, src, dst);
 
         default: assert(0);
         }
@@ -1418,7 +1510,7 @@ int genXor(uint8_t* buf, Operand* src, Operand* dst)
         case OT_Reg64:
         case OT_Ind64:
             // use 'xor r/m,r 32/64' (0x31 MR)
-            return genModRM(buf, 0x31, dst, src);
+            return genModRM(buf, 0x31, -1, dst, src);
 
         default: assert(0);
         }
@@ -1438,7 +1530,7 @@ int genLea(uint8_t* buf, Operand* src, Operand* dst)
     case OT_Reg32:
     case OT_Reg64:
 	// use 'lea r/m,r 32/64' (0x8d)
-	return genModRM(buf, 0x8d, src, dst);
+        return genModRM(buf, 0x8d, -1, src, dst);
 
     default: assert(0);
     }
@@ -2267,34 +2359,26 @@ uint64_t emulateInstr(Code* c, EmuState* es, Instr* instr)
     case IT_ADD:
         getOpValue(&v1, es, &(instr->dst));
         getOpValue(&v2, es, &(instr->src));
-        setFlagsAdd(es, &v1, &v2);
 
-        switch(instr->src.type) {
-        case OT_Reg32:
-        case OT_Ind32:
-            assert(opValType(&(instr->dst)) == VT_32);
+        vt = opValType(&(instr->dst));
+        // sign-extend src/v2 if needed
+        if (instr->src.type == OT_Imm8) {
+            // sign-extend to 64bit (may be cutoff later)
+            v2.val = (int64_t) (int8_t) v2.val;
+            v2.type = (vt == VT_32) ? OT_Imm32 : OT_Imm64;
+        }
+
+        setFlagsAdd(es, &v1, &v2);
+        assert(v1.type == v2.type);
+
+        switch(vt) {
+        case VT_32:
             v1.val = ((uint32_t) v1.val + (uint32_t) v2.val);
             break;
 
-        case OT_Reg64:
-        case OT_Ind64:
-            assert(opValType(&(instr->dst)) == VT_64);
+        case VT_64:
             v1.val = v1.val + v2.val;
             break;
-
-        case OT_Imm8:
-            // sign-extend to 64bit
-            v2.val = (int64_t) (int8_t) v2.val;
-            // fall through
-        case OT_Imm32: {
-            ValType dst_ot = opValType(&(instr->dst));
-            assert(dst_ot == VT_32 || dst_ot == VT_64);
-            if (dst_ot == VT_32)
-                v1.val = ((uint32_t) v1.val + (uint32_t) v2.val);
-            else
-                v1.val = (uint64_t) ((int64_t) v1.val + (int64_t) v2.val);
-            break;
-        }
 
         default:assert(0);
         }
@@ -2456,7 +2540,7 @@ uint64_t emulateInstr(Code* c, EmuState* es, Instr* instr)
             getOpValue(&v1, es, &(instr->src));
             if (dst_t == VT_64) {
                 // sign extend lower 32 bit to 64 bit
-                v1.val = (int32_t) v1.val;
+                v1.val = (int64_t) (int32_t) v1.val;
                 v1.type = VT_64;
             }
             captureMov(c, instr, es, &v1);
@@ -2475,6 +2559,10 @@ uint64_t emulateInstr(Code* c, EmuState* es, Instr* instr)
 
         default:assert(0);
         }
+        break;
+
+    case IT_NOP:
+        // nothing to do
         break;
 
     case IT_POP:
