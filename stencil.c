@@ -6,9 +6,10 @@ typedef struct {
     int xdiff, ydiff, factor;
 } StencilPoint;
 
-StencilPoint s5[] = {{0,0,4},
-		     {-1,0,-1}, {1,0,-1}, {0,-1,-1}, {0,1,-1},
+StencilPoint s5[] = {{0,0,-4},
+		     {-1,0,1}, {1,0,1}, {0,-1,1}, {0,1,1},
 		     {0,0,0}};
+
 
 typedef int (*apply_func)(int*, int, StencilPoint*);
 
@@ -28,7 +29,7 @@ int apply(int *m, int xsize, StencilPoint* s)
 
 int apply2(int *m, int xsize, StencilPoint* s)
 {
-    return 4 * m[0] - m[-1] - m[1] - m[-xsize] - m[xsize];
+    return -4 * m[0] + m[-1] + m[1] + m[-xsize] + m[xsize];
 }
 
 int main(int argc, char* argv[])
@@ -69,8 +70,8 @@ int main(int argc, char* argv[])
 
 	configEmuState(c, 1000);
 	setFunc(c, (uint64_t) apply);
-	setCaptureConfig(c, 2);
-	//setCaptureConfig2(c, 1,2);
+	//setCaptureConfig(c, 2);
+	setCaptureConfig2(c, 1,2);
 	emulate(c, m1 + size + 1, size, s5);
 	af = (apply_func) capturedCode(c);
 

@@ -2280,6 +2280,19 @@ void captureBinaryOp(Code* c, Instr* orig, EmuState* es, EmuValue* res)
     // if dst (= 2.op) known/constant and a reg/stack, we need to update it
     getOpValue(&opval, es, &(orig->dst));
     if (keepsCaptureState(es, &(orig->dst)) && stateIsStatic(opval.state)) {
+
+        // - instead of adding src to 0, we can move the src to dst
+        // - instead of multiply src with 1, move
+        // TODO: mulitply with 0: here too late, state of result gets static
+        if (((orig->type == IT_ADD) && (opval.val == 0)) ||
+            ((orig->type == IT_IMUL) && (opval.val == 1))) {
+            initBinaryInstr(&i, IT_MOV, &(orig->dst), &(orig->src));
+            applyStaticToInd(&(i.dst), es);
+            applyStaticToInd(&(i.src), es);
+            capture(c, &i);
+            return;
+        }
+
         initBinaryInstr(&i, IT_MOV,
                         &(orig->dst), getImmOp(opval.type, opval.val));
         capture(c, &i);
@@ -2289,6 +2302,7 @@ void captureBinaryOp(Code* c, Instr* orig, EmuState* es, EmuValue* res)
     getOpValue(&opval, es, &(orig->src));
     if (stateIsStatic(opval.state)) {
         // if 1st source (=src) is known/constant and a reg, make it immediate
+
         if ((orig->type == IT_ADD) && (opval.val == 0)) {
             // adding 0 changes nothing...
             return;
