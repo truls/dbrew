@@ -2287,8 +2287,12 @@ void captureBinaryOp(Code* c, Instr* orig, EmuState* es, EmuValue* res)
 
     o = &(orig->src);
     getOpValue(&opval, es, &(orig->src));
-    if (!opIsInd(&(orig->src)) && stateIsStatic(opval.state)) {
-	// if 1st source (=src) is known/constant and a reg, make it immediate
+    if (stateIsStatic(opval.state)) {
+        // if 1st source (=src) is known/constant and a reg, make it immediate
+        if ((orig->type == IT_ADD) && (opval.val == 0)) {
+            // adding 0 changes nothing...
+            return;
+        }
         o = getImmOp(opval.type, opval.val);
     }
     initBinaryInstr(&i, orig->type, &(orig->dst), o);
