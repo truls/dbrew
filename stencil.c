@@ -86,18 +86,18 @@ int main(int argc, char* argv[])
 
     af = (av == 1) ? apply : apply2;
     if (av == 3) {
-	Code* c = allocCode(200, 20, 1000);
-	Code* c2 = allocCode(200, 20, 0);
+        Rewriter* c = allocRewriter(200, 20, 1000);
+        Rewriter* c2 = allocRewriter(200, 20, 0);
 
 	configEmuState(c, 1000);
 	setFunc(c, (uint64_t) apply);
         //setCaptureConfig(c, 2);
-        setCaptureConfig2(c, 1,2);
-	emulate(c, m1 + size + 1, size, s5);
+        setRewriteConfig2(c, 1,2);
+        rewrite(c, m1 + size + 1, size, s5);
 	af = (apply_func) capturedCode(c);
 
 	setFunc(c2, capturedCode(c));
-	setCodeVerbosity(c2, False, False, False);
+        setVerbosity(c2, False, False, False);
 	decodeBB(c2, capturedCode(c));
 	printCode(c2);
     }

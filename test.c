@@ -59,20 +59,20 @@ int test4(int a, int* b)
 // decode captured code from c1 into c2
 void emulateCaptureRun(char* t1, char* t2, Bool use_i2p,
                        int p1, uint64_t p2, int sp1, uint64_t sp2,
-                       Code* c1, Code* c2)
+                       Rewriter* c1, Rewriter* c2)
 {
     int res;
 
     printf("\nRun emulator for %s, capturing %s:\n", t1, t2);
-    res = (int)emulate(c1, sp1, sp2);
+    res = (int)rewrite(c1, sp1, sp2);
     printf(" Result: %d\n", res);
 
     printf("\nCaptured code (size %d):\n", capturedCodeSize(c1));
     setFunc(c2, capturedCode(c1));
-    setCodeVerbosity(c2, False, False, False);
+    setVerbosity(c2, False, False, False);
     decodeBB(c2, capturedCode(c1));
     printCode(c2);
-    setCodeVerbosity(c2, True, True, True);
+    setVerbosity(c2, True, True, True);
 
     if (use_i2p) {
         i2p_func f = (i2p_func) capturedCode(c1);
@@ -89,13 +89,13 @@ void runTest(char* fname, uint64_t f, Bool use_i2p,
              int p1, uint64_t p2, int sp1, uint64_t sp2,
              int runOrig, int runSpec1, int runSpec2)
 {
-    Code *c1, *c2, *c3;
+    Rewriter *c1, *c2, *c3;
     char desc[20];
     int res;
 
-    c1 = allocCode(200, 20, 1000);
-    c2 = allocCode(200, 20, 1000);
-    c3 = allocCode(200, 20, 0);
+    c1 = allocRewriter(200, 20, 1000);
+    c2 = allocRewriter(200, 20, 1000);
+    c3 = allocRewriter(200, 20, 0);
 
     configEmuState(c1, 1000);
     useSameStack(c2, c1);
@@ -117,30 +117,30 @@ void runTest(char* fname, uint64_t f, Bool use_i2p,
 
     if (runSpec1) {
         // Specialize for p1
-        setCaptureConfig(c1, 0);
+        setRewriteConfig(c1, 0);
         sprintf(desc, "p1=%d fix", sp1);
         emulateCaptureRun(fname, desc, use_i2p, p1,p2,sp1,sp2, c1, c2);
 
         // Nesting
-        setCaptureConfig(c2, 1);
+        setRewriteConfig(c2, 1);
         sprintf(desc, "nested + p2=%ld fix", sp2);
         emulateCaptureRun(fname, desc, use_i2p, p1,p2,sp1,sp2, c2, c3);
     }
 
     if (runSpec2) {
         // Specialize for p2
-        setCaptureConfig(c1, 1);
+        setRewriteConfig(c1, 1);
         sprintf(desc, "p2=%ld fix", sp2);
         emulateCaptureRun(fname, desc, use_i2p, p1,p2,sp1,sp2, c1, c2);
 
         // Nesting
-        setCaptureConfig(c2, 0);
+        setRewriteConfig(c2, 0);
         sprintf(desc, "nested + p1=%d fix", sp1);
         emulateCaptureRun(fname, desc, use_i2p, p1,p2,sp1,sp2, c2, c3);
     }
 
     // Specialize Par 1 and 2
-    setCaptureConfig2(c1, 0,1);
+    setRewriteConfig2(c1, 0,1);
     sprintf(desc, "p1=%d/p2=%ld fix", sp1, sp2);
     emulateCaptureRun(fname, desc, use_i2p, p1,p2,sp1,sp2, c1, c2);
 }

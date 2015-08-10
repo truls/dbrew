@@ -173,7 +173,7 @@ typedef struct _Code {
 
     // debug output
     Bool showDecoding, showEmuState, showEmuSteps;
-} Code;
+} Rewriter;
 
 // REX prefix, used in parseModRM
 #define REX_MASK_B 1
@@ -181,9 +181,9 @@ typedef struct _Code {
 #define REX_MASK_R 4
 #define REX_MASK_W 8
 
-Code* allocCode(int instr_capacity, int bb_capacity, int capture_capacity)
+Rewriter* allocRewriter(int instr_capacity, int bb_capacity, int capture_capacity)
 {
-    Code* c = (Code*) malloc(sizeof(Code));
+    Rewriter* c = (Rewriter*) malloc(sizeof(Rewriter));
 
     c->instr_count = 0;
     c->instr_capacity = instr_capacity;
@@ -209,7 +209,7 @@ Code* allocCode(int instr_capacity, int bb_capacity, int capture_capacity)
     return c;
 }
 
-void setFunc(Code* c, uint64_t f)
+void setFunc(Rewriter* c, uint64_t f)
 {
     c->func = f;
 
@@ -223,14 +223,14 @@ void setFunc(Code* c, uint64_t f)
     c->es = 0;
 }
 
-void setCodeVerbosity(Code* c, Bool decode, Bool emuState, Bool emuSteps)
+void setVerbosity(Rewriter* c, Bool decode, Bool emuState, Bool emuSteps)
 {
     c->showDecoding = decode;
     c->showEmuState = emuState;
     c->showEmuSteps = emuSteps;
 }
 
-uint64_t capturedCode(Code* c)
+uint64_t capturedCode(Rewriter* c)
 {
     if ((c->cs == 0) || (c->cs->used == 0))
 	return 0;
@@ -238,7 +238,7 @@ uint64_t capturedCode(Code* c)
     return (uint64_t) c->cs->buf;
 }
 
-int capturedCodeSize(Code* c)
+int capturedCodeSize(Rewriter* c)
 {
     if ((c->cs == 0) || (c->cs->used == 0))
 	return 0;
@@ -246,7 +246,7 @@ int capturedCodeSize(Code* c)
     return c->cs->used;
 }
 
-void freeCode(Code* c)
+void freeCode(Rewriter* c)
 {
     if (c->cs)
         freeCodeStorage(c->cs);
@@ -463,7 +463,7 @@ void initBinaryInstr(Instr* i, InstrType it, Operand *o1, Operand *o2)
 }
 
 
-Instr* nextInstr(Code* c, uint64_t a, int len)
+Instr* nextInstr(Rewriter* c, uint64_t a, int len)
 {
     Instr* i = c->instr + c->instr_count;
     assert(c->instr_count < c->instr_capacity);
@@ -479,20 +479,20 @@ Instr* nextInstr(Code* c, uint64_t a, int len)
     return i;
 }
 
-void addSimple(Code* c, uint64_t a, uint64_t a2, InstrType it)
+void addSimple(Rewriter* c, uint64_t a, uint64_t a2, InstrType it)
 {
     Instr* i = nextInstr(c, a, a2 - a);
     i->type = it;
 }
 
-void addSimpleVType(Code* c, uint64_t a, uint64_t a2, InstrType it, ValType vt)
+void addSimpleVType(Rewriter* c, uint64_t a, uint64_t a2, InstrType it, ValType vt)
 {
     Instr* i = nextInstr(c, a, a2 - a);
     i->type = it;
     i->vtype = vt;
 }
 
-void addUnaryOp(Code* c, uint64_t a, uint64_t a2,
+void addUnaryOp(Rewriter* c, uint64_t a, uint64_t a2,
 		InstrType it, Operand* o)
 {
     Instr* i = nextInstr(c, a, a2 - a);
@@ -500,7 +500,7 @@ void addUnaryOp(Code* c, uint64_t a, uint64_t a2,
     copyOperand( &(i->dst), o);
 }
 
-void addBinaryOp(Code* c, uint64_t a, uint64_t a2,
+void addBinaryOp(Rewriter* c, uint64_t a, uint64_t a2,
 		 InstrType it, Operand* o1, Operand* o2)
 {
     Instr* i = nextInstr(c, a, a2 - a);
@@ -604,7 +604,7 @@ int parseModRM(uint8_t* p, int rex, Operand* o1, Operand* o2, int* digit)
 // forward decl
 void printBB(BB* bb);
 
-BB* decodeBB(Code* c, uint64_t f)
+BB* decodeBB(Rewriter* c, uint64_t f)
 {
     int hasRex, rex; // REX prefix
     Bool hasF2, hasF3, has66;
@@ -1071,7 +1071,7 @@ void printBB(BB* bb)
     }
 }
 
-void printCode(Code* c)
+void printCode(Rewriter* c)
 {
     int i;
     for(i=0; i< c->bb_count; i++) {
@@ -1571,7 +1571,7 @@ int genCmp(uint8_t* buf, Operand* src, Operand* dst)
 }
 
 
-void capture(Code* c, Instr* instr)
+void capture(Rewriter* c, Instr* instr)
 {
     uint8_t* buf;
     int used;
@@ -1696,7 +1696,7 @@ Bool stateIsStatic(CaptureState s)
     return False;
 }
 
-void setCaptureConfig(Code* c, int constPos)
+void setRewriteConfig(Rewriter* c, int staticPos)
 {
     CaptureConfig* cc;
     int i;
@@ -1707,14 +1707,14 @@ void setCaptureConfig(Code* c, int constPos)
     cc = (CaptureConfig*) malloc(sizeof(CaptureConfig));
     for(i=0; i < CC_MAXPARAM; i++)
 	cc->par_state[i] = CS_DYNAMIC;
-    assert(constPos < CC_MAXPARAM);
-    if (constPos >= 0)
-        cc->par_state[constPos] = CS_STATIC2;
+    assert(staticPos < CC_MAXPARAM);
+    if (staticPos >= 0)
+        cc->par_state[staticPos] = CS_STATIC2;
 
     c->cc = cc;
 }
 
-void setCaptureConfig2(Code* c, int constPos1, int constPos2)
+void setRewriteConfig2(Rewriter* c, int staticPos1, int staticPos2)
 {
     CaptureConfig* cc;
     int i;
@@ -1725,12 +1725,12 @@ void setCaptureConfig2(Code* c, int constPos1, int constPos2)
     cc = (CaptureConfig*) malloc(sizeof(CaptureConfig));
     for(i=0; i < CC_MAXPARAM; i++)
         cc->par_state[i] = CS_DYNAMIC;
-    assert(constPos1 < CC_MAXPARAM);
-    assert(constPos2 < CC_MAXPARAM);
-    if (constPos1 >= 0)
-        cc->par_state[constPos1] = CS_STATIC2;
-    if (constPos2 >= 0)
-        cc->par_state[constPos2] = CS_STATIC2;
+    assert(staticPos1 < CC_MAXPARAM);
+    assert(staticPos2 < CC_MAXPARAM);
+    if (staticPos1 >= 0)
+        cc->par_state[staticPos1] = CS_STATIC2;
+    if (staticPos2 >= 0)
+        cc->par_state[staticPos2] = CS_STATIC2;
 
     c->cc = cc;
 }
@@ -1786,7 +1786,7 @@ void resetEmuState(EmuState* es)
 }
 
 // use stack from cc emulator in c emulator
-void useSameStack(Code* c, Code* cc)
+void useSameStack(Rewriter* c, Rewriter* cc)
 {
     assert(cc->es != 0);
     assert(c->es == 0);
@@ -1798,7 +1798,7 @@ void useSameStack(Code* c, Code* cc)
     resetEmuState(c->es);
 }
 
-void configEmuState(Code* c, int stacksize)
+void configEmuState(Rewriter* c, int stacksize)
 {
     if (c->es && c->es->stacksize != stacksize) {
         free(c->es->stack);
@@ -2234,7 +2234,7 @@ void applyStaticToInd(Operand* o, EmuState* es)
     }
 }
 
-void captureMov(Code* c, Instr* orig, EmuState* es, EmuValue* res)
+void captureMov(Rewriter* c, Instr* orig, EmuState* es, EmuValue* res)
 {
     Instr i;
     Operand *o;
@@ -2258,7 +2258,7 @@ void captureMov(Code* c, Instr* orig, EmuState* es, EmuValue* res)
 }
 
 // dst = dst op src
-void captureBinaryOp(Code* c, Instr* orig, EmuState* es, EmuValue* res)
+void captureBinaryOp(Rewriter* c, Instr* orig, EmuState* es, EmuValue* res)
 {
     EmuValue opval;
     Instr i;
@@ -2316,7 +2316,7 @@ void captureBinaryOp(Code* c, Instr* orig, EmuState* es, EmuValue* res)
     capture(c, &i);
 }
 
-void captureLea(Code* c, Instr* orig, EmuState* es, EmuValue* res)
+void captureLea(Rewriter* c, Instr* orig, EmuState* es, EmuValue* res)
 {
     Instr i;
 
@@ -2327,7 +2327,7 @@ void captureLea(Code* c, Instr* orig, EmuState* es, EmuValue* res)
     capture(c, &i);
 }
 
-void captureCmp(Code* c, Instr* orig, EmuState* es, CaptureState s)
+void captureCmp(Rewriter* c, Instr* orig, EmuState* es, CaptureState s)
 {
     Instr i;
 
@@ -2339,7 +2339,7 @@ void captureCmp(Code* c, Instr* orig, EmuState* es, CaptureState s)
     capture(c, &i);
 }
 
-void captureTest(Code* c, Instr* orig, EmuState* es, CaptureState s)
+void captureTest(Rewriter* c, Instr* orig, EmuState* es, CaptureState s)
 {
     Instr i;
 
@@ -2351,7 +2351,7 @@ void captureTest(Code* c, Instr* orig, EmuState* es, CaptureState s)
     capture(c, &i);
 }
 
-void captureRet(Code* c, Instr* orig, EmuState* es)
+void captureRet(Rewriter* c, Instr* orig, EmuState* es)
 {
     EmuValue v;
     Instr i;
@@ -2367,7 +2367,7 @@ void captureRet(Code* c, Instr* orig, EmuState* es)
 
 
 // return 0 to fall through to next instruction, are address to jump to
-uint64_t emulateInstr(Code* c, EmuState* es, Instr* instr)
+uint64_t emulateInstr(Rewriter* c, EmuState* es, Instr* instr)
 {
     EmuValue vres, v1, v2, addr;
     CaptureState s;
@@ -2715,7 +2715,7 @@ uint64_t emulateInstr(Code* c, EmuState* es, Instr* instr)
 }
 
 
-uint64_t emulate(Code* c, ...)
+uint64_t rewrite(Rewriter* c, ...)
 {
     // calling convention x86-64: parameters are stored in registers
     static Reg parReg[4] = { Reg_DI, Reg_SI, Reg_DX, Reg_CX };
