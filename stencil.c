@@ -2,6 +2,11 @@
 #include <stdlib.h>
 #include "spec.h"
 
+#define USEINT
+
+#ifdef USEINT
+#define TYPE int
+
 typedef struct {
     int xdiff, ydiff, factor;
 } StencilPoint;
@@ -9,13 +14,25 @@ typedef struct {
 StencilPoint s5[] = {{0,0,-4},
 		     {-1,0,1}, {1,0,1}, {0,-1,1}, {0,1,1},
 		     {0,0,0}};
+#else
+#define TYPE double
+
+typedef struct {
+    int xdiff, ydiff;
+    double factor;
+} StencilPoint;
+
+StencilPoint s5[] = {{0,0,-1.0},
+                     {-1,0,.25}, {1,0,.25}, {0,-1,.25}, {0,1,.25},
+                     {0,0,0}};
+#endif
 
 
-typedef int (*apply_func)(int*, int, StencilPoint*);
+typedef TYPE (*apply_func)(TYPE*, int, StencilPoint*);
 
-int apply(int *m, int xsize, StencilPoint* s)
+TYPE apply(TYPE *m, int xsize, StencilPoint* s)
 {
-    int f, res;
+    TYPE f, res;
 
     res = 0;
     while(1) {
@@ -27,15 +44,15 @@ int apply(int *m, int xsize, StencilPoint* s)
     return res;
 }
 
-int apply2(int *m, int xsize, StencilPoint* s)
+TYPE apply2(TYPE *m, int xsize, StencilPoint* s)
 {
-    return -4 * m[0] + m[-1] + m[1] + m[-xsize] + m[xsize];
+    return -m[0] + .25*(m[-1] + m[1] + m[-xsize] + m[xsize]);
 }
 
 int main(int argc, char* argv[])
 {
-    int i, x, y, diff;
-    int *m1, *m2;
+    int i, x, y;
+    TYPE *m1, *m2, diff;
     int size = 0, iter = 0, av = 0;
     apply_func af;
 
@@ -48,8 +65,8 @@ int main(int argc, char* argv[])
     if (av == 0) av = 1;
 
 
-    m1 = (int*) malloc(sizeof(int) * size * size);
-    m2 = (int*) malloc(sizeof(int) * size * size);
+    m1 = (TYPE*) malloc(sizeof(TYPE) * size * size);
+    m2 = (TYPE*) malloc(sizeof(TYPE) * size * size);
 
     // init
     for(i=0;i<size*size;i++)
@@ -82,7 +99,7 @@ int main(int argc, char* argv[])
     }
 
     printf("Width %d, matrix size %d, %d iterations, apply V %d\n",
-	   size, (int)(size*size*sizeof(int)), iter, av);
+           size, (int)(size*size*sizeof(TYPE)), iter, av);
     iter = iter/2;
 
     for(i=0;i<iter;i++) {
@@ -101,5 +118,9 @@ int main(int argc, char* argv[])
 	    diff += (i>0) ? i : -i;
 	}
     }
+#ifdef USEINT
     printf("Residuum after %d iterations: %d\n", 2*iter, diff);
+#else
+    printf("Residuum after %d iterations: %f\n", 2*iter, diff);
+#endif
 }
