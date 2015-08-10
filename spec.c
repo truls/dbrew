@@ -166,8 +166,11 @@ typedef struct _Code {
     // function to capture
     uint64_t func;
 
-    // buffer/config to capture emulation (see below)
+    // buffer for captured code
+    int capture_capacity;
     CodeStorage* cs;
+
+    // structs for emulator & capture config
     CaptureConfig* cc;
     EmuState* es;
 
@@ -181,56 +184,100 @@ typedef struct _Code {
 #define REX_MASK_R 4
 #define REX_MASK_W 8
 
-Rewriter* allocRewriter(int instr_capacity, int bb_capacity, int capture_capacity)
+Rewriter* allocRewriter()
 {
-    Rewriter* c = (Rewriter*) malloc(sizeof(Rewriter));
+    Rewriter* r;
 
-    c->instr_count = 0;
-    c->instr_capacity = instr_capacity;
-    c->instr = (Instr*) malloc(sizeof(Instr) * instr_capacity);
+    r = (Rewriter*) malloc(sizeof(Rewriter));
 
-    c->bb_count = 0;
-    c->bb_capacity = bb_capacity;
-    c->bb = (BB*) malloc(sizeof(BB) * bb_capacity);
+    // allocation of other members on demand, capacities may be reset
 
-    if (capture_capacity >0)
-	c->cs = initCodeStorage(capture_capacity);
-    else
-	c->cs = 0;
+    r->instr_count = 0;
+    r->instr_capacity = 0;
+    r->instr = 0;
 
-    c->cc = 0;
-    c->es = 0;
+    r->bb_count = 0;
+    r->bb_capacity = 0;
+    r->bb = 0;
 
-    // debug on
-    c->showDecoding = True;
-    c->showEmuState = True;
-    c->showEmuSteps = True;
+    r->capture_capacity = 0;
+    r->cs = 0;
 
-    return c;
+    r->cc = 0;
+    r->es = 0;
+
+    // default: debug off
+    r->showDecoding = False;
+    r->showEmuState = False;
+    r->showEmuSteps = False;
+
+    return r;
 }
 
-void setFunc(Rewriter* c, uint64_t f)
+void initRewriter(Rewriter* r)
 {
-    c->func = f;
+    if (r->instr == 0) {
+        // default
+        if (r->instr_capacity == 0) r->instr_capacity = 500;
+        r->instr = (Instr*) malloc(sizeof(Instr) * r->instr_capacity);
+    }
+    r->instr_count = 0;
+
+    if (r->bb == 0) {
+        // default
+        if (r->bb_capacity == 0) r->bb_capacity = 20;
+        r->bb = (BB*) malloc(sizeof(BB) * r->bb_capacity);
+    }
+    r->bb_count = 0;
+
+    if (r->cs == 0) {
+        if (r->capture_capacity == 0) r->capture_capacity = 3000;
+        if (r->capture_capacity >0)
+            r->cs = initCodeStorage(r->capture_capacity);
+    }
+    if (r->cs)
+        r->cs->used = 0;
+}
+
+void setRewriterCapacity(Rewriter* r,
+                         int instr_capacity, int bb_capacity, int capture_capacity)
+{
+    r->instr_capacity = instr_capacity;
+    free(r->instr);
+    r->instr = 0;
+
+    r->bb_capacity = bb_capacity;
+    free(r->bb);
+    r->bb = 0;
+
+    if (r->cs)
+        freeCodeStorage(r->cs);
+    r->cs = 0;
+    r->capture_capacity = capture_capacity;
+}
+
+void setFunc(Rewriter* rewriter, uint64_t f)
+{
+    rewriter->func = f;
 
     // reset all decoding/state
-    c->instr_count = 0;
-    c->bb_count = 0;
+    initRewriter(rewriter);
 
-    free(c->cc);
-    c->cc = 0;
-    free(c->es);
-    c->es = 0;
+    free(rewriter->cc);
+    rewriter->cc = 0;
+    free(rewriter->es);
+    rewriter->es = 0;
 }
 
-void setVerbosity(Rewriter* c, Bool decode, Bool emuState, Bool emuSteps)
+void setVerbosity(Rewriter* rewriter,
+                  Bool decode, Bool emuState, Bool emuSteps)
 {
-    c->showDecoding = decode;
-    c->showEmuState = emuState;
-    c->showEmuSteps = emuSteps;
+    rewriter->showDecoding = decode;
+    rewriter->showEmuState = emuState;
+    rewriter->showEmuSteps = emuSteps;
 }
 
-uint64_t capturedCode(Rewriter* c)
+uint64_t generatedCode(Rewriter* c)
 {
     if ((c->cs == 0) || (c->cs->used == 0))
 	return 0;
@@ -238,7 +285,7 @@ uint64_t capturedCode(Rewriter* c)
     return (uint64_t) c->cs->buf;
 }
 
-int capturedCodeSize(Rewriter* c)
+int generatedCodeSize(Rewriter* c)
 {
     if ((c->cs == 0) || (c->cs->used == 0))
 	return 0;
@@ -615,6 +662,8 @@ BB* decodeBB(Rewriter* c, uint64_t f)
     Operand o1, o2;
     InstrType it;
     BB* bb;
+
+    if (f == 0) return 0; // nothing to decode
 
     // already decoded?
     for(i = 0; i < c->bb_count; i++)

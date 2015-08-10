@@ -86,20 +86,21 @@ int main(int argc, char* argv[])
 
     af = (av == 1) ? apply : apply2;
     if (av == 3) {
-        Rewriter* c = allocRewriter(200, 20, 1000);
-        Rewriter* c2 = allocRewriter(200, 20, 0);
+        Rewriter* r = allocRewriter();
+        setFunc(r, (uint64_t) apply);
+        //setVerbosity(r, True, True, True);
+        //setCaptureConfig(r, 2);
+        setRewriteConfig2(r, 1,2);
+        rewrite(r, m1 + size + 1, size, s5);
+        af = (apply_func) generatedCode(r);
 
-	configEmuState(c, 1000);
-	setFunc(c, (uint64_t) apply);
-        //setCaptureConfig(c, 2);
-        setRewriteConfig2(c, 1,2);
-        rewrite(c, m1 + size + 1, size, s5);
-	af = (apply_func) capturedCode(c);
-
-	setFunc(c2, capturedCode(c));
-        setVerbosity(c2, False, False, False);
-	decodeBB(c2, capturedCode(c));
-	printCode(c2);
+        {
+            // use another rewriter to show generated code
+            Rewriter* r2 = allocRewriter();
+            setFunc(r2, generatedCode(r));
+            decodeBB(r2, generatedCode(r));
+            printCode(r2);
+        }
     }
 
     printf("Width %d, matrix size %d, %d iterations, apply V %d\n",

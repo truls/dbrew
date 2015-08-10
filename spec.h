@@ -17,13 +17,13 @@ typedef struct _Code Rewriter;
 typedef struct _BB BB;
 
 // allocate space for a given number of decoded instructions
-Rewriter* allocRewriter(int instr_capacity, int bb_capacity, int capture_capacity);
+Rewriter* allocRewriter();
 
 // clear <c> from decoded/captured instructions
-void setFunc(Rewriter* c, uint64_t f);
+void setFunc(Rewriter* rewriter, uint64_t f);
 
 // set Code activities verbose or quiet
-void setVerbosity(Rewriter* c, Bool decode, Bool emuState, Bool emuSteps);
+void setVerbosity(Rewriter* rewriter, Bool decode, Bool emuState, Bool emuSteps);
 
 // decode the basic block starting at f (automatically triggered by emulator)
 BB* decodeBB(Rewriter* c, uint64_t f);
@@ -42,8 +42,8 @@ void useSameStack(Rewriter* c, Rewriter* cc);
 uint64_t rewrite(Rewriter* c, ...);
 
 // buffer with regenerated code, captured from emulation
-uint64_t capturedCode(Rewriter* c);
-int capturedCodeSize(Rewriter* c);
+uint64_t generatedCode(Rewriter* c);
+int generatedCodeSize(Rewriter* c);
 
 // define a parameter(s) to assume static for emulation
 void setRewriteConfig(Rewriter* c, int staticPos);

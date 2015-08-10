@@ -67,19 +67,19 @@ void emulateCaptureRun(char* t1, char* t2, Bool use_i2p,
     res = (int)rewrite(c1, sp1, sp2);
     printf(" Result: %d\n", res);
 
-    printf("\nCaptured code (size %d):\n", capturedCodeSize(c1));
-    setFunc(c2, capturedCode(c1));
+    printf("\nCaptured code (size %d):\n", generatedCodeSize(c1));
+    setFunc(c2, generatedCode(c1));
     setVerbosity(c2, False, False, False);
-    decodeBB(c2, capturedCode(c1));
+    decodeBB(c2, generatedCode(c1));
     printCode(c2);
     setVerbosity(c2, True, True, True);
 
     if (use_i2p) {
-        i2p_func f = (i2p_func) capturedCode(c1);
+        i2p_func f = (i2p_func) generatedCode(c1);
         res = f(p1, (int*) p2);
     }
     else {
-        i2_func f = (i2_func) capturedCode(c1);
+        i2_func f = (i2_func) generatedCode(c1);
         res = f(p1, p2);
     }
     printf("Run captured: %s = %d\n", t1, res);
@@ -93,12 +93,13 @@ void runTest(char* fname, uint64_t f, Bool use_i2p,
     char desc[20];
     int res;
 
-    c1 = allocRewriter(200, 20, 1000);
-    c2 = allocRewriter(200, 20, 1000);
-    c3 = allocRewriter(200, 20, 0);
+    c1 = allocRewriter();
+    c2 = allocRewriter();
+    c3 = allocRewriter();
 
-    configEmuState(c1, 1000);
     useSameStack(c2, c1);
+    setVerbosity(c1, True, True, True);
+    setVerbosity(c2, True, True, True);
 
     if (use_i2p) {
         i2p_func ff = (i2p_func) f;
