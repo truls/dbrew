@@ -6,21 +6,25 @@
 
 #ifdef USEINT
 #define TYPE int
+#else
+#define TYPE double
+#endif
 
 typedef struct {
-    int xdiff, ydiff, factor;
+    int xdiff, ydiff;
+    TYPE factor;
 } StencilPoint;
+
+#ifdef USEINT
+#define COEFF1 (-4)
+#define COEFF2 (1)
 
 StencilPoint s5[] = {{0,0,-4},
 		     {-1,0,1}, {1,0,1}, {0,-1,1}, {0,1,1},
 		     {0,0,0}};
 #else
-#define TYPE double
-
-typedef struct {
-    int xdiff, ydiff;
-    double factor;
-} StencilPoint;
+#define COEFF1 (-1.0)
+#define COEFF2 (.25)
 
 StencilPoint s5[] = {{0,0,-1.0},
                      {-1,0,.25}, {1,0,.25}, {0,-1,.25}, {0,1,.25},
@@ -46,7 +50,7 @@ TYPE apply(TYPE *m, int xsize, StencilPoint* s)
 
 TYPE apply2(TYPE *m, int xsize, StencilPoint* s)
 {
-    return -m[0] + .25*(m[-1] + m[1] + m[-xsize] + m[xsize]);
+    return COEFF1 * m[0] + COEFF2 * (m[-1] + m[1] + m[-xsize] + m[xsize]);
 }
 
 int main(int argc, char* argv[])
@@ -87,8 +91,8 @@ int main(int argc, char* argv[])
 
 	configEmuState(c, 1000);
 	setFunc(c, (uint64_t) apply);
-	setCaptureConfig(c, 2);
-	//setCaptureConfig2(c, 1,2);
+        //setCaptureConfig(c, 2);
+        setCaptureConfig2(c, 1,2);
 	emulate(c, m1 + size + 1, size, s5);
 	af = (apply_func) capturedCode(c);
 
