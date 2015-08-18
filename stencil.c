@@ -88,7 +88,7 @@ int main(int argc, char* argv[])
     if (av == 3) {
         Rewriter* r = allocRewriter();
         setFunc(r, (uint64_t) apply);
-        //setVerbosity(r, True, True, True);
+        setVerbosity(r, True, True, True);
         //setCaptureConfig(r, 2);
         setRewriteConfig2(r, 1,2);
         rewrite(r, m1 + size + 1, size, s5);

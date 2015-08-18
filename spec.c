@@ -140,12 +140,23 @@ typedef struct _Operand
     int scale; // with SIB
 } Operand;
 
+typedef enum _OperandForm {
+    OF_None = 0,
+    OF_0, // no operand or implicit
+    OF_1, // 1 operand: push/pop/...
+    OF_2, // 2 operands: dst = dst op src
+    OF_3, // 3 operands: dst = src op src2
+    OF_Max
+} OperandForm;
+
 typedef struct _Instr {
     uint64_t addr;
     int len;
     InstrType type;
     ValType vtype; // to store operand size without explicit operands
-    Operand dst, src;
+    OperandForm form;
+    Operand dst, src; //  with binary op: dst = dst op src
+    Operand src2; // with ternary op: dst = src op src2
 } Instr;
 
 typedef struct _BB {
@@ -492,21 +503,35 @@ void initSimpleInstr(Instr* i, InstrType it)
     i->addr = 0; // unknown: created, not parsed
     i->len = 0;
     i->type = it;
+    i->form = OF_0;
     i->dst.type = OT_None;
     i->src.type = OT_None;
+    i->src2.type = OT_None;
 }
 
 void initUnaryInstr(Instr* i, InstrType it, Operand* o)
 {
     initSimpleInstr(i, it);
+    i->form = OF_1;
     copyOperand( &(i->dst), o);
 }
 
 void initBinaryInstr(Instr* i, InstrType it, Operand *o1, Operand *o2)
 {
     initSimpleInstr(i, it);
+    i->form = OF_2;
     copyOperand( &(i->dst), o1);
     copyOperand( &(i->src), o2);
+}
+
+void initTernaryInstr(Instr* i, InstrType it,
+                      Operand *o1, Operand *o2, Operand* o3)
+{
+    initSimpleInstr(i, it);
+    i->form = OF_3;
+    copyOperand( &(i->dst), o1);
+    copyOperand( &(i->src), o2);
+    copyOperand( &(i->src2), o3);
 }
 
 
@@ -520,8 +545,10 @@ Instr* nextInstr(Rewriter* c, uint64_t a, int len)
     i->len = len;
 
     i->vtype = VT_None;
+    i->form = OF_None;
     i->dst.type = OT_None;
     i->src.type = OT_None;
+    i->src2.type = OT_None;
 
     return i;
 }
@@ -530,6 +557,7 @@ void addSimple(Rewriter* c, uint64_t a, uint64_t a2, InstrType it)
 {
     Instr* i = nextInstr(c, a, a2 - a);
     i->type = it;
+    i->form = OF_0;
 }
 
 void addSimpleVType(Rewriter* c, uint64_t a, uint64_t a2, InstrType it, ValType vt)
@@ -537,6 +565,7 @@ void addSimpleVType(Rewriter* c, uint64_t a, uint64_t a2, InstrType it, ValType 
     Instr* i = nextInstr(c, a, a2 - a);
     i->type = it;
     i->vtype = vt;
+    i->form = OF_0;
 }
 
 void addUnaryOp(Rewriter* c, uint64_t a, uint64_t a2,
@@ -544,6 +573,7 @@ void addUnaryOp(Rewriter* c, uint64_t a, uint64_t a2,
 {
     Instr* i = nextInstr(c, a, a2 - a);
     i->type = it;
+    i->form = OF_1;
     copyOperand( &(i->dst), o);
 }
 
@@ -552,8 +582,20 @@ void addBinaryOp(Rewriter* c, uint64_t a, uint64_t a2,
 {
     Instr* i = nextInstr(c, a, a2 - a);
     i->type = it;
+    i->form = OF_2;
     copyOperand( &(i->dst), o1);
     copyOperand( &(i->src), o2);
+}
+
+void addTernaryOp(Rewriter* c, uint64_t a, uint64_t a2,
+                  InstrType it, Operand* o1, Operand* o2, Operand* o3)
+{
+    Instr* i = nextInstr(c, a, a2 - a);
+    i->type = it;
+    i->form = OF_3;
+    copyOperand( &(i->dst), o1);
+    copyOperand( &(i->src), o2);
+    copyOperand( &(i->src2), o3);
 }
 
 
@@ -659,7 +701,7 @@ BB* decodeBB(Rewriter* c, uint64_t f)
     int i, off, opc, opc2, digit, old_icount;
     Bool exitLoop;
     uint8_t* fp;
-    Operand o1, o2;
+    Operand o1, o2, o3;
     InstrType it;
     BB* bb;
 
@@ -793,6 +835,15 @@ BB* decodeBB(Rewriter* c, uint64_t f)
             default: assert(0);
             }
             addBinaryOp(c, a, (uint64_t)(fp + off), IT_MOV, &o1, &o2);
+            break;
+
+        case 0x69:
+            // imul r32,r/m32,imm32 (RMI)
+            off += parseModRM(fp+off, hasRex ? rex:0, &o2, &o1, 0);
+            o3.type = OT_Imm32;
+            o3.val = *(uint32_t*)(fp + off);
+            off += 4;
+            addTernaryOp(c, a, (uint64_t)(fp + off), IT_IMUL, &o1, &o2, &o3);
             break;
 
         case 0x74: // JE/JZ rel8
@@ -1080,13 +1131,39 @@ char* instr2string(Instr* instr, int align)
     else
         off += sprintf(buf, "%s", n);
 
-    if (instr->src.type != OT_None) {
+    switch(instr->form) {
+    case OF_0:
+        assert(instr->dst.type == OT_None);
+        assert(instr->src.type == OT_None);
+        assert(instr->src2.type == OT_None);
+        break;
+
+    case OF_1:
         assert(instr->dst.type != OT_None);
+        assert(instr->src.type == OT_None);
+        assert(instr->src2.type == OT_None);
+        off += sprintf(buf+off, " %s", op2string(&(instr->dst)));
+        break;
+
+    case OF_2:
+        assert(instr->dst.type != OT_None);
+        assert(instr->src.type != OT_None);
+        assert(instr->src2.type == OT_None);
         off += sprintf(buf+off, " %s", op2string(&(instr->src)));
         off += sprintf(buf+off, ",%s", op2string(&(instr->dst)));
+        break;
+
+    case OF_3:
+        assert(instr->dst.type != OT_None);
+        assert(instr->src.type != OT_None);
+        assert(instr->src2.type != OT_None);
+        off += sprintf(buf+off, " %s", op2string(&(instr->src2)));
+        off += sprintf(buf+off, ",%s", op2string(&(instr->src)));
+        off += sprintf(buf+off, ",%s", op2string(&(instr->dst)));
+        break;
+
+    default: assert(0);
     }
-    else if (instr->dst.type != OT_None)
-        off += sprintf(buf+off, " %s", op2string(&(instr->dst)));
 
     return buf;
 }
@@ -1307,6 +1384,39 @@ int genModRM(uint8_t* buf, int opc, int opc2, Operand* o1, Operand* o2)
     return o;
 }
 
+// Operand o1: r/m, o2: r, o3: imm
+int genModRMI(uint8_t* buf, int opc, int opc2,
+              Operand* o1, Operand* o2, Operand* o3)
+{
+    int rex = 0, len = 0;
+    int o = 0;
+    uint8_t* rmBuf;
+
+    rmBuf = calcModRM(o1, o2, &rex, &len);
+    if (rex)
+        buf[o++] = 0x40 | rex;
+    buf[o++] = (uint8_t) opc;
+    if (opc2 >=0)
+        buf[o++] = (uint8_t) opc2;
+    while(len>0) {
+        buf[o++] = *rmBuf++;
+        len--;
+    }
+    assert(opIsImm(o3));
+    switch(opValType(o3)) {
+    case VT_8:
+        buf[o++] = (uint8_t) o3->val;
+        break;
+    case VT_32:
+        *(uint32_t*)(buf+o) = (uint32_t) o3->val;
+        o += 4;
+        break;
+    default: assert(0);
+    }
+
+    return o;
+}
+
 // Operand o1: r/m, o2: imm
 int genDigitMI(uint8_t* buf, int opc, int digit, Operand* o1, Operand* o2)
 {
@@ -1408,6 +1518,8 @@ int genMov(uint8_t* buf, Operand* src, Operand* dst)
 
 int genAdd(uint8_t* buf, Operand* src, Operand* dst)
 {
+    Operand o; // used for immediate with reduced width
+
     switch(src->type) {
     case OT_Reg32:
     case OT_Reg64:
@@ -1450,6 +1562,16 @@ int genAdd(uint8_t* buf, Operand* src, Operand* dst)
         default: assert(0);
         }
         break;
+
+    case OT_Imm64: {
+        // reduction possible if signed 64bit fits into 32bits
+        int64_t v = (int64_t) src->val;
+        assert((v > -(1l<<31)) && (v < (1l << 31)));
+        o.type = OT_Imm32;
+        o.val = (uint32_t) (int32_t) v;
+        src = &o;
+        // fall through
+    }
 
     case OT_Imm32:
         // src imm
@@ -1530,12 +1652,23 @@ int genIMul(uint8_t* buf, Operand* src, Operand* dst)
     case OT_Reg64:
     case OT_Ind64:
         assert(opValType(src) == opValType(dst));
-        // src reg
         switch(dst->type) {
         case OT_Reg32:
         case OT_Reg64:
-            // use 'sub r,r/m 32/64' (0x0F 0xAF RM)
+            // use 'imul r,r/m 32/64' (0x0F 0xAF RM)
             return genModRM(buf, 0x0F, 0xAF, src, dst);
+
+        default: assert(0);
+        }
+        break;
+
+    case OT_Imm32:
+        assert(opValType(src) == opValType(dst));
+        switch(dst->type) {
+        case OT_Reg32:
+        case OT_Reg64:
+            // use 'imul r,r/m 32/64,imm32' (0x69/r RMI)
+            return genModRMI(buf, 0x69, -1, dst, dst, src);
 
         default: assert(0);
         }
@@ -1628,7 +1761,7 @@ void capture(Rewriter* c, Instr* instr)
     if (c->cs == 0) return;
 
     if (c->showEmuSteps)
-        printf("Capture '%s'\n", instr2string(instr, 0));
+        printf("Capture '%s' ", instr2string(instr, 0));
 
     buf = reserveCodeStorage(c->cs, 15);
     switch(instr->type) {
@@ -1668,6 +1801,13 @@ void capture(Rewriter* c, Instr* instr)
     default: assert(0);
     }
     assert(used < 15);
+
+    instr->addr = (uint64_t) buf;
+    instr->len = used;
+
+    if (c->showEmuSteps)
+        printf("(%d bytes:%s)\n", used, bytes2string(instr, 0, used));
+
     useCodeStorage(c->cs, used);
 }
 
@@ -2415,7 +2555,7 @@ void captureRet(Rewriter* c, Instr* orig, EmuState* es)
 }
 
 
-// return 0 to fall through to next instruction, are address to jump to
+// return 0 to fall through to next instruction, or return address to jump to
 uint64_t emulateInstr(Rewriter* c, EmuState* es, Instr* instr)
 {
     EmuValue vres, v1, v2, addr;
