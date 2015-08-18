@@ -4,7 +4,9 @@ Binary Specialization
 Goals:
 * low-level functionality for binary code modification at runtime:
   library, independent on programming language (but on processor ISA)
-  
+* composition of concepts via abstractions without performance
+  penalties, using partial evalution/specialisation
+
 * optimizations which demonstrate benefits
   - inlining of libc functions (removing function call overhead)
   - specialization/partial evaluation: take advantage of values known
@@ -22,7 +24,10 @@ Wanted features:
 * dynamic detection of data region overlapping (conflicts/dependencies/PGAS)
 * dynamic locality optimization: reorder execution, generate conversions
 * dynamic prefetch insertion
-* generation of binary templates for fast code generation
+* allow multi-staging: capturing returns parametrized macros for patching
+  as resulting data structure (macros = binary templates), allows to
+  generate a fast generator
+* allow PGAS abstractions implemented with MPI
 * data access remapping
 * explicit/implicit code management
 * external to binary (LD_PRELOAD + breakpoint handler, config file)
@@ -35,6 +40,9 @@ Open questions:
 * persistent code (generate into object files/shared libs?)
 * how to help for (better) SIMD code ?
 * for GPU: PTX/SPIR ?
+* usable for meta-tracing compilation? (trace interpreter)
+* Best interface for C++? Instead of templates, use specialized
+  polymorphism, ie. VTables get replaced by inlining methods of known type
 
 Show case:
 * 2D Jacobi
@@ -42,7 +50,13 @@ Show case:
   * include 2D looping with variable with/height, but border handling
   * capture border and generate pack/unpack handler for MPI
   * ...
-* Cache-oblivious algorithm
+* Arbitrary MPI-parallelized stencil
+  * element type variable (multiple attributes per grid element)
+  * arbitrary memory layout order
+  * 2D/3D
+  * Tuning for Cache: Blocking/Wavefront by abstraction: n sweeps over all
+  * Borders: access into message buffers/create messages with traversal
+* Cache-oblivious algorithm?
 
 
 Prototype
@@ -66,7 +80,7 @@ Example driven implementation
   * fixed factor unrolling (how to specify?)
   * series of subloops for ranges
 * SPMV with sparse matrix structure from input file
-* ...
+* fast code generator using parametrized capture result a+x, patching x
 
 
 Tasks/Todo
@@ -83,6 +97,7 @@ Tasks/Todo
   * register re-allocation: live-ness analysis of registers/stack frame
     - benefits: avoid spilling, save/restore, prolog/epilog
     - easier by maintaining a virtual register mapping in emulation?
+  * "if": state gets known in if/else path
 
 
 
@@ -104,3 +119,28 @@ MA Theses
 BA Theses
 * Extend ISA coverage, test suite
 * SPMV: comparison with compiled code
+
+
+Related Work
+============
+
+Specialisation on Language Level
+
+- Multi-Staging (Scala, ...)
+- AnyDSL
+- Intel Array Building Blocks
+
+Tracing JITters
+
+- TraceMonkey (Gal: Trace Trees)
+- Boltz/Tratt: The Impact of Meta-Tracing on VM Design and Implementation
+  RPhyton: tracing JIT automatically guided by interpreteri
+- Marr/Ducasse: Tracing vs. Partial Evaluation: Comparing
+  Meta-Compilation Approaches
+
+Multi-Architecture Optimization
+
+- AnyDSL
+- Discussion on HN (https://news.ycombinator.com/item?id=10032295):
+  we want automatic tuning on binary level
+  
