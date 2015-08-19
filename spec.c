@@ -838,13 +838,23 @@ BB* decodeBB(Rewriter* c, uint64_t f)
             break;
 
         case 0x69:
-            // imul r32,r/m32,imm32 (RMI)
+            // imul r,r/m32/64,imm32 (RMI)
             off += parseModRM(fp+off, hasRex ? rex:0, &o2, &o1, 0);
             o3.type = OT_Imm32;
             o3.val = *(uint32_t*)(fp + off);
             off += 4;
             addTernaryOp(c, a, (uint64_t)(fp + off), IT_IMUL, &o1, &o2, &o3);
             break;
+
+        case 0x6B:
+            // imul r,r/m32/64,imm8 (RMI)
+            off += parseModRM(fp+off, hasRex ? rex:0, &o2, &o1, 0);
+            o3.type = OT_Imm8;
+            o3.val = *(uint8_t*)(fp + off);
+            off += 1;
+            addTernaryOp(c, a, (uint64_t)(fp + off), IT_IMUL, &o1, &o2, &o3);
+            break;
+
 
         case 0x74: // JE/JZ rel8
         case 0x75: // JNE/JNZ rel8
@@ -885,7 +895,7 @@ BB* decodeBB(Rewriter* c, uint64_t f)
             case 0:
                 // 83/0: ADD r/m 32/64, imm8: Add sign-extended imm8 to r/m
                 o2.type = OT_Imm8;
-                o2.val = (int64_t) (*(int8_t*)(fp + off));
+                o2.val = (uint8_t) (*(int8_t*)(fp + off));
                 off += 1;
                 addBinaryOp(c, a, (uint64_t)(fp + off), IT_ADD, &o1, &o2);
                 break;
@@ -1518,7 +1528,27 @@ int genMov(uint8_t* buf, Operand* src, Operand* dst)
 
 int genAdd(uint8_t* buf, Operand* src, Operand* dst)
 {
-    Operand o; // used for immediate with reduced width
+    Operand o; // used for immediates with reduced width
+
+    if (src->type == OT_Imm64) {
+        // reduction possible if signed 64bit fits into signed 32bit
+        int64_t v = (int64_t) src->val;
+        if ((v > -(1l << 31)) && (v < (1l << 31))) {
+            o.type = OT_Imm32;
+            o.val = (uint32_t) (int32_t) v;
+            src = &o;
+        }
+    }
+
+    if (src->type == OT_Imm32) {
+        // reduction possible if signed 32bit fits into signed 8bit
+        int32_t v = (int32_t) src->val;
+        if ((v > -(1<<7)) && (v < (1<<7))) {
+            o.type = OT_Imm8;
+            o.val = (uint8_t) (int8_t) v;
+            src = &o;
+        }
+    }
 
     switch(src->type) {
     case OT_Reg32:
@@ -1562,16 +1592,6 @@ int genAdd(uint8_t* buf, Operand* src, Operand* dst)
         default: assert(0);
         }
         break;
-
-    case OT_Imm64: {
-        // reduction possible if signed 64bit fits into 32bits
-        int64_t v = (int64_t) src->val;
-        assert((v > -(1l<<31)) && (v < (1l << 31)));
-        o.type = OT_Imm32;
-        o.val = (uint32_t) (int32_t) v;
-        src = &o;
-        // fall through
-    }
 
     case OT_Imm32:
         // src imm
@@ -1646,6 +1666,18 @@ int genSub(uint8_t* buf, Operand* src, Operand* dst)
 
 int genIMul(uint8_t* buf, Operand* src, Operand* dst)
 {
+    Operand o; // used for immediates with reduced width
+
+    if (src->type == OT_Imm32) {
+        // reduction possible if signed 32bit fits into signed 8bit
+        int32_t v = (int32_t) src->val;
+        if ((v > -(1<<7)) && (v < (1<<7))) {
+            o.type = OT_Imm8;
+            o.val = (uint8_t) (int8_t) v;
+            src = &o;
+        }
+    }
+
     switch(src->type) {
     case OT_Reg32:
     case OT_Ind32:
@@ -1657,6 +1689,17 @@ int genIMul(uint8_t* buf, Operand* src, Operand* dst)
         case OT_Reg64:
             // use 'imul r,r/m 32/64' (0x0F 0xAF RM)
             return genModRM(buf, 0x0F, 0xAF, src, dst);
+
+        default: assert(0);
+        }
+        break;
+
+    case OT_Imm8:
+        switch(dst->type) {
+        case OT_Reg32:
+        case OT_Reg64:
+            // use 'imul r,r/m 32/64,imm8' (0x6B/r RMI)
+            return genModRMI(buf, 0x6B, -1, dst, dst, src);
 
         default: assert(0);
         }
