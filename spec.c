@@ -2536,8 +2536,9 @@ void captureBinaryOp(Rewriter* c, Instr* orig, EmuState* es, EmuValue* res)
     if (stateIsStatic(opval.state)) {
         // if 1st source (=src) is known/constant and a reg, make it immediate
 
-        if ((orig->type == IT_ADD) && (opval.val == 0)) {
-            // adding 0 changes nothing...
+        if (((orig->type == IT_ADD) && (opval.val == 0)) ||
+            ((orig->type == IT_IMUL) && (opval.val == 1))) {
+            // adding 0 / multiplying with 1 changes nothing...
             return;
         }
         o = getImmOp(opval.type, opval.val);
