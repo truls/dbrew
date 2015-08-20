@@ -21,6 +21,8 @@ Wanted features:
 * mark function parameters as constant for specialization (DONE)
 * hooks for memory accesses, ...
 * generation of new code: replace/insert/remove function calls/wrappers
+* make use of profiling knowledge for optimization/guarded fast paths
+  (often given value/type, given jump target)
 * dynamic detection of data region overlapping (conflicts/dependencies/PGAS)
 * dynamic locality optimization: reorder execution, generate conversions
 * dynamic prefetch insertion
@@ -81,6 +83,8 @@ Example driven implementation
   * series of subloops for ranges
 * SPMV with sparse matrix structure from input file
 * fast code generator using parametrized capture result a+x, patching x
+* printf with specific format string
+* string search/matching
 
 
 Tasks/Todo
@@ -98,6 +102,7 @@ Tasks/Todo
     - benefits: avoid spilling, save/restore, prolog/epilog
     - easier by maintaining a virtual register mapping in emulation?
   * "if": state gets known in if/else path
+  * optimi
 
 
 
@@ -129,6 +134,10 @@ Specialisation on Language Level
 - Multi-Staging (Scala, ...)
 - AnyDSL
 - Intel Array Building Blocks
+- Refs:
+  - Jones: An Introduction to Partial Evaluation
+  - Smowton: LLPE (EuroLLVM)
+  - Anderson: C-Mix
 
 Tracing JITters
 
@@ -143,4 +152,3 @@ Multi-Architecture Optimization
 - AnyDSL
 - Discussion on HN (https://news.ycombinator.com/item?id=10032295):
   we want automatic tuning on binary level
-  
