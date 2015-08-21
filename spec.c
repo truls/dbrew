@@ -98,6 +98,9 @@ typedef enum _Reg {
     Reg_AX, Reg_CX, Reg_DX, Reg_BX, Reg_SP, Reg_BP, Reg_SI, Reg_DI,
     Reg_8,  Reg_9,  Reg_10, Reg_11, Reg_12, Reg_13, Reg_14, Reg_15,
     Reg_IP,
+    // vector regs (MMX, XMM, YMM)
+    Reg_X0, Reg_X1, Reg_X2, Reg_X3, Reg_X4, Reg_X5, Reg_X6, Reg_X7,
+    Reg_X8, Reg_X9, Reg_X10, Reg_X11, Reg_X12, Reg_X13, Reg_X14, Reg_X15,
     //
     Reg_Max
 } Reg;
@@ -111,14 +114,20 @@ typedef enum _InstrType {
     IT_ADD, IT_SUB, IT_IMUL,
     IT_XOR, IT_AND, IT_OR,
     IT_CALL, IT_RET, IT_JMP,
-    IT_JG, IT_JE, IT_JNE, IT_JLE,
+    IT_JG, IT_JE, IT_JNE, IT_JLE, IT_JP,
     IT_CMP, IT_TEST,
+    // SSE
+    IT_PXOR, IT_MOVSD, IT_MULSD, IT_ADDSD, IT_UCOMISD,
+    //
     IT_Max
 } InstrType;
 
 typedef enum _ValType {
     VT_None = 0,
     VT_8, VT_16, VT_32, VT_64,
+    // vector types (MMX, XMM, YMM)
+    VT_V64, VT_V128, VT_V256,
+    //
     VT_Max
 } ValType;
 
@@ -128,6 +137,10 @@ typedef enum _OpType {
     OT_Reg8, OT_Reg16, OT_Reg32, OT_Reg64,
     // mem (64bit addr): register indirect + displacement
     OT_Ind8, OT_Ind16, OT_Ind32, OT_Ind64,
+    // vector operands (V128L: lower 64bit of XMM)
+    OT_RegV64, OT_RegV128L, OT_RegV128, OT_RegV256,
+    OT_IndV64, OT_IndV128, OT_IndV256,
+    //
     OT_MAX
 } OpType;
 
@@ -336,6 +349,17 @@ ValType opValType(Operand* o)
     case OT_Reg64:
     case OT_Ind64:
 	return VT_64;
+
+    case OT_RegV64:
+    case OT_IndV64:
+        return VT_V64;
+    case OT_RegV128:
+    case OT_IndV128:
+        return VT_V128;
+    case OT_RegV256:
+    case OT_IndV256:
+        return VT_V256;
+
     default: assert(0);
     }
     return 0; // invalid;
@@ -410,18 +434,20 @@ Operand* getRegOp(ValType t, Reg r)
 
     switch(t) {
     case VT_32:
+    case VT_64:
 	assert((r >= Reg_AX) && (r <= Reg_15));
-	o.type = OT_Reg32;
+        o.type = (t == VT_32) ? OT_Reg32 : OT_Reg64;
 	o.reg = r;
 	o.scale = 0;
 	break;
 
-    case VT_64:
-	assert((r >= Reg_AX) && (r <= Reg_15));
-	o.type = OT_Reg64;
-	o.reg = r;
-	o.scale = 0;
-	break;
+    case VT_V64:
+    case VT_V128:
+        assert((r >= Reg_X0) && (r <= Reg_X15));
+        o.type = (t == VT_V64) ? OT_RegV64 : OT_RegV128;
+        o.reg = r;
+        o.scale = 0;
+        break;
 
     default: assert(0);
     }
@@ -482,8 +508,20 @@ void copyOperand(Operand* dst, Operand* src)
 	assert((src->reg >= Reg_AX) && (src->reg <= Reg_15));
 	dst->reg = src->reg;
 	break;
+    case OT_RegV64:
+    case OT_RegV128L:
+    case OT_RegV128:
+    case OT_RegV256:
+        assert((src->reg >= Reg_X0) && (src->reg <= Reg_X15));
+        dst->reg = src->reg;
+        break;
     case OT_Ind32:
     case OT_Ind64:
+    case OT_IndV64:
+    case OT_IndV128:
+    case OT_IndV256:
+        assert( (src->reg == Reg_None) ||
+                ((src->reg >= Reg_AX) && (src->reg <= Reg_15)) );
 	dst->reg = src->reg;
 	dst->val = src->val;
 	dst->scale = src->scale;
@@ -600,38 +638,49 @@ void addTernaryOp(Rewriter* c, uint64_t a, uint64_t a2,
 
 
 // r/m, r. r parsed as op2/reg and digit. Encoding see SDM 2.1
+// if vt is a VT_V64/V128, this is for SSE, otherwise can be VT_None
 // return number of bytes parsed
-int parseModRM(uint8_t* p, int rex, Operand* o1, Operand* o2, int* digit)
+int parseModRM(uint8_t* p, int rex, OpType reg_ot,
+               Operand* o1, Operand* o2, int* digit)
 {
     int modrm, mod, rm, reg; // modRM byte
     int sib, scale, idx, base; // SIB byte
     int64_t disp;
-    Reg r;
+    Reg r, reg0;
+    OpType ot;
     int o = 0;
     int hasRex = (rex>0);
     int hasDisp8 = 0, hasDisp32 = 0;
+
+    reg0 = Reg_AX;
+    if ((reg_ot == OT_RegV64)   ||
+        (reg_ot == OT_RegV128L) ||
+        (reg_ot == OT_RegV128)) reg0 = Reg_X0;
 
     modrm = p[o++];
     mod = (modrm & 192) >> 6;
     reg = (modrm & 56) >> 3;
     rm = modrm & 7;
 
-    OpType reg_ot = (hasRex && (rex & REX_MASK_W)) ? OT_Reg64 : OT_Reg32;
+    ot = (hasRex && (rex & REX_MASK_W)) ? OT_Reg64 : OT_Reg32;
+    if ((reg_ot == OT_RegV64)   ||
+        (reg_ot == OT_RegV128L) ||
+        (reg_ot == OT_RegV128)) ot = reg_ot;
 
     // r part: reg or digit, give both back to caller
     if (digit) *digit = reg;
     if (o2) {
-        r = Reg_AX + reg;
+        r = reg0 + reg;
         if (hasRex && (rex & REX_MASK_R)) r += 8;
-        o2->type = reg_ot;
+        o2->type = ot;
         o2->reg = r;
     }
 
     if (mod == 3) {
 	// r, r
-	r = Reg_AX + rm;
+        r = reg0 + rm;
 	if (hasRex && (rex & REX_MASK_B)) r += 8;
-	o1->type = reg_ot;
+        o1->type = ot;
 	o1->reg = r;
 	return o;
     }
@@ -665,7 +714,12 @@ int parseModRM(uint8_t* p, int rex, Operand* o1, Operand* o2, int* digit)
 	o += 4;
     }
 
-    o1->type = (hasRex && (rex & REX_MASK_W)) ? OT_Ind64 : OT_Ind32;
+    ot = (hasRex && (rex & REX_MASK_W)) ? OT_Ind64 : OT_Ind32;
+    if (reg_ot == OT_RegV64)   ot = OT_IndV64;
+    if (reg_ot == OT_RegV128L) ot = OT_IndV64;
+    if (reg_ot == OT_RegV128)  ot = OT_IndV128;
+
+    o1->type = ot;
     o1->scale = scale;
     o1->val = (uint64_t) disp;
     if (scale == 0) {
@@ -765,13 +819,13 @@ BB* decodeBB(Rewriter* c, uint64_t f)
 
         case 0x01:
             // add r/m,r 32/64 (MR, dst: r/m, src: r)
-            off += parseModRM(fp+off, hasRex ? rex:0, &o1, &o2, 0);
+            off += parseModRM(fp+off, hasRex ? rex:0, VT_None, &o1, &o2, 0);
             addBinaryOp(c, a, (uint64_t)(fp + off), IT_ADD, &o1, &o2);
             break;
 
         case 0x03:
             // add r,r/m 32/64 (RM, dst: r, src: r/m)
-            off += parseModRM(fp+off, hasRex ? rex:0, &o2, &o1, 0);
+            off += parseModRM(fp+off, hasRex ? rex:0, VT_None, &o2, &o1, 0);
             addBinaryOp(c, a, (uint64_t)(fp + off), IT_ADD, &o1, &o2);
             break;
 
@@ -780,12 +834,28 @@ BB* decodeBB(Rewriter* c, uint64_t f)
             switch(opc2) {
             case 0xAF:
                 // imul r 32/64, r/m 32/64 (RM, dst: r)
-                off += parseModRM(fp+off, hasRex ? rex:0, &o2, &o1, 0);
+                off += parseModRM(fp+off, hasRex ? rex:0, VT_None, &o2, &o1, 0);
                 addBinaryOp(c, a, (uint64_t)(fp + off), IT_IMUL, &o1, &o2);
                 break;
 
+            case 0x10:
+                assert(hasF2);
+                // movsd xmm2,xmm1/m64 (RM)
+                off += parseModRM(fp+off, hasRex ? rex:0, OT_RegV128L,
+                                  &o2, &o1, 0);
+                addBinaryOp(c, a, (uint64_t)(fp + off), IT_MOVSD, &o1, &o2);
+                break;
+
+            case 0x11:
+                assert(hasF2);
+                // movsd xmm2/m64,xmm1 (MR)
+                off += parseModRM(fp+off, hasRex ? rex:0, OT_RegV128L,
+                                  &o1, &o2, 0);
+                addBinaryOp(c, a, (uint64_t)(fp + off), IT_MOVSD, &o1, &o2);
+                break;
+
             case 0x1F:
-                off += parseModRM(fp+off, hasRex ? rex:0, &o1, 0, &digit);
+                off += parseModRM(fp+off, hasRex ? rex:0, VT_None, &o1, 0, &digit);
                 switch(digit) {
                 case 0:
                     // 0F 1F /0: nop r/m 32
@@ -798,6 +868,38 @@ BB* decodeBB(Rewriter* c, uint64_t f)
                 }
                 break;
 
+            case 0x2E:
+                assert(has66);
+                // ucomisd xmm1,xmm2/m64 (RM)
+                off += parseModRM(fp+off, hasRex ? rex:0, OT_RegV128L,
+                                  &o2, &o1, 0);
+                addBinaryOp(c, a, (uint64_t)(fp + off), IT_UCOMISD, &o1, &o2);
+                break;
+
+            case 0x58:
+                assert(hasF2);
+                // addsd xmm1,xmm2/m64 (RM)
+                off += parseModRM(fp+off, hasRex ? rex:0, OT_RegV128L,
+                                  &o2, &o1, 0);
+                addBinaryOp(c, a, (uint64_t)(fp + off), IT_ADDSD, &o1, &o2);
+                break;
+
+            case 0x59:
+                assert(hasF2);
+                // mulsd xmm1,xmm2/m64 (RM)
+                off += parseModRM(fp+off, hasRex ? rex:0, OT_RegV128L,
+                                  &o2, &o1, 0);
+                addBinaryOp(c, a, (uint64_t)(fp + off), IT_MULSD, &o1, &o2);
+                break;
+
+            case 0xEF:
+                // pxor xmm1, xmm2/m128
+                off += parseModRM(fp+off, hasRex ? rex:0,
+                                  has66 ? OT_RegV128 : OT_RegV64,
+                                  &o2, &o1, 0);
+                addBinaryOp(c, a, (uint64_t)(fp + off), IT_PXOR, &o1, &o2);
+                break;
+
             default:
                 addSimple(c, a, (uint64_t)(fp + off), IT_Invalid);
                 break;
@@ -806,7 +908,7 @@ BB* decodeBB(Rewriter* c, uint64_t f)
 
         case 0x31:
             // xor r/m,r 32/64 (MR, dst: r/m, src: r)
-            off += parseModRM(fp+off, hasRex ? rex:0, &o1, &o2, 0);
+            off += parseModRM(fp+off, hasRex ? rex:0, VT_None, &o1, &o2, 0);
             addBinaryOp(c, a, (uint64_t)(fp + off), IT_XOR, &o1, &o2);
             break;
 
@@ -827,7 +929,7 @@ BB* decodeBB(Rewriter* c, uint64_t f)
         case 0x63:
             // movsxd r64,r/m32 (RM) mov with sign extension
             assert(hasRex && (rex & REX_MASK_W));
-            off += parseModRM(fp+off, hasRex ? rex:0, &o2, &o1, 0);
+            off += parseModRM(fp+off, hasRex ? rex:0, VT_None, &o2, &o1, 0);
             // src is 32 bit
             switch(o2.type) {
             case OT_Reg64: o2.type = OT_Reg32; break;
@@ -839,7 +941,7 @@ BB* decodeBB(Rewriter* c, uint64_t f)
 
         case 0x69:
             // imul r,r/m32/64,imm32 (RMI)
-            off += parseModRM(fp+off, hasRex ? rex:0, &o2, &o1, 0);
+            off += parseModRM(fp+off, hasRex ? rex:0, VT_None, &o2, &o1, 0);
             o3.type = OT_Imm32;
             o3.val = *(uint32_t*)(fp + off);
             off += 4;
@@ -848,7 +950,7 @@ BB* decodeBB(Rewriter* c, uint64_t f)
 
         case 0x6B:
             // imul r,r/m32/64,imm8 (RMI)
-            off += parseModRM(fp+off, hasRex ? rex:0, &o2, &o1, 0);
+            off += parseModRM(fp+off, hasRex ? rex:0, VT_None, &o2, &o1, 0);
             o3.type = OT_Imm8;
             o3.val = *(uint8_t*)(fp + off);
             off += 1;
@@ -858,6 +960,7 @@ BB* decodeBB(Rewriter* c, uint64_t f)
 
         case 0x74: // JE/JZ rel8
         case 0x75: // JNE/JNZ rel8
+        case 0x7A: // JP rel8
         case 0x7E: // JLE/JNG rel8
         case 0x7F: // JG/JNLE rel8
             o1.type = OT_Imm64;
@@ -865,6 +968,7 @@ BB* decodeBB(Rewriter* c, uint64_t f)
             off += 1;
             if      (opc == 0x74) it = IT_JE;
             else if (opc == 0x75) it = IT_JNE;
+            else if (opc == 0x7A) it = IT_JP;
             else if (opc == 0x7E) it = IT_JLE;
             else if (opc == 0x7F) it = IT_JG;
             else assert(0);
@@ -873,7 +977,7 @@ BB* decodeBB(Rewriter* c, uint64_t f)
             break;
 
         case 0x81:
-            off += parseModRM(fp+off, hasRex ? rex:0, &o1, 0, &digit);
+            off += parseModRM(fp+off, hasRex ? rex:0, VT_None, &o1, 0, &digit);
             switch(digit) {
             case 0:
                 // 81/0: add r/m 32/64, imm32
@@ -890,7 +994,7 @@ BB* decodeBB(Rewriter* c, uint64_t f)
             break;
 
         case 0x83:
-            off += parseModRM(fp+off, hasRex ? rex:0, &o1, 0, &digit);
+            off += parseModRM(fp+off, hasRex ? rex:0, VT_None, &o1, 0, &digit);
             switch(digit) {
             case 0:
                 // 83/0: ADD r/m 32/64, imm8: Add sign-extended imm8 to r/m
@@ -924,25 +1028,25 @@ BB* decodeBB(Rewriter* c, uint64_t f)
 
         case 0x85:
             // test r/m,r 32/64 (dst: r/m, src: r)
-            off += parseModRM(fp+off, hasRex ? rex:0, &o1, &o2, 0);
+            off += parseModRM(fp+off, hasRex ? rex:0, VT_None, &o1, &o2, 0);
             addBinaryOp(c, a, (uint64_t)(fp + off), IT_TEST, &o1, &o2);
             break;
 
         case 0x89:
 	    // mov r/m,r 32/64 (dst: r/m, src: r)
-            off += parseModRM(fp+off, hasRex ? rex:0, &o1, &o2, 0);
+            off += parseModRM(fp+off, hasRex ? rex:0, VT_None, &o1, &o2, 0);
             addBinaryOp(c, a, (uint64_t)(fp + off), IT_MOV, &o1, &o2);
 	    break;
 
         case 0x8B:
 	    // mov r,r/m 32/64 (dst: r, src: r/m)
-            off += parseModRM(fp+off, hasRex ? rex:0, &o2, &o1, 0);
+            off += parseModRM(fp+off, hasRex ? rex:0, VT_None, &o2, &o1, 0);
             addBinaryOp(c, a, (uint64_t)(fp + off), IT_MOV, &o1, &o2);
 	    break;
 
         case 0x8D:
 	    // lea r32/64,m
-            off += parseModRM(fp+off, hasRex ? rex:0, &o2, &o1, 0);
+            off += parseModRM(fp+off, hasRex ? rex:0, VT_None, &o2, &o1, 0);
 	    assert(opIsInd(&o2)); // TODO: bad code error
             addBinaryOp(c, a, (uint64_t)(fp + off),
 			IT_LEA, &o1, &o2);
@@ -966,7 +1070,7 @@ BB* decodeBB(Rewriter* c, uint64_t f)
             break;
 
         case 0xC7:
-            off += parseModRM(fp+off, hasRex ? rex:0, &o1, 0, &digit);
+            off += parseModRM(fp+off, hasRex ? rex:0, VT_None, &o1, 0, &digit);
             switch(digit) {
             case 0:
                 // mov r/m 32/64, imm32
@@ -1028,26 +1132,117 @@ BB* decodeBB(Rewriter* c, uint64_t f)
 /* x86_64 printer
  */
 
-char* regName(Reg r)
+char* regName(Reg r, OpType t)
 {
-    switch(r) {
-    case Reg_AX: return "ax";
-    case Reg_BX: return "bx";
-    case Reg_CX: return "cx";
-    case Reg_DX: return "dx";
-    case Reg_DI: return "di";
-    case Reg_SI: return "si";
-    case Reg_BP: return "bp";
-    case Reg_SP: return "sp";
-    case Reg_8:  return "8";
-    case Reg_9:  return "9";
-    case Reg_10: return "10";
-    case Reg_11: return "11";
-    case Reg_12: return "12";
-    case Reg_13: return "13";
-    case Reg_14: return "14";
-    case Reg_15: return "15";
-    case Reg_IP: return "ip";
+    switch(t) {
+    case OT_Reg32:
+        switch(r) {
+        case Reg_AX: return "eax";
+        case Reg_BX: return "ebx";
+        case Reg_CX: return "ecx";
+        case Reg_DX: return "edx";
+        case Reg_DI: return "edi";
+        case Reg_SI: return "esi";
+        case Reg_BP: return "ebp";
+        case Reg_SP: return "esp";
+        case Reg_8:  return "r8";
+        case Reg_9:  return "r9";
+        case Reg_10: return "r10";
+        case Reg_11: return "r11";
+        case Reg_12: return "r12";
+        case Reg_13: return "r13";
+        case Reg_14: return "r14";
+        case Reg_15: return "r15";
+        case Reg_IP: return "eip";
+        }
+        break;
+
+    case OT_Reg64:
+        switch(r) {
+        case Reg_AX: return "rax";
+        case Reg_BX: return "rbx";
+        case Reg_CX: return "rcx";
+        case Reg_DX: return "rdx";
+        case Reg_DI: return "rdi";
+        case Reg_SI: return "rsi";
+        case Reg_BP: return "rbp";
+        case Reg_SP: return "rsp";
+        case Reg_8:  return "r8";
+        case Reg_9:  return "r9";
+        case Reg_10: return "r10";
+        case Reg_11: return "r11";
+        case Reg_12: return "r12";
+        case Reg_13: return "r13";
+        case Reg_14: return "r14";
+        case Reg_15: return "r15";
+        case Reg_IP: return "rip";
+        }
+        break;
+
+    case OT_RegV64:
+        switch(r) {
+        case Reg_X0:  return "mmx0";
+        case Reg_X1:  return "mmx1";
+        case Reg_X2:  return "mmx2";
+        case Reg_X3:  return "mmx3";
+        case Reg_X4:  return "mmx4";
+        case Reg_X5:  return "mmx5";
+        case Reg_X6:  return "mmx6";
+        case Reg_X7:  return "mmx7";
+        case Reg_X8:  return "mmx8";
+        case Reg_X9:  return "mmx9";
+        case Reg_X10: return "mmx10";
+        case Reg_X11: return "mmx11";
+        case Reg_X12: return "mmx12";
+        case Reg_X13: return "mmx13";
+        case Reg_X14: return "mmx14";
+        case Reg_X15: return "mmx15";
+        }
+        break;
+
+    case OT_RegV128:
+    case OT_RegV128L:
+        switch(r) {
+        case Reg_X0:  return "xmm0";
+        case Reg_X1:  return "xmm1";
+        case Reg_X2:  return "xmm2";
+        case Reg_X3:  return "xmm3";
+        case Reg_X4:  return "xmm4";
+        case Reg_X5:  return "xmm5";
+        case Reg_X6:  return "xmm6";
+        case Reg_X7:  return "xmm7";
+        case Reg_X8:  return "xmm8";
+        case Reg_X9:  return "xmm9";
+        case Reg_X10: return "xmm10";
+        case Reg_X11: return "xmm11";
+        case Reg_X12: return "xmm12";
+        case Reg_X13: return "xmm13";
+        case Reg_X14: return "xmm14";
+        case Reg_X15: return "xmm15";
+        }
+        break;
+
+    case OT_RegV256:
+        switch(r) {
+        case Reg_X0:  return "ymm0";
+        case Reg_X1:  return "ymm1";
+        case Reg_X2:  return "ymm2";
+        case Reg_X3:  return "ymm3";
+        case Reg_X4:  return "ymm4";
+        case Reg_X5:  return "ymm5";
+        case Reg_X6:  return "ymm6";
+        case Reg_X7:  return "ymm7";
+        case Reg_X8:  return "ymm8";
+        case Reg_X9:  return "ymm9";
+        case Reg_X10: return "ymm10";
+        case Reg_X11: return "ymm11";
+        case Reg_X12: return "ymm12";
+        case Reg_X13: return "ymm13";
+        case Reg_X14: return "ymm14";
+        case Reg_X15: return "ymm15";
+        }
+        break;
+
     }
     assert(0);
 }
@@ -1059,10 +1254,12 @@ char* op2string(Operand* o)
 
     switch(o->type) {
     case OT_Reg32:
-	sprintf(buf, "%%e%s", regName(o->reg));
-	break;
     case OT_Reg64:
-	sprintf(buf, "%%r%s", regName(o->reg));
+    case OT_RegV64:
+    case OT_RegV128:
+    case OT_RegV128L:
+    case OT_RegV256:
+        sprintf(buf, "%%%s", regName(o->reg, o->type));
 	break;
 
     case OT_Imm8:
@@ -1082,6 +1279,8 @@ char* op2string(Operand* o)
     case OT_Ind16:
     case OT_Ind32:
     case OT_Ind64:
+    case OT_IndV64:
+    case OT_IndV128:
 	if (o->val != 0) {
 	    if (o->val & (1l<<63))
 		off = sprintf(buf, "-0x%lx", (~ o->val)+1);
@@ -1090,16 +1289,16 @@ char* op2string(Operand* o)
 	}
         if ((o->scale == 0) || (o->ireg == Reg_None)) {
             if (o->reg != Reg_None)
-                sprintf(buf+off,"(%%r%s)", regName(o->reg));
+                sprintf(buf+off,"(%%%s)", regName(o->reg, OT_Reg64));
         }
 	else {
-            char* ri = regName(o->ireg);
+            char* ri = regName(o->ireg, OT_Reg64);
             if (o->reg == Reg_None) {
-                sprintf(buf+off,"(,%%r%s,%d)", ri, o->scale);
+                sprintf(buf+off,"(,%%%s,%d)", ri, o->scale);
             }
             else
-                sprintf(buf+off,"(%%r%s,%%r%s,%d)",
-                        regName(o->reg), ri, o->scale);
+                sprintf(buf+off,"(%%%s,%%%s,%d)",
+                        regName(o->reg, OT_Reg64), ri, o->scale);
 	}
 	break;
     default: assert(0);
@@ -1114,30 +1313,36 @@ char* instr2string(Instr* instr, int align)
     int oc = 0, off = 0;
 
     switch(instr->type) {
-    case IT_NOP:   n = "nop"; break;
-    case IT_RET:   n = "ret"; break;
-    case IT_LEAVE: n = "leave"; break;
-    case IT_CLTQ:  n = "cltq"; break;
-    case IT_PUSH:  n = "push"; oc = 1; break;
-    case IT_POP:   n = "pop";  oc = 1; break;
-    case IT_CALL:  n = "call"; oc = 1; break;
-    case IT_JMP:   n = "jmp";  oc = 1; break;
-    case IT_JE:    n = "je";   oc = 1; break;
-    case IT_JNE:   n = "jne";  oc = 1; break;
-    case IT_JLE:   n = "jle";  oc = 1; break;
-    case IT_JG:    n = "jg";   oc = 1; break;
-    case IT_MOV:   n = "mov";  oc = 2; break;
-    case IT_ADD:   n = "add";  oc = 2; break;
-    case IT_SUB:   n = "sub";  oc = 2; break;
-    case IT_IMUL:  n = "imul"; oc = 2; break;
-    case IT_XOR:   n = "xor";  oc = 2; break;
-    case IT_LEA:   n = "lea";  oc = 2; break;
-    case IT_CMP:   n = "cmp";  oc = 2; break;
-    case IT_TEST:  n = "test"; oc = 2; break;
+    case IT_NOP:     n = "nop"; break;
+    case IT_RET:     n = "ret"; break;
+    case IT_LEAVE:   n = "leave"; break;
+    case IT_CLTQ:    n = "cltq"; break;
+    case IT_PUSH:    n = "push"; oc = 1; break;
+    case IT_POP:     n = "pop";  oc = 1; break;
+    case IT_CALL:    n = "call"; oc = 1; break;
+    case IT_JMP:     n = "jmp";  oc = 1; break;
+    case IT_JE:      n = "je";   oc = 1; break;
+    case IT_JNE:     n = "jne";  oc = 1; break;
+    case IT_JLE:     n = "jle";  oc = 1; break;
+    case IT_JG:      n = "jg";   oc = 1; break;
+    case IT_JP:      n = "jp";   oc = 1; break;
+    case IT_MOV:     n = "mov";  oc = 2; break;
+    case IT_ADD:     n = "add";  oc = 2; break;
+    case IT_SUB:     n = "sub";  oc = 2; break;
+    case IT_IMUL:    n = "imul"; oc = 2; break;
+    case IT_XOR:     n = "xor";  oc = 2; break;
+    case IT_LEA:     n = "lea";  oc = 2; break;
+    case IT_CMP:     n = "cmp";  oc = 2; break;
+    case IT_TEST:    n = "test"; oc = 2; break;
+    case IT_PXOR:    n = "pxor"; oc = 2; break;
+    case IT_MOVSD:   n = "movsd"; oc = 2; break;
+    case IT_UCOMISD: n = "ucomisd"; oc = 2; break;
+    case IT_MULSD:   n = "mulsd"; oc = 2; break;
+    case IT_ADDSD:   n = "addsd"; oc = 2; break;
     }
 
     if (align)
-        off += sprintf(buf, "%-6s", n);
+        off += sprintf(buf, "%-7s", n);
     else
         off += sprintf(buf, "%s", n);
 
@@ -2064,9 +2269,9 @@ void printEmuState(EmuState* es)
 
     printf("  Registers:\n");
     for(i=Reg_AX; i<Reg_8; i++) {
-        printf("    %%r%-2s = 0x%016lx %c", regName(i), es->reg[i],
+        printf("    %%%-3s = 0x%016lx %c", regName(i, OT_Reg64), es->reg[i],
                captureState2Char( es->reg_state[i] ));
-        printf("    %%r%-2s = 0x%016lx %c\n", regName(i+8), es->reg[i+8],
+        printf("    %%%-3s = 0x%016lx %c\n", regName(i+8, OT_Reg64), es->reg[i+8],
                captureState2Char( es->reg_state[i+8] ));
     }
 
