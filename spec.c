@@ -113,6 +113,7 @@ typedef enum _InstrType {
     IT_MOV, IT_LEA,
     IT_ADD, IT_SUB, IT_IMUL,
     IT_XOR, IT_AND, IT_OR,
+    IT_SHL, IT_SHR, IT_SAR,
     IT_CALL, IT_RET, IT_JMP,
     IT_JG, IT_JE, IT_JNE, IT_JLE, IT_JP,
     IT_CMP, IT_TEST,
@@ -996,6 +997,19 @@ BB* decodeBB(Rewriter* c, uint64_t f)
             addBinaryOp(c, a, (uint64_t)(fp + off), IT_XOR, &o1, &o2);
             break;
 
+        case 0x39:
+            // cmp r/m,r 32/64 (MR)
+            off += parseModRM(fp+off, hasRex ? rex:0, VT_None, &o1, &o2, 0);
+            addBinaryOp(c, a, (uint64_t)(fp + off), IT_CMP, &o1, &o2);
+            break;
+
+        case 0x3B:
+            // cmp r,r/m 32/64 (RM)
+            off += parseModRM(fp+off, hasRex ? rex:0, VT_None, &o2, &o1, 0);
+            addBinaryOp(c, a, (uint64_t)(fp + off), IT_CMP, &o1, &o2);
+            break;
+
+
 	case 0x50: case 0x51: case 0x52: case 0x53:
 	case 0x54: case 0x55: case 0x56: case 0x57:
 	    // push
@@ -1097,7 +1111,7 @@ BB* decodeBB(Rewriter* c, uint64_t f)
                 break;
 
             case 7:
-                // 83/7: CMP r/m 32/64, imm8
+                // 83/7: CMP r/m 32/64, imm8 (MI)
                 o2.type = OT_Imm8;
                 o2.val = (int64_t) (*(int8_t*)(fp + off));
                 off += 1;
@@ -1145,6 +1159,23 @@ BB* decodeBB(Rewriter* c, uint64_t f)
             // cltq (Intel: cdqe - sign-extend eax to rax)
             addSimpleVType(c, a, (uint64_t)(fp + off), IT_CLTQ,
                            hasRex && (rex & REX_MASK_W) ? VT_64 : VT_32);
+            break;
+
+        case 0xC1:
+            off += parseModRM(fp+off, hasRex ? rex:0, VT_None, &o1, 0, &digit);
+            switch(digit) {
+            case 4:
+                // shl r/m 32/64,imm8 (MI) (= sal)
+                o2.type = OT_Imm8;
+                o2.val = *(uint8_t*)(fp + off);
+                off += 1;
+                addBinaryOp(c, a, (uint64_t)(fp + off), IT_SHL, &o1, &o2);
+                break;
+
+            default:
+                addSimple(c, a, (uint64_t)(fp + off), IT_Invalid);
+                break;
+            }
             break;
 
         case 0xC3:
@@ -1414,7 +1445,11 @@ char* instr2string(Instr* instr, int align)
     case IT_ADD:     n = "add";  oc = 2; break;
     case IT_SUB:     n = "sub";  oc = 2; break;
     case IT_IMUL:    n = "imul"; oc = 2; break;
+    case IT_AND:     n = "xor";  oc = 2; break;
+    case IT_OR:      n = "xor";  oc = 2; break;
     case IT_XOR:     n = "xor";  oc = 2; break;
+    case IT_SHL:     n = "shl";  oc = 2; break;
+    case IT_SHR:     n = "shr";  oc = 2; break;
     case IT_LEA:     n = "lea";  oc = 2; break;
     case IT_CMP:     n = "cmp";  oc = 2; break;
     case IT_TEST:    n = "test"; oc = 2; break;
@@ -2069,6 +2104,28 @@ int genXor(uint8_t* buf, Operand* src, Operand* dst)
     return 0;
 }
 
+int genShl(uint8_t* buf, Operand* src, Operand* dst)
+{
+    switch(src->type) {
+    // src reg
+    case OT_Imm8:
+        switch(dst->type) {
+        case OT_Reg32:
+        case OT_Ind32:
+        case OT_Reg64:
+        case OT_Ind64:
+            // use 'shl r/m 32/64,imm8' (0xC1/4 MI)
+            return genDigitMI(buf, 0xC1, 4, dst, src);
+
+        default: assert(0);
+        }
+        break;
+
+    default: assert(0);
+    }
+    return 0;
+}
+
 
 int genLea(uint8_t* buf, Operand* src, Operand* dst)
 {
@@ -2180,6 +2237,9 @@ void capture(Rewriter* c, Instr* instr)
             break;
         case IT_XOR:
             used = genXor(buf, &(instr->src), &(instr->dst));
+            break;
+        case IT_SHL:
+            used = genShl(buf, &(instr->src), &(instr->dst));
             break;
         case IT_LEA:
             used = genLea(buf, &(instr->src), &(instr->dst));
@@ -2896,6 +2956,8 @@ void captureBinaryOp(Rewriter* c, Instr* orig, EmuState* es, EmuValue* res)
         // if 1st source (=src) is known/constant and a reg, make it immediate
 
         if (((orig->type == IT_ADD) && (opval.val == 0)) ||
+            ((orig->type == IT_SHL) && (opval.val == 0)) ||
+            ((orig->type == IT_SHR) && (opval.val == 0)) ||
             ((orig->type == IT_IMUL) && (opval.val == 1))) {
             // adding 0 / multiplying with 1 changes nothing...
             return;
@@ -3292,6 +3354,27 @@ uint64_t emulateInstr(Rewriter* c, EmuState* es, Instr* instr)
             assert(v1.val == es->ret_stack[es->depth]);
             return es->ret_stack[es->depth];
         }
+        break;
+
+    case IT_SHL:
+        // FIXME: do flags (shifting into CF, set OF)
+        getOpValue(&v1, es, &(instr->dst));
+        getOpValue(&v2, es, &(instr->src));
+
+        switch(opValType(&(instr->dst))) {
+        case VT_32:
+            v1.val = (uint32_t) (v1.val << (v2.val & 31));
+            break;
+
+        case VT_64:
+            v1.val = v1.val << (v2.val & 63);
+            break;
+
+        default: assert(0);
+        }
+        v1.state = combineState(v1.state, v2.state, 0);
+        captureBinaryOp(c, instr, es, &v1);
+        setOpValue(&v1, es, &(instr->dst));
         break;
 
     case IT_SUB:
