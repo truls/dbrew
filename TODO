@@ -138,6 +138,9 @@ Specialisation on Language Level
   - Jones: An Introduction to Partial Evaluation
   - Smowton: LLPE (EuroLLVM)
   - Anderson: C-Mix
+- Lower Level
+  - JIT API in WebAssembly
+
 
 Tracing JITters
 
