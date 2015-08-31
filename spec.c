@@ -144,14 +144,28 @@ typedef enum _OpType {
     OT_MAX
 } OpType;
 
-typedef struct _Operand
-{
+typedef struct _Operand {
     OpType type;
     Reg reg;
     Reg ireg; // with SIB
     uint64_t val; // imm or displacement
     int scale; // with SIB
 } Operand;
+
+// for passthrough instructions
+typedef enum _OperandEncoding {
+    OE_Invalid = 0,
+    OE_None,
+    OE_RM, OE_MR, OE_RMI
+} OperandEncoding;
+
+typedef enum _PrefixSet {
+    PS_None = 0,
+    PS_REX = 1,
+    PS_66 = 2,
+    PS_F2 = 4,
+    PS_F3 = 8
+} PrefixSet;
 
 typedef enum _OperandForm {
     OF_None = 0,
@@ -166,6 +180,13 @@ typedef struct _Instr {
     uint64_t addr;
     int len;
     InstrType type;
+
+    // annotation for pass-through (not used when ptLen == 0)
+    int ptLen;
+    PrefixSet ptPSet;
+    unsigned char ptOpc[4];
+    OperandEncoding ptEnc;
+
     ValType vtype; // to store operand size without explicit operands
     OperandForm form;
     Operand dst, src; //  with binary op: dst = dst op src
@@ -351,6 +372,7 @@ ValType opValType(Operand* o)
 	return VT_64;
 
     case OT_RegV64:
+    case OT_RegV128L:
     case OT_IndV64:
         return VT_V64;
     case OT_RegV128:
@@ -389,7 +411,7 @@ Bool opIsImm(Operand* o)
     return False;
 }
 
-Bool opIsReg(Operand* o)
+Bool opIsGPReg(Operand* o)
 {
     switch(o->type) {
     case OT_Reg8:
@@ -401,6 +423,25 @@ Bool opIsReg(Operand* o)
     return False;
 }
 
+Bool opIsVReg(Operand* o)
+{
+    switch(o->type) {
+    case OT_RegV64:
+    case OT_RegV128:
+    case OT_RegV128L:
+    case OT_RegV256:
+        return True;
+    }
+    return False;
+}
+
+Bool opIsReg(Operand* o)
+{
+    if (opIsGPReg(o)) return True;
+    if (opIsVReg(o)) return True;
+    return False;
+}
+
 Bool opIsInd(Operand* o)
 {
     switch(o->type) {
@@ -408,6 +449,9 @@ Bool opIsInd(Operand* o)
     case OT_Ind16:
     case OT_Ind32:
     case OT_Ind64:
+    case OT_IndV64:
+    case OT_IndV128:
+    case OT_IndV256:
         return True;
     }
     return False;
@@ -417,7 +461,7 @@ Bool opsAreSame(Operand* o1, Operand* o2)
 {
     if (o1->type != o2->type)
         return False;
-    if (opIsReg(o1))
+    if (opIsGPReg(o1))
         return (o1->reg == o2->reg);
     if (opIsImm(o1))
         return (o1->val == o2->val);
@@ -540,6 +584,7 @@ void initSimpleInstr(Instr* i, InstrType it)
 {
     i->addr = 0; // unknown: created, not parsed
     i->len = 0;
+    i->ptLen = 0; // no pass-through info
     i->type = it;
     i->form = OF_0;
     i->dst.type = OT_None;
@@ -573,6 +618,23 @@ void initTernaryInstr(Instr* i, InstrType it,
 }
 
 
+void attachPassthrough(Instr* i, PrefixSet set, OperandEncoding enc,
+                       int b1, int b2, int b3)
+{
+    assert(i->ptLen == 0);
+    i->ptEnc = enc;
+    i->ptPSet = set;
+    assert(b1>=0);
+    i->ptLen++;
+    i->ptOpc[0] = (unsigned char) b1;
+    if (b2 < 0) return;
+    i->ptLen++;
+    i->ptOpc[1] = (unsigned char) b2;
+    if (b3 < 0) return;
+    i->ptLen++;
+    i->ptOpc[2] = (unsigned char) b3;
+}
+
 Instr* nextInstr(Rewriter* c, uint64_t a, int len)
 {
     Instr* i = c->instr + c->instr_count;
@@ -591,31 +653,37 @@ Instr* nextInstr(Rewriter* c, uint64_t a, int len)
     return i;
 }
 
-void addSimple(Rewriter* c, uint64_t a, uint64_t a2, InstrType it)
+Instr* addSimple(Rewriter* c, uint64_t a, uint64_t a2, InstrType it)
 {
     Instr* i = nextInstr(c, a, a2 - a);
     i->type = it;
     i->form = OF_0;
+
+    return i;
 }
 
-void addSimpleVType(Rewriter* c, uint64_t a, uint64_t a2, InstrType it, ValType vt)
+Instr* addSimpleVType(Rewriter* c, uint64_t a, uint64_t a2, InstrType it, ValType vt)
 {
     Instr* i = nextInstr(c, a, a2 - a);
     i->type = it;
     i->vtype = vt;
     i->form = OF_0;
+
+    return i;
 }
 
-void addUnaryOp(Rewriter* c, uint64_t a, uint64_t a2,
+Instr* addUnaryOp(Rewriter* c, uint64_t a, uint64_t a2,
 		InstrType it, Operand* o)
 {
     Instr* i = nextInstr(c, a, a2 - a);
     i->type = it;
     i->form = OF_1;
     copyOperand( &(i->dst), o);
+
+    return i;
 }
 
-void addBinaryOp(Rewriter* c, uint64_t a, uint64_t a2,
+Instr* addBinaryOp(Rewriter* c, uint64_t a, uint64_t a2,
 		 InstrType it, Operand* o1, Operand* o2)
 {
     Instr* i = nextInstr(c, a, a2 - a);
@@ -623,9 +691,11 @@ void addBinaryOp(Rewriter* c, uint64_t a, uint64_t a2,
     i->form = OF_2;
     copyOperand( &(i->dst), o1);
     copyOperand( &(i->src), o2);
+
+    return i;
 }
 
-void addTernaryOp(Rewriter* c, uint64_t a, uint64_t a2,
+Instr* addTernaryOp(Rewriter* c, uint64_t a, uint64_t a2,
                   InstrType it, Operand* o1, Operand* o2, Operand* o3)
 {
     Instr* i = nextInstr(c, a, a2 - a);
@@ -634,6 +704,8 @@ void addTernaryOp(Rewriter* c, uint64_t a, uint64_t a2,
     copyOperand( &(i->dst), o1);
     copyOperand( &(i->src), o2);
     copyOperand( &(i->src2), o3);
+
+    return i;
 }
 
 
@@ -757,6 +829,7 @@ BB* decodeBB(Rewriter* c, uint64_t f)
     uint8_t* fp;
     Operand o1, o2, o3;
     InstrType it;
+    Instr* ii;
     BB* bb;
 
     if (f == 0) return 0; // nothing to decode
@@ -843,7 +916,9 @@ BB* decodeBB(Rewriter* c, uint64_t f)
                 // movsd xmm2,xmm1/m64 (RM)
                 off += parseModRM(fp+off, hasRex ? rex:0, OT_RegV128L,
                                   &o2, &o1, 0);
-                addBinaryOp(c, a, (uint64_t)(fp + off), IT_MOVSD, &o1, &o2);
+                ii = addBinaryOp(c, a, (uint64_t)(fp + off),
+                                 IT_MOVSD, &o1, &o2);
+                attachPassthrough(ii, PS_F2, OE_RM, 0x0F, 0x10, -1);
                 break;
 
             case 0x11:
@@ -851,7 +926,8 @@ BB* decodeBB(Rewriter* c, uint64_t f)
                 // movsd xmm2/m64,xmm1 (MR)
                 off += parseModRM(fp+off, hasRex ? rex:0, OT_RegV128L,
                                   &o1, &o2, 0);
-                addBinaryOp(c, a, (uint64_t)(fp + off), IT_MOVSD, &o1, &o2);
+                ii = addBinaryOp(c, a, (uint64_t)(fp + off), IT_MOVSD, &o1, &o2);
+                attachPassthrough(ii, PS_F2, OE_MR, 0x0F, 0x11, -1);
                 break;
 
             case 0x1F:
@@ -873,7 +949,9 @@ BB* decodeBB(Rewriter* c, uint64_t f)
                 // ucomisd xmm1,xmm2/m64 (RM)
                 off += parseModRM(fp+off, hasRex ? rex:0, OT_RegV128L,
                                   &o2, &o1, 0);
-                addBinaryOp(c, a, (uint64_t)(fp + off), IT_UCOMISD, &o1, &o2);
+                ii = addBinaryOp(c, a, (uint64_t)(fp + off),
+                                 IT_UCOMISD, &o1, &o2);
+                attachPassthrough(ii, PS_66, OE_RM, 0x0F, 0x2E, -1);
                 break;
 
             case 0x58:
@@ -881,7 +959,9 @@ BB* decodeBB(Rewriter* c, uint64_t f)
                 // addsd xmm1,xmm2/m64 (RM)
                 off += parseModRM(fp+off, hasRex ? rex:0, OT_RegV128L,
                                   &o2, &o1, 0);
-                addBinaryOp(c, a, (uint64_t)(fp + off), IT_ADDSD, &o1, &o2);
+                ii = addBinaryOp(c, a, (uint64_t)(fp + off),
+                                 IT_ADDSD, &o1, &o2);
+                attachPassthrough(ii, PS_F2, OE_RM, 0x0F, 0x58, -1);
                 break;
 
             case 0x59:
@@ -889,15 +969,19 @@ BB* decodeBB(Rewriter* c, uint64_t f)
                 // mulsd xmm1,xmm2/m64 (RM)
                 off += parseModRM(fp+off, hasRex ? rex:0, OT_RegV128L,
                                   &o2, &o1, 0);
-                addBinaryOp(c, a, (uint64_t)(fp + off), IT_MULSD, &o1, &o2);
+                ii = addBinaryOp(c, a, (uint64_t)(fp + off),
+                                 IT_MULSD, &o1, &o2);
+                attachPassthrough(ii, PS_F2, OE_RM, 0x0F, 0x59, -1);
                 break;
 
             case 0xEF:
-                // pxor xmm1, xmm2/m128
+                // pxor xmm1, xmm2/m 64/128 (RM)
                 off += parseModRM(fp+off, hasRex ? rex:0,
                                   has66 ? OT_RegV128 : OT_RegV64,
                                   &o2, &o1, 0);
-                addBinaryOp(c, a, (uint64_t)(fp + off), IT_PXOR, &o1, &o2);
+                ii = addBinaryOp(c, a, (uint64_t)(fp + off),
+                                 IT_PXOR, &o1, &o2);
+                attachPassthrough(ii, has66 ? PS_66 : 0, OE_RM, 0x0F, 0xEF, -1);
                 break;
 
             default:
@@ -1181,22 +1265,22 @@ char* regName(Reg r, OpType t)
 
     case OT_RegV64:
         switch(r) {
-        case Reg_X0:  return "mmx0";
-        case Reg_X1:  return "mmx1";
-        case Reg_X2:  return "mmx2";
-        case Reg_X3:  return "mmx3";
-        case Reg_X4:  return "mmx4";
-        case Reg_X5:  return "mmx5";
-        case Reg_X6:  return "mmx6";
-        case Reg_X7:  return "mmx7";
-        case Reg_X8:  return "mmx8";
-        case Reg_X9:  return "mmx9";
-        case Reg_X10: return "mmx10";
-        case Reg_X11: return "mmx11";
-        case Reg_X12: return "mmx12";
-        case Reg_X13: return "mmx13";
-        case Reg_X14: return "mmx14";
-        case Reg_X15: return "mmx15";
+        case Reg_X0:  return "mm0";
+        case Reg_X1:  return "mm1";
+        case Reg_X2:  return "mm2";
+        case Reg_X3:  return "mm3";
+        case Reg_X4:  return "mm4";
+        case Reg_X5:  return "mm5";
+        case Reg_X6:  return "mm6";
+        case Reg_X7:  return "mm7";
+        case Reg_X8:  return "mm8";
+        case Reg_X9:  return "mm9";
+        case Reg_X10: return "mm10";
+        case Reg_X11: return "mm11";
+        case Reg_X12: return "mm12";
+        case Reg_X13: return "mm13";
+        case Reg_X14: return "mm14";
+        case Reg_X15: return "mm15";
         }
         break;
 
@@ -1449,24 +1533,44 @@ int genPop(uint8_t* buf, Operand* o)
     return 1;
 }
 
+// return 0 - 15 for RAX - R15
+int GPRegEncoding(Reg r)
+{
+    assert((r >= Reg_AX) && (r <= Reg_15));
+    return r - Reg_AX;
+}
+
+// return 0 - 15 for RAX - R15
+int VRegEncoding(Reg r)
+{
+    assert((r >= Reg_X0) && (r <= Reg_X15));
+    return r - Reg_X0;
+}
+
 uint8_t* calcModRMDigit(Operand* o1, int digit, int* prex, int* plen)
 {
     static uint8_t buf[10];
     int modrm, r1;
     int o = 0;
+    ValType vt;
 
     assert((digit>=0) && (digit<8));
-    assert((opValType(o1) == VT_32) || (opValType(o1) == VT_64));
     assert(opIsReg(o1) || opIsInd(o1));
 
-    if (opValType(o1) == VT_64) *prex |= REX_MASK_W;
+    vt = opValType(o1);
+    if (vt == VT_64) *prex |= REX_MASK_W;
 
     modrm = (digit & 7) << 3;
 
     if (opIsReg(o1)) {
 	// r,r: mod 3
 	modrm |= 192;
-	r1 = o1->reg - Reg_AX;
+        if (opIsGPReg(o1))
+            r1 = GPRegEncoding(o1->reg);
+        else if (opIsVReg(o1))
+            r1 = VRegEncoding(o1->reg);
+        else
+            assert(0);
 	if (r1 & 8) *prex |= REX_MASK_B;
 	modrm |= (r1 & 7);
 	buf[o++] = modrm;
@@ -1497,14 +1601,16 @@ uint8_t* calcModRMDigit(Operand* o1, int digit, int* prex, int* plen)
                 sib = (4 << 3) + 5; // index 4 (= none) + base 5 (= none)
             }
             else {
-                r1 = o1->reg - Reg_AX;
-                assert((modrm >63) || (r1 != 5)); // do not use RIP encoding
                 if (o1->reg == Reg_IP) {
                     // RIP relative
                     // BUG: Should be relative to original code, not generated
                     r1 = 5;
                     modrm &= 63;
                     useDisp32 = 1;
+                }
+                else {
+                    r1 = GPRegEncoding(o1->reg);
+                    assert((modrm >63) || (r1 != 5)); // do not use RIP encoding
                 }
                 if (r1 & 8) *prex |= REX_MASK_B;
                 modrm |= (r1 & 7);
@@ -1520,8 +1626,7 @@ uint8_t* calcModRMDigit(Operand* o1, int digit, int* prex, int* plen)
 	    else
 		assert(o1->scale == 1);
 
-            assert(o1->ireg != Reg_None);
-	    ri = o1->ireg - Reg_AX;
+            ri = GPRegEncoding(o1->ireg);
 	    if (ri & 8) *prex |= REX_MASK_X;
 	    sib |= (ri & 7) <<3;
 
@@ -1540,12 +1645,11 @@ uint8_t* calcModRMDigit(Operand* o1, int digit, int* prex, int* plen)
                         useDisp8 = 1;
                     }
                 }
-                rb = o1->reg - Reg_AX;
+                rb = GPRegEncoding(o1->reg);
                 if (rb & 8) *prex |= REX_MASK_B;
                 sib |= (rb & 7);
             }
 	}
-
 
         if (useSIB)
             modrm |= 4; // signal SIB in modrm
@@ -1566,15 +1670,29 @@ uint8_t* calcModRMDigit(Operand* o1, int digit, int* prex, int* plen)
 
 uint8_t* calcModRM(Operand* o1, Operand* o2, int* prex, int* plen)
 {
+    int r2; // register offset encoding for operand 2
+
     assert(opValType(o1) == opValType(o2));
-    assert((opValType(o1) == VT_32) || (opValType(o1) == VT_64));
-    assert(opIsReg(o1) || opIsInd(o1));
-    assert(opIsReg(o2));
+    switch(opValType(o1)) {
+    case VT_32:
+    case VT_64:
+        assert(opIsGPReg(o1) || opIsInd(o1));
+        assert(opIsGPReg(o2));
+        r2 = o2->reg - Reg_AX;
+        break;
 
-    // o2 always r
-    int r2 = o2->reg - Reg_AX;
+    case VT_V64:
+    case VT_V128:
+        assert(opIsVReg(o1) || opIsInd(o1));
+        assert(opIsVReg(o2));
+        r2 = o2->reg - Reg_X0;
+        break;
+
+        break;
+    default: assert(0);
+    }
+
     if (r2 & 8) *prex |= REX_MASK_R;
-
     return calcModRMDigit(o1, r2 & 7, prex, plen);
 }
 
@@ -1955,7 +2073,7 @@ int genXor(uint8_t* buf, Operand* src, Operand* dst)
 int genLea(uint8_t* buf, Operand* src, Operand* dst)
 {
     assert(opIsInd(src));
-    assert(opIsReg(dst));
+    assert(opIsGPReg(dst));
     switch(dst->type) {
     case OT_Reg32:
     case OT_Reg64:
@@ -2000,6 +2118,37 @@ int genCmp(uint8_t* buf, Operand* src, Operand* dst)
     return 0;
 }
 
+// Pass-through: parser forwarding opcodes, provides encoding
+int genPassThrough(uint8_t* buf, Instr* instr)
+{
+    int o = 0;
+
+    assert(instr->ptLen > 0);
+    if (instr->ptPSet & PS_66) buf[o++] = 0x66;
+    if (instr->ptPSet & PS_F2) buf[o++] = 0xF2;
+    if (instr->ptPSet & PS_F3) buf[o++] = 0xF3;
+
+    // FIXME: REX prefix pass-through: combine with RM encoding changes
+
+    if (instr->ptLen < 2) instr->ptOpc[1] = -1;
+    assert(instr->ptLen < 3);
+
+    switch(instr->ptEnc) {
+    case OE_MR:
+        o += genModRM(buf+o, instr->ptOpc[0], instr->ptOpc[1],
+                &(instr->dst), &(instr->src));
+        break;
+
+    case OE_RM:
+        o += genModRM(buf+o, instr->ptOpc[0], instr->ptOpc[1],
+                &(instr->src), &(instr->dst));
+        break;
+
+    default: assert(0);
+    }
+
+    return o;
+}
 
 void capture(Rewriter* c, Instr* instr)
 {
@@ -2012,41 +2161,46 @@ void capture(Rewriter* c, Instr* instr)
         printf("Capture '%s' ", instr2string(instr, 0));
 
     buf = reserveCodeStorage(c->cs, 15);
-    switch(instr->type) {
-    case IT_ADD:
-        used = genAdd(buf, &(instr->src), &(instr->dst));
-        break;
-    case IT_CLTQ:
-        used = genCltq(buf, instr->vtype);
-        break;
-    case IT_CMP:
-        used = genCmp(buf, &(instr->src), &(instr->dst));
-        break;
-    case IT_IMUL:
-        used = genIMul(buf, &(instr->src), &(instr->dst));
-        break;
-    case IT_XOR:
-        used = genXor(buf, &(instr->src), &(instr->dst));
-        break;
-    case IT_LEA:
-        used = genLea(buf, &(instr->src), &(instr->dst));
-        break;
-    case IT_MOV:
-        used = genMov(buf, &(instr->src), &(instr->dst));
-        break;
-    case IT_POP:
-        used = genPop(buf, &(instr->dst));
-        break;
-    case IT_PUSH:
-	used = genPush(buf, &(instr->dst));
-	break;
-    case IT_RET:
-	used = genRet(buf);
-	break;
-    case IT_SUB:
-        used = genSub(buf, &(instr->src), &(instr->dst));
-        break;
-    default: assert(0);
+    if (instr->ptLen > 0) {
+        used = genPassThrough(buf, instr);
+    }
+    else {
+        switch(instr->type) {
+        case IT_ADD:
+            used = genAdd(buf, &(instr->src), &(instr->dst));
+            break;
+        case IT_CLTQ:
+            used = genCltq(buf, instr->vtype);
+            break;
+        case IT_CMP:
+            used = genCmp(buf, &(instr->src), &(instr->dst));
+            break;
+        case IT_IMUL:
+            used = genIMul(buf, &(instr->src), &(instr->dst));
+            break;
+        case IT_XOR:
+            used = genXor(buf, &(instr->src), &(instr->dst));
+            break;
+        case IT_LEA:
+            used = genLea(buf, &(instr->src), &(instr->dst));
+            break;
+        case IT_MOV:
+            used = genMov(buf, &(instr->src), &(instr->dst));
+            break;
+        case IT_POP:
+            used = genPop(buf, &(instr->dst));
+            break;
+        case IT_PUSH:
+            used = genPush(buf, &(instr->dst));
+            break;
+        case IT_RET:
+            used = genRet(buf);
+            break;
+        case IT_SUB:
+            used = genSub(buf, &(instr->src), &(instr->dst));
+            break;
+        default: assert(0);
+        }
     }
     assert(used < 15);
 
@@ -2649,7 +2803,7 @@ Bool keepsCaptureState(EmuState* es, Operand* o)
     Bool isOnStack;
 
     assert(!opIsImm(o));
-    if (opIsReg(o)) return 1;
+    if (opIsGPReg(o)) return 1;
 
     getOpAddr(&addr, es, o);
     isOnStack = getStackOffset(es, &addr, &off);
@@ -2803,6 +2957,44 @@ void captureRet(Rewriter* c, Instr* orig, EmuState* es)
     capture(c, orig);
 }
 
+void capturePassThrough(Rewriter* c, Instr* orig, EmuState* es)
+{
+    Instr i;
+
+    assert(orig->ptLen >0);
+    initSimpleInstr(&i, orig->type);
+    i.ptLen  = orig->ptLen;
+    i.ptEnc  = orig->ptEnc;
+    i.ptPSet = orig->ptPSet;
+    for(int j=0; j<orig->ptLen; j++)
+        i.ptOpc[j] = orig->ptOpc[j];
+
+    switch(orig->ptEnc) {
+    case OE_MR:
+        assert(opIsReg(&(orig->dst)) || opIsInd(&(orig->dst)));
+        assert(opIsReg(&(orig->src)));
+
+        i.form = OF_2;
+        copyOperand( &(i.dst), &(orig->dst));
+        copyOperand( &(i.src), &(orig->src));
+        applyStaticToInd(&(i.dst), es);
+        break;
+
+    case OE_RM:
+        assert(opIsReg(&(orig->src)) || opIsInd(&(orig->src)));
+        assert(opIsReg(&(orig->dst)));
+
+        i.form = OF_2;
+        copyOperand( &(i.dst), &(orig->dst));
+        copyOperand( &(i.src), &(orig->src));
+        applyStaticToInd(&(i.src), es);
+        break;
+
+    default: assert(0);
+    }
+    capture(c, &i);
+}
+
 
 // return 0 to fall through to next instruction, or return address to jump to
 uint64_t emulateInstr(Rewriter* c, EmuState* es, Instr* instr)
@@ -2810,6 +3002,13 @@ uint64_t emulateInstr(Rewriter* c, EmuState* es, Instr* instr)
     EmuValue vres, v1, v2, addr;
     CaptureState s;
     ValType vt;
+
+    if (instr->ptLen > 0) {
+        // pass-through: no effect on emu-state, no emulation done
+        // still, emu-state have influence memory access
+        capturePassThrough(c, instr, es);
+        return 0;
+    }
 
     switch(instr->type) {
 
@@ -2850,7 +3049,7 @@ uint64_t emulateInstr(Rewriter* c, EmuState* es, Instr* instr)
         getOpValue(&v1, es, &(instr->dst));
         getOpValue(&v2, es, &(instr->src));
 
-        assert(opIsReg(&(instr->dst)));
+        assert(opIsGPReg(&(instr->dst)));
         assert(v1.type == v2.type);
         switch(instr->src.type) {
         case OT_Reg32:
@@ -2946,6 +3145,10 @@ uint64_t emulateInstr(Rewriter* c, EmuState* es, Instr* instr)
         assert(es->zero_state == CS_STATIC);
         assert(es->sign_state == CS_STATIC);
         if ((es->zero == False) && (es->sign == False)) return instr->dst.val;
+        return instr->addr + instr->len;
+
+    case IT_JP:
+        // FIXME: assume P flag always cleared => fall through
         return instr->addr + instr->len;
 
     case IT_JMP:
