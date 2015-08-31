@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include "spec.h"
 
-//#define USEINT
+#define USEINT
 
 #ifdef USEINT
 #define TYPE int
@@ -15,40 +15,43 @@ typedef struct {
     TYPE factor;
 } StencilPoint;
 
+typedef struct {
+    int points;
+    StencilPoint p[];
+} Stencil;
+
 #ifdef USEINT
 #define COEFF1 (-4)
 #define COEFF2 (1)
 
-StencilPoint s5[] = {{0,0,-4},
-		     {-1,0,1}, {1,0,1}, {0,-1,1}, {0,1,1},
-		     {0,0,0}};
+Stencil s5 = {5,{{0,0,-4},{-1,0,1},{1,0,1},{0,-1,1},{0,1,1}}};
+
 #else
 #define COEFF1 (-1.0)
 #define COEFF2 (.25)
 
-StencilPoint s5[] = {{0,0,-1.0},
-                     {-1,0,.25}, {1,0,.25}, {0,-1,.25}, {0,1,.25},
-                     {0,0,0}};
+Stencil s5 = {5, {{0,0,-1},
+                  {-1,0,.25},{1,0,.25},{0,-1,.25},{0,1,.25}}};
+
 #endif
 
 
-typedef TYPE (*apply_func)(TYPE*, int, StencilPoint*);
+typedef TYPE (*apply_func)(TYPE*, int, Stencil*);
 
-TYPE apply(TYPE *m, int xsize, StencilPoint* s)
+TYPE apply(TYPE *m, int xsize, Stencil* s)
 {
     TYPE f, res;
+    int i;
 
     res = 0;
-    while(1) {
-	f = s->factor;
-	if (f == 0) break;
-	res += f * m[s->xdiff + s->ydiff * xsize];
-	s++;
+    for(i=0; i<s->points; i++) {
+        StencilPoint* p = s->p + i;
+        res += p->factor * m[p->xdiff + p->ydiff * xsize];
     }
     return res;
 }
 
-TYPE apply2(TYPE *m, int xsize, StencilPoint* s)
+TYPE apply2(TYPE *m, int xsize, Stencil* s)
 {
     return COEFF1 * m[0] + COEFF2 * (m[-1] + m[1] + m[-xsize] + m[xsize]);
 }
@@ -91,7 +94,7 @@ int main(int argc, char* argv[])
         setVerbosity(r, True, True, True);
         //setCaptureConfig(r, 2);
         setRewriteConfig2(r, 1,2);
-        rewrite(r, m1 + size + 1, size, s5);
+        rewrite(r, m1 + size + 1, size, &s5);
         af = (apply_func) generatedCode(r);
 
         {
@@ -110,16 +113,16 @@ int main(int argc, char* argv[])
     for(i=0;i<iter;i++) {
 	for(y=1;y<size-1;y++)
 	    for(x=1;x<size-1;x++)
-		m2[x+y*size] = af(&(m1[x+y*size]), size, s5);
+                m2[x+y*size] = af(&(m1[x+y*size]), size, &s5);
 	for(y=1;y<size-1;y++)
 	    for(x=1;x<size-1;x++)
-		m1[x+y*size] = af(&(m2[x+y*size]), size, s5);
+                m1[x+y*size] = af(&(m2[x+y*size]), size, &s5);
     }
 
     diff = 0;
     for(y=1;y<size-1;y++) {
 	for(x=1;x<size-1;x++) {
-	    i = m2[x+y*size] - af(&(m1[x+y*size]), size, s5);
+            i = m2[x+y*size] - af(&(m1[x+y*size]), size, &s5);
 	    diff += (i>0) ? i : -i;
 	}
     }
