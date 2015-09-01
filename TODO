@@ -78,7 +78,7 @@ Example driven implementation
   * binary re-generator (DONE)
   * (nested) specialization of parameters (DONE)
 * loop example: with variable/fixed loop count, special code for ranges
-  * complete unrolling
+  * complete unrolling, stencil (DONE)
   * fixed factor unrolling (how to specify?)
   * series of subloops for ranges
 * SPMV with sparse matrix structure from input file
@@ -102,8 +102,7 @@ Tasks/Todo
     - benefits: avoid spilling, save/restore, prolog/epilog
     - easier by maintaining a virtual register mapping in emulation?
   * "if": state gets known in if/else path
-  * optimi
-
+  * optimization: guard + special case inlining for parameters
 
 
 Students Work

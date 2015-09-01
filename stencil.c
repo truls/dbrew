@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include "spec.h"
 
-#define USEINT
+//#define USEINT
 
 #ifdef USEINT
 #define TYPE int
