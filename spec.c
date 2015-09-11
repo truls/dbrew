@@ -200,20 +200,29 @@ typedef struct _BB {
     Instr* instr; // pointer to first decoded instruction
 } BB;
 
-typedef struct _Code {
+typedef struct _Rewriter {
+
     // decoded instructions
-    int instr_count, instr_capacity;
-    Instr* instr;
+    int decInstrCount, decInstrCapacity;
+    Instr* decInstr;
 
     // decoded basic blocks
-    int bb_count, bb_capacity;
-    BB* bb;
+    int decBBCount, decBBCapacity;
+    BB* decBB;
+
+    // captured instructions
+    int capInstrCount, capInstrCapacity;
+    Instr* capInstr;
+
+    // captured basic blocks
+    int capBBCount, capBBCapacity;
+    BB* capBB;
 
     // function to capture
     uint64_t func;
 
     // buffer for captured code
-    int capture_capacity;
+    int capCodeCapacity;
     CodeStorage* cs;
 
     // structs for emulator & capture config
@@ -238,15 +247,23 @@ Rewriter* allocRewriter()
 
     // allocation of other members on demand, capacities may be reset
 
-    r->instr_count = 0;
-    r->instr_capacity = 0;
-    r->instr = 0;
+    r->decInstrCount = 0;
+    r->decInstrCapacity = 0;
+    r->decInstr = 0;
 
-    r->bb_count = 0;
-    r->bb_capacity = 0;
-    r->bb = 0;
+    r->decBBCount = 0;
+    r->decBBCapacity = 0;
+    r->decBB = 0;
 
-    r->capture_capacity = 0;
+    r->capInstrCount = 0;
+    r->capInstrCapacity = 0;
+    r->capInstr = 0;
+
+    r->capBBCount = 0;
+    r->capBBCapacity = 0;
+    r->capBB = 0;
+
+    r->capCodeCapacity = 0;
     r->cs = 0;
 
     r->cc = 0;
@@ -262,45 +279,73 @@ Rewriter* allocRewriter()
 
 void initRewriter(Rewriter* r)
 {
-    if (r->instr == 0) {
+    if (r->decInstr == 0) {
         // default
-        if (r->instr_capacity == 0) r->instr_capacity = 500;
-        r->instr = (Instr*) malloc(sizeof(Instr) * r->instr_capacity);
+        if (r->decInstrCapacity == 0) r->decInstrCapacity = 500;
+        r->decInstr = (Instr*) malloc(sizeof(Instr) * r->decInstrCapacity);
     }
-    r->instr_count = 0;
+    r->decInstrCount = 0;
 
-    if (r->bb == 0) {
+    if (r->decBB == 0) {
         // default
-        if (r->bb_capacity == 0) r->bb_capacity = 20;
-        r->bb = (BB*) malloc(sizeof(BB) * r->bb_capacity);
+        if (r->decBBCapacity == 0) r->decBBCapacity = 20;
+        r->decBB = (BB*) malloc(sizeof(BB) * r->decBBCapacity);
     }
-    r->bb_count = 0;
+    r->decBBCount = 0;
+
+    if (r->capInstr == 0) {
+        // default
+        if (r->capInstrCapacity == 0) r->capInstrCapacity = 500;
+        r->capInstr = (Instr*) malloc(sizeof(Instr) * r->capInstrCapacity);
+    }
+    r->capInstrCount = 0;
+
+    if (r->capBB == 0) {
+        // default
+        if (r->capBBCapacity == 0) r->capBBCapacity = 20;
+        r->capBB = (BB*) malloc(sizeof(BB) * r->capBBCapacity);
+    }
+    r->capBBCount = 0;
 
     if (r->cs == 0) {
-        if (r->capture_capacity == 0) r->capture_capacity = 3000;
-        if (r->capture_capacity >0)
-            r->cs = initCodeStorage(r->capture_capacity);
+        if (r->capCodeCapacity == 0) r->capCodeCapacity = 3000;
+        if (r->capCodeCapacity >0)
+            r->cs = initCodeStorage(r->capCodeCapacity);
     }
     if (r->cs)
         r->cs->used = 0;
 }
 
-void setRewriterCapacity(Rewriter* r,
-                         int instr_capacity, int bb_capacity, int capture_capacity)
+void setRewriterDecodingCapacity(Rewriter* r,
+                                 int instrCapacity, int bbCapacity)
 {
-    r->instr_capacity = instr_capacity;
-    free(r->instr);
-    r->instr = 0;
+    r->decInstrCapacity = instrCapacity;
+    free(r->decInstr);
+    r->decInstr = 0;
 
-    r->bb_capacity = bb_capacity;
-    free(r->bb);
-    r->bb = 0;
+    r->decBBCapacity = bbCapacity;
+    free(r->decBB);
+    r->decBB = 0;
+}
+
+void setRewriterCaptureCapacity(Rewriter* r,
+                                int instrCapacity, int bbCapacity,
+                                int codeCapacity)
+{
+    r->capInstrCapacity = instrCapacity;
+    free(r->capInstr);
+    r->capInstr = 0;
+
+    r->capBBCapacity = bbCapacity;
+    free(r->capBB);
+    r->capBB = 0;
 
     if (r->cs)
         freeCodeStorage(r->cs);
     r->cs = 0;
-    r->capture_capacity = capture_capacity;
+    r->capCodeCapacity = codeCapacity;
 }
+
 
 void setFunc(Rewriter* rewriter, uint64_t f)
 {
@@ -347,8 +392,8 @@ void freeCode(Rewriter* c)
     free(c->cc);
     free(c->es);
 
-    free(c->bb);
-    free(c->instr);
+    free(c->decBB);
+    free(c->decInstr);
     free(c);
 }
 
@@ -638,9 +683,9 @@ void attachPassthrough(Instr* i, PrefixSet set, OperandEncoding enc,
 
 Instr* nextInstr(Rewriter* c, uint64_t a, int len)
 {
-    Instr* i = c->instr + c->instr_count;
-    assert(c->instr_count < c->instr_capacity);
-    c->instr_count++;
+    Instr* i = c->decInstr + c->decInstrCount;
+    assert(c->decInstrCount < c->decInstrCapacity);
+    c->decInstrCount++;
 
     i->addr = a;
     i->len = len;
@@ -836,20 +881,20 @@ BB* decodeBB(Rewriter* c, uint64_t f)
     if (f == 0) return 0; // nothing to decode
 
     // already decoded?
-    for(i = 0; i < c->bb_count; i++)
-        if (c->bb[i].addr == f) return &(c->bb[i]);
+    for(i = 0; i < c->decBBCount; i++)
+        if (c->decBB[i].addr == f) return &(c->decBB[i]);
 
     if (c->showDecoding)
         printf("Decoding BB %lx ...\n", f);
 
     // start decoding of new BB beginning at f
-    assert(c->bb_count < c->bb_capacity);
-    bb = &(c->bb[c->bb_count]);
-    c->bb_count++;
+    assert(c->decBBCount < c->decBBCapacity);
+    bb = &(c->decBB[c->decBBCount]);
+    c->decBBCount++;
     bb->addr = f;
     bb->count = 0;
-    bb->instr = c->instr + c->instr_count;
-    old_icount = c->instr_count;
+    bb->instr = c->decInstr + c->decInstrCount;
+    old_icount = c->decInstrCount;
 
     fp = (uint8_t*) f;
     off = 0;
@@ -1235,7 +1280,7 @@ BB* decodeBB(Rewriter* c, uint64_t f)
     }
 
     assert(bb->addr == bb->instr->addr);
-    bb->count = c->instr_count - old_icount;
+    bb->count = c->decInstrCount - old_icount;
 
     if (c->showDecoding)
         printBB(bb);
@@ -1534,9 +1579,9 @@ void printBB(BB* bb)
 void printCode(Rewriter* c)
 {
     int i;
-    for(i=0; i< c->bb_count; i++) {
-        printf("BB %lx (%d instructions):\n", c->bb[i].addr, c->bb[i].count);
-        printBB(c->bb + i);
+    for(i=0; i< c->decBBCount; i++) {
+        printf("BB %lx (%d instructions):\n", c->decBB[i].addr, c->decBB[i].count);
+        printBB(c->decBB + i);
     }
 }
 

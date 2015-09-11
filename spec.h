@@ -13,7 +13,7 @@ typedef void (*void_func)(void);
 typedef enum { False, True } Bool;
 
 // piece of decoded x86_64 instructions
-typedef struct _Code Rewriter;
+typedef struct _Rewriter Rewriter;
 typedef struct _BB BB;
 
 // allocate space for a given number of decoded instructions
