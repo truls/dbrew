@@ -217,6 +217,7 @@ typedef struct _Rewriter {
     // captured basic blocks
     int capBBCount, capBBCapacity;
     BB* capBB;
+    BB* currentCapBB;
 
     // function to capture
     uint64_t func;
@@ -262,6 +263,7 @@ Rewriter* allocRewriter()
     r->capBBCount = 0;
     r->capBBCapacity = 0;
     r->capBB = 0;
+    r->currentCapBB = 0;
 
     r->capCodeCapacity = 0;
     r->cs = 0;
@@ -306,6 +308,7 @@ void initRewriter(Rewriter* r)
         r->capBB = (BB*) malloc(sizeof(BB) * r->capBBCapacity);
     }
     r->capBBCount = 0;
+    r->currentCapBB = 0;
 
     if (r->cs == 0) {
         if (r->capCodeCapacity == 0) r->capCodeCapacity = 3000;
@@ -623,6 +626,38 @@ void copyOperand(Operand* dst, Operand* src)
         }
         break;
     default: assert(0);
+    }
+}
+
+void copyInstr(Instr* dst, Instr* src)
+{
+    dst->addr  = src->addr;
+    dst->len   = src->len;
+    dst->type  = src->type;
+    dst->vtype = src->vtype;
+    dst->form  = src->form;
+
+    switch(src->form) {
+    case OF_3:
+        copyOperand(&(dst->src2), &(src->src2));
+        // fall through
+    case OF_2:
+        copyOperand(&(dst->src), &(src->src));
+        // fall through
+    case OF_1:
+        copyOperand(&(dst->dst), &(src->dst));
+        // fall through
+    case OF_0:
+        break;
+    default: assert(0);
+    }
+
+    dst->ptLen = src->ptLen;
+    if (src->ptLen > 0) {
+        dst->ptPSet = src->ptPSet;
+        dst->ptEnc  = src->ptEnc;
+        for(int j=0; j < src->ptLen; j++)
+            dst->ptOpc[j] = src->ptOpc[j];
     }
 }
 
@@ -2252,70 +2287,120 @@ int genPassThrough(uint8_t* buf, Instr* instr)
     return o;
 }
 
+// allocate an BB structure to collect instructions for capturing
+BB* allocCaptureBB(Rewriter* c, uint64_t f)
+{
+    BB* bb;
+    int i;
+
+    // already captured?
+    for(i = 0; i < c->capBBCount; i++)
+        if (c->capBB[i].addr == f) {
+            c->currentCapBB = 0;
+            return 0;
+        }
+
+    // start capturing of new BB beginning at f
+    assert(c->capBBCount < c->capBBCapacity);
+    bb = &(c->capBB[c->capBBCount]);
+    c->capBBCount++;
+    bb->addr = f;
+    bb->count = 0;
+    bb->instr = c->capInstr + c->capInstrCount;
+
+    c->currentCapBB = bb;
+    return bb;
+}
+
+// capture a new instruction
 void capture(Rewriter* c, Instr* instr)
 {
-    uint8_t* buf;
-    int used;
+    BB* bb = c->currentCapBB;
+    if (bb == 0) return;
 
+    if (c->showEmuSteps)
+        printf("Capture '%s'\n", instr2string(instr, 0));
+
+    assert(c->capInstrCount < c->capInstrCapacity);
+    copyInstr(bb->instr + bb->count, instr);
+    c->capInstrCount++;
+    bb->count++;
+}
+
+// capture a new instruction
+void generate(Rewriter* c, BB* bb)
+{
+    uint8_t* buf;
+    int used, i;
+
+    if (bb == 0) return;
     if (c->cs == 0) return;
 
     if (c->showEmuSteps)
-        printf("Capture '%s' ", instr2string(instr, 0));
+        printf("Generating code for BB %lx (%d instructions)\n",
+               bb->addr, bb->count);
 
-    buf = reserveCodeStorage(c->cs, 15);
-    if (instr->ptLen > 0) {
-        used = genPassThrough(buf, instr);
-    }
-    else {
-        switch(instr->type) {
-        case IT_ADD:
-            used = genAdd(buf, &(instr->src), &(instr->dst));
-            break;
-        case IT_CLTQ:
-            used = genCltq(buf, instr->vtype);
-            break;
-        case IT_CMP:
-            used = genCmp(buf, &(instr->src), &(instr->dst));
-            break;
-        case IT_IMUL:
-            used = genIMul(buf, &(instr->src), &(instr->dst));
-            break;
-        case IT_XOR:
-            used = genXor(buf, &(instr->src), &(instr->dst));
-            break;
-        case IT_SHL:
-            used = genShl(buf, &(instr->src), &(instr->dst));
-            break;
-        case IT_LEA:
-            used = genLea(buf, &(instr->src), &(instr->dst));
-            break;
-        case IT_MOV:
-            used = genMov(buf, &(instr->src), &(instr->dst));
-            break;
-        case IT_POP:
-            used = genPop(buf, &(instr->dst));
-            break;
-        case IT_PUSH:
-            used = genPush(buf, &(instr->dst));
-            break;
-        case IT_RET:
-            used = genRet(buf);
-            break;
-        case IT_SUB:
-            used = genSub(buf, &(instr->src), &(instr->dst));
-            break;
-        default: assert(0);
+    for(i = 0; i < bb->count; i++) {
+        Instr* instr = bb->instr + i;
+
+        buf = reserveCodeStorage(c->cs, 15);
+
+        if (instr->ptLen > 0) {
+            used = genPassThrough(buf, instr);
         }
+        else {
+            switch(instr->type) {
+            case IT_ADD:
+                used = genAdd(buf, &(instr->src), &(instr->dst));
+                break;
+            case IT_CLTQ:
+                used = genCltq(buf, instr->vtype);
+                break;
+            case IT_CMP:
+                used = genCmp(buf, &(instr->src), &(instr->dst));
+                break;
+            case IT_IMUL:
+                used = genIMul(buf, &(instr->src), &(instr->dst));
+                break;
+            case IT_XOR:
+                used = genXor(buf, &(instr->src), &(instr->dst));
+                break;
+            case IT_SHL:
+                used = genShl(buf, &(instr->src), &(instr->dst));
+                break;
+            case IT_LEA:
+                used = genLea(buf, &(instr->src), &(instr->dst));
+                break;
+            case IT_MOV:
+                used = genMov(buf, &(instr->src), &(instr->dst));
+                break;
+            case IT_POP:
+                used = genPop(buf, &(instr->dst));
+                break;
+            case IT_PUSH:
+                used = genPush(buf, &(instr->dst));
+                break;
+            case IT_RET:
+                used = genRet(buf);
+                break;
+            case IT_SUB:
+                used = genSub(buf, &(instr->src), &(instr->dst));
+                break;
+            default: assert(0);
+            }
+        }
+        assert(used < 15);
+
+        instr->addr = (uint64_t) buf;
+        instr->len = used;
+
+        if (c->showEmuSteps) {
+            printf("  Instr %2d: %-30s ", i, instr2string(instr, 0));
+            printf(" %2d bytes: %s\n", used, bytes2string(instr, 0, used));
+        }
+
+        useCodeStorage(c->cs, used);
     }
-    assert(used < 15);
-
-    instr->addr = (uint64_t) buf;
-    instr->len = used;
-
-    if (c->showEmuSteps)
-        printf("(%d bytes:%s)\n", used, bytes2string(instr, 0, used));
-
-    useCodeStorage(c->cs, used);
 }
 
 
@@ -3522,6 +3607,9 @@ uint64_t rewrite(Rewriter* c, ...)
     if (c->showEmuState)
         printEmuState(es);
 
+    // this allocates a BB in which captured instructions get collected
+    allocCaptureBB(c, bb_addr);
+
     while(1) {
         bb = decodeBB(c, bb_addr);
         for(i = 0; i < bb->count; i++) {
@@ -3550,6 +3638,8 @@ uint64_t rewrite(Rewriter* c, ...)
     }
     assert(instr->type == IT_RET);
     captureRet(c, instr, es);
+
+    generate(c, c->currentCapBB);
 
     // return value according to calling convention
     return es->reg[Reg_AX];
