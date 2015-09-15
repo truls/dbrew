@@ -41,11 +41,11 @@ CodeStorage* initCodeStorage(int size)
     * This will return an address aligned to a page boundary
     */
     buf = (uint8_t*) mmap(0, fullsize,
-			PROT_READ | PROT_WRITE | PROT_EXEC,
-			MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
+                          PROT_READ | PROT_WRITE | PROT_EXEC,
+                          MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
     if (buf == (uint8_t*)-1) {
-	perror("Can not mmap code region.");
-	exit(1);
+        perror("Can not mmap code region.");
+        exit(1);
     }
 
     cs = (CodeStorage*) malloc(sizeof(CodeStorage));
@@ -62,7 +62,7 @@ CodeStorage* initCodeStorage(int size)
 void freeCodeStorage(CodeStorage* cs)
 {
     if (cs)
-	munmap(cs->buf, cs->fullsize);
+        munmap(cs->buf, cs->fullsize);
     free(cs);
 }
 
@@ -72,10 +72,10 @@ void freeCodeStorage(CodeStorage* cs)
 uint8_t* reserveCodeStorage(CodeStorage* cs, int size)
 {
     if (cs->fullsize - cs->used < size) {
-	fprintf(stderr,
-		"Error: CodeStorage (size %d) too small: used %d, need %d\n",
-		cs->fullsize, cs->used, size);
-	exit(1);
+        fprintf(stderr,
+                "Error: CodeStorage (size %d) too small: used %d, need %d\n",
+                cs->fullsize, cs->used, size);
+        exit(1);
     }
     return cs->buf + cs->used;
 }
@@ -371,7 +371,7 @@ void setVerbosity(Rewriter* rewriter,
 uint64_t generatedCode(Rewriter* c)
 {
     if ((c->cs == 0) || (c->cs->used == 0))
-	return 0;
+        return 0;
 
     return (uint64_t) c->cs->buf;
 }
@@ -379,7 +379,7 @@ uint64_t generatedCode(Rewriter* c)
 int generatedCodeSize(Rewriter* c)
 {
     if ((c->cs == 0) || (c->cs->used == 0))
-	return 0;
+        return 0;
 
     return c->cs->used;
 }
@@ -403,19 +403,19 @@ ValType opValType(Operand* o)
     case OT_Imm8:
     case OT_Reg8:
     case OT_Ind8:
-	return VT_8;
+        return VT_8;
     case OT_Imm16:
     case OT_Reg16:
     case OT_Ind16:
-	return VT_16;
+        return VT_16;
     case OT_Imm32:
     case OT_Reg32:
     case OT_Ind32:
-	return VT_32;
+        return VT_32;
     case OT_Imm64:
     case OT_Reg64:
     case OT_Ind64:
-	return VT_64;
+        return VT_64;
 
     case OT_RegV64:
     case OT_RegV128L:
@@ -525,11 +525,11 @@ Operand* getRegOp(ValType t, Reg r)
     switch(t) {
     case VT_32:
     case VT_64:
-	assert((r >= Reg_AX) && (r <= Reg_15));
+        assert((r >= Reg_AX) && (r <= Reg_15));
         o.type = (t == VT_32) ? OT_Reg32 : OT_Reg64;
-	o.reg = r;
-	o.scale = 0;
-	break;
+        o.reg = r;
+        o.scale = 0;
+        break;
 
     case VT_V64:
     case VT_V128:
@@ -551,24 +551,24 @@ Operand* getImmOp(ValType t, uint64_t v)
 
     switch(t) {
     case VT_8:
-	o.type = OT_Imm8;
-	o.val = v;
-	break;
+        o.type = OT_Imm8;
+        o.val = v;
+        break;
 
     case VT_16:
-	o.type = OT_Imm16;
-	o.val = v;
-	break;
+        o.type = OT_Imm16;
+        o.val = v;
+        break;
 
     case VT_32:
-	o.type = OT_Imm32;
-	o.val = v;
-	break;
+        o.type = OT_Imm32;
+        o.val = v;
+        break;
 
     case VT_64:
-	o.type = OT_Imm64;
-	o.val = v;
-	break;
+        o.type = OT_Imm64;
+        o.val = v;
+        break;
 
     default: assert(0);
     }
@@ -588,16 +588,16 @@ void copyOperand(Operand* dst, Operand* src)
         assert(src->val < (1l<<16));
         // fall-trough
     case OT_Imm32:
-	assert(src->val < (1l<<32));
-	// fall-trough
+        assert(src->val < (1l<<32));
+        // fall-trough
     case OT_Imm64:
-	dst->val = src->val;
-	break;
+        dst->val = src->val;
+        break;
     case OT_Reg32:
     case OT_Reg64:
-	assert((src->reg >= Reg_AX) && (src->reg <= Reg_15));
-	dst->reg = src->reg;
-	break;
+        assert((src->reg >= Reg_AX) && (src->reg <= Reg_15));
+        dst->reg = src->reg;
+        break;
     case OT_RegV64:
     case OT_RegV128L:
     case OT_RegV128:
@@ -612,16 +612,16 @@ void copyOperand(Operand* dst, Operand* src)
     case OT_IndV256:
         assert( (src->reg == Reg_None) ||
                 ((src->reg >= Reg_AX) && (src->reg <= Reg_15)) );
-	dst->reg = src->reg;
-	dst->val = src->val;
-	dst->scale = src->scale;
-	if (src->scale >0) {
-	    assert((src->scale == 1) || (src->scale == 2) ||
-		   (src->scale == 4) || (src->scale == 8));
-	    assert((src->ireg >= Reg_AX) && (src->ireg <= Reg_15));
-	    dst->ireg = src->ireg;
-	}
-	break;
+        dst->reg = src->reg;
+        dst->val = src->val;
+        dst->scale = src->scale;
+        if (src->scale >0) {
+            assert((src->scale == 1) || (src->scale == 2) ||
+                   (src->scale == 4) || (src->scale == 8));
+            assert((src->ireg >= Reg_AX) && (src->ireg <= Reg_15));
+            dst->ireg = src->ireg;
+        }
+        break;
     default: assert(0);
     }
 }
@@ -719,7 +719,7 @@ Instr* addSimpleVType(Rewriter* c, uint64_t a, uint64_t a2, InstrType it, ValTyp
 }
 
 Instr* addUnaryOp(Rewriter* c, uint64_t a, uint64_t a2,
-		InstrType it, Operand* o)
+                  InstrType it, Operand* o)
 {
     Instr* i = nextInstr(c, a, a2 - a);
     i->type = it;
@@ -730,7 +730,7 @@ Instr* addUnaryOp(Rewriter* c, uint64_t a, uint64_t a2,
 }
 
 Instr* addBinaryOp(Rewriter* c, uint64_t a, uint64_t a2,
-		 InstrType it, Operand* o1, Operand* o2)
+                   InstrType it, Operand* o1, Operand* o2)
 {
     Instr* i = nextInstr(c, a, a2 - a);
     i->type = it;
@@ -742,7 +742,7 @@ Instr* addBinaryOp(Rewriter* c, uint64_t a, uint64_t a2,
 }
 
 Instr* addTernaryOp(Rewriter* c, uint64_t a, uint64_t a2,
-                  InstrType it, Operand* o1, Operand* o2, Operand* o3)
+                    InstrType it, Operand* o1, Operand* o2, Operand* o3)
 {
     Instr* i = nextInstr(c, a, a2 - a);
     i->type = it;
@@ -795,12 +795,12 @@ int parseModRM(uint8_t* p, int rex, OpType reg_ot,
     }
 
     if (mod == 3) {
-	// r, r
+        // r, r
         r = reg0 + rm;
-	if (hasRex && (rex & REX_MASK_B)) r += 8;
+        if (hasRex && (rex & REX_MASK_B)) r += 8;
         o1->type = ot;
-	o1->reg = r;
-	return o;
+        o1->reg = r;
+        return o;
     }
 
     if (mod == 1) hasDisp8 = 1;
@@ -812,24 +812,24 @@ int parseModRM(uint8_t* p, int rex, OpType reg_ot,
 
     scale = 0;
     if (rm == 4) {
-	// SIB
-	sib = p[o++];
-	scale = 1 << ((sib & 192) >> 6);
-	idx   = (sib & 56) >> 3;
-	base  = sib & 7;
+        // SIB
+        sib = p[o++];
+        scale = 1 << ((sib & 192) >> 6);
+        idx   = (sib & 56) >> 3;
+        base  = sib & 7;
         if ((base == 5) && (mod == 0))
             hasDisp32 = 1;
     }
 
     disp = 0;
     if (hasDisp8) {
-	// 8bit disp: sign extend
-	disp = *((signed char*) (p+o));
-	o++;
+        // 8bit disp: sign extend
+        disp = *((signed char*) (p+o));
+        o++;
     }
     if (hasDisp32) {
-	disp = *((int32_t*) (p+o));
-	o += 4;
+        disp = *((int32_t*) (p+o));
+        o += 4;
     }
 
     ot = (hasRex && (rex & REX_MASK_W)) ? OT_Ind64 : OT_Ind32;
@@ -841,10 +841,10 @@ int parseModRM(uint8_t* p, int rex, OpType reg_ot,
     o1->scale = scale;
     o1->val = (uint64_t) disp;
     if (scale == 0) {
-	r = Reg_AX + rm;
-	if (hasRex && (rex & REX_MASK_B)) r += 8;
-	o1->reg = ((mod == 0) && (rm == 5)) ? Reg_IP : r;
-	return o;
+        r = Reg_AX + rm;
+        if (hasRex && (rex & REX_MASK_B)) r += 8;
+        o1->reg = ((mod == 0) && (rm == 5)) ? Reg_IP : r;
+        return o;
     }
 
     r = Reg_AX + idx;
@@ -906,14 +906,14 @@ BB* decodeBB(Rewriter* c, uint64_t f)
     while(!exitLoop) {
         a = (uint64_t)(fp + off);
 
-	// prefixes
-	while(1) {
+        // prefixes
+        while(1) {
             if ((fp[off] >= 0x40) && (fp[off] <= 0x4F)) {
                 rex = fp[off] & 15;
                 hasRex = True;
                 off++;
-		continue;
-	    }
+                continue;
+            }
             if (fp[off] == 0xF2) {
                 hasF2 = True;
                 off++;
@@ -931,10 +931,10 @@ BB* decodeBB(Rewriter* c, uint64_t f)
             }
             // no further prefixes
             break;
-	}
+        }
 
         opc = fp[off++];
-	switch(opc) {
+        switch(opc) {
 
         case 0x01:
             // add r/m,r 32/64 (MR, dst: r/m, src: r)
@@ -1055,19 +1055,19 @@ BB* decodeBB(Rewriter* c, uint64_t f)
             break;
 
 
-	case 0x50: case 0x51: case 0x52: case 0x53:
-	case 0x54: case 0x55: case 0x56: case 0x57:
-	    // push
+        case 0x50: case 0x51: case 0x52: case 0x53:
+        case 0x54: case 0x55: case 0x56: case 0x57:
+            // push
             addUnaryOp(c, a, (uint64_t)(fp + off),
-		       IT_PUSH, getRegOp(VT_64, Reg_AX+(opc-0x50)));
-	    break;
+                       IT_PUSH, getRegOp(VT_64, Reg_AX+(opc-0x50)));
+            break;
 
-	case 0x58: case 0x59: case 0x5A: case 0x5B:
-	case 0x5C: case 0x5D: case 0x5E: case 0x5F:
-	    // pop
+        case 0x58: case 0x59: case 0x5A: case 0x5B:
+        case 0x5C: case 0x5D: case 0x5E: case 0x5F:
+            // pop
             addUnaryOp(c, a, (uint64_t)(fp + off),
-		       IT_POP, getRegOp(VT_64, Reg_AX+(opc-0x58)));
-	    break;
+                       IT_POP, getRegOp(VT_64, Reg_AX+(opc-0x58)));
+            break;
 
         case 0x63:
             // movsxd r64,r/m32 (RM) mov with sign extension
@@ -1176,24 +1176,24 @@ BB* decodeBB(Rewriter* c, uint64_t f)
             break;
 
         case 0x89:
-	    // mov r/m,r 32/64 (dst: r/m, src: r)
+            // mov r/m,r 32/64 (dst: r/m, src: r)
             off += parseModRM(fp+off, hasRex ? rex:0, VT_None, &o1, &o2, 0);
             addBinaryOp(c, a, (uint64_t)(fp + off), IT_MOV, &o1, &o2);
-	    break;
+            break;
 
         case 0x8B:
-	    // mov r,r/m 32/64 (dst: r, src: r/m)
+            // mov r,r/m 32/64 (dst: r, src: r/m)
             off += parseModRM(fp+off, hasRex ? rex:0, VT_None, &o2, &o1, 0);
             addBinaryOp(c, a, (uint64_t)(fp + off), IT_MOV, &o1, &o2);
-	    break;
+            break;
 
         case 0x8D:
-	    // lea r32/64,m
+            // lea r32/64,m
             off += parseModRM(fp+off, hasRex ? rex:0, VT_None, &o2, &o1, 0);
-	    assert(opIsInd(&o2)); // TODO: bad code error
+            assert(opIsInd(&o2)); // TODO: bad code error
             addBinaryOp(c, a, (uint64_t)(fp + off),
-			IT_LEA, &o1, &o2);
-	    break;
+                        IT_LEA, &o1, &o2);
+            break;
 
         case 0x90:
             // nop
@@ -1269,11 +1269,11 @@ BB* decodeBB(Rewriter* c, uint64_t f)
             exitLoop = True;
             break;
 
-	default:
+        default:
             addSimple(c, a, (uint64_t)(fp + off), IT_Invalid);
-	    break;
-	}
-	hasRex = 0;
+            break;
+        }
+        hasRex = 0;
         hasF2 = 0;
         hasF3 = 0;
         has66 = 0;
@@ -1420,7 +1420,7 @@ char* op2string(Operand* o)
     case OT_RegV128L:
     case OT_RegV256:
         sprintf(buf, "%%%s", regName(o->reg, o->type));
-	break;
+        break;
 
     case OT_Imm8:
         assert(o->val < (1l<<8));
@@ -1429,11 +1429,11 @@ char* op2string(Operand* o)
         assert(o->val < (1l<<16));
         // fall through
     case OT_Imm32:
-	assert(o->val < (1l<<32));
+        assert(o->val < (1l<<32));
         // fall through
     case OT_Imm64:
-	sprintf(buf, "$0x%lx", o->val);
-	break;
+        sprintf(buf, "$0x%lx", o->val);
+        break;
 
     case OT_Ind8:
     case OT_Ind16:
@@ -1441,17 +1441,17 @@ char* op2string(Operand* o)
     case OT_Ind64:
     case OT_IndV64:
     case OT_IndV128:
-	if (o->val != 0) {
-	    if (o->val & (1l<<63))
-		off = sprintf(buf, "-0x%lx", (~ o->val)+1);
-	    else
-		off = sprintf(buf, "0x%lx", o->val);
-	}
+        if (o->val != 0) {
+            if (o->val & (1l<<63))
+                off = sprintf(buf, "-0x%lx", (~ o->val)+1);
+            else
+                off = sprintf(buf, "0x%lx", o->val);
+        }
         if ((o->scale == 0) || (o->ireg == Reg_None)) {
             if (o->reg != Reg_None)
                 sprintf(buf+off,"(%%%s)", regName(o->reg, OT_Reg64));
         }
-	else {
+        else {
             char* ri = regName(o->ireg, OT_Reg64);
             if (o->reg == Reg_None) {
                 sprintf(buf+off,"(,%%%s,%d)", ri, o->scale);
@@ -1459,8 +1459,8 @@ char* op2string(Operand* o)
             else
                 sprintf(buf+off,"(%%%s,%%%s,%d)",
                         regName(o->reg, OT_Reg64), ri, o->scale);
-	}
-	break;
+        }
+        break;
     default: assert(0);
     }
     return buf;
@@ -1552,11 +1552,11 @@ char* bytes2string(Instr* instr, int start, int count)
     static char buf[100];
     int off = 0, i, j;
     for(i = start, j=0; i < instr->len && j<count; i++, j++) {
-	uint8_t b = ((uint8_t*) instr->addr)[i];
-	off += sprintf(buf+off, " %02x", b);
+        uint8_t b = ((uint8_t*) instr->addr)[i];
+        off += sprintf(buf+off, " %02x", b);
     }
     for(;j<count;j++)
-	off += sprintf(buf+off, "   ");
+        off += sprintf(buf+off, "   ");
     return buf;
 }
 
@@ -1643,36 +1643,36 @@ uint8_t* calcModRMDigit(Operand* o1, int digit, int* prex, int* plen)
     modrm = (digit & 7) << 3;
 
     if (opIsReg(o1)) {
-	// r,r: mod 3
-	modrm |= 192;
+        // r,r: mod 3
+        modrm |= 192;
         if (opIsGPReg(o1))
             r1 = GPRegEncoding(o1->reg);
         else if (opIsVReg(o1))
             r1 = VRegEncoding(o1->reg);
         else
             assert(0);
-	if (r1 & 8) *prex |= REX_MASK_B;
-	modrm |= (r1 & 7);
-	buf[o++] = modrm;
+        if (r1 & 8) *prex |= REX_MASK_B;
+        modrm |= (r1 & 7);
+        buf[o++] = modrm;
     }
     else {
         int useDisp8 = 0, useDisp32 = 0, useSIB = 0;
         int sib = 0;
-	int64_t v = (int64_t) o1->val;
-	if (v != 0) {
-	    if ((v >= -128) && (v<128)) useDisp8 = 1;
-	    else if ((v >= -((int64_t)1<<31)) &&
-		     (v < ((int64_t)1<<31))) useDisp32 = 1;
-	    else assert(0);
+        int64_t v = (int64_t) o1->val;
+        if (v != 0) {
+            if ((v >= -128) && (v<128)) useDisp8 = 1;
+            else if ((v >= -((int64_t)1<<31)) &&
+                     (v < ((int64_t)1<<31))) useDisp32 = 1;
+            else assert(0);
 
             if (useDisp8)
                 modrm |= 64;
             if (useDisp32)
                 modrm |= 128;
-	}
+        }
 
-	if (o1->scale == 0) {
-	    assert(o1->reg != Reg_SP); // rm 4 reserved for SIB encoding
+        if (o1->scale == 0) {
+            assert(o1->reg != Reg_SP); // rm 4 reserved for SIB encoding
             if (o1->reg == Reg_None) {
                 useDisp32 = 1; // encoding needs disp32
                 useDisp8 = 0;
@@ -1695,20 +1695,20 @@ uint8_t* calcModRMDigit(Operand* o1, int digit, int* prex, int* plen)
                 if (r1 & 8) *prex |= REX_MASK_B;
                 modrm |= (r1 & 7);
             }
-	}
-	else {
-	    // SIB
+        }
+        else {
+            // SIB
             int ri, rb;
             useSIB = 1;
-	    if      (o1->scale == 2) sib |= 64;
-	    else if (o1->scale == 4) sib |= 128;
-	    else if (o1->scale == 8) sib |= 192;
-	    else
-		assert(o1->scale == 1);
+            if      (o1->scale == 2) sib |= 64;
+            else if (o1->scale == 4) sib |= 128;
+            else if (o1->scale == 8) sib |= 192;
+            else
+                assert(o1->scale == 1);
 
             ri = GPRegEncoding(o1->ireg);
-	    if (ri & 8) *prex |= REX_MASK_X;
-	    sib |= (ri & 7) <<3;
+            if (ri & 8) *prex |= REX_MASK_X;
+            sib |= (ri & 7) <<3;
 
             if (o1->reg == Reg_None) {
                 // encoding requires disp32 with mod = 00 / base 5 = none
@@ -1729,19 +1729,19 @@ uint8_t* calcModRMDigit(Operand* o1, int digit, int* prex, int* plen)
                 if (rb & 8) *prex |= REX_MASK_B;
                 sib |= (rb & 7);
             }
-	}
+        }
 
         if (useSIB)
             modrm |= 4; // signal SIB in modrm
         buf[o++] = modrm;
         if (useSIB)
             buf[o++] = sib;
-	if (useDisp8)
-	    buf[o++] = (int8_t) v;
-	if (useDisp32) {
-	    *(int32_t*)(buf+o) = (int32_t) v;
-	    o += 4;
-	}
+        if (useDisp8)
+            buf[o++] = (int8_t) v;
+        if (useDisp32) {
+            *(int32_t*)(buf+o) = (int32_t) v;
+            o += 4;
+        }
     }
 
     *plen = o;
@@ -1786,13 +1786,13 @@ int genModRM(uint8_t* buf, int opc, int opc2, Operand* o1, Operand* o2)
 
     rmBuf = calcModRM(o1, o2, &rex, &len);
     if (rex)
-	buf[o++] = 0x40 | rex;
+        buf[o++] = 0x40 | rex;
     buf[o++] = (uint8_t) opc;
     if (opc2 >=0)
         buf[o++] = (uint8_t) opc2;
     while(len>0) {
-	buf[o++] = *rmBuf++;
-	len--;
+        buf[o++] = *rmBuf++;
+        len--;
     }
     return o;
 }
@@ -1871,12 +1871,12 @@ int genMov(uint8_t* buf, Operand* src, Operand* dst)
     switch(dst->type) {
     case OT_Ind32:
     case OT_Ind64:
-	// dst memory
+        // dst memory
         assert(opValType(src) == opValType(dst));
-	switch(src->type) {
-	case OT_Reg32:
-	case OT_Reg64:
-	    // use 'mov r/m,r 32/64' (0x89)
+        switch(src->type) {
+        case OT_Reg32:
+        case OT_Reg64:
+            // use 'mov r/m,r 32/64' (0x89)
             return genModRM(buf, 0x89, -1, dst, src);
 
         case OT_Imm32:
@@ -1884,17 +1884,17 @@ int genMov(uint8_t* buf, Operand* src, Operand* dst)
             return genDigitMI(buf, 0xC7, 0, dst, src);
 
         default: assert(0);
-	}
-	break;
+        }
+        break;
 
     case OT_Reg32:
     case OT_Reg64:
-	// dst reg
-	switch(src->type) {
-	case OT_Ind32:
-	case OT_Ind64:
-	case OT_Reg32:
-	case OT_Reg64:
+        // dst reg
+        switch(src->type) {
+        case OT_Ind32:
+        case OT_Ind64:
+        case OT_Reg32:
+        case OT_Reg64:
             if (opValType(src) == opValType(dst)) {
                 // use 'mov r,r/m 32/64' (0x8B)
                 return genModRM(buf, 0x8B, -1, src, dst);
@@ -1921,8 +1921,8 @@ int genMov(uint8_t* buf, Operand* src, Operand* dst)
         }
 
         default: assert(0);
-	}
-	break;
+        }
+        break;
 
     default: assert(0);
     }
@@ -1957,17 +1957,17 @@ int genAdd(uint8_t* buf, Operand* src, Operand* dst)
     case OT_Reg32:
     case OT_Reg64:
         assert(opValType(src) == opValType(dst));
-	switch(dst->type) {
-	case OT_Reg32:
-	case OT_Reg64:
-	case OT_Ind32:
-	case OT_Ind64:
-	    // use 'add r/m,r 32/64' (0x01)
+        switch(dst->type) {
+        case OT_Reg32:
+        case OT_Reg64:
+        case OT_Ind32:
+        case OT_Ind64:
+            // use 'add r/m,r 32/64' (0x01)
             return genModRM(buf, 0x01, -1, dst, src);
 
-	default: assert(0);
-	}
-	break;
+        default: assert(0);
+        }
+        break;
 
     case OT_Ind32:
     case OT_Ind64:
@@ -2179,7 +2179,7 @@ int genLea(uint8_t* buf, Operand* src, Operand* dst)
     switch(dst->type) {
     case OT_Reg32:
     case OT_Reg64:
-	// use 'lea r/m,r 32/64' (0x8d)
+        // use 'lea r/m,r 32/64' (0x8d)
         return genModRM(buf, 0x8d, -1, src, dst);
 
     default: assert(0);
@@ -2402,7 +2402,7 @@ void setRewriteConfig(Rewriter* c, int staticPos)
 
     cc = (CaptureConfig*) malloc(sizeof(CaptureConfig));
     for(i=0; i < CC_MAXPARAM; i++)
-	cc->par_state[i] = CS_DYNAMIC;
+        cc->par_state[i] = CS_DYNAMIC;
     assert(staticPos < CC_MAXPARAM);
     if (staticPos >= 0)
         cc->par_state[staticPos] = CS_STATIC2;
@@ -2531,7 +2531,7 @@ void printEmuState(EmuState* es)
         printf("    %%%-3s = 0x%016lx %c", regName(i, OT_Reg64), es->reg[i],
                captureState2Char( es->reg_state[i] ));
         printf("    %%%-3s = 0x%016lx %c\n", regName(i+8, OT_Reg64), es->reg[i+8],
-               captureState2Char( es->reg_state[i+8] ));
+                captureState2Char( es->reg_state[i+8] ));
     }
 
     printf("  Flags: CF %d %c  ZF %d %c  SF %d %c\n",
@@ -2544,16 +2544,16 @@ void printEmuState(EmuState* es)
     smax = (uint8_t*) (es->reg[Reg_SP]/8*8 + 24);
     smin = (uint8_t*) (es->reg[Reg_SP]/8*8 - 32);
     if (smin < es->stack)
-	smin = es->stack;
+        smin = es->stack;
     if (smax >= es->stack + es->stacksize)
         smax = es->stack + es->stacksize -1;
     for(a = smin; a < smax; a += 8) {
         printf("   %016lx ", (uint64_t)a);
-	for(aa = a; aa < a+8 && aa <= smax; aa++) {
+        for(aa = a; aa < a+8 && aa <= smax; aa++) {
             printf(" %s%02x %c", (aa == sp) ? "*" : " ", *aa,
                    captureState2Char(es->stack_state[aa - es->stack]));
-	}
-	printf("\n");
+        }
+        printf("\n");
     }
     printf("   %016lx  %s\n", (uint64_t)a, (a == sp) ? "*" : " ");
 }
@@ -2573,9 +2573,9 @@ char combineState(CaptureState s1, CaptureState s2,
     // stack-relative handling:
     // depends on combining of sub-state of one value or combining two values
     if (isSameValue) {
-      // if both are stack-relative, it is preserved
-      if ((s1 == CS_STACKRELATIVE) && (s2 == CS_STACKRELATIVE))
-          return CS_STACKRELATIVE;
+        // if both are stack-relative, it is preserved
+        if ((s1 == CS_STACKRELATIVE) && (s2 == CS_STACKRELATIVE))
+            return CS_STACKRELATIVE;
     }
     else {
         // STACKRELATIVE is preserved if other is STATIC (FIXME: only ADD!)
@@ -2593,7 +2593,7 @@ char combineState4Flags(CaptureState s1, CaptureState s2)
     CaptureState s;
 
     s = combineState(s1, s2, 0);
-     // STACKRELATIVE/STATIC2 makes no sense for flags
+    // STACKRELATIVE/STATIC2 makes no sense for flags
     if (s == CS_STACKRELATIVE) s = CS_DYNAMIC;
     if (s == CS_STATIC2) s = CS_STATIC;
 
@@ -2761,7 +2761,7 @@ void getMemValue(EmuValue* v, EmuValue* addr, EmuState* es, ValType t,
             for(i=1; i<4; i++)
                 state = combineState(state, es->stack_state[off.val + i], 1);
         }
-	break;
+        break;
 
     case VT_64:
         v->val = *(uint64_t*) addr->val;
@@ -2769,7 +2769,7 @@ void getMemValue(EmuValue* v, EmuValue* addr, EmuState* es, ValType t,
             for(i=1; i<8; i++)
                 state = combineState(state, es->stack_state[off.val + i], 1);
         }
-	break;
+        break;
 
     default: assert(0);
     }
@@ -2794,21 +2794,21 @@ void setMemValue(EmuValue* v, EmuValue* addr, EmuState* es, ValType t,
     switch(t) {
     case VT_32:
         a32 = (uint32_t*) addr->val;
-	*a32 = (uint32_t) v->val;
+        *a32 = (uint32_t) v->val;
         if (isOnStack && (off.state == CS_STATIC)) {
             for(i=0; i<4; i++)
                 es->stack_state[off.val + i] = v->state;
         }
-	break;
+        break;
 
     case VT_64:
         a64 = (uint64_t*) addr->val;
-	*a64 = (uint64_t) v->val;
+        *a64 = (uint64_t) v->val;
         if (isOnStack && (off.state == CS_STATIC)) {
             for(i=0; i<8; i++)
                 es->stack_state[off.val + i] = v->state;
         }
-	break;
+        break;
 
     default: assert(0);
     }
@@ -2827,15 +2827,15 @@ void getOpAddr(EmuValue* v, EmuState* es, Operand* o)
 {
     assert(opIsInd(o));
 
-     v->type = VT_64;
-     v->val = o->val;
-     v->state = CS_STATIC;
+    v->type = VT_64;
+    v->val = o->val;
+    v->state = CS_STATIC;
 
-     if (o->reg != Reg_None)
-         addRegToValue(v, es, o->reg, 1);
+    if (o->reg != Reg_None)
+        addRegToValue(v, es, o->reg, 1);
 
-     if (o->scale > 0)
-         addRegToValue(v, es, o->ireg, o->scale);
+    if (o->scale > 0)
+        addRegToValue(v, es, o->ireg, o->scale);
 }
 
 // returned value should be casted to expected type (8/16/32 bit)
@@ -2852,22 +2852,22 @@ void getOpValue(EmuValue* v, EmuState* es, Operand* o)
         return;
 
     case OT_Reg32:
-	v->type = VT_32;
+        v->type = VT_32;
         v->val = (uint32_t) es->reg[o->reg];
-	v->state = es->reg_state[o->reg];
-	return;
+        v->state = es->reg_state[o->reg];
+        return;
 
     case OT_Reg64:
-	v->type = VT_64;
+        v->type = VT_64;
         v->val = (uint64_t) es->reg[o->reg];
-	v->state = es->reg_state[o->reg];
-	return;
+        v->state = es->reg_state[o->reg];
+        return;
 
     case OT_Ind32:
     case OT_Ind64:
         getOpAddr(&addr, es, o);
         getMemValue(v, &addr, es, opValType(o), 0);
-	return;
+        return;
 
     default: assert(0);
     }
@@ -2882,19 +2882,19 @@ void setOpValue(EmuValue* v, EmuState* es, Operand* o)
     switch(o->type) {
     case OT_Reg32:
         es->reg[o->reg] = (uint32_t) v->val;
-	es->reg_state[o->reg] = v->state;
-	return;
+        es->reg_state[o->reg] = v->state;
+        return;
 
     case OT_Reg64:
         es->reg[o->reg] = v->val;
-	es->reg_state[o->reg] = v->state;
-	return;
+        es->reg_state[o->reg] = v->state;
+        return;
 
     case OT_Ind32:
     case OT_Ind64:
         getOpAddr(&addr, es, o);
         setMemValue(v, &addr, es, opValType(o), 0);
-	return;
+        return;
 
     default: assert(0);
     }
@@ -2944,7 +2944,7 @@ void captureMov(Rewriter* c, Instr* orig, EmuState* es, EmuValue* res)
         // no need to update data if capture state is maintained
         if (keepsCaptureState(es, &(orig->dst))) return;
 
-	// source is static, use immediate
+        // source is static, use immediate
         o = getImmOp(res->type, res->val);
     }
     initBinaryInstr(&i, IT_MOV, &(orig->dst), o);
@@ -2971,7 +2971,7 @@ void captureBinaryOp(Rewriter* c, Instr* orig, EmuState* es, EmuValue* res)
                         &(orig->dst), getImmOp(res->type, res->val));
         applyStaticToInd(&(i.dst), es);
         capture(c, &i);
-	return;
+        return;
     }
 
     // if dst (= 2.op) known/constant and a reg/stack, we need to update it
