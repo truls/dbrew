@@ -111,6 +111,7 @@ typedef enum _InstrType {
     IT_CLTQ,
     IT_PUSH, IT_POP, IT_LEAVE,
     IT_MOV, IT_MOVSX, IT_LEA,
+    IT_NEG,
     IT_ADD, IT_SUB, IT_IMUL,
     IT_XOR, IT_AND, IT_OR,
     IT_SHL, IT_SHR, IT_SAR,
@@ -118,7 +119,7 @@ typedef enum _InstrType {
     IT_JG, IT_JE, IT_JNE, IT_JLE, IT_JP,
     IT_CMP, IT_TEST,
     // SSE
-    IT_PXOR, IT_MOVSD, IT_MULSD, IT_ADDSD, IT_UCOMISD,
+    IT_PXOR, IT_MOVSD, IT_MULSD, IT_ADDSD, IT_SUBSD, IT_UCOMISD,
     //
     IT_Max
 } InstrType;
@@ -614,6 +615,7 @@ void copyOperand(Operand* dst, Operand* src)
     case OT_IndV128:
     case OT_IndV256:
         assert( (src->reg == Reg_None) ||
+                (src->reg == Reg_IP) ||
                 ((src->reg >= Reg_AX) && (src->reg <= Reg_15)) );
         dst->reg = src->reg;
         dst->val = src->val;
@@ -680,10 +682,20 @@ void initUnaryInstr(Instr* i, InstrType it, Operand* o)
     copyOperand( &(i->dst), o);
 }
 
-void initBinaryInstr(Instr* i, InstrType it, Operand *o1, Operand *o2)
+void initBinaryInstr(Instr* i, InstrType it, ValType vt,
+                     Operand *o1, Operand *o2)
 {
+    if (vt != VT_None) {
+        // if we specify a value type, it must match destination
+        assert(vt == opValType(o1));
+        // if 2nd operand is other than immediate, types also must match
+        if (!opIsImm(o2))
+            assert(vt == opValType(o2));
+    }
+
     initSimpleInstr(i, it);
     i->form = OF_2;
+    i->vtype = vt;
     copyOperand( &(i->dst), o1);
     copyOperand( &(i->src), o2);
 }
@@ -771,7 +783,8 @@ Instr* addBinaryOp(Rewriter* c, uint64_t a, uint64_t a2,
         // if we specify a value type, it must match destination
         assert(vt == opValType(o1));
         // if 2nd operand is other than immediate, types also must match
-        if (!opIsImm(o2)) assert(vt == opValType(o2));
+        if (!opIsImm(o2))
+            assert(vt == opValType(o2));
     }
 
     Instr* i = nextInstr(c, a, a2 - a);
@@ -1068,6 +1081,34 @@ BB* decodeBB(Rewriter* c, uint64_t f)
                 attachPassthrough(ii, PS_F2, OE_RM, 0x0F, 0x59, -1);
                 break;
 
+            case 0x5C:
+                assert(hasF2);
+                // subsd xmm1,xmm2/m64 (RM)
+                off += parseModRM(fp+off, hasRex ? rex:0, OT_RegV128L,
+                                  &o2, &o1, 0);
+                ii = addBinaryOp(c, a, (uint64_t)(fp + off),
+                                 IT_SUBSD, VT_V64, &o1, &o2);
+                attachPassthrough(ii, PS_F2, OE_RM, 0x0F, 0x5C, -1);
+                break;
+
+            case 0x84: // JE/JZ rel32
+            case 0x85: // JNE/JNZ rel32
+            case 0x8A: // JP rel32
+            case 0x8E: // JLE/JNG rel32
+            case 0x8F: // JG/JNLE rel32
+                o1.type = OT_Imm64;
+                o1.val = (uint64_t) (fp + off + 4 + *(int32_t*)(fp + off));
+                off += 4;
+                if      (opc2 == 0x84) it = IT_JE;
+                else if (opc2 == 0x85) it = IT_JNE;
+                else if (opc2 == 0x8A) it = IT_JP;
+                else if (opc2 == 0x8E) it = IT_JLE;
+                else if (opc2 == 0x8F) it = IT_JG;
+                else assert(0);
+                addUnaryOp(c, a, (uint64_t)(fp + off), it, &o1);
+                exitLoop = True;
+                break;
+
             case 0xEF:
                 // pxor xmm1, xmm2/m 64/128 (RM)
                 vt = has66 ? VT_V128 : VT_V64;
@@ -1323,6 +1364,15 @@ BB* decodeBB(Rewriter* c, uint64_t f)
             exitLoop = True;
             break;
 
+        case 0xE9:
+            // jmp rel32
+            o1.type = OT_Imm64;
+            o1.val = (uint64_t) (fp + off + 4 + *(int32_t*)(fp + off));
+            off += 4;
+            addUnaryOp(c, a, (uint64_t)(fp + off), IT_JMP, &o1);
+            exitLoop = True;
+            break;
+
         case 0xEB:
             // jmp rel8
             o1.type = OT_Imm64;
@@ -1330,6 +1380,20 @@ BB* decodeBB(Rewriter* c, uint64_t f)
             off += 1;
             addUnaryOp(c, a, (uint64_t)(fp + off), IT_JMP, &o1);
             exitLoop = True;
+            break;
+
+        case 0xF7:
+            off += parseModRM(fp+off, hasRex ? rex:0, OT_None, &o1, 0, &digit);
+            switch(digit) {
+            case 3:
+                // neg r/m 32/64
+                addUnaryOp(c, a, (uint64_t)(fp + off), IT_NEG, &o1);
+                break;
+
+            default:
+                addSimple(c, a, (uint64_t)(fp + off), IT_Invalid);
+                break;
+            }
             break;
 
         default:
@@ -1593,6 +1657,7 @@ char* instr2string(Instr* instr, int align)
     case IT_JP:      n = "jp";   oc = 1; break;
     case IT_MOV:     n = "mov";  oc = 2; break;
     case IT_MOVSX:   n = "movsx";  oc = 2; break;
+    case IT_NEG:     n = "neg";  oc = 1; break;
     case IT_ADD:     n = "add";  oc = 2; break;
     case IT_SUB:     n = "sub";  oc = 2; break;
     case IT_IMUL:    n = "imul"; oc = 2; break;
@@ -1609,6 +1674,7 @@ char* instr2string(Instr* instr, int align)
     case IT_UCOMISD: n = "ucomisd"; oc = 2; break;
     case IT_MULSD:   n = "mulsd"; oc = 2; break;
     case IT_ADDSD:   n = "addsd"; oc = 2; break;
+    case IT_SUBSD:   n = "subsd"; oc = 2; break;
     }
 
     if (align)
@@ -1634,6 +1700,7 @@ char* instr2string(Instr* instr, int align)
             if (buf[nlen] == ' ') buf[nlen] = vt;
             else {
                 buf[nlen] = vt;
+                buf[nlen+1] = 0;
                 off++;
             }
         }
@@ -3110,6 +3177,7 @@ void applyStaticToInd(Operand* o, EmuState* es)
     }
 }
 
+// both MOV and MOVSX (sign extend 32->64)
 void captureMov(Rewriter* c, Instr* orig, EmuState* es, EmuValue* res)
 {
     Instr i;
@@ -3127,7 +3195,7 @@ void captureMov(Rewriter* c, Instr* orig, EmuState* es, EmuValue* res)
         // source is static, use immediate
         o = getImmOp(res->type, res->val);
     }
-    initBinaryInstr(&i, IT_MOV, &(orig->dst), o);
+    initBinaryInstr(&i, orig->type, orig->vtype, &(orig->dst), o);
     applyStaticToInd(&(i.dst), es);
     applyStaticToInd(&(i.src), es);
     capture(c, &i);
@@ -3147,7 +3215,7 @@ void captureBinaryOp(Rewriter* c, Instr* orig, EmuState* es, EmuValue* res)
         if (keepsCaptureState(es, &(orig->dst))) return;
 
         // if result is known and goes to memory, generate imm store
-        initBinaryInstr(&i, IT_MOV,
+        initBinaryInstr(&i, IT_MOV, res->type,
                         &(orig->dst), getImmOp(res->type, res->val));
         applyStaticToInd(&(i.dst), es);
         capture(c, &i);
@@ -3163,14 +3231,15 @@ void captureBinaryOp(Rewriter* c, Instr* orig, EmuState* es, EmuValue* res)
         // TODO: mulitply with 0: here too late, state of result gets static
         if (((orig->type == IT_ADD) && (opval.val == 0)) ||
             ((orig->type == IT_IMUL) && (opval.val == 1))) {
-            initBinaryInstr(&i, IT_MOV, &(orig->dst), &(orig->src));
+            initBinaryInstr(&i, IT_MOV, opval.type,
+                            &(orig->dst), &(orig->src));
             applyStaticToInd(&(i.dst), es);
             applyStaticToInd(&(i.src), es);
             capture(c, &i);
             return;
         }
 
-        initBinaryInstr(&i, IT_MOV,
+        initBinaryInstr(&i, IT_MOV, opval.type,
                         &(orig->dst), getImmOp(opval.type, opval.val));
         capture(c, &i);
     }
@@ -3189,9 +3258,20 @@ void captureBinaryOp(Rewriter* c, Instr* orig, EmuState* es, EmuValue* res)
         }
         o = getImmOp(opval.type, opval.val);
     }
-    initBinaryInstr(&i, orig->type, &(orig->dst), o);
+    initBinaryInstr(&i, orig->type, res->type, &(orig->dst), o);
     applyStaticToInd(&(i.dst), es);
     applyStaticToInd(&(i.src), es);
+    capture(c, &i);
+}
+
+void captureNeg(Rewriter* c, Instr* orig, EmuState* es, EmuValue* res)
+{
+    Instr i;
+
+    if (stateIsStatic(res->state)) return;
+
+    initUnaryInstr(&i, IT_NEG, &(orig->dst));
+    applyStaticToInd(&(i.dst), es);
     capture(c, &i);
 }
 
@@ -3201,7 +3281,7 @@ void captureLea(Rewriter* c, Instr* orig, EmuState* es, EmuValue* res)
 
     if (stateIsStatic(res->state)) return;
 
-    initBinaryInstr(&i, IT_LEA, &(orig->dst), &(orig->src));
+    initBinaryInstr(&i, IT_LEA, orig->vtype, &(orig->dst), &(orig->src));
     applyStaticToInd(&(i.src), es);
     capture(c, &i);
 }
@@ -3212,7 +3292,7 @@ void captureCmp(Rewriter* c, Instr* orig, EmuState* es, CaptureState s)
 
     if (stateIsStatic(s)) return;
 
-    initBinaryInstr(&i, IT_CMP, &(orig->dst), &(orig->src));
+    initBinaryInstr(&i, IT_CMP, orig->vtype, &(orig->dst), &(orig->src));
     applyStaticToInd(&(i.dst), es);
     applyStaticToInd(&(i.src), es);
     capture(c, &i);
@@ -3224,7 +3304,7 @@ void captureTest(Rewriter* c, Instr* orig, EmuState* es, CaptureState s)
 
     if (stateIsStatic(s)) return;
 
-    initBinaryInstr(&i, IT_TEST, &(orig->dst), &(orig->src));
+    initBinaryInstr(&i, IT_TEST, orig->vtype, &(orig->dst), &(orig->src));
     applyStaticToInd(&(i.dst), es);
     applyStaticToInd(&(i.src), es);
     capture(c, &i);
@@ -3237,7 +3317,7 @@ void captureRet(Rewriter* c, Instr* orig, EmuState* es)
 
     getRegValue(&v, es, Reg_AX, VT_64);
     if (stateIsStatic(v.state)) {
-        initBinaryInstr(&i, IT_MOV,
+        initBinaryInstr(&i, IT_MOV, VT_64,
                         getRegOp(VT_64, Reg_AX), getImmOp(v.type, v.val));
         capture(c, &i);
     }
@@ -3486,6 +3566,7 @@ uint64_t emulateInstr(Rewriter* c, EmuState* es, Instr* instr)
     }
 
     case IT_MOV:
+    case IT_MOVSX: // converting move
         switch(instr->src.type) {
         case OT_Reg32:
         case OT_Ind32:
@@ -3494,6 +3575,7 @@ uint64_t emulateInstr(Rewriter* c, EmuState* es, Instr* instr)
             assert(dst_t == VT_32 || dst_t == VT_64);
             getOpValue(&v1, es, &(instr->src));
             if (dst_t == VT_64) {
+                assert(instr->type == IT_MOVSX);
                 // sign extend lower 32 bit to 64 bit
                 v1.val = (int64_t) (int32_t) v1.val;
                 v1.type = VT_64;
@@ -3519,6 +3601,27 @@ uint64_t emulateInstr(Rewriter* c, EmuState* es, Instr* instr)
     case IT_NOP:
         // nothing to do
         break;
+
+    case IT_NEG:
+        getOpValue(&v1, es, &(instr->dst));
+        switch(instr->dst.type) {
+        case OT_Reg32:
+        case OT_Ind32:
+            v1.val = (uint64_t)(- ((int64_t) v1.val));
+            break;
+
+
+        case OT_Reg64:
+        case OT_Ind64:
+            v1.val = (uint32_t)(- ((int32_t) v1.val));
+            break;
+
+        default:assert(0);
+        }
+        captureNeg(c, instr, es, &v1);
+        setOpValue(&v1, es, &(instr->dst));
+        break;
+
 
     case IT_POP:
         switch(instr->dst.type) {
