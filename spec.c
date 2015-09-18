@@ -2998,7 +2998,7 @@ void getMemValue(EmuValue* v, EmuValue* addr, EmuState* es, ValType t,
         assert(!shouldBeStack);
         state = CS_DYNAMIC;
         // explicit request to make memory access result static
-        if (addr->state == CS_STATIC2) state = CS_STATIC;
+        if (addr->state == CS_STATIC2) state = CS_STATIC2;
     }
 
     switch(t) {
