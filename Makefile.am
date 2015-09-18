@@ -1,4 +1,4 @@
-SUBDIRS = tests
+SUBDIRS = tests examples
 
 bin_PROGRAMS = test stencil
 test_SOURCES = test.c spec.c

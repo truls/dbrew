@@ -46,10 +46,32 @@
  * code templates, provided by the rewriter.
  *
  * Simple already defined functions are provided for convenience:
- * - markUnknownInt(int): returned value gets marked as unknown.
- *   This allows to forbid unrolling of loops using
- *       for(int i=markUnknownInt(0); i<10; i++) { .. }
- * - markNamedInt(int, char*): annotate returned value with name
+ * - markInt(int, flags): returned value gets marked with meta info
+ * - tagInt(int, char*):  returned value gets marked with tag
+ *
+ * Meta states (attached to values stored in registers/tracked memory)
+ * - constant: rewrite code to specialize for the known value/condition
+ * - unknown: "downgrade" a known value to be unknown for rewriting
+ *            This forbids loop unrolling with known loop variable
+ * - recursively known: for values same as known, dereferecing keeps state
+ * - tracking pointer: request to track meta state of values dereferenced
+ *            through this pointer by maintaining difference to base address.
+ *            Example: on function entry, the stack pointer defaults to this
+ *            meta state, using its current value as base. This allows to track
+ *            the meta state for values on stack
+ * - expected: when used next time, check for expected value and create
+ *            new path with guard, setting value known. Multiple times allowed
+ * - tracking value: maintain set of value tags this value depends on
+ *
+ * Configuration for calling observing hooks during rewriting:
+ * - pass tagged values as parameters
+ * - use return value as callback function to be inserted?
+ *
+ * Callback types:
+ * - at memory read: address is parameter, address can be replaced
+ * - at memory write: address/value is parameter, write may be suppressed
+ * - at value usage: value, operations are parameters
+ * - at operation: operand values are parameters
  *
  *
  * Basic interface:
@@ -60,15 +82,9 @@
  *
  *   Create a new rewriter instance
  *
- * void setRewriterFuncFlags(Rewriter* r, func_t f, int pNo, RewriterFlags f)
+ *  void setFuncFlags(Rewriter* r, func_t f, int pNo, MetaState s)
  *
- *   Add metainformation for parameter <pNo> of function <f> to recognize.
- *   <f> can be the function to rewrite, but also a function which is called
- *   during rewriting.
- *
- *   Flags:
- *    - KNOWN : Set
- *    - ...
+ *   Add meta state for parameter <pNo> of function <f> on entering.
  *
  *  func_t rewrite(Rewriter* r, func_t myfunc, <myfunc parameters>...)
  *
