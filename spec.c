@@ -2061,6 +2061,46 @@ int genDigitMI(uint8_t* buf, int opc, int digit, Operand* o1, Operand* o2)
     return o;
 }
 
+// Operand o1: r (gets part of opcode), o2: imm
+int genOI(uint8_t* buf, int opc, Operand* o1, Operand* o2)
+{
+    int rex = 0, len = 0;
+    int o = 0, r;
+
+    assert(opIsReg(o1));
+    assert(opIsImm(o2));
+
+    r = GPRegEncoding(o1->reg);
+    if (r & 8) rex |= REX_MASK_B;
+    if (opValType(o1) == VT_64) rex |= REX_MASK_W;
+
+    if (rex)
+        buf[o++] = 0x40 | rex;
+    buf[o++] = (uint8_t) (opc + (r & 7));
+
+    // immediate
+    switch(o2->type) {
+    case OT_Imm8:
+        *(uint8_t*)(buf + o) = (uint8_t) o2->val;
+        o += 1;
+        break;
+
+    case OT_Imm32:
+        *(uint32_t*)(buf + o) = (uint32_t) o2->val;
+        o += 4;
+        break;
+
+    case OT_Imm64:
+        *(uint64_t*)(buf + o) = o2->val;
+        o += 8;
+        break;
+
+    default: assert(0);
+    }
+
+    return o;
+}
+
 
 int genMov(uint8_t* buf, Operand* src, Operand* dst)
 {
@@ -2110,10 +2150,15 @@ int genMov(uint8_t* buf, Operand* src, Operand* dst)
         case OT_Imm64: {
             // try to convert 64-bit immediate to 32bit if value fits
             Operand o;
-            assert(src->val < (1l<<32));
-            o.type = OT_Imm32;
-            o.val = (uint32_t) src->val;
-            return genDigitMI(buf, 0xC7, 0, dst, &o);
+            int64_t v = (int64_t) src->val;
+            if ((v < (1l<<31)) && (v > -(1l<<31))) {;
+                o.val = (uint32_t) v;
+                o.type = OT_Imm32;
+                return genDigitMI(buf, 0xC7, 0, dst, &o);
+            }
+            o.val = src->val;
+            o.type = OT_Imm64;
+            return genOI(buf, 0xB8, dst, &o);
         }
 
         default: assert(0);
