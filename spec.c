@@ -1877,8 +1877,9 @@ uint8_t* calcModRMDigit(Operand* o1, int digit, int* prex, int* plen)
             }
             else {
                 if (o1->reg == Reg_IP) {
+                    // should not happen, we converted RIP-rel to absolute
+                    assert(0);
                     // RIP relative
-                    // BUG: Should be relative to original code, not generated
                     r1 = 5;
                     modrm &= 63;
                     useDisp32 = 1;
@@ -3207,9 +3208,16 @@ Bool keepsCaptureState(EmuState* es, Operand* o)
     return stateIsStatic(off.state);
 }
 
-void applyStaticToInd(Operand* o, EmuState* es)
+void applyStaticToInd(Instr* orig, Operand* o, EmuState* es)
 {
     if (!opIsInd(o)) return;
+
+    if (o->reg == Reg_IP) {
+        // FIXME: this will not work if original address > 2^32
+        o->val += orig->addr + orig->len;
+        o->reg = Reg_None;
+        return;
+    }
 
     if ((o->reg != Reg_None) && stateIsStatic(es->reg_state[o->reg])) {
         o->val += es->reg[o->reg];
@@ -3240,8 +3248,8 @@ void captureMov(Rewriter* c, Instr* orig, EmuState* es, EmuValue* res)
         o = getImmOp(res->type, res->val);
     }
     initBinaryInstr(&i, orig->type, orig->vtype, &(orig->dst), o);
-    applyStaticToInd(&(i.dst), es);
-    applyStaticToInd(&(i.src), es);
+    applyStaticToInd(orig, &(i.dst), es);
+    applyStaticToInd(orig, &(i.src), es);
     capture(c, &i);
 }
 
@@ -3261,7 +3269,7 @@ void captureBinaryOp(Rewriter* c, Instr* orig, EmuState* es, EmuValue* res)
         // if result is known and goes to memory, generate imm store
         initBinaryInstr(&i, IT_MOV, res->type,
                         &(orig->dst), getImmOp(res->type, res->val));
-        applyStaticToInd(&(i.dst), es);
+        applyStaticToInd(orig, &(i.dst), es);
         capture(c, &i);
         return;
     }
@@ -3277,8 +3285,8 @@ void captureBinaryOp(Rewriter* c, Instr* orig, EmuState* es, EmuValue* res)
             ((orig->type == IT_IMUL) && (opval.val == 1))) {
             initBinaryInstr(&i, IT_MOV, opval.type,
                             &(orig->dst), &(orig->src));
-            applyStaticToInd(&(i.dst), es);
-            applyStaticToInd(&(i.src), es);
+            applyStaticToInd(orig, &(i.dst), es);
+            applyStaticToInd(orig, &(i.src), es);
             capture(c, &i);
             return;
         }
@@ -3303,8 +3311,8 @@ void captureBinaryOp(Rewriter* c, Instr* orig, EmuState* es, EmuValue* res)
         o = getImmOp(opval.type, opval.val);
     }
     initBinaryInstr(&i, orig->type, res->type, &(orig->dst), o);
-    applyStaticToInd(&(i.dst), es);
-    applyStaticToInd(&(i.src), es);
+    applyStaticToInd(orig, &(i.dst), es);
+    applyStaticToInd(orig, &(i.src), es);
     capture(c, &i);
 }
 
@@ -3315,7 +3323,7 @@ void captureNeg(Rewriter* c, Instr* orig, EmuState* es, EmuValue* res)
     if (stateIsStatic(res->state)) return;
 
     initUnaryInstr(&i, IT_NEG, &(orig->dst));
-    applyStaticToInd(&(i.dst), es);
+    applyStaticToInd(orig, &(i.dst), es);
     capture(c, &i);
 }
 
@@ -3326,7 +3334,7 @@ void captureLea(Rewriter* c, Instr* orig, EmuState* es, EmuValue* res)
     if (stateIsStatic(res->state)) return;
 
     initBinaryInstr(&i, IT_LEA, orig->vtype, &(orig->dst), &(orig->src));
-    applyStaticToInd(&(i.src), es);
+    applyStaticToInd(orig, &(i.src), es);
     capture(c, &i);
 }
 
@@ -3337,8 +3345,8 @@ void captureCmp(Rewriter* c, Instr* orig, EmuState* es, CaptureState s)
     if (stateIsStatic(s)) return;
 
     initBinaryInstr(&i, IT_CMP, orig->vtype, &(orig->dst), &(orig->src));
-    applyStaticToInd(&(i.dst), es);
-    applyStaticToInd(&(i.src), es);
+    applyStaticToInd(orig, &(i.dst), es);
+    applyStaticToInd(orig, &(i.src), es);
     capture(c, &i);
 }
 
@@ -3349,8 +3357,8 @@ void captureTest(Rewriter* c, Instr* orig, EmuState* es, CaptureState s)
     if (stateIsStatic(s)) return;
 
     initBinaryInstr(&i, IT_TEST, orig->vtype, &(orig->dst), &(orig->src));
-    applyStaticToInd(&(i.dst), es);
-    applyStaticToInd(&(i.src), es);
+    applyStaticToInd(orig, &(i.dst), es);
+    applyStaticToInd(orig, &(i.src), es);
     capture(c, &i);
 }
 
@@ -3391,7 +3399,7 @@ void capturePassThrough(Rewriter* c, Instr* orig, EmuState* es)
         i.form = OF_2;
         copyOperand( &(i.dst), &(orig->dst));
         copyOperand( &(i.src), &(orig->src));
-        applyStaticToInd(&(i.dst), es);
+        applyStaticToInd(orig, &(i.dst), es);
         break;
 
     case OE_RM:
@@ -3401,7 +3409,7 @@ void capturePassThrough(Rewriter* c, Instr* orig, EmuState* es)
         i.form = OF_2;
         copyOperand( &(i.dst), &(orig->dst));
         copyOperand( &(i.src), &(orig->src));
-        applyStaticToInd(&(i.src), es);
+        applyStaticToInd(orig, &(i.src), es);
         break;
 
     default: assert(0);

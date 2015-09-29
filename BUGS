@@ -1,4 +1,7 @@
 Bugs:
 
-* RIP-relative addressing needs relocation / absolute address
-* handle return type double (in %xmm): no need to write const in eax
+* ...
+
+MAYBE FIX:
+
+* RIP-relative addressing of data may need constant pool
