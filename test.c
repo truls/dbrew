@@ -118,30 +118,36 @@ void runTest(char* fname, uint64_t f, Bool use_i2p,
 
     if (runSpec1) {
         // Specialize for p1
-        setRewriteConfig(c1, 0);
+        resetRewriterConfig(c1);
+        setRewriterStaticPar(c1, 0);
         sprintf(desc, "p1=%d fix", sp1);
         emulateCaptureRun(fname, desc, use_i2p, p1,p2,sp1,sp2, c1, c2);
 
         // Nesting
-        setRewriteConfig(c2, 1);
+        resetRewriterConfig(c2);
+        setRewriterStaticPar(c2, 1);
         sprintf(desc, "nested + p2=%ld fix", sp2);
         emulateCaptureRun(fname, desc, use_i2p, p1,p2,sp1,sp2, c2, c3);
     }
 
     if (runSpec2) {
         // Specialize for p2
-        setRewriteConfig(c1, 1);
+        resetRewriterConfig(c1);
+        setRewriterStaticPar(c1, 1);
         sprintf(desc, "p2=%ld fix", sp2);
         emulateCaptureRun(fname, desc, use_i2p, p1,p2,sp1,sp2, c1, c2);
 
         // Nesting
-        setRewriteConfig(c2, 0);
+        resetRewriterConfig(c2);
+        setRewriterStaticPar(c2, 0);
         sprintf(desc, "nested + p1=%d fix", sp1);
         emulateCaptureRun(fname, desc, use_i2p, p1,p2,sp1,sp2, c2, c3);
     }
 
     // Specialize Par 1 and 2
-    setRewriteConfig2(c1, 0,1);
+    resetRewriterConfig(c1);
+    setRewriterStaticPar(c1, 0);
+    setRewriterStaticPar(c1, 1);
     sprintf(desc, "p1=%d/p2=%ld fix", sp1, sp2);
     emulateCaptureRun(fname, desc, use_i2p, p1,p2,sp1,sp2, c1, c2);
 }

@@ -133,8 +133,9 @@ uint64_t rewrite(Rewriter* c, ...);
 uint64_t generatedCode(Rewriter* c);
 int generatedCodeSize(Rewriter* c);
 
-// define a parameter(s) to assume static for emulation
-void setRewriteConfig(Rewriter* c, int staticPos);
-void setRewriteConfig2(Rewriter* c, int staticPos1, int staticPos2);
+// configure rewriter
+void resetRewriterConfig(Rewriter* c);
+void setRewriterStaticPar(Rewriter* c, int staticParPos);
+void setRewriterReturnFP(Rewriter* c);
 
 #endif // SPEC_H

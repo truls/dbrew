@@ -357,9 +357,8 @@ void setFunc(Rewriter* rewriter, uint64_t f)
 
     // reset all decoding/state
     initRewriter(rewriter);
+    resetRewriterConfig(rewriter);
 
-    free(rewriter->cc);
-    rewriter->cc = 0;
     free(rewriter->es);
     rewriter->es = 0;
 }
@@ -2669,6 +2668,8 @@ typedef struct _EmuValue {
 typedef struct _CaptureConfig
 {
     CaptureState par_state[CC_MAXPARAM];
+     // does function to rewrite return floating point?
+    Bool hasReturnFP;
 } CaptureConfig;
 
 char captureState2Char(CaptureState s)
@@ -2684,7 +2685,7 @@ Bool stateIsStatic(CaptureState s)
     return False;
 }
 
-void setRewriteConfig(Rewriter* c, int staticPos)
+void resetRewriterConfig(Rewriter* c)
 {
     CaptureConfig* cc;
     int i;
@@ -2695,34 +2696,32 @@ void setRewriteConfig(Rewriter* c, int staticPos)
     cc = (CaptureConfig*) malloc(sizeof(CaptureConfig));
     for(i=0; i < CC_MAXPARAM; i++)
         cc->par_state[i] = CS_DYNAMIC;
-    assert(staticPos < CC_MAXPARAM);
-    if (staticPos >= 0)
-        cc->par_state[staticPos] = CS_STATIC2;
+    cc->hasReturnFP = False;
 
     c->cc = cc;
 }
 
-void setRewriteConfig2(Rewriter* c, int staticPos1, int staticPos2)
+CaptureConfig* getCaptureConfig(Rewriter* c)
 {
-    CaptureConfig* cc;
-    int i;
+    if (c->cc == 0)
+        resetRewriterConfig(c);
 
-    if (c->cc)
-        free(c->cc);
-
-    cc = (CaptureConfig*) malloc(sizeof(CaptureConfig));
-    for(i=0; i < CC_MAXPARAM; i++)
-        cc->par_state[i] = CS_DYNAMIC;
-    assert(staticPos1 < CC_MAXPARAM);
-    assert(staticPos2 < CC_MAXPARAM);
-    if (staticPos1 >= 0)
-        cc->par_state[staticPos1] = CS_STATIC2;
-    if (staticPos2 >= 0)
-        cc->par_state[staticPos2] = CS_STATIC2;
-
-    c->cc = cc;
+    return c->cc;
 }
 
+void setRewriterStaticPar(Rewriter* c, int staticParPos)
+{
+    CaptureConfig* cc = getCaptureConfig(c);
+
+    assert((staticParPos >= 0) && (staticParPos < CC_MAXPARAM));
+    cc->par_state[staticParPos] = CS_STATIC2;
+}
+
+void setRewriterReturnFP(Rewriter* c)
+{
+    CaptureConfig* cc = getCaptureConfig(c);
+    cc->hasReturnFP = True;
+}
 
 EmuValue emuValue(uint64_t v, ValType t, CaptureState s)
 {
@@ -3360,11 +3359,14 @@ void captureRet(Rewriter* c, Instr* orig, EmuState* es)
     EmuValue v;
     Instr i;
 
-    getRegValue(&v, es, Reg_AX, VT_64);
-    if (stateIsStatic(v.state)) {
-        initBinaryInstr(&i, IT_MOV, VT_64,
-                        getRegOp(VT_64, Reg_AX), getImmOp(v.type, v.val));
-        capture(c, &i);
+    // when returning an integer: if AX state is static, load constant
+    if (!c->cc->hasReturnFP) {
+        getRegValue(&v, es, Reg_AX, VT_64);
+        if (stateIsStatic(v.state)) {
+            initBinaryInstr(&i, IT_MOV, VT_64,
+                            getRegOp(VT_64, Reg_AX), getImmOp(v.type, v.val));
+            capture(c, &i);
+        }
     }
     capture(c, orig);
 }

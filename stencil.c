@@ -38,13 +38,13 @@ typedef struct {
 Stencil s5 = {5,{{0,0,-4},{-1,0,1},{1,0,1},{0,-1,1},{0,1,1}}};
 
 #else
-#define COEFF1 (-1.0)
-#define COEFF2 (.25)
+#define COEFF1 (-.2)
+#define COEFF2 (.3)
 
-Stencil s5 = {5, {{0,0,-1.0},
-                  {-1,0,.25},{1,0,.25},{0,-1,.25},{0,1,.25}}};
+Stencil s5 = {5, {{0,0,-.2},
+                  {-1,0,.3},{1,0,.3},{0,-1,.3},{0,1,.3}}};
 
-SortedStencil s5s = {2, {{-1.0,1,&(s5.p[0])},{.25,4,&(s5.p[1])}}};
+SortedStencil s5s = {2, {{-.2,1,&(s5.p[0])},{.3,4,&(s5.p[1])}}};
 
 #endif
 
@@ -143,8 +143,9 @@ int main(int argc, char* argv[])
         Rewriter* r = allocRewriter();
         setVerbosity(r, True, True, True);
         setFunc(r, (uint64_t) af);
-        //setCaptureConfig(r, 2);
-        setRewriteConfig2(r, 1,2);
+        setRewriterStaticPar(r, 1); // size is constant
+        setRewriterStaticPar(r, 2); // stencil is constant
+        setRewriterReturnFP(r);
         rewrite(r, m1 + size + 1, size, s);
         af = (apply_func) generatedCode(r);
 
