@@ -89,13 +89,26 @@ TYPE apply2(TYPE *m, int xsize, Stencil* s)
     return COEFF1 * m[0] + COEFF2 * (m[-1] + m[1] + m[-xsize] + m[xsize]);
 }
 
+typedef void (*apply_loop)(int, TYPE*, TYPE*, apply_func, Stencil*);
+
+void applyLoop(int size, TYPE* src, TYPE* dst, apply_func af, Stencil* s)
+{
+    int x,y;
+
+    for(y=1;y<size-1;y++)
+        for(x=1;x<size-1;x++)
+            dst[x+y*size] = af(&(src[x+y*size]), size, s);
+}
+
 int main(int argc, char* argv[])
 {
     int i, x, y;
     TYPE *m1, *m2, diff;
     int size = 0, iter = 0, av = 0;
     apply_func af;
+    apply_loop al;
     Stencil* s;
+    int rewriteApplyLoop = 0;
 
     if (argc>1) av = atoi(argv[1]);
     if (argc>2) size = atoi(argv[2]);
@@ -105,6 +118,11 @@ int main(int argc, char* argv[])
     if (iter == 0) iter = 100;
     if (av == 0) av = 1;
 
+    if (av>10) {
+        rewriteApplyLoop = 1;
+        av -= 10;
+    }
+    al = applyLoop;
 
     m1 = (TYPE*) malloc(sizeof(TYPE) * size * size);
     m2 = (TYPE*) malloc(sizeof(TYPE) * size * size);
@@ -139,22 +157,34 @@ int main(int argc, char* argv[])
         break;
     }
 
-    if (av > 3) {
+    if (rewriteApplyLoop) {
         Rewriter* r = allocRewriter();
         setVerbosity(r, True, True, True);
-        setFunc(r, (uint64_t) af);
-        setRewriterStaticPar(r, 1); // size is constant
-        setRewriterStaticPar(r, 2); // stencil is constant
-        setRewriterReturnFP(r);
-        rewrite(r, m1 + size + 1, size, s);
-        af = (apply_func) generatedCode(r);
+        setFunc(r, (uint64_t) al);
+        setRewriterStaticPar(r, 0); // size is constant
+        setRewriterStaticPar(r, 3); // apply func is constant
+        setRewriterStaticPar(r, 4); // stencil is constant
+        rewrite(r, size, m1, m2, af, s);
+        al = (apply_loop) generatedCode(r);
+    }
+    else {
+        if (av > 3) {
+            Rewriter* r = allocRewriter();
+            setVerbosity(r, True, True, True);
+            setFunc(r, (uint64_t) af);
+            setRewriterStaticPar(r, 1); // size is constant
+            setRewriterStaticPar(r, 2); // stencil is constant
+            setRewriterReturnFP(r);
+            rewrite(r, m1 + size + 1, size, s);
+            af = (apply_func) generatedCode(r);
 
-        {
-            // use another rewriter to show generated code
-            Rewriter* r2 = allocRewriter();
-            setFunc(r2, generatedCode(r));
-            decodeBB(r2, generatedCode(r));
-            printCode(r2);
+            {
+                // use another rewriter to show generated code
+                Rewriter* r2 = allocRewriter();
+                setFunc(r2, generatedCode(r));
+                decodeBB(r2, generatedCode(r));
+                printCode(r2);
+            }
         }
     }
 
@@ -163,12 +193,8 @@ int main(int argc, char* argv[])
     iter = iter/2;
 
     for(i=0;i<iter;i++) {
-        for(y=1;y<size-1;y++)
-            for(x=1;x<size-1;x++)
-                m2[x+y*size] = af(&(m1[x+y*size]), size, s);
-        for(y=1;y<size-1;y++)
-            for(x=1;x<size-1;x++)
-                m1[x+y*size] = af(&(m2[x+y*size]), size, s);
+        al(size, m1, m2, af, s);
+        al(size, m2, m1, af, s);
     }
 
     diff = 0;

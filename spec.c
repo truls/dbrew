@@ -2620,6 +2620,15 @@ void generate(Rewriter* c, BB* bb)
  * assume that the known values on stack do not get changed by
  * memory writes with dynamic address. This assumption should be fine,
  * as such behavior is dangerous and potentially a bug.
+ *
+ * At branches to multiple possible targets, we need to travers each path by
+ * saving emulator state. After emulating one path, we roll back and
+ * go the other path. As this may happen recursively, we do a kind of
+ * back-tracking, with emulator states stored as stacks.
+ * To allow for fast saving/restoring of emulator states, each part of
+ * the emulation state (registers, bytes on stack) is given by a
+ * EmuStateEntry (linked) list with the current value/state in front.
+ * Saving copies the complete EmuState, inheriting the individual states.
  */
 
 // emulator capture states
@@ -2631,6 +2640,16 @@ typedef enum _CaptureState {
     CS_STATIC2,       // same as static + indirection from memory static
     CS_Max
 } CaptureState;
+
+// forward decl
+typedef struct _EmuState EmuState;
+
+typedef struct _EmuStateEntry {
+    uint64_t val;
+    CaptureState s;
+    EmuState* es; // this value/capstate was set while in emu state <es>
+} EmuStateEntry;
+
 
 #define MAX_CALLDEPTH 5
 
@@ -2665,7 +2684,7 @@ typedef struct _EmuValue {
     CaptureState state;
 } EmuValue;
 
-#define CC_MAXPARAM 4
+#define CC_MAXPARAM 5
 typedef struct _CaptureConfig
 {
     CaptureState par_state[CC_MAXPARAM];
@@ -3825,10 +3844,10 @@ uint64_t emulateInstr(Rewriter* c, EmuState* es, Instr* instr)
 uint64_t rewrite(Rewriter* c, ...)
 {
     // calling convention x86-64: parameters are stored in registers
-    static Reg parReg[4] = { Reg_DI, Reg_SI, Reg_DX, Reg_CX };
+    static Reg parReg[5] = { Reg_DI, Reg_SI, Reg_DX, Reg_CX, Reg_8 };
 
     int i;
-    uint64_t par[4];
+    uint64_t par[5];
     EmuState* es;
     BB* bb;
     Instr* instr;
@@ -3840,13 +3859,14 @@ uint64_t rewrite(Rewriter* c, ...)
     asm("mov %%rdx, %0;" : "=r" (par[1]) : );
     asm("mov %%rcx, %0;" : "=r" (par[2]) : );
     asm("mov %%r8, %0;"  : "=r" (par[3]) : );
+    asm("mov %%r9, %0;"  : "=r" (par[4]) : );
 
     if (!c->es) configEmuState(c, 1024);
     resetEmuState(c->es);
     if (c->cs) c->cs->used = 0;
     es = c->es;
 
-    for(i=0;i<4;i++) {
+    for(i=0;i<5;i++) {
         es->reg[parReg[i]] = par[i];
         es->reg_state[parReg[i]] = c->cc ? c->cc->par_state[i] : CS_DYNAMIC;
     }
