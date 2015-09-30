@@ -811,7 +811,7 @@ Instr* addTernaryOp(Rewriter* c, uint64_t a, uint64_t a2,
 
 
 // r/m, r. r parsed as op2/reg and digit. Encoding see SDM 2.1
-// if vt is a VT_V64/V128, this is for SSE, otherwise can be VT_None
+// if reg_ot is a OT_RegV64/V128, this is for SSE, otherwise can be OT_None
 // return number of bytes parsed
 int parseModRM(uint8_t* p, int rex, OpType reg_ot,
                Operand* o1, Operand* o2, int* digit)
@@ -1107,6 +1107,14 @@ BB* decodeBB(Rewriter* c, uint64_t f)
                 addUnaryOp(c, a, (uint64_t)(fp + off), it, &o1);
                 exitLoop = True;
                 break;
+
+            case 0x7E:
+                assert(has66);
+                off += parseModRM(fp+off, hasRex ? rex:0,
+                                  has66 ? OT_RegV128 : OT_RegV64,
+                                  &o2, &o1, 0);
+                // FIXME: Using Vector data type makes no sense
+                assert(!"MOV xmm->r/m not implemented");
 
             case 0xEF:
                 // pxor xmm1, xmm2/m 64/128 (RM)
@@ -2539,7 +2547,8 @@ void capture(Rewriter* c, Instr* instr)
     if (bb == 0) return;
 
     if (c->showEmuSteps)
-        printf("Capture '%s'\n", instr2string(instr, 0));
+        printf("Capture '%s' (BB 0x%lx + %d)\n",
+               instr2string(instr, 0), bb->addr, bb->count);
 
     assert(c->capInstrCount < c->capInstrCapacity);
     copyInstr(bb->instr + bb->count, instr);

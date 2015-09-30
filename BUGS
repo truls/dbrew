@@ -1,6 +1,7 @@
 Bugs:
 
-* ...
+* Revert to (operand) types just mentioning bit width
+  (no VT_64 vs. VT_V64 etc)
 
 MAYBE FIX:
 
