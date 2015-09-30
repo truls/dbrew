@@ -1395,6 +1395,20 @@ BB* decodeBB(Rewriter* c, uint64_t f)
             }
             break;
 
+        case 0xFF:
+            off += parseModRM(fp+off, hasRex ? rex:0, OT_None, &o1, 0, &digit);
+            switch(digit) {
+            case 2:
+                // call r/m64
+                addUnaryOp(c, a, (uint64_t)(fp + off), IT_CALL, &o1);
+                break;
+
+            default:
+                addSimple(c, a, (uint64_t)(fp + off), IT_Invalid);
+                break;
+            }
+            break;
+
         default:
             addSimple(c, a, (uint64_t)(fp + off), IT_Invalid);
             break;
@@ -2790,6 +2804,9 @@ void resetEmuState(EmuState* es)
     //  rbp, rbx, r12-r15 have to be preserved by callee
     for(i=0; calleeSave[i] != Reg_None; i++)
         es->reg_state[calleeSave[i]] = CS_DYNAMIC;
+
+    // RIP always known
+    es->reg_state[Reg_IP] = CS_STATIC;
 }
 
 // use stack from cc emulator in c emulator
@@ -2839,11 +2856,13 @@ void printEmuState(EmuState* es)
 
     printf("  Registers:\n");
     for(i=Reg_AX; i<Reg_8; i++) {
-        printf("    %%%-3s = 0x%016lx %c", regName(i, OT_Reg64), es->reg[i],
-               captureState2Char( es->reg_state[i] ));
-        printf("    %%%-3s = 0x%016lx %c\n", regName(i+8, OT_Reg64), es->reg[i+8],
-                captureState2Char( es->reg_state[i+8] ));
+        printf("    %%%-3s = 0x%016lx %c", regName(i, OT_Reg64),
+               es->reg[i], captureState2Char( es->reg_state[i] ));
+        printf("    %%%-3s = 0x%016lx %c\n", regName(i+8, OT_Reg64),
+               es->reg[i+8], captureState2Char( es->reg_state[i+8] ));
     }
+    printf("    %%%-3s = 0x%016lx %c\n", regName(Reg_IP, OT_Reg64),
+           es->reg[Reg_IP], captureState2Char( es->reg_state[Reg_IP] ));
 
     printf("  Flags: CF %d %c  ZF %d %c  SF %d %c\n",
            es->carry, captureState2Char(es->carry_state),
@@ -3227,16 +3246,9 @@ Bool keepsCaptureState(EmuState* es, Operand* o)
     return stateIsStatic(off.state);
 }
 
-void applyStaticToInd(Instr* orig, Operand* o, EmuState* es)
+void applyStaticToInd(Operand* o, EmuState* es)
 {
     if (!opIsInd(o)) return;
-
-    if (o->reg == Reg_IP) {
-        // FIXME: this will not work if original address > 2^32
-        o->val += orig->addr + orig->len;
-        o->reg = Reg_None;
-        return;
-    }
 
     if ((o->reg != Reg_None) && stateIsStatic(es->reg_state[o->reg])) {
         o->val += es->reg[o->reg];
@@ -3267,8 +3279,8 @@ void captureMov(Rewriter* c, Instr* orig, EmuState* es, EmuValue* res)
         o = getImmOp(res->type, res->val);
     }
     initBinaryInstr(&i, orig->type, orig->vtype, &(orig->dst), o);
-    applyStaticToInd(orig, &(i.dst), es);
-    applyStaticToInd(orig, &(i.src), es);
+    applyStaticToInd(&(i.dst), es);
+    applyStaticToInd(&(i.src), es);
     capture(c, &i);
 }
 
@@ -3288,7 +3300,7 @@ void captureBinaryOp(Rewriter* c, Instr* orig, EmuState* es, EmuValue* res)
         // if result is known and goes to memory, generate imm store
         initBinaryInstr(&i, IT_MOV, res->type,
                         &(orig->dst), getImmOp(res->type, res->val));
-        applyStaticToInd(orig, &(i.dst), es);
+        applyStaticToInd(&(i.dst), es);
         capture(c, &i);
         return;
     }
@@ -3304,8 +3316,8 @@ void captureBinaryOp(Rewriter* c, Instr* orig, EmuState* es, EmuValue* res)
             ((orig->type == IT_IMUL) && (opval.val == 1))) {
             initBinaryInstr(&i, IT_MOV, opval.type,
                             &(orig->dst), &(orig->src));
-            applyStaticToInd(orig, &(i.dst), es);
-            applyStaticToInd(orig, &(i.src), es);
+            applyStaticToInd(&(i.dst), es);
+            applyStaticToInd(&(i.src), es);
             capture(c, &i);
             return;
         }
@@ -3330,8 +3342,8 @@ void captureBinaryOp(Rewriter* c, Instr* orig, EmuState* es, EmuValue* res)
         o = getImmOp(opval.type, opval.val);
     }
     initBinaryInstr(&i, orig->type, res->type, &(orig->dst), o);
-    applyStaticToInd(orig, &(i.dst), es);
-    applyStaticToInd(orig, &(i.src), es);
+    applyStaticToInd(&(i.dst), es);
+    applyStaticToInd(&(i.src), es);
     capture(c, &i);
 }
 
@@ -3342,7 +3354,7 @@ void captureNeg(Rewriter* c, Instr* orig, EmuState* es, EmuValue* res)
     if (stateIsStatic(res->state)) return;
 
     initUnaryInstr(&i, IT_NEG, &(orig->dst));
-    applyStaticToInd(orig, &(i.dst), es);
+    applyStaticToInd(&(i.dst), es);
     capture(c, &i);
 }
 
@@ -3353,7 +3365,7 @@ void captureLea(Rewriter* c, Instr* orig, EmuState* es, EmuValue* res)
     if (stateIsStatic(res->state)) return;
 
     initBinaryInstr(&i, IT_LEA, orig->vtype, &(orig->dst), &(orig->src));
-    applyStaticToInd(orig, &(i.src), es);
+    applyStaticToInd(&(i.src), es);
     capture(c, &i);
 }
 
@@ -3364,8 +3376,8 @@ void captureCmp(Rewriter* c, Instr* orig, EmuState* es, CaptureState s)
     if (stateIsStatic(s)) return;
 
     initBinaryInstr(&i, IT_CMP, orig->vtype, &(orig->dst), &(orig->src));
-    applyStaticToInd(orig, &(i.dst), es);
-    applyStaticToInd(orig, &(i.src), es);
+    applyStaticToInd(&(i.dst), es);
+    applyStaticToInd(&(i.src), es);
     capture(c, &i);
 }
 
@@ -3376,8 +3388,8 @@ void captureTest(Rewriter* c, Instr* orig, EmuState* es, CaptureState s)
     if (stateIsStatic(s)) return;
 
     initBinaryInstr(&i, IT_TEST, orig->vtype, &(orig->dst), &(orig->src));
-    applyStaticToInd(orig, &(i.dst), es);
-    applyStaticToInd(orig, &(i.src), es);
+    applyStaticToInd(&(i.dst), es);
+    applyStaticToInd(&(i.src), es);
     capture(c, &i);
 }
 
@@ -3418,7 +3430,7 @@ void capturePassThrough(Rewriter* c, Instr* orig, EmuState* es)
         i.form = OF_2;
         copyOperand( &(i.dst), &(orig->dst));
         copyOperand( &(i.src), &(orig->src));
-        applyStaticToInd(orig, &(i.dst), es);
+        applyStaticToInd(&(i.dst), es);
         break;
 
     case OE_RM:
@@ -3428,7 +3440,7 @@ void capturePassThrough(Rewriter* c, Instr* orig, EmuState* es)
         i.form = OF_2;
         copyOperand( &(i.dst), &(orig->dst));
         copyOperand( &(i.src), &(orig->src));
-        applyStaticToInd(orig, &(i.src), es);
+        applyStaticToInd(&(i.src), es);
         break;
 
     default: assert(0);
@@ -3521,21 +3533,22 @@ uint64_t emulateInstr(Rewriter* c, EmuState* es, Instr* instr)
         break;
 
     case IT_CALL:
-        assert(instr->dst.type == OT_Imm64);
+        getOpValue(&v1, es, &(instr->dst));
         assert(es->depth < MAX_CALLDEPTH);
+        assert(stateIsStatic(v1.state)); // call target must be known
 
         // push address of instruction after CALL onto stack
         es->reg[Reg_SP] -= 8;
         addr = emuValue(es->reg[Reg_SP], VT_64, es->reg_state[Reg_SP]);
-        v1.state = CS_DYNAMIC;
-        v1.type = VT_64;
-        v1.val = instr->addr + instr->len;
-        setMemValue(&v1, &addr, es, VT_64, 1);
+        v2.state = CS_DYNAMIC;
+        v2.type = VT_64;
+        v2.val = instr->addr + instr->len;
+        setMemValue(&v2, &addr, es, VT_64, 1);
 
-        es->ret_stack[es->depth++] = v1.val;
+        es->ret_stack[es->depth++] = v2.val;
 
         // address to jump to
-        return instr->dst.val;
+        return v1.val;
 
     case IT_CLTQ:
         switch(instr->vtype) {
@@ -3873,12 +3886,13 @@ uint64_t rewrite(Rewriter* c, ...)
 
     es->reg[Reg_SP] = (uint64_t) (es->stack + es->stacksize);
     es->reg_state[Reg_SP] = CS_STACKRELATIVE;
-
     bb_addr = c->func;
     es->depth = 0;
 
-    if (c->showEmuState)
+    if (c->showEmuState) {
+        es->reg[Reg_IP] = c->func;
         printEmuState(es);
+    }
 
     // this allocates a BB in which captured instructions get collected
     allocCaptureBB(c, bb_addr);
@@ -3897,8 +3911,10 @@ uint64_t rewrite(Rewriter* c, ...)
 
             nextbb_addr = emulateInstr(c, es, instr);
 
-            if (c->showEmuState)
+            if (c->showEmuState) {
+                if (nextbb_addr != 0) es->reg[Reg_IP] = nextbb_addr;
                 printEmuState(es);
+            }
 
             if (nextbb_addr != 0) break;
         }
