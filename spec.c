@@ -16,6 +16,9 @@
 typedef struct _EmuState EmuState;
 typedef struct _CaptureConfig CaptureConfig;
 
+// forward decls
+void freeEmuState(Rewriter*);
+void freeCaptureConfig(Rewriter*);
 
 /*------------------------------------------------------------
  * Code Storage
@@ -315,6 +318,23 @@ void initRewriter(Rewriter* r)
         r->cs->used = 0;
 }
 
+void freeRewriter(Rewriter* r)
+{
+    if (!r) return;
+
+    free(r->decInstr);
+    free(r->decBB);
+    free(r->capInstr);
+    free(r->capBB);
+
+    freeCaptureConfig(r);
+    freeEmuState(r);
+
+    if (r->cs)
+        freeCodeStorage(r->cs);
+    free(r);
+}
+
 void setRewriterDecodingCapacity(Rewriter* r,
                                  int instrCapacity, int bbCapacity)
 {
@@ -354,8 +374,7 @@ void setFunc(Rewriter* rewriter, uint64_t f)
     initRewriter(rewriter);
     resetRewriterConfig(rewriter);
 
-    free(rewriter->es);
-    rewriter->es = 0;
+    freeEmuState(rewriter);
 }
 
 void setVerbosity(Rewriter* rewriter,
@@ -627,6 +646,9 @@ void copyInstr(Instr* dst, Instr* src)
     dst->vtype = src->vtype;
     dst->form  = src->form;
 
+    dst->dst.type = OT_None;
+    dst->src.type = OT_None;
+    dst->src2.type = OT_None;
     switch(src->form) {
     case OF_3:
         copyOperand(&(dst->src2), &(src->src2));
@@ -655,8 +677,10 @@ void initSimpleInstr(Instr* i, InstrType it)
 {
     i->addr = 0; // unknown: created, not parsed
     i->len = 0;
-    i->ptLen = 0; // no pass-through info
+
     i->type = it;
+    i->ptLen = 0; // no pass-through info
+    i->vtype = VT_None;
     i->form = OF_0;
     i->dst.type = OT_None;
     i->src.type = OT_None;
@@ -725,6 +749,7 @@ Instr* nextInstr(Rewriter* c, uint64_t a, int len)
     i->addr = a;
     i->len = len;
 
+    i->ptLen = 0;
     i->vtype = VT_None;
     i->form = OF_None;
     i->dst.type = OT_None;
@@ -2487,6 +2512,17 @@ int genPassThrough(uint8_t* buf, Instr* instr)
     return o;
 }
 
+void resetCapturing(Rewriter* r)
+{
+    // only to be called after initRewriter()
+    assert(r->capInstr != 0);
+    assert(r->capBB != 0);
+
+    r->capBBCount = 0;
+    r->capInstrCount = 0;
+    r->currentCapBB = 0;
+}
+
 // allocate an BB structure to collect instructions for capturing
 BB* allocCaptureBB(Rewriter* c, uint64_t f)
 {
@@ -2643,6 +2679,8 @@ typedef struct _EmuStateEntry {
     uint64_t val;
     CaptureState s;
     EmuState* es; // this value/capstate was set while in emu state <es>
+    int lastEntry; // useful to chain expected conditions
+    int refCount; // may be used by multiple
 } EmuStateEntry;
 
 
@@ -2700,13 +2738,19 @@ Bool stateIsStatic(CaptureState s)
     return False;
 }
 
+void freeCaptureConfig(Rewriter* r)
+{
+    free(r->cc);
+    r->cc = 0;
+}
+
 void resetRewriterConfig(Rewriter* c)
 {
     CaptureConfig* cc;
     int i;
 
     if (c->cc)
-        free(c->cc);
+        freeCaptureConfig(c);
 
     cc = (CaptureConfig*) malloc(sizeof(CaptureConfig));
     for(i=0; i < CC_MAXPARAM; i++)
@@ -2715,6 +2759,7 @@ void resetRewriterConfig(Rewriter* c)
 
     c->cc = cc;
 }
+
 
 CaptureConfig* getCaptureConfig(Rewriter* c)
 {
@@ -2790,37 +2835,26 @@ void resetEmuState(EmuState* es)
     es->reg_state[Reg_IP] = CS_STATIC;
 }
 
-// use stack from cc emulator in c emulator
-void useSameStack(Rewriter* c, Rewriter* cc)
+void allocEmuState(Rewriter* c, int stacksize)
 {
-    assert(cc->es != 0);
-    assert(c->es == 0);
+    if (c->es) return;
 
     c->es = (EmuState*) malloc(sizeof(EmuState));
-    c->es->stacksize   = cc->es->stacksize;
-    c->es->stack       = cc->es->stack;
-    c->es->stack_state = cc->es->stack_state;
+    c->es->stacksize = stacksize;
+    c->es->stack = (uint8_t*) malloc(stacksize);
+    c->es->stack_state = (CaptureState*) malloc(sizeof(CaptureState) * stacksize);
+
     resetEmuState(c->es);
 }
 
-void configEmuState(Rewriter* c, int stacksize)
+void freeEmuState(Rewriter* r)
 {
-    if (c->es && c->es->stacksize != stacksize) {
-        free(c->es->stack);
-        free(c->es->stack_state);
-        c->es->stack = 0;
-    }
-    if (!c->es) {
-        c->es = (EmuState*) malloc(sizeof(EmuState));
-        c->es->stacksize = stacksize;
-        c->es->stack = 0;
-    }
-    if (!c->es->stack) {
-        c->es->stack = (uint8_t*) malloc(stacksize);
-        c->es->stack_state = (CaptureState*) malloc(sizeof(CaptureState) * stacksize);
-    }
+    if (!r->es) return;
 
-    resetEmuState(c->es);
+    free(r->es->stack);
+    free(r->es->stack_state);
+    free(r->es);
+    r->es = 0;
 }
 
 void printEmuState(EmuState* es)
@@ -3643,7 +3677,8 @@ uint64_t emulateInstr(Rewriter* c, EmuState* es, Instr* instr)
             assert(dst_t == VT_32 || dst_t == VT_64);
             getOpValue(&v1, es, &(instr->src));
             if (dst_t == VT_64) {
-                assert(instr->type == IT_MOVSX);
+                // also a regular mov may sign-extend: imm32->64
+                // assert(instr->type == IT_MOVSX);
                 // sign extend lower 32 bit to 64 bit
                 v1.val = (int64_t) (int32_t) v1.val;
                 v1.type = VT_64;
@@ -3843,7 +3878,7 @@ uint64_t rewrite(Rewriter* c, ...)
     int i;
     uint64_t par[5];
     EmuState* es;
-    BB* bb;
+    BB *bb, *capBB;
     Instr* instr;
     uint64_t bb_addr, nextbb_addr;
 
@@ -3855,10 +3890,14 @@ uint64_t rewrite(Rewriter* c, ...)
     asm("mov %%r8, %0;"  : "=r" (par[3]) : );
     asm("mov %%r9, %0;"  : "=r" (par[4]) : );
 
-    if (!c->es) configEmuState(c, 1024);
+    if (!c->es)
+        allocEmuState(c, 1024);
     resetEmuState(c->es);
-    if (c->cs) c->cs->used = 0;
     es = c->es;
+
+    resetCapturing(c);
+    if (c->cs)
+        c->cs->used = 0;
 
     for(i=0;i<5;i++) {
         es->reg[parReg[i]] = par[i];
@@ -3876,7 +3915,8 @@ uint64_t rewrite(Rewriter* c, ...)
     }
 
     // this allocates a BB in which captured instructions get collected
-    allocCaptureBB(c, bb_addr);
+    capBB = allocCaptureBB(c, bb_addr);
+    assert(capBB != 0);
 
     while(1) {
         bb = decodeBB(c, bb_addr);

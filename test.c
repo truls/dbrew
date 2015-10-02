@@ -25,21 +25,21 @@ typedef int (*i2p_func)(int,int*);
  *   c3         ret
 */
 __attribute__ ((noinline))
-int sum(int a, int b)
+int test1(int a, int b)
 {
     int res = a + b;
     return res;
 }
 
 // Test 2
-int sum2(int a, int b)
+int test2(int a, int b)
 {
-    int res = sum(a, b) + b;
+    int res = test1(a, b) + b;
     return res;
 }
 
 // Test 3
-int sum3(int a, int b)
+int test3(int a, int b)
 {
     int sum = 0;
     while(a>0) {
@@ -50,7 +50,8 @@ int sum3(int a, int b)
 }
 
 // Test 4
-int arr4[4] = {1,2,3,4};
+int a4[4] = {1,2,3,4};
+int b4[4] = {5,6,7,8};
 int test4(int a, int* b)
 {
     return b[a];
@@ -63,11 +64,11 @@ void emulateCaptureRun(char* t1, char* t2, Bool use_i2p,
 {
     int res;
 
-    printf("\nRun emulator for %s, capturing %s:\n", t1, t2);
+    printf("Tracing emulation of %s(%d,%ld) %s:\n", t1, sp1, sp2, t2);
     res = (int)rewrite(c1, sp1, sp2);
-    printf(" Result: %d\n", res);
+    printf("Result from emulation: %d\n", res);
 
-    printf("\nCaptured code (size %d):\n", generatedCodeSize(c1));
+    printf("Rewritten code (size %d bytes):\n", generatedCodeSize(c1));
     setFunc(c2, generatedCode(c1));
     setVerbosity(c2, False, False, False);
     decodeBB(c2, generatedCode(c1));
@@ -82,22 +83,28 @@ void emulateCaptureRun(char* t1, char* t2, Bool use_i2p,
         i2_func f = (i2_func) generatedCode(c1);
         res = f(p1, p2);
     }
-    printf("Run captured: %s = %d\n", t1, res);
+    printf("Run rewritten code %s(%d,%ld) = %d\n", t1, p1, p2, res);
 }
 
+
+/*
+ * Test different specializations of a given fucntion <f>.
+ * <f> must have signature i2_func (2 int parameters, returns int)
+ * or i2p_func (int/pointer parameter, int return), given by <use_i2p>
+*/
 void runTest(char* fname, uint64_t f, Bool use_i2p,
              int p1, uint64_t p2, int sp1, uint64_t sp2,
              int runOrig, int runSpec1, int runSpec2)
 {
     Rewriter *c1, *c2, *c3;
-    char desc[20];
     int res;
+
+    printf(">>> Testing with function %s\n\n", fname);
 
     c1 = allocRewriter();
     c2 = allocRewriter();
     c3 = allocRewriter();
 
-    useSameStack(c2, c1);
     setVerbosity(c1, True, True, True);
     setVerbosity(c2, True, True, True);
 
@@ -109,7 +116,7 @@ void runTest(char* fname, uint64_t f, Bool use_i2p,
         i2_func ff = (i2_func) f;
         res = ff(p1, p2);
     }
-    printf("Run native: %s = %d\n", fname, res);
+    printf("Run native: %s(%d,%ld) = %d\n", fname, p1, p2, res);
 
     setFunc(c1, f);
 
@@ -120,45 +127,46 @@ void runTest(char* fname, uint64_t f, Bool use_i2p,
         // Specialize for p1
         resetRewriterConfig(c1);
         setRewriterStaticPar(c1, 0);
-        sprintf(desc, "p1=%d fix", sp1);
-        emulateCaptureRun(fname, desc, use_i2p, p1,p2,sp1,sp2, c1, c2);
+        emulateCaptureRun(fname, "p1 fix", use_i2p, p1,p2,sp1,sp2, c1, c2);
 
         // Nesting
         resetRewriterConfig(c2);
         setRewriterStaticPar(c2, 1);
-        sprintf(desc, "nested + p2=%ld fix", sp2);
-        emulateCaptureRun(fname, desc, use_i2p, p1,p2,sp1,sp2, c2, c3);
+        emulateCaptureRun(fname, "nested + p2 fix", use_i2p, p1,p2,sp1,sp2, c2, c3);
     }
 
     if (runSpec2) {
         // Specialize for p2
         resetRewriterConfig(c1);
         setRewriterStaticPar(c1, 1);
-        sprintf(desc, "p2=%ld fix", sp2);
-        emulateCaptureRun(fname, desc, use_i2p, p1,p2,sp1,sp2, c1, c2);
+        emulateCaptureRun(fname, "p2 fix", use_i2p, p1,p2,sp1,sp2, c1, c2);
 
         // Nesting
         resetRewriterConfig(c2);
         setRewriterStaticPar(c2, 0);
-        sprintf(desc, "nested + p1=%d fix", sp1);
-        emulateCaptureRun(fname, desc, use_i2p, p1,p2,sp1,sp2, c2, c3);
+        emulateCaptureRun(fname, "nested + p1 fix", use_i2p, p1,p2,sp1,sp2, c2, c3);
     }
 
     // Specialize Par 1 and 2
     resetRewriterConfig(c1);
     setRewriterStaticPar(c1, 0);
     setRewriterStaticPar(c1, 1);
-    sprintf(desc, "p1=%d/p2=%ld fix", sp1, sp2);
-    emulateCaptureRun(fname, desc, use_i2p, p1,p2,sp1,sp2, c1, c2);
+    emulateCaptureRun(fname, "p1+p2 fix", use_i2p, p1,p2,sp1,sp2, c1, c2);
+
+    freeRewriter(c1);
+    freeRewriter(c2);
+    freeRewriter(c3);
 }
 
 
 int main()
 {
-    //runTest("sum(4,7)",  sum,  4,7,1,2, 1,1,1);
-    //runTest("sum2(4,7)", sum2, 4,7,1,2, 1,1,1);
-    //runTest("sum3(4,7)", sum3, 4,7, 3,5, 0,1,0);
-    runTest("test4(1,arr4)", (uint64_t) test4, True,
-            1, (uint64_t) arr4, 3, (uint64_t) arr4, 0,0,0);
+    runTest("test1", (uint64_t) test1, False, 4,7, 1,2, 1,1,1);
+    runTest("test2", (uint64_t) test2, False, 4,7, 1,2, 1,1,1);
+    // FIXME: test 3 has a loop depending on par1 and cannot be
+    //        rewritten without fixing par1 for now
+    runTest("test3", (uint64_t) test3, False, 4,7, 3,5, 0,1,0);
+    runTest("test4", (uint64_t) test4, True,
+            1, (uint64_t) a4, 3, (uint64_t) b4, 1, 1, 1);
     return 0;
 }

@@ -108,6 +108,7 @@ int main(int argc, char* argv[])
     apply_func af;
     apply_loop al;
     Stencil* s;
+    Rewriter* r = 0;
     int rewriteApplyLoop = 0;
 
     if (argc>1) av = atoi(argv[1]);
@@ -158,7 +159,7 @@ int main(int argc, char* argv[])
     }
 
     if (rewriteApplyLoop) {
-        Rewriter* r = allocRewriter();
+        r = allocRewriter();
         setVerbosity(r, True, True, True);
         setFunc(r, (uint64_t) al);
         setRewriterStaticPar(r, 0); // size is constant
@@ -169,7 +170,7 @@ int main(int argc, char* argv[])
     }
     else {
         if (av > 3) {
-            Rewriter* r = allocRewriter();
+            r = allocRewriter();
             setVerbosity(r, True, True, True);
             setFunc(r, (uint64_t) af);
             setRewriterStaticPar(r, 1); // size is constant
@@ -177,15 +178,16 @@ int main(int argc, char* argv[])
             setRewriterReturnFP(r);
             rewrite(r, m1 + size + 1, size, s);
             af = (apply_func) generatedCode(r);
-
-            {
-                // use another rewriter to show generated code
-                Rewriter* r2 = allocRewriter();
-                setFunc(r2, generatedCode(r));
-                decodeBB(r2, generatedCode(r));
-                printCode(r2);
-            }
         }
+    }
+
+    if (r) {
+        // use another rewriter to show generated code
+        Rewriter* r2 = allocRewriter();
+        setFunc(r2, generatedCode(r));
+        decodeBB(r2, generatedCode(r));
+        printCode(r2);
+        freeRewriter(r2);
     }
 
     printf("Width %d, matrix size %d, %d iterations, apply V %d\n",
@@ -209,4 +211,8 @@ int main(int argc, char* argv[])
 #else
     printf("Residuum after %d iterations: %f\n", 2*iter, diff);
 #endif
+
+    free(m1);
+    free(m2);
+    if (r) freeRewriter(r);
 }

@@ -107,6 +107,9 @@ typedef struct _BB BB;
 // allocate space for a given number of decoded instructions
 Rewriter* allocRewriter();
 
+// free rewriter resources
+void freeRewriter(Rewriter*);
+
 // clear <c> from decoded/captured instructions
 void setFunc(Rewriter* rewriter, uint64_t f);
 
@@ -121,9 +124,6 @@ void printCode(Rewriter* c);
 
 // initialize emulator, use given stack size
 void configEmuState(Rewriter *c, int stacksize);
-
-// initialize emulator, use stack from cc
-void useSameStack(Rewriter* c, Rewriter* cc);
 
 // emulate the given decoded binary code
 // initialize state with function parameters ('...')
