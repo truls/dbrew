@@ -1364,6 +1364,28 @@ DBB* decodeBB(Rewriter* c, uint64_t f)
                            hasRex && (rex & REX_MASK_W) ? VT_64 : VT_32);
             break;
 
+        case 0xB8: case 0xB9: case 0xBA: case 0xBB:
+        case 0xBC: case 0xBD: case 0xBE: case 0xBF:
+            // MOV r32/64,imm32/64
+            o1.reg = Reg_AX + (opc - 0xB8);
+            if (rex & REX_MASK_R) o1.reg += 8;
+            if (rex & REX_MASK_W) {
+                vt = VT_64;
+                o1.type = OT_Reg64;
+                o2.type = OT_Imm64;
+                o2.val = *(uint64_t*)(fp + off);
+                off += 8;
+            }
+            else {
+                vt = VT_32;
+                o1.type = OT_Reg32;
+                o2.type = OT_Imm32;
+                o2.val = *(uint32_t*)(fp + off);
+                off += 4;
+            }
+            addBinaryOp(c, a, (uint64_t)(fp + off), IT_MOV, vt, &o1, &o2);
+            break;
+
         case 0xC1:
             off += parseModRM(fp+off, rex, 0, 0, VT_None, &o1, 0, &digit);
             switch(digit) {
