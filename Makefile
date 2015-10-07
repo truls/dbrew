@@ -1,13 +1,17 @@
 CFLAGS=-g
 LDFLAGS=-g
 
-all: test stencil
+all: test stencil branchtest
 
 test: test.o spec.o
+
+branchtest: branchtest.o spec.o
 
 stencil: stencil.o spec.o
 
 test.o: spec.h test.c
+
+branchtest.o: spec.h branchtest.c
 
 spec.o: spec.h spec.c
 
