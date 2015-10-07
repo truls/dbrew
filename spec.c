@@ -2721,17 +2721,10 @@ typedef enum _CaptureState {
     CS_Max
 } CaptureState;
 
-// forward decl
-typedef struct _EmuState EmuState;
-
-typedef struct _EmuStateEntry {
-    uint64_t val;
-    CaptureState s;
-    EmuState* es; // this value/capstate was set while in emu state <es>
-    int lastEntry; // useful to chain expected conditions
-    int refCount; // may be used by multiple
-} EmuStateEntry;
-
+typedef enum _FlagType {
+    FT_Carry = 0, FT_Zero, FT_Sign,
+    FT_Max
+} FlagType;
 
 #define MAX_CALLDEPTH 5
 
@@ -2745,10 +2738,10 @@ typedef struct _EmuState {
     uint64_t reg[Reg_Max];
     CaptureState reg_state[Reg_Max];
 
-    // x86 flags: carry (CF), zero (ZF)
-    // TODO: sign, overflow, parity, auxiliary carry
-    Bool carry, zero, sign;
-    CaptureState carry_state, zero_state, sign_state;
+    // x86 flags: carry (CF), zero (ZF), sign (SF)
+    // TODO: overflow, parity, auxiliary carry
+    Bool flag[FT_Max];
+    CaptureState flag_state[FT_Max];
 
     // stack
     int stackSize;
@@ -2864,17 +2857,15 @@ void resetEmuState(EmuState* es)
 
     es->parent = 0;
 
-    for(i=0; i<Reg_Max; i++)
+    for(i=0; i<Reg_Max; i++) {
         es->reg[i] = 0;
-    for(i=0; i<Reg_Max; i++)
         es->reg_state[i] = CS_DEAD;
+    }
 
-    es->carry = False;
-    es->zero = False;
-    es->sign = False;
-    es->carry_state = CS_DEAD;
-    es->zero_state = CS_DEAD;
-    es->sign_state = CS_DEAD;
+    for(i=0; i<FT_Max; i++) {
+        es->flag[i] = False;
+        es->flag_state[i] = CS_DEAD;
+    }
 
     for(i=0; i< es->stackSize; i++)
         es->stack[i] = 0;
@@ -2953,20 +2944,17 @@ Bool esIsEqual(EmuState* es1, EmuState* es2)
     
     // same state for registers?
     for(i = 0; i < Reg_Max; i++) {
-        if (csIsEqual(es1, es1->reg_state[i], es1->reg[i],
-                      es2, es2->reg_state[i], es2->reg[i]))
-            continue;
-        
-        return False;
+        if (!csIsEqual(es1, es1->reg_state[i], es1->reg[i],
+                       es2, es2->reg_state[i], es2->reg[i]))
+            return False;
     }
     
-    // same state for flags?
-    if (!csIsEqual(es1, es1->carry_state, es1->carry,
-                   es2, es2->carry_state, es2->carry)) return False;
-    if (!csIsEqual(es1, es1->carry_state, es1->carry,
-                   es2, es2->carry_state, es2->carry)) return False;
-    if (!csIsEqual(es1, es1->carry_state, es1->carry,
-                   es2, es2->carry_state, es2->carry)) return False;
+    // same state for registers?
+    for(i = 0; i < FT_Max; i++) {
+        if (!csIsEqual(es1, es1->flag_state[i], es1->flag[i],
+                       es2, es2->flag_state[i], es2->flag[i]))
+            return False;
+    }
 
     // TODO: Stack. May need to explicitly remember types/offsets
 }
@@ -2987,12 +2975,10 @@ EmuState* copyEmuState(EmuState* src)
         dst->reg_state[i] = src->reg_state[i];
     }
 
-    dst->carry       = src->carry;
-    dst->zero        = src->zero;
-    dst->sign        = src->sign;
-    dst->carry_state = src->carry_state;
-    dst->zero_state  = src->zero_state;
-    dst->sign_state  = src->sign_state;
+    for(i = 0; i < FT_Max; i++) {
+        dst->flag[i] = src->flag[i];
+        dst->flag_state[i] = src->flag_state[i];
+    }
 
     for(i = 0; i < usedStackSize; i++) {
         dst->stack[i] = src->stack[indexDiff+i];
@@ -3046,9 +3032,9 @@ void printEmuState(EmuState* es)
            es->reg[Reg_IP], captureState2Char( es->reg_state[Reg_IP] ));
 
     printf("  Flags: CF %d %c  ZF %d %c  SF %d %c\n",
-           es->carry, captureState2Char(es->carry_state),
-           es->zero,  captureState2Char(es->zero_state),
-           es->sign,  captureState2Char(es->sign_state) );
+           es->flag[FT_Carry], captureState2Char(es->flag_state[FT_Carry]),
+           es->flag[FT_Zero], captureState2Char(es->flag_state[FT_Zero]),
+           es->flag[FT_Sign], captureState2Char(es->flag_state[FT_Sign]));
 
     spOff = es->reg[Reg_SP] - es->stackStart;
     spMax = spOff /8*8 + 24;
@@ -3122,23 +3108,23 @@ CaptureState setFlagsSub(EmuState* es, EmuValue* v1, EmuValue* v2)
     CaptureState s;
 
     s = combineState4Flags(v1->state, v2->state);
-    es->carry_state = s;
-    es->zero_state = s;
-    es->sign_state = s;
+    es->flag_state[FT_Carry] = s;
+    es->flag_state[FT_Zero] = s;
+    es->flag_state[FT_Sign] = s;
 
     assert(v1->type == v2->type);
 
-    es->carry = (v1->val < v2->val);
-    es->zero  = (v1->val == v2->val);
+    es->flag[FT_Carry] = (v1->val < v2->val);
+    es->flag[FT_Zero]  = (v1->val == v2->val);
     switch(v1->type) {
     case VT_8:
-        es->sign = (((v1->val - v2->val) & (1l<<7)) != 0);
+        es->flag[FT_Sign] = (((v1->val - v2->val) & (1l<<7)) != 0);
         break;
     case VT_32:
-        es->sign = (((v1->val - v2->val) & (1l<<31)) != 0);
+        es->flag[FT_Sign] = (((v1->val - v2->val) & (1l<<31)) != 0);
         break;
     case VT_64:
-        es->sign = (((v1->val - v2->val) & (1l<<63)) != 0);
+        es->flag[FT_Sign] = (((v1->val - v2->val) & (1l<<63)) != 0);
         break;
     default: assert(0);
     }
@@ -3151,27 +3137,27 @@ void setFlagsAdd(EmuState* es, EmuValue* v1, EmuValue* v2)
     CaptureState s;
 
     s = combineState4Flags(v1->state, v2->state);
-    es->carry_state = s;
-    es->zero_state = s;
-    es->sign_state = s;
+    es->flag_state[FT_Carry] = s;
+    es->flag_state[FT_Zero] = s;
+    es->flag_state[FT_Sign] = s;
 
     assert(v1->type == v2->type);
 
     switch(v1->type) {
     case VT_8:
-        es->carry = (v1->val + v2->val >= (1<<8));
-        es->zero  = ((v1->val + v2->val) & ((1<<8)-1) == 0);
-        es->sign  = (((v1->val + v2->val) & (1l<<7)) != 0);
+        es->flag[FT_Carry] = (v1->val + v2->val >= (1<<8));
+        es->flag[FT_Zero]  = ((v1->val + v2->val) & ((1<<8)-1) == 0);
+        es->flag[FT_Sign]  = (((v1->val + v2->val) & (1l<<7)) != 0);
         break;
     case VT_32:
-        es->carry = (v1->val + v2->val >= (1l<<32));
-        es->zero  = ((v1->val + v2->val) & ((1l<<32)-1) == 0);
-        es->sign  = (((v1->val + v2->val) & (1l<<31)) != 0);
+        es->flag[FT_Carry] = (v1->val + v2->val >= (1l<<32));
+        es->flag[FT_Zero]  = ((v1->val + v2->val) & ((1l<<32)-1) == 0);
+        es->flag[FT_Sign]  = (((v1->val + v2->val) & (1l<<31)) != 0);
         break;
     case VT_64:
-        es->carry = ((v1->val + v2->val) < v1->val);
-        es->zero  = ((v1->val + v2->val) == 0);
-        es->sign  = (((v1->val + v2->val) & (1l<<63)) != 0);
+        es->flag[FT_Carry] = ((v1->val + v2->val) < v1->val);
+        es->flag[FT_Zero]  = ((v1->val + v2->val) == 0);
+        es->flag[FT_Sign]  = (((v1->val + v2->val) & (1l<<63)) != 0);
         break;
     default: assert(0);
     }
@@ -3191,11 +3177,11 @@ CaptureState setFlagsBit(EmuState* es, InstrType it,
     if ((it == IT_XOR) && sameOperands) s = CS_STATIC;
 
     // carry always cleared (TODO: also overflow)
-    es->carry = 0;
-    es->carry_state = CS_STATIC;
+    es->flag[FT_Carry] = 0;
+    es->flag_state[FT_Carry] = CS_STATIC;
 
-    es->zero_state = s;
-    es->sign_state = s;
+    es->flag_state[FT_Zero] = s;
+    es->flag_state[FT_Sign] = s;
 
     switch(it) {
     case IT_AND: res = v1->val & v2->val; break;
@@ -3203,16 +3189,16 @@ CaptureState setFlagsBit(EmuState* es, InstrType it,
     default: assert(0);
     }
 
-    es->zero  = (res == 0);
+    es->flag[FT_Zero]  = (res == 0);
     switch(v1->type) {
     case VT_8:
-        es->sign = ((res & (1l<<7)) != 0);
+        es->flag[FT_Sign] = ((res & (1l<<7)) != 0);
         break;
     case VT_32:
-        es->sign = ((res & (1l<<31)) != 0);
+        es->flag[FT_Sign] = ((res & (1l<<31)) != 0);
         break;
     case VT_64:
-        es->sign = ((res & (1l<<63)) != 0);
+        es->flag[FT_Sign] = ((res & (1l<<63)) != 0);
         break;
     default: assert(0);
     }
@@ -3816,25 +3802,25 @@ uint64_t emulateInstr(Rewriter* c, EmuState* es, Instr* instr)
         break;
 
     case IT_JE:
-        assert(es->zero_state == CS_STATIC);
-        if (es->zero == True) return instr->dst.val;
+        assert(es->flag_state[FT_Zero] == CS_STATIC);
+        if (es->flag[FT_Zero] == True) return instr->dst.val;
         return instr->addr + instr->len;
 
     case IT_JNE:
-        assert(es->zero_state == CS_STATIC);
-        if (es->zero == False) return instr->dst.val;
+        assert(es->flag_state[FT_Zero] == CS_STATIC);
+        if (es->flag[FT_Zero] == False) return instr->dst.val;
         return instr->addr + instr->len;
 
     case IT_JLE:
-        assert(es->zero_state == CS_STATIC);
-        assert(es->sign_state == CS_STATIC);
-        if ((es->zero == True) || (es->sign == True)) return instr->dst.val;
+        assert(es->flag_state[FT_Zero] == CS_STATIC);
+        assert(es->flag_state[FT_Sign] == CS_STATIC);
+        if ((es->flag[FT_Zero] == True) || (es->flag[FT_Sign] == True)) return instr->dst.val;
         return instr->addr + instr->len;
 
     case IT_JG:
-        assert(es->zero_state == CS_STATIC);
-        assert(es->sign_state == CS_STATIC);
-        if ((es->zero == False) && (es->sign == False)) return instr->dst.val;
+        assert(es->flag_state[FT_Zero] == CS_STATIC);
+        assert(es->flag_state[FT_Sign] == CS_STATIC);
+        if ((es->flag[FT_Zero] == False) && (es->flag[FT_Sign] == False)) return instr->dst.val;
         return instr->addr + instr->len;
 
     case IT_JP:
