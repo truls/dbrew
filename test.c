@@ -71,8 +71,7 @@ void emulateCaptureRun(char* t1, char* t2, Bool use_i2p,
     printf("Rewritten code (size %d bytes):\n", generatedCodeSize(c1));
     setFunc(c2, generatedCode(c1));
     setVerbosity(c2, False, False, False);
-    decodeBB(c2, generatedCode(c1));
-    printCode(c2);
+    printDecodedBB( decodeBB(c2, generatedCode(c1)) );
     setVerbosity(c2, True, True, True);
 
     if (use_i2p) {

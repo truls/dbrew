@@ -13,10 +13,14 @@
 #include <stdint.h>
 
 
+// forward declarations
+typedef struct _DBB DBB;
+typedef struct _CBB CBB;
 typedef struct _EmuState EmuState;
 typedef struct _CaptureConfig CaptureConfig;
 
-// forward decls
+void printDecodedBB(DBB* bb);
+DBB* decodeBB(Rewriter* c, uint64_t f);
 void freeEmuState(Rewriter*);
 void freeCaptureConfig(Rewriter*);
 
@@ -193,11 +197,31 @@ typedef struct _Instr {
     Operand src2; // with ternary op: dst = src op src2
 } Instr;
 
-typedef struct _BB {
+// a dedoced basic block
+typedef struct _DBB {
     uint64_t addr;
     int count;
     Instr* instr; // pointer to first decoded instruction
-} BB;
+} DBB;
+
+// a captured basic block
+typedef struct _CBB {
+    // ID: address of original BB + EmuState at start
+    uint64_t dec_addr;
+    int esID;
+
+    // instructions captured within this BB
+    int count;
+    Instr* instr;
+
+     // two possible exits: next on branching or fall-through
+    CBB *nextBranch, *nextFallThrough;
+
+    // for code generation/relocation
+    uint64_t addr;
+    int size;
+} CBB;
+
 
 typedef struct _Rewriter {
 
@@ -207,7 +231,7 @@ typedef struct _Rewriter {
 
     // decoded basic blocks
     int decBBCount, decBBCapacity;
-    BB* decBB;
+    DBB* decBB;
 
     // captured instructions
     int capInstrCount, capInstrCapacity;
@@ -215,8 +239,8 @@ typedef struct _Rewriter {
 
     // captured basic blocks
     int capBBCount, capBBCapacity;
-    BB* capBB;
-    BB* currentCapBB;
+    CBB* capBB;
+    CBB* currentCapBB;
 
     // function to capture
     uint64_t func;
@@ -228,6 +252,10 @@ typedef struct _Rewriter {
     // structs for emulator & capture config
     CaptureConfig* cc;
     EmuState* es;
+    // saved emulator states
+#define SAVEDSTATE_MAX 20
+    int savedStateCount;
+    EmuState* savedState[SAVEDSTATE_MAX];
 
     // debug output
     Bool showDecoding, showEmuState, showEmuSteps;
@@ -242,6 +270,7 @@ typedef struct _Rewriter {
 Rewriter* allocRewriter()
 {
     Rewriter* r;
+    int i;
 
     r = (Rewriter*) malloc(sizeof(Rewriter));
 
@@ -263,6 +292,10 @@ Rewriter* allocRewriter()
     r->capBBCapacity = 0;
     r->capBB = 0;
     r->currentCapBB = 0;
+
+    r->savedStateCount = 0;
+    for(i=0; i< SAVEDSTATE_MAX; i++)
+        r->savedState[i] = 0;
 
     r->capCodeCapacity = 0;
     r->cs = 0;
@@ -290,7 +323,7 @@ void initRewriter(Rewriter* r)
     if (r->decBB == 0) {
         // default
         if (r->decBBCapacity == 0) r->decBBCapacity = 20;
-        r->decBB = (BB*) malloc(sizeof(BB) * r->decBBCapacity);
+        r->decBB = (DBB*) malloc(sizeof(DBB) * r->decBBCapacity);
     }
     r->decBBCount = 0;
 
@@ -304,7 +337,7 @@ void initRewriter(Rewriter* r)
     if (r->capBB == 0) {
         // default
         if (r->capBBCapacity == 0) r->capBBCapacity = 20;
-        r->capBB = (BB*) malloc(sizeof(BB) * r->capBBCapacity);
+        r->capBB = (CBB*) malloc(sizeof(CBB) * r->capBBCapacity);
     }
     r->capBBCount = 0;
     r->currentCapBB = 0;
@@ -932,10 +965,8 @@ int parseModRM(uint8_t* p, int rex, Bool o1IsVec, Bool o2IsVec, ValType vt,
     return o;
 }
 
-// forward decl
-void printBB(BB* bb);
-
-BB* decodeBB(Rewriter* c, uint64_t f)
+// decode the basic block starting at f (automatically triggered by emulator)
+DBB* decodeBB(Rewriter* c, uint64_t f)
 {
     Bool hasRex, hasF2, hasF3, has66;
     int rex;
@@ -947,7 +978,7 @@ BB* decodeBB(Rewriter* c, uint64_t f)
     ValType vt;
     InstrType it;
     Instr* ii;
-    BB* bb;
+    DBB* dbb;
 
     if (f == 0) return 0; // nothing to decode
 
@@ -960,11 +991,11 @@ BB* decodeBB(Rewriter* c, uint64_t f)
 
     // start decoding of new BB beginning at f
     assert(c->decBBCount < c->decBBCapacity);
-    bb = &(c->decBB[c->decBBCount]);
+    dbb = &(c->decBB[c->decBBCount]);
     c->decBBCount++;
-    bb->addr = f;
-    bb->count = 0;
-    bb->instr = c->decInstr + c->decInstrCount;
+    dbb->addr = f;
+    dbb->count = 0;
+    dbb->instr = c->decInstr + c->decInstrCount;
     old_icount = c->decInstrCount;
 
     fp = (uint8_t*) f;
@@ -1439,13 +1470,13 @@ BB* decodeBB(Rewriter* c, uint64_t f)
         has66 = False;
     }
 
-    assert(bb->addr == bb->instr->addr);
-    bb->count = c->decInstrCount - old_icount;
+    assert(dbb->addr == dbb->instr->addr);
+    dbb->count = c->decInstrCount - old_icount;
 
     if (c->showDecoding)
-        printBB(bb);
+        printDecodedBB(dbb);
 
-    return bb;
+    return dbb;
 }
 
 /*------------------------------------------------------------*/
@@ -1782,7 +1813,7 @@ char* bytes2string(Instr* instr, int start, int count)
     return buf;
 }
 
-void printBB(BB* bb)
+void printDecodedBB(DBB* bb)
 {
     int i;
     for(i = 0; i < bb->count; i++) {
@@ -1798,12 +1829,12 @@ void printBB(BB* bb)
     }
 }
 
-void printCode(Rewriter* c)
+void printDecodedBBs(Rewriter* c)
 {
     int i;
     for(i=0; i< c->decBBCount; i++) {
         printf("BB %lx (%d instructions):\n", c->decBB[i].addr, c->decBB[i].count);
-        printBB(c->decBB + i);
+        printDecodedBB(c->decBB + i);
     }
 }
 
@@ -2523,26 +2554,39 @@ void resetCapturing(Rewriter* r)
     r->currentCapBB = 0;
 }
 
-// allocate an BB structure to collect instructions for capturing
-BB* allocCaptureBB(Rewriter* c, uint64_t f)
+// return 0 if not found
+CBB *findCaptureBB(Rewriter* r, uint64_t f, int esID)
 {
-    BB* bb;
     int i;
 
+    for(i = 0; i < r->capBBCount; i++)
+        if ((r->capBB[i].dec_addr == f) && (r->capBB[i].esID == esID))
+            return &(r->capBB[i]);
+
+    return 0;
+}
+
+// allocate an BB structure to collect instructions for capturing
+CBB* allocCaptureBB(Rewriter* c, uint64_t f, int esID)
+{
+    CBB* bb;
+
     // already captured?
-    for(i = 0; i < c->capBBCount; i++)
-        if (c->capBB[i].addr == f) {
-            c->currentCapBB = 0;
-            return 0;
-        }
+    bb = findCaptureBB(c, f, esID);
+    if (bb) return 0;
 
     // start capturing of new BB beginning at f
     assert(c->capBBCount < c->capBBCapacity);
     bb = &(c->capBB[c->capBBCount]);
     c->capBBCount++;
-    bb->addr = f;
+    bb->dec_addr = f;
+    bb->esID = esID;
     bb->count = 0;
     bb->instr = c->capInstr + c->capInstrCount;
+    bb->nextBranch = 0;
+    bb->nextFallThrough = 0;
+    bb->addr = 0;
+    bb->size = 0;
 
     c->currentCapBB = bb;
     return bb;
@@ -2551,12 +2595,12 @@ BB* allocCaptureBB(Rewriter* c, uint64_t f)
 // capture a new instruction
 void capture(Rewriter* c, Instr* instr)
 {
-    BB* bb = c->currentCapBB;
+    CBB* bb = c->currentCapBB;
     if (bb == 0) return;
 
     if (c->showEmuSteps)
-        printf("Capture '%s' (BB 0x%lx + %d)\n",
-               instr2string(instr, 0), bb->addr, bb->count);
+        printf("Capture '%s' (from BB 0x%lx + %d)\n",
+               instr2string(instr, 0), bb->dec_addr, bb->count);
 
     assert(c->capInstrCount < c->capInstrCapacity);
     copyInstr(bb->instr + bb->count, instr);
@@ -2564,19 +2608,20 @@ void capture(Rewriter* c, Instr* instr)
     bb->count++;
 }
 
-// capture a new instruction
-void generate(Rewriter* c, BB* bb)
+// generate code for a captured BB
+void generate(Rewriter* c, CBB* bb)
 {
     uint8_t* buf;
-    int used, i;
+    int used, i, usedTotal;
 
     if (bb == 0) return;
     if (c->cs == 0) return;
 
     if (c->showEmuSteps)
-        printf("Generating code for BB %lx (%d instructions)\n",
-               bb->addr, bb->count);
+        printf("Generating code for BB from %lx, esID %d (%d instructions)\n",
+               bb->dec_addr, bb->esID, bb->count);
 
+    usedTotal = 0;
     for(i = 0; i < bb->count; i++) {
         Instr* instr = bb->instr + i;
 
@@ -2631,6 +2676,7 @@ void generate(Rewriter* c, BB* bb)
 
         instr->addr = (uint64_t) buf;
         instr->len = used;
+        usedTotal += used;
 
         if (c->showEmuSteps) {
             printf("  Instr %2d: %-32s", i, instr2string(instr, 1));
@@ -2639,6 +2685,9 @@ void generate(Rewriter* c, BB* bb)
 
         useCodeStorage(c->cs, used);
     }
+
+    bb->size = usedTotal;
+    bb->addr = (bb->count > 0) ? bb->instr[0].addr : 0;
 }
 
 
@@ -2689,6 +2738,9 @@ typedef struct _EmuStateEntry {
 // emulator state. for memory, use the real memory apart from stack
 typedef struct _EmuState {
 
+    // when saving an EmuState, remember root
+    EmuState* parent;
+    
     // general registers: Reg_AX .. Reg_R15
     uint64_t reg[Reg_Max];
     CaptureState reg_state[Reg_Max];
@@ -2810,6 +2862,8 @@ void resetEmuState(EmuState* es)
     static Reg calleeSave[] = {
         Reg_BP, Reg_BX, Reg_12, Reg_13, Reg_14, Reg_15, Reg_None };
 
+    es->parent = 0;
+
     for(i=0; i<Reg_Max; i++)
         es->reg[i] = 0;
     for(i=0; i<Reg_Max; i++)
@@ -2841,19 +2895,16 @@ void resetEmuState(EmuState* es)
     es->reg_state[Reg_IP] = CS_STATIC;
 }
 
-void allocEmuState(Rewriter* c, int size)
+EmuState* allocEmuState(int size)
 {
     EmuState* es;
-
-    if (c->es) return;
 
     es = (EmuState*) malloc(sizeof(EmuState));
     es->stackSize = size;
     es->stack = (uint8_t*) malloc(size);
     es->stackState = (CaptureState*) malloc(sizeof(CaptureState) * size);
-    resetEmuState(es);
 
-    c->es = es;
+    return es;
 }
 
 void freeEmuState(Rewriter* r)
@@ -2865,6 +2916,113 @@ void freeEmuState(Rewriter* r)
     free(r->es);
     r->es = 0;
 }
+
+// are the capture states of a memory resource from different EmuStates equal?
+// this is required for compatibility of generated code points, and
+// compatibility is needed to be able to jump between such code points
+Bool csIsEqual(EmuState* es1, CaptureState s1, uint64_t v1,
+               EmuState* es2, CaptureState s2, uint64_t v2)
+{
+    // normalize meta states: CS_STATIC2 is equivalent to CS_STATIC
+    if (s1 == CS_STATIC2) s1 = CS_STATIC;
+    if (s2 == CS_STATIC2) s2 = CS_STATIC;
+    
+    if (s1 != s2) return False;
+    
+    switch(s1) {
+    case CS_STATIC:
+        // for static capture states, values have to be equal
+        return (v1 == v2);
+        
+    case CS_STACKRELATIVE:
+        // FIXME: in reality: same offset from a versioned anchor
+        // for now: assume same anchor version (within same rewriting action)
+        if (es1->parent != es2->parent) return False;
+        return (v1 == v2);
+        
+    default:
+        break;
+    }
+    return True;
+}
+
+// states are equal if metainformation is equal and static data is the same
+Bool esIsEqual(EmuState* es1, EmuState* es2)
+{
+    int i;
+    
+    // same state for registers?
+    for(i = 0; i < Reg_Max; i++) {
+        if (csIsEqual(es1, es1->reg_state[i], es1->reg[i],
+                      es2, es2->reg_state[i], es2->reg[i]))
+            continue;
+        
+        return False;
+    }
+    
+    // same state for flags?
+    if (!csIsEqual(es1, es1->carry_state, es1->carry,
+                   es2, es2->carry_state, es2->carry)) return False;
+    if (!csIsEqual(es1, es1->carry_state, es1->carry,
+                   es2, es2->carry_state, es2->carry)) return False;
+    if (!csIsEqual(es1, es1->carry_state, es1->carry,
+                   es2, es2->carry_state, es2->carry)) return False;
+
+    // TODO: Stack. May need to explicitly remember types/offsets
+}
+
+EmuState* copyEmuState(EmuState* src)
+{
+    int i, usedStackSize, indexDiff;
+
+    EmuState* dst;
+
+    usedStackSize = src->stackTop - src->stackAccessed;
+    indexDiff = src->stackAccessed - src->stackStart;
+    dst = allocEmuState(usedStackSize);
+    dst->parent = src;
+
+    for(i=0; i<Reg_Max; i++) {
+        dst->reg[i] = src->reg[i];
+        dst->reg_state[i] = src->reg_state[i];
+    }
+
+    dst->carry       = src->carry;
+    dst->zero        = src->zero;
+    dst->sign        = src->sign;
+    dst->carry_state = src->carry_state;
+    dst->zero_state  = src->zero_state;
+    dst->sign_state  = src->sign_state;
+
+    for(i = 0; i < usedStackSize; i++) {
+        dst->stack[i] = src->stack[indexDiff+i];
+        dst->stackState[i] = src->stackState[indexDiff+i];
+    }
+    // use valid stack addresses from src
+    dst->stackStart = src->stackStart + indexDiff;
+    dst->stackTop = src->stackTop;
+    dst->stackAccessed = src->stackAccessed;
+    assert(dst->stackTop == dst->stackStart + dst->stackSize);
+
+    return dst;
+}
+
+// checks against already saved states, and returns an ID
+// (which is the index in the saved state list of the rewriter)
+int getSavedState(Rewriter* r, EmuState* es)
+{
+    int i;
+
+    for(i = 0; i < r->savedStateCount; i++)
+        if (esIsEqual(es, r->savedState[i])) return i;
+
+    assert(i < SAVEDSTATE_MAX);
+    r->savedState[i] = copyEmuState(es);
+    r->savedStateCount++;
+
+    return i;
+}
+
 
 void printEmuState(EmuState* es)
 {
@@ -3941,7 +4099,8 @@ uint64_t rewrite(Rewriter* c, ...)
     int i;
     uint64_t par[5];
     EmuState* es;
-    BB *bb, *capBB;
+    DBB *dbb;
+    CBB *cbb;
     Instr* instr;
     uint64_t bb_addr, nextbb_addr;
 
@@ -3954,7 +4113,7 @@ uint64_t rewrite(Rewriter* c, ...)
     asm("mov %%r9, %0;"  : "=r" (par[4]) : );
 
     if (!c->es)
-        allocEmuState(c, 1024);
+        c->es = allocEmuState(1024);
     resetEmuState(c->es);
     es = c->es;
 
@@ -3978,13 +4137,13 @@ uint64_t rewrite(Rewriter* c, ...)
     }
 
     // this allocates a BB in which captured instructions get collected
-    capBB = allocCaptureBB(c, bb_addr);
-    assert(capBB != 0);
+    cbb = allocCaptureBB(c, bb_addr, -1);
+    assert(cbb != 0);
 
     while(1) {
-        bb = decodeBB(c, bb_addr);
-        for(i = 0; i < bb->count; i++) {
-            instr = bb->instr + i;
+        dbb = decodeBB(c, bb_addr);
+        for(i = 0; i < dbb->count; i++) {
+            instr = dbb->instr + i;
 
             if (c->showEmuSteps)
                 printf("Emulate '%p: %s'\n",
@@ -4002,7 +4161,7 @@ uint64_t rewrite(Rewriter* c, ...)
 
             if (nextbb_addr != 0) break;
         }
-        if (i == bb->count) {
+        if (i == dbb->count) {
             // fall through at end of BB
             nextbb_addr = instr->addr + instr->len;
         }

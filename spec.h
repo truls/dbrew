@@ -100,9 +100,9 @@ typedef void (*void_func)(void);
 
 typedef enum { False, True } Bool;
 
-// piece of decoded x86_64 instructions
+// opaque data structures used in interface
 typedef struct _Rewriter Rewriter;
-typedef struct _BB BB;
+typedef struct _DBB DBB;
 
 // allocate space for a given number of decoded instructions
 Rewriter* allocRewriter();
@@ -116,11 +116,11 @@ void setFunc(Rewriter* rewriter, uint64_t f);
 // set Code activities verbose or quiet
 void setVerbosity(Rewriter* rewriter, Bool decode, Bool emuState, Bool emuSteps);
 
-// decode the basic block starting at f (automatically triggered by emulator)
-BB* decodeBB(Rewriter* c, uint64_t f);
+// decode a piece of x86 binary code starting add address <f>
+DBB* decodeBB(Rewriter* c, uint64_t f);
 
-// print instructions in <c>
-void printCode(Rewriter* c);
+// print instructions from a decoded basic block
+void printDecodedBB(DBB* bb);
 
 // initialize emulator, use given stack size
 void configEmuState(Rewriter *c, int stacksize);
