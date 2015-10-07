@@ -214,8 +214,10 @@ typedef struct _CBB {
     int count;
     Instr* instr;
 
-     // two possible exits: next on branching or fall-through
+    // two possible exits: next on branching or fall-through
     CBB *nextBranch, *nextFallThrough;
+    // type of instruction ending this BB
+    InstrType endType;
 
     // for code generation/relocation
     uint64_t addr;
@@ -257,6 +259,11 @@ typedef struct _Rewriter {
     int savedStateCount;
     EmuState* savedState[SAVEDSTATE_MAX];
 
+    // stack of unfinished BBs to capture
+#define CAPTURESTACK_LEN 10
+    int capStackTop;
+    CBB* capStack[CAPTURESTACK_LEN];
+
     // debug output
     Bool showDecoding, showEmuState, showEmuSteps;
 } Rewriter;
@@ -292,6 +299,7 @@ Rewriter* allocRewriter()
     r->capBBCapacity = 0;
     r->capBB = 0;
     r->currentCapBB = 0;
+    r->capStackTop = -1;
 
     r->savedStateCount = 0;
     for(i=0; i< SAVEDSTATE_MAX; i++)
@@ -2552,6 +2560,9 @@ void resetCapturing(Rewriter* r)
     r->capBBCount = 0;
     r->capInstrCount = 0;
     r->currentCapBB = 0;
+
+    r->capStackTop = -1;
+    r->savedStateCount = 0;
 }
 
 // return 0 if not found
@@ -2585,10 +2596,29 @@ CBB* allocCaptureBB(Rewriter* c, uint64_t f, int esID)
     bb->instr = c->capInstr + c->capInstrCount;
     bb->nextBranch = 0;
     bb->nextFallThrough = 0;
+    bb->endType = IT_None;
     bb->addr = 0;
     bb->size = 0;
 
-    c->currentCapBB = bb;
+    return bb;
+}
+
+int pushCaptureBB(Rewriter* r, CBB* bb)
+{
+    assert(r->capStackTop + 1 < CAPTURESTACK_LEN);
+    r->capStackTop++;
+    r->capStack[r->capStackTop] = bb;
+
+    return r->capStackTop;
+}
+
+CBB* popCaptureBB(Rewriter* r)
+{
+    CBB* bb = r->currentCapBB;
+    assert(r->capStack[r->capStackTop] == bb);
+    r->capStackTop--;
+    r->currentCapBB = 0;
+
     return bb;
 }
 
@@ -2959,16 +2989,11 @@ Bool esIsEqual(EmuState* es1, EmuState* es2)
     // TODO: Stack. May need to explicitly remember types/offsets
 }
 
-EmuState* copyEmuState(EmuState* src)
+void copyEmuState(EmuState* dst, EmuState* src)
 {
-    int i, usedStackSize, indexDiff;
+    int i;
 
-    EmuState* dst;
-
-    usedStackSize = src->stackTop - src->stackAccessed;
-    indexDiff = src->stackAccessed - src->stackStart;
-    dst = allocEmuState(usedStackSize);
-    dst->parent = src;
+    dst->parent = src->parent;
 
     for(i=0; i<Reg_Max; i++) {
         dst->reg[i] = src->reg[i];
@@ -2980,35 +3005,75 @@ EmuState* copyEmuState(EmuState* src)
         dst->flag_state[i] = src->flag_state[i];
     }
 
-    for(i = 0; i < usedStackSize; i++) {
-        dst->stack[i] = src->stack[indexDiff+i];
-        dst->stackState[i] = src->stackState[indexDiff+i];
-    }
-    // use valid stack addresses from src
-    dst->stackStart = src->stackStart + indexDiff;
     dst->stackTop = src->stackTop;
     dst->stackAccessed = src->stackAccessed;
+    if (src->stackSize < dst->stackSize) {
+        // stack to restore is smaller than at destination:
+        // fill start of destination with DEAD entries
+        int diff = dst->stackSize - src->stackSize;
+
+        dst->stackStart = src->stackStart - diff;
+        for(i = 0; i < diff; i++) {
+            dst->stackState[i] = CS_DEAD;
+            dst->stack[i] = 0;
+        }
+        for(i = 0; i < src->stackSize; i++) {
+            dst->stack[i+diff] = src->stack[i];
+            dst->stackState[i+diff] = src->stackState[i];
+        }
+    }
+    else {
+        // stack to restore is larger than at destination:
+        // make sure that start of source was never accessed
+        int diff = src->stackSize - dst->stackSize;
+        assert(src->stackAccessed - src->stackStart >= diff);
+
+        dst->stackStart = src->stackStart + diff;
+        for(i = 0; i < dst->stackSize; i++) {
+            dst->stack[i] = src->stack[i+diff];
+            dst->stackState[i] = src->stackState[i+diff];
+        }
+    }
     assert(dst->stackTop == dst->stackStart + dst->stackSize);
+}
+
+EmuState* cloneEmuState(EmuState* src)
+{
+    EmuState* dst;
+
+    // allocate only stack space that was accessed in source
+    dst = allocEmuState(src->stackTop - src->stackAccessed);
+    copyEmuState(dst, src);
+
+    // remember that we cloned dst from src
+    dst->parent = src;
 
     return dst;
 }
 
-// checks against already saved states, and returns an ID
+// checks current state against already saved states, and returns an ID
 // (which is the index in the saved state list of the rewriter)
-int getSavedState(Rewriter* r, EmuState* es)
+int saveEmuState(Rewriter* r)
 {
     int i;
 
     for(i = 0; i < r->savedStateCount; i++)
-        if (esIsEqual(es, r->savedState[i])) return i;
+        if (esIsEqual(r->es, r->savedState[i]))
+            return i;
 
     assert(i < SAVEDSTATE_MAX);
-    r->savedState[i] = copyEmuState(es);
+    r->savedState[i] = cloneEmuState(r->es);
     r->savedStateCount++;
 
     return i;
 }
 
+void restoreEmuState(Rewriter* r, int esID)
+{
+    assert((esID >= 0) && (esID < r->savedStateCount));
+    assert(r->savedState[esID] != 0);
+    copyEmuState(r->es, r->savedState[esID]);
+}
 
 void printEmuState(EmuState* es)
 {
@@ -3670,6 +3735,30 @@ void capturePassThrough(Rewriter* c, Instr* orig, EmuState* es)
     capture(c, &i);
 }
 
+// this ends a captured BB, queuing new paths to be traced
+uint64_t captureExit(Rewriter* r, InstrType it,
+                     uint64_t branchTarget, uint64_t fallthroughTarget)
+{
+    CBB *bb;
+    int esID;
+
+    bb = popCaptureBB(r);
+    bb->endType = it;
+
+    esID = -1;
+    if (branchTarget > 0) {
+        esID = saveEmuState(r);
+        CBB* newCBB = allocCaptureBB(r, branchTarget, esID);
+        bb->nextBranch = newCBB;
+        pushCaptureBB(r, newCBB);
+    }
+    if (fallthroughTarget > 0) {
+        if (esID < 0) esID = saveEmuState(r);
+        CBB* newCBB = allocCaptureBB(r, fallthroughTarget, esID);
+        bb->nextFallThrough = newCBB;
+        pushCaptureBB(r, newCBB);
+    }
+}
 
 // return 0 to fall through to next instruction, or return address to jump to
 uint64_t emulateInstr(Rewriter* c, EmuState* es, Instr* instr)
@@ -3807,9 +3896,11 @@ uint64_t emulateInstr(Rewriter* c, EmuState* es, Instr* instr)
         return instr->addr + instr->len;
 
     case IT_JNE:
-        assert(es->flag_state[FT_Zero] == CS_STATIC);
-        if (es->flag[FT_Zero] == False) return instr->dst.val;
-        return instr->addr + instr->len;
+        if (es->flag_state[FT_Zero] == CS_STATIC) {
+            if (es->flag[FT_Zero] == False) return instr->dst.val;
+            return instr->addr + instr->len;
+        }
+        return captureExit(c, IT_JNE, instr->dst.val, instr->addr + instr->len);
 
     case IT_JLE:
         assert(es->flag_state[FT_Zero] == CS_STATIC);
@@ -4082,7 +4173,7 @@ uint64_t rewrite(Rewriter* c, ...)
     // calling convention x86-64: parameters are stored in registers
     static Reg parReg[5] = { Reg_DI, Reg_SI, Reg_DX, Reg_CX, Reg_8 };
 
-    int i;
+    int i, esID;
     uint64_t par[5];
     EmuState* es;
     DBB *dbb;
@@ -4114,7 +4205,6 @@ uint64_t rewrite(Rewriter* c, ...)
 
     es->reg[Reg_SP] = (uint64_t) (es->stackStart + es->stackSize);
     es->reg_state[Reg_SP] = CS_STACKRELATIVE;
-    bb_addr = c->func;
     es->depth = 0;
 
     if (c->showEmuState) {
@@ -4122,11 +4212,41 @@ uint64_t rewrite(Rewriter* c, ...)
         printEmuState(es);
     }
 
-    // this allocates a BB in which captured instructions get collected
-    cbb = allocCaptureBB(c, bb_addr, -1);
-    assert(cbb != 0);
+    // queue BB at c->func for being captured
+    esID = saveEmuState(c);
+    cbb = allocCaptureBB(c, c->func, esID);
+    pushCaptureBB(c, cbb);
+    assert(c->capStackTop == 0);
+
+    // and start with this CBB
+    bb_addr = cbb->dec_addr;
+    c->currentCapBB = cbb;
+    if (c->showEmuSteps)
+        printf("Tracing BB (%lx|%d), capture stack at %d ...\n",
+               cbb->dec_addr, cbb->esID, c->capStackTop);
 
     while(1) {
+        if (c->currentCapBB == 0) {
+            while(c->capStackTop >= 0) {
+                cbb = c->capStack[c->capStackTop];
+                if (cbb->count == 0) break;
+                // cbb already handled; go to previous item on capture stack
+                c->capStackTop--;
+            }
+            // all paths captured?
+            if (c->capStackTop < 0) break;
+
+            assert(cbb != 0);
+            assert(cbb->count == 0); // should have no instructions yet
+            restoreEmuState(c, cbb->esID);
+            bb_addr = cbb->dec_addr;
+            c->currentCapBB = cbb;
+
+            if (c->showEmuSteps)
+                printf("Tracing BB (%lx|%d), capture stack at %d ...\n",
+                       cbb->dec_addr, cbb->esID, c->capStackTop);
+        }
+
         dbb = decodeBB(c, bb_addr);
         for(i = 0; i < dbb->count; i++) {
             instr = dbb->instr + i;
@@ -4151,13 +4271,21 @@ uint64_t rewrite(Rewriter* c, ...)
             // fall through at end of BB
             nextbb_addr = instr->addr + instr->len;
         }
-        if (es->depth < 0) break;
+        if (es->depth < 0) {
+            // finish this path
+            assert(instr->type == IT_RET);
+            captureRet(c, instr, es);
+
+            // go to next path to trace
+            cbb = popCaptureBB(c);
+            cbb->endType = IT_RET;
+        }
         bb_addr = nextbb_addr;
     }
-    assert(instr->type == IT_RET);
-    captureRet(c, instr, es);
 
-    generate(c, c->currentCapBB);
+    // FIXME: Generating code for multiple CBBs wrong
+    for(i=0; i < c->capBBCount; i++)
+        generate(c, c->capBB + i);
 
     // return value according to calling convention
     return es->reg[Reg_AX];
