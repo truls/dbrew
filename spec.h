@@ -119,6 +119,8 @@ void setVerbosity(Rewriter* rewriter, Bool decode, Bool emuState, Bool emuSteps)
 // decode a piece of x86 binary code starting add address <f>
 DBB* decodeBB(Rewriter* c, uint64_t f);
 
+void printDecoded(Rewriter* c, uint64_t f, int count);
+
 // print instructions from a decoded basic block
 void printDecodedBB(DBB* bb);
 

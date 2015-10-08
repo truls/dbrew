@@ -200,6 +200,7 @@ typedef struct _Instr {
 // a dedoced basic block
 typedef struct _DBB {
     uint64_t addr;
+    int size; // in bytes
     int count;
     Instr* instr; // pointer to first decoded instruction
 } DBB;
@@ -1003,6 +1004,7 @@ DBB* decodeBB(Rewriter* c, uint64_t f)
     c->decBBCount++;
     dbb->addr = f;
     dbb->count = 0;
+    dbb->size = 0;
     dbb->instr = c->decInstr + c->decInstrCount;
     old_icount = c->decInstrCount;
 
@@ -1502,12 +1504,16 @@ DBB* decodeBB(Rewriter* c, uint64_t f)
 
     assert(dbb->addr == dbb->instr->addr);
     dbb->count = c->decInstrCount - old_icount;
+    dbb->size = off;
 
     if (c->showDecoding)
         printDecodedBB(dbb);
 
     return dbb;
 }
+
+
+
 
 /*------------------------------------------------------------*/
 /* x86_64 printer
@@ -1867,6 +1873,20 @@ void printDecodedBBs(Rewriter* c)
         printDecodedBB(c->decBB + i);
     }
 }
+
+void printDecoded(Rewriter* c, uint64_t f, int count)
+{
+    DBB* dbb;
+    int decoded = 0;
+
+    c->decBBCount = 0;
+    while(decoded < count) {
+        dbb = decodeBB(c, f + decoded);
+        decoded += dbb->size;
+    }
+    printDecodedBBs(c);
+}
+
 
 /*------------------------------------------------------------*/
 /* x86_64 code generation
@@ -2530,7 +2550,7 @@ int genCmp(uint8_t* buf, Operand* src, Operand* dst)
         case OT_Ind32:
         case OT_Ind64:
             // use 'cmp r/m 32/64, imm8' (0x83/7 MI)
-            return genDigitMI(buf, 0x83, 5, dst, src);
+            return genDigitMI(buf, 0x83, 7, dst, src);
 
         default: assert(0);
         }
@@ -2540,6 +2560,32 @@ int genCmp(uint8_t* buf, Operand* src, Operand* dst)
     }
     return 0;
 }
+
+void genJcc(CBB* cbb)
+{
+    int diff;
+    uint64_t jcc_addr;
+    uint8_t* buf;
+
+    // 2 bytes reserved, fill in opcode
+    jcc_addr = cbb->addr + cbb->size - 2;
+    buf = (uint8_t*) jcc_addr;
+
+    switch(cbb->endType) {
+    case IT_JNE:
+        // JNE rel8
+        buf[0] = 0x75;
+        break;
+
+    default: assert(0);
+    }
+
+    assert(cbb->nextBranch->addr != 0);
+    diff = cbb->nextBranch->addr - (jcc_addr + 2);
+    assert((diff > -128) && (diff < 127));
+    buf[1] = (int8_t) diff;
+}
+
 
 // Pass-through: parser forwarding opcodes, provides encoding
 int genPassThrough(uint8_t* buf, Instr* instr)
@@ -2615,7 +2661,7 @@ CBB* allocCaptureBB(Rewriter* c, uint64_t f, int esID)
     bb->dec_addr = f;
     bb->esID = esID;
     bb->count = 0;
-    bb->instr = c->capInstr + c->capInstrCount;
+    bb->instr = 0; // reset on first instruction added
     bb->nextBranch = 0;
     bb->nextFallThrough = 0;
     bb->endType = IT_None;
@@ -2647,35 +2693,37 @@ CBB* popCaptureBB(Rewriter* r)
 // capture a new instruction
 void capture(Rewriter* c, Instr* instr)
 {
-    CBB* bb = c->currentCapBB;
-    if (bb == 0) return;
+    CBB* cbb = c->currentCapBB;
+    if (cbb == 0) return;
 
     if (c->showEmuSteps)
-        printf("Capture '%s' (from BB 0x%lx + %d)\n",
-               instr2string(instr, 0), bb->dec_addr, bb->count);
+        printf("Capture '%s' (into 0x%lx|%d + %d)\n",
+               instr2string(instr, 0), cbb->dec_addr, cbb->esID, cbb->count);
 
     assert(c->capInstrCount < c->capInstrCapacity);
-    copyInstr(bb->instr + bb->count, instr);
+    if (cbb->instr == 0)
+        cbb->instr = c->capInstr + c->capInstrCount;
+    copyInstr(cbb->instr + cbb->count, instr);
     c->capInstrCount++;
-    bb->count++;
+    cbb->count++;
 }
 
 // generate code for a captured BB
-void generate(Rewriter* c, CBB* bb)
+void generate(Rewriter* c, CBB* cbb)
 {
     uint8_t* buf;
     int used, i, usedTotal;
 
-    if (bb == 0) return;
+    if (cbb == 0) return;
     if (c->cs == 0) return;
 
     if (c->showEmuSteps)
-        printf("Generating code for BB from %lx, esID %d (%d instructions)\n",
-               bb->dec_addr, bb->esID, bb->count);
+        printf("Generating code for BB %lx|%d (%d instructions)\n",
+               cbb->dec_addr, cbb->esID, cbb->count);
 
     usedTotal = 0;
-    for(i = 0; i < bb->count; i++) {
-        Instr* instr = bb->instr + i;
+    for(i = 0; i < cbb->count; i++) {
+        Instr* instr = cbb->instr + i;
 
         buf = reserveCodeStorage(c->cs, 15);
 
@@ -2731,15 +2779,30 @@ void generate(Rewriter* c, CBB* bb)
         usedTotal += used;
 
         if (c->showEmuSteps) {
-            printf("  Instr %2d: %-32s", i, instr2string(instr, 1));
-            printf(" %2d bytes: %s\n", used, bytes2string(instr, 0, used));
+            printf("  I%2d : %-32s", i, instr2string(instr, 1));
+            printf(" %lx %s\n", instr->addr, bytes2string(instr, 0, used));
         }
 
         useCodeStorage(c->cs, used);
     }
 
-    bb->size = usedTotal;
-    bb->addr = (bb->count > 0) ? bb->instr[0].addr : 0;
+    if (cbb->endType != IT_None) {
+        // FIXME: only Jcc with 2 bytes space enough
+        assert(cbb->nextBranch != 0);
+        if (c->showEmuSteps)
+            printf("  I%2d : jCC (%lx|%d)\n", i,
+                   cbb->nextBranch->dec_addr, cbb->nextBranch->esID);
+
+        switch(cbb->endType) {
+        case IT_JNE: break;
+        default: assert(0);
+        }
+        useCodeStorage(c->cs, 2);
+        usedTotal += 2;
+    }
+
+    cbb->size = usedTotal;
+    cbb->addr = (cbb->count > 0) ? cbb->instr[0].addr : 0;
 }
 
 
@@ -2933,9 +2996,10 @@ void resetEmuState(EmuState* es)
     //  rbp, rbx, r12-r15 have to be preserved by callee
     for(i=0; calleeSave[i] != Reg_None; i++)
         es->reg_state[calleeSave[i]] = CS_DYNAMIC;
-
     // RIP always known
     es->reg_state[Reg_IP] = CS_STATIC;
+
+    es->depth = 0;
 }
 
 EmuState* allocEmuState(int size)
@@ -3009,6 +3073,10 @@ Bool esIsEqual(EmuState* es1, EmuState* es2)
     }
 
     // TODO: Stack. May need to explicitly remember types/offsets
+
+    if (es1->depth != es2->depth) return False;
+
+    return True;
 }
 
 void copyEmuState(EmuState* dst, EmuState* src)
@@ -3057,6 +3125,10 @@ void copyEmuState(EmuState* dst, EmuState* src)
         }
     }
     assert(dst->stackTop == dst->stackStart + dst->stackSize);
+
+    dst->depth = src->depth;
+    for(i = 0; i < src->depth; i++)
+        dst->ret_stack[i] = src->ret_stack[i];
 }
 
 EmuState* cloneEmuState(EmuState* src)
@@ -3768,16 +3840,16 @@ uint64_t captureExit(Rewriter* r, InstrType it,
     bb->endType = it;
 
     esID = -1;
-    if (branchTarget > 0) {
-        esID = saveEmuState(r);
-        CBB* newCBB = allocCaptureBB(r, branchTarget, esID);
-        bb->nextBranch = newCBB;
-        pushCaptureBB(r, newCBB);
-    }
     if (fallthroughTarget > 0) {
         if (esID < 0) esID = saveEmuState(r);
         CBB* newCBB = allocCaptureBB(r, fallthroughTarget, esID);
         bb->nextFallThrough = newCBB;
+        pushCaptureBB(r, newCBB);
+    }
+    if (branchTarget > 0) {
+        if (esID < 0) esID = saveEmuState(r);
+        CBB* newCBB = allocCaptureBB(r, branchTarget, esID);
+        bb->nextBranch = newCBB;
         pushCaptureBB(r, newCBB);
     }
 }
@@ -4227,12 +4299,6 @@ uint64_t rewrite(Rewriter* c, ...)
 
     es->reg[Reg_SP] = (uint64_t) (es->stackStart + es->stackSize);
     es->reg_state[Reg_SP] = CS_STACKRELATIVE;
-    es->depth = 0;
-
-    if (c->showEmuState) {
-        es->reg[Reg_IP] = c->func;
-        printEmuState(es);
-    }
 
     // queue BB at c->func for being captured
     esID = saveEmuState(c);
@@ -4243,9 +4309,14 @@ uint64_t rewrite(Rewriter* c, ...)
     // and start with this CBB
     bb_addr = cbb->dec_addr;
     c->currentCapBB = cbb;
+
     if (c->showEmuSteps)
         printf("Tracing BB (%lx|%d), capture stack at %d ...\n",
                cbb->dec_addr, cbb->esID, c->capStackTop);
+    if (c->showEmuState) {
+        es->reg[Reg_IP] = bb_addr;
+        printEmuState(es);
+    }
 
     while(1) {
         if (c->currentCapBB == 0) {
@@ -4267,6 +4338,10 @@ uint64_t rewrite(Rewriter* c, ...)
             if (c->showEmuSteps)
                 printf("Tracing BB (%lx|%d), capture stack at %d ...\n",
                        cbb->dec_addr, cbb->esID, c->capStackTop);
+            if (c->showEmuState) {
+                es->reg[Reg_IP] = bb_addr;
+                printEmuState(es);
+            }
         }
 
         dbb = decodeBB(c, bb_addr);
@@ -4300,7 +4375,6 @@ uint64_t rewrite(Rewriter* c, ...)
 
             // go to next path to trace
             cbb = popCaptureBB(c);
-            cbb->endType = IT_RET;
         }
         bb_addr = nextbb_addr;
     }
@@ -4308,6 +4382,11 @@ uint64_t rewrite(Rewriter* c, ...)
     // FIXME: Generating code for multiple CBBs wrong
     for(i=0; i < c->capBBCount; i++)
         generate(c, c->capBB + i);
+
+    // Pass2: simple (and broken) relocate
+    for(i=0; i < c->capBBCount; i++)
+        if (c->capBB->endType != IT_None)
+            genJcc(c->capBB);
 
     // return value according to calling convention
     return es->reg[Reg_AX];

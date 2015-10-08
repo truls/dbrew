@@ -20,7 +20,7 @@ int test1(int a, int b)
 __attribute__ ((noinline))
 int test2(int a, int b)
 {
-    while(a > 0) b++;
+    while(a > 0) { b++; a--; }
     return b;
 }
 
@@ -38,7 +38,7 @@ void emulateCaptureRun(char* t1, char* t2,
 
     printf("Rewritten code (size %d bytes):\n", generatedCodeSize(c1));
     setFunc(c2, generatedCode(c1));
-    printDecodedBB( decodeBB(c2, generatedCode(c1)) );
+    printDecoded(c2, generatedCode(c1), generatedCodeSize(c1));
 
     i2_func f = (i2_func) generatedCode(c1);
     res = f(p1,p2);
@@ -82,7 +82,7 @@ void runTest(char* fname, uint64_t f, int p1, int p2, int sp1)
 
 int main()
 {
-    runTest("test1", (uint64_t) test1, 4,7, 1);
+    runTest("test1", (uint64_t) test1, 1,7, 2);
     runTest("test2", (uint64_t) test2, 4,7, 1);
     return 0;
 }
