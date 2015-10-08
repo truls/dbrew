@@ -89,6 +89,12 @@ TYPE apply2(TYPE *m, int xsize, Stencil* s)
     return COEFF1 * m[0] + COEFF2 * (m[-1] + m[1] + m[-xsize] + m[xsize]);
 }
 
+TYPE apply3(TYPE *m, int xsize, Stencil* s)
+{
+    return m[0];
+}
+
+
 typedef void (*apply_loop)(int, TYPE*, TYPE*, apply_func, Stencil*);
 
 void applyLoop(int size, TYPE* src, TYPE* dst, apply_func af, Stencil* s)
@@ -154,6 +160,10 @@ int main(int argc, char* argv[])
     case 3:
     case 6:
         af = apply2;
+        s = 0;
+        break;
+    case 7:
+        af = apply3;
         s = 0;
         break;
     }
