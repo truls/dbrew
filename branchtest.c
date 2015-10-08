@@ -24,6 +24,21 @@ int test2(int a, int b)
     return b;
 }
 
+__attribute__ ((noinline))
+int test3(int a, int b)
+{
+    int c = a;
+    while(a > 0) {
+        while(b > 0) {
+            c++;
+            b--;
+        }
+        b = c;
+        a--;
+    }
+    return c;
+}
+
 
 // decode captured code from c1 into c2
 void emulateCaptureRun(char* t1, char* t2,
@@ -84,5 +99,6 @@ int main()
 {
     runTest("test1", (uint64_t) test1, 1,7, 2);
     runTest("test2", (uint64_t) test2, 4,7, 3);
+    runTest("test3", (uint64_t) test3, 4,7, 3);
     return 0;
 }
