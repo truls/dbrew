@@ -223,8 +223,9 @@ typedef struct _CBB {
     Bool preferBranch;
 
     // for code generation/relocation
-    uint64_t addr;
     int size;
+    uint64_t addr1, addr2;
+    Bool genJcc8, genJump;
 } CBB;
 
 
@@ -267,6 +268,11 @@ typedef struct _Rewriter {
     int capStackTop;
     CBB* capStack[CAPTURESTACK_LEN];
 
+    // capture order
+#define GENORDER_MAX 20
+    int genOrderCount;
+    CBB* genOrder[GENORDER_MAX];
+
     // debug output
     Bool showDecoding, showEmuState, showEmuSteps;
 } Rewriter;
@@ -303,6 +309,7 @@ Rewriter* allocRewriter()
     r->capBB = 0;
     r->currentCapBB = 0;
     r->capStackTop = -1;
+    r->genOrderCount = 0;
 
     r->savedStateCount = 0;
     for(i=0; i< SAVEDSTATE_MAX; i++)
@@ -434,7 +441,10 @@ uint64_t generatedCode(Rewriter* c)
     if ((c->cs == 0) || (c->cs->used == 0))
         return 0;
 
-    return (uint64_t) c->cs->buf;
+    if (c->genOrderCount == 0) return 0;
+    return c->genOrder[0]->addr2;
+
+    //return (uint64_t) c->cs->buf;
 }
 
 int generatedCodeSize(Rewriter* c)
@@ -442,7 +452,10 @@ int generatedCodeSize(Rewriter* c)
     if ((c->cs == 0) || (c->cs->used == 0))
         return 0;
 
-    return c->cs->used;
+    if (c->genOrderCount == 0) return 0;
+    return c->cs->used - (c->genOrder[0]->addr2 - (uint64_t) c->cs->buf);
+
+    //return c->cs->used;
 }
 
 void freeCode(Rewriter* c)
@@ -680,6 +693,19 @@ void copyOperand(Operand* dst, Operand* src)
         break;
     default: assert(0);
     }
+}
+
+Bool instrIsJcc(InstrType it)
+{
+    switch(it) {
+    case IT_JE:
+    case IT_JNE:
+    case IT_JP:
+    case IT_JLE:
+    case IT_JG:
+        return True;
+    }
+    return False;
 }
 
 void copyInstr(Instr* dst, Instr* src)
@@ -1730,13 +1756,12 @@ char* op2string(Operand* o, ValType t)
     return buf;
 }
 
-char* instr2string(Instr* instr, int align)
+char* instrName(InstrType it, int* opCount)
 {
-    static char buf[100];
     char* n = "<Invalid>";
-    int oc = 0, off = 0;
+    int oc = 0;
 
-    switch(instr->type) {
+    switch(it) {
     case IT_NOP:     n = "nop"; break;
     case IT_RET:     n = "ret"; break;
     case IT_LEAVE:   n = "leave"; break;
@@ -1771,6 +1796,18 @@ char* instr2string(Instr* instr, int align)
     case IT_ADDSD:   n = "addsd"; oc = 2; break;
     case IT_SUBSD:   n = "subsd"; oc = 2; break;
     }
+
+    if (opCount) *opCount = oc;
+    return n;
+}
+
+char* instr2string(Instr* instr, int align)
+{
+    static char buf[100];
+    char* n;
+    int oc = 0, off = 0;
+
+    n = instrName(instr->type, &oc);
 
     if (align)
         off += sprintf(buf, "%-7s", n);
@@ -2563,35 +2600,6 @@ int genCmp(uint8_t* buf, Operand* src, Operand* dst)
     return 0;
 }
 
-// FIXME: could use branching hint for better code generation
-//        (needs larger holes to allow for eventual jumps)
-void genJcc(CBB* cbb)
-{
-    int diff;
-    uint64_t jcc_addr;
-    uint8_t* buf;
-
-    // 2 bytes reserved, fill in opcode
-    jcc_addr = cbb->addr + cbb->size - 2;
-    buf = (uint8_t*) jcc_addr;
-
-    // use Jcc rel8 opcodes
-    switch(cbb->endType) {
-    case IT_JE:  buf[0] = 0x74; break;
-    case IT_JNE: buf[0] = 0x75; break;
-    case IT_JP:  buf[0] = 0x7A; break;
-    case IT_JLE: buf[0] = 0x7E; break;
-    case IT_JG:  buf[0] = 0x7F; break;
-
-    default: assert(0);
-    }
-
-    assert(cbb->nextBranch->addr != 0);
-    diff = cbb->nextBranch->addr - (jcc_addr + 2);
-    assert((diff > -128) && (diff < 127));
-    buf[1] = (int8_t) diff;
-}
-
 
 // Pass-through: parser forwarding opcodes, provides encoding
 int genPassThrough(uint8_t* buf, Instr* instr)
@@ -2652,13 +2660,13 @@ CBB *findCaptureBB(Rewriter* r, uint64_t f, int esID)
 }
 
 // allocate an BB structure to collect instructions for capturing
-CBB* allocCaptureBB(Rewriter* c, uint64_t f, int esID)
+CBB* getCaptureBB(Rewriter* c, uint64_t f, int esID)
 {
     CBB* bb;
 
     // already captured?
     bb = findCaptureBB(c, f, esID);
-    if (bb) return 0;
+    if (bb) return bb;
 
     // start capturing of new BB beginning at f
     assert(c->capBBCount < c->capBBCapacity);
@@ -2672,8 +2680,11 @@ CBB* allocCaptureBB(Rewriter* c, uint64_t f, int esID)
     bb->nextFallThrough = 0;
     bb->endType = IT_None;
     bb->preferBranch = False;
-    bb->addr = 0;
-    bb->size = 0;
+    bb->size = -1; // size of 0 could be valid
+    bb->addr1 = 0;
+    bb->addr2 = 0;
+    bb->genJcc8 = False;
+    bb->genJump = False;
 
     return bb;
 }
@@ -2793,28 +2804,23 @@ void generate(Rewriter* c, CBB* cbb)
         useCodeStorage(c->cs, used);
     }
 
-    if (cbb->endType != IT_None) {
-        // FIXME: only Jcc with 2 bytes space enough
-        assert(cbb->nextBranch != 0);
-        if (c->showEmuSteps)
-            printf("  I%2d : jCC (%lx|%d)\n", i,
-                   cbb->nextBranch->dec_addr, cbb->nextBranch->esID);
+    if (c->showEmuSteps) {
+        if (instrIsJcc(cbb->endType)) {
+            assert(cbb->nextBranch != 0);
+            assert(cbb->nextFallThrough != 0);
 
-        switch(cbb->endType) {
-        case IT_JE:
-        case IT_JNE:
-        case IT_JP:
-        case IT_JLE:
-        case IT_JG:
-            break;
-        default: assert(0);
+        printf("  I%2d : %s (%lx|%d), fall-through to (%lx|%d)\n",
+               i, instrName(cbb->endType, 0),
+               cbb->nextBranch->dec_addr, cbb->nextBranch->esID,
+               cbb->nextFallThrough->dec_addr, cbb->nextFallThrough->esID);
         }
-        useCodeStorage(c->cs, 2);
-        usedTotal += 2;
     }
 
+    // add padding between BBs
+    buf = useCodeStorage(c->cs, 10);
+
     cbb->size = usedTotal;
-    cbb->addr = (cbb->count > 0) ? cbb->instr[0].addr : 0;
+    cbb->addr1 = (cbb->count == 0) ? ((uint64_t)buf) : cbb->instr[0].addr;
 }
 
 
@@ -3842,30 +3848,32 @@ void capturePassThrough(Rewriter* c, Instr* orig, EmuState* es)
 }
 
 // this ends a captured BB, queuing new paths to be traced
-uint64_t captureExit(Rewriter* r, InstrType it,
+uint64_t captureJcc(Rewriter* r, InstrType it,
                      uint64_t branchTarget, uint64_t fallthroughTarget,
                      Bool didBranch)
 {
-    CBB *bb;
+    CBB *cbb, *cbbBR, *cbbFT;
     int esID;
 
-    bb = popCaptureBB(r);
-    bb->endType = it;
+    cbb = popCaptureBB(r);
+    cbb->endType = it;
     // use observed behavior from trace as hint for code generation
-    bb->preferBranch = didBranch;
+    cbb->preferBranch = didBranch;
 
-    esID = -1;
-    if (fallthroughTarget > 0) {
-        if (esID < 0) esID = saveEmuState(r);
-        CBB* newCBB = allocCaptureBB(r, fallthroughTarget, esID);
-        bb->nextFallThrough = newCBB;
-        pushCaptureBB(r, newCBB);
+    esID = saveEmuState(r);
+    cbbFT = getCaptureBB(r, fallthroughTarget, esID);
+    cbbBR = getCaptureBB(r, branchTarget, esID);
+    cbb->nextFallThrough = cbbFT;
+    cbb->nextBranch = cbbBR;
+
+    // entry pushed last will be processed first
+    if (didBranch) {
+        pushCaptureBB(r, cbbFT);
+        pushCaptureBB(r, cbbBR);
     }
-    if (branchTarget > 0) {
-        if (esID < 0) esID = saveEmuState(r);
-        CBB* newCBB = allocCaptureBB(r, branchTarget, esID);
-        bb->nextBranch = newCBB;
-        pushCaptureBB(r, newCBB);
+    else {
+        pushCaptureBB(r, cbbBR);
+        pushCaptureBB(r, cbbFT);
     }
 }
 
@@ -4000,40 +4008,40 @@ uint64_t emulateInstr(Rewriter* c, EmuState* es, Instr* instr)
         break;
 
     case IT_JE:
-        if (es->flag_state[FT_Zero] == CS_STATIC) {
-            if (es->flag[FT_Zero] == True) return instr->dst.val;
-            return instr->addr + instr->len;
+        if (es->flag_state[FT_Zero] != CS_STATIC) {
+            captureJcc(c, IT_JE, instr->dst.val, instr->addr + instr->len,
+                        es->flag[FT_Zero]);
         }
-        return captureExit(c, IT_JE, instr->dst.val, instr->addr + instr->len,
-                           es->flag[FT_Zero]);
+        if (es->flag[FT_Zero] == True) return instr->dst.val;
+        return instr->addr + instr->len;
 
     case IT_JNE:
-        if (es->flag_state[FT_Zero] == CS_STATIC) {
-            if (es->flag[FT_Zero] == False) return instr->dst.val;
-            return instr->addr + instr->len;
+        if (es->flag_state[FT_Zero] != CS_STATIC) {
+            captureJcc(c, IT_JNE, instr->dst.val, instr->addr + instr->len,
+                        !es->flag[FT_Zero]);
         }
-        return captureExit(c, IT_JNE, instr->dst.val, instr->addr + instr->len,
-                           !es->flag[FT_Zero]);
+        if (es->flag[FT_Zero] == False) return instr->dst.val;
+        return instr->addr + instr->len;
 
     case IT_JLE:
-        if ((es->flag_state[FT_Zero] == CS_STATIC) &&
-            (es->flag_state[FT_Sign] == CS_STATIC)) {
-            if ((es->flag[FT_Zero] == True) ||
-                (es->flag[FT_Sign] == True)) return instr->dst.val;
-            return instr->addr + instr->len;
+        if ((es->flag_state[FT_Zero] != CS_STATIC) ||
+            (es->flag_state[FT_Sign] != CS_STATIC)) {
+            captureJcc(c, IT_JLE, instr->dst.val, instr->addr + instr->len,
+                        es->flag[FT_Zero] || es->flag[FT_Sign]);
         }
-        return captureExit(c, IT_JLE, instr->dst.val, instr->addr + instr->len,
-                           es->flag[FT_Zero] && es->flag[FT_Sign]);
+        if ((es->flag[FT_Zero] == True) ||
+            (es->flag[FT_Sign] == True)) return instr->dst.val;
+        return instr->addr + instr->len;
 
     case IT_JG:
-        if ((es->flag_state[FT_Zero] == CS_STATIC) &&
-            (es->flag_state[FT_Sign] == CS_STATIC)) {
-            if ((es->flag[FT_Zero] == False) &&
-                (es->flag[FT_Sign] == False)) return instr->dst.val;
-            return instr->addr + instr->len;
+        if ((es->flag_state[FT_Zero] != CS_STATIC) ||
+            (es->flag_state[FT_Sign] != CS_STATIC)) {
+            captureJcc(c, IT_JG, instr->dst.val, instr->addr + instr->len,
+                        !es->flag[FT_Zero] && !es->flag[FT_Sign]);
         }
-        return captureExit(c, IT_JG, instr->dst.val, instr->addr + instr->len,
-                           !es->flag[FT_Zero] && !es->flag[FT_Sign]);
+        if ((es->flag[FT_Zero] == False) &&
+            (es->flag[FT_Sign] == False)) return instr->dst.val;
+        return instr->addr + instr->len;
 
     case IT_JP:
         // FIXME: assume P flag always cleared => fall through
@@ -4329,7 +4337,7 @@ uint64_t rewrite(Rewriter* c, ...)
 
     // queue BB at c->func for being captured
     esID = saveEmuState(c);
-    cbb = allocCaptureBB(c, c->func, esID);
+    cbb = getCaptureBB(c, c->func, esID);
     pushCaptureBB(c, cbb);
     assert(c->capStackTop == 0);
 
@@ -4349,7 +4357,7 @@ uint64_t rewrite(Rewriter* c, ...)
         if (c->currentCapBB == 0) {
             while(c->capStackTop >= 0) {
                 cbb = c->capStack[c->capStackTop];
-                if (cbb->count == 0) break;
+                if (cbb->endType == IT_None) break;
                 // cbb already handled; go to previous item on capture stack
                 c->capStackTop--;
             }
@@ -4402,21 +4410,101 @@ uint64_t rewrite(Rewriter* c, ...)
 
             // go to next path to trace
             cbb = popCaptureBB(c);
+            cbb->endType = IT_RET;
         }
         bb_addr = nextbb_addr;
     }
 
-    // FIXME: Generating code for multiple CBBs wrong
-    for(i=0; i < c->capBBCount; i++)
-        generate(c, c->capBB + i);
+    // Pass 1: generating code for BBs without linking them
+    assert(c->capStackTop == -1);
+    pushCaptureBB(c, c->capBB);
+    while(c->capStackTop >= 0) {
+        cbb = c->capStack[c->capStackTop];
+        c->capStackTop--;
+        if (cbb->size >= 0) continue;
 
-    // Pass2: simple relocate using 2-byte holes between generated BBs
-    for(i=0; i < c->capBBCount; i++) {
-        if (c->capBB[i].endType != IT_None)
-            genJcc(c->capBB);
-        if (c->capBB[i].nextFallThrough) {
-            // ensure that fallthrough paths are correct
-            assert(c->capBB[i].nextFallThrough == &(c->capBB[i+1]));
+        assert(c->genOrderCount < GENORDER_MAX);
+        c->genOrder[c->genOrderCount++] = cbb;
+        generate(c, cbb);
+
+        if (instrIsJcc(cbb->endType)) {
+            // FIXME: order according to branch preference
+            pushCaptureBB(c, cbb->nextBranch);
+            pushCaptureBB(c, cbb->nextFallThrough);
+        }
+    }
+
+    // Pass 2: determine trailing bytes needed for each BB
+    c->genOrder[c->genOrderCount] = 0;
+    for(i=0; i < c->genOrderCount; i++) {
+        uint8_t* buf;
+        int diff;
+
+        cbb = c->genOrder[i];
+        buf = useCodeStorage(c->cs, cbb->size);
+        cbb->addr2 = (uint64_t) buf;
+        if (cbb->size > 0) {
+            assert(cbb->count>0);
+            memcpy(buf, (char*)cbb->addr1, cbb->size);
+        }
+        if (!instrIsJcc(cbb->endType)) continue;
+
+        diff = cbb->nextBranch->addr1 - (cbb->addr1 + cbb->size);
+        if ((diff > -120) && (diff < 120))
+            cbb->genJcc8 = True;
+        useCodeStorage(c->cs, cbb->genJcc8 ? 2 : 6);
+        if (cbb->nextFallThrough != c->genOrder[i+1]) {
+            cbb->genJump = True;
+            useCodeStorage(c->cs, 5);
+        }
+    }
+
+    // Pass 3: fill trailing bytes
+    for(i=0; i < c->genOrderCount; i++) {
+        uint8_t* buf;
+        uint64_t buf_addr;
+        int diff;
+
+        cbb = c->genOrder[i];
+        if (!instrIsJcc(cbb->endType)) continue;
+
+        buf = (uint8_t*) (cbb->addr2 + cbb->size);
+        buf_addr = (uint64_t) buf;
+        if (cbb->genJcc8) {
+            diff = cbb->nextBranch->addr2 - (buf_addr + 2);
+            assert((diff > -128) && (diff < 127));
+
+            switch(cbb->endType) {
+            case IT_JE:  buf[0] = 0x74; break;
+            case IT_JNE: buf[0] = 0x75; break;
+            case IT_JP:  buf[0] = 0x7A; break;
+            case IT_JLE: buf[0] = 0x7E; break;
+            case IT_JG:  buf[0] = 0x7F; break;
+            default: assert(0);
+            }
+            buf[1] = (int8_t) diff;
+            buf += 2;
+        }
+        else {
+            diff = cbb->nextBranch->addr2 - (buf_addr + 6);
+            buf[0] = 0x0F;
+            switch(cbb->endType) {
+            case IT_JE:  buf[1] = 0x84; break;
+            case IT_JNE: buf[1] = 0x85; break;
+            case IT_JP:  buf[1] = 0x8A; break;
+            case IT_JLE: buf[1] = 0x8E; break;
+            case IT_JG:  buf[1] = 0x8F; break;
+            default: assert(0);
+            }
+            *(int32_t*)(buf+2) = diff;
+            buf += 6;
+        }
+        if (cbb->genJump) {
+            buf_addr = (uint64_t) buf;
+            diff = cbb->nextFallThrough->addr2 - (buf_addr + 5);
+            buf[0] = 0xE9;
+            *(int32_t*)(buf+1) = diff;
+            buf += 5;
         }
     }
 

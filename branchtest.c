@@ -83,6 +83,6 @@ void runTest(char* fname, uint64_t f, int p1, int p2, int sp1)
 int main()
 {
     runTest("test1", (uint64_t) test1, 1,7, 2);
-    runTest("test2", (uint64_t) test2, 4,7, 1);
+    runTest("test2", (uint64_t) test2, 4,7, 3);
     return 0;
 }
