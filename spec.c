@@ -219,6 +219,8 @@ typedef struct _CBB {
     CBB *nextBranch, *nextFallThrough;
     // type of instruction ending this BB
     InstrType endType;
+    // a hint for conditional branches whether branching is more likely
+    Bool preferBranch;
 
     // for code generation/relocation
     uint64_t addr;
@@ -1141,6 +1143,16 @@ DBB* decodeBB(Rewriter* c, uint64_t f)
                 attachPassthrough(ii, PS_F2, OE_RM, 0x0F, 0x5C, -1);
                 break;
 
+            case 0x7E:
+                assert(has66);
+                // movd/q xmm,r/m 32/64 (RM)
+                vt = (rex & REX_MASK_W) ? VT_64 : VT_32;
+                off += parseModRM(fp+off, rex, 1, 0, vt, &o2, &o1, 0);
+                ii = addBinaryOp(c, a, (uint64_t)(fp + off),
+                                 IT_MOV, vt, &o1, &o2);
+                attachPassthrough(ii, PS_66, OE_RM, 0x0F, 0x7E, -1);
+                break;
+
             case 0x84: // JE/JZ rel32
             case 0x85: // JNE/JNZ rel32
             case 0x8A: // JP rel32
@@ -1157,16 +1169,6 @@ DBB* decodeBB(Rewriter* c, uint64_t f)
                 else assert(0);
                 addUnaryOp(c, a, (uint64_t)(fp + off), it, &o1);
                 exitLoop = True;
-                break;
-
-            case 0x7E:
-                assert(has66);
-                // movd/q xmm,r/m 32/64 (RM)
-                vt = (rex & REX_MASK_W) ? VT_64 : VT_32;
-                off += parseModRM(fp+off, rex, 1, 0, vt, &o2, &o1, 0);
-                ii = addBinaryOp(c, a, (uint64_t)(fp + off),
-                                 IT_MOV, vt, &o1, &o2);
-                attachPassthrough(ii, PS_66, OE_RM, 0x0F, 0x7E, -1);
                 break;
 
             case 0xEF:
@@ -2561,6 +2563,8 @@ int genCmp(uint8_t* buf, Operand* src, Operand* dst)
     return 0;
 }
 
+// FIXME: could use branching hint for better code generation
+//        (needs larger holes to allow for eventual jumps)
 void genJcc(CBB* cbb)
 {
     int diff;
@@ -2571,11 +2575,13 @@ void genJcc(CBB* cbb)
     jcc_addr = cbb->addr + cbb->size - 2;
     buf = (uint8_t*) jcc_addr;
 
+    // use Jcc rel8 opcodes
     switch(cbb->endType) {
-    case IT_JNE:
-        // JNE rel8
-        buf[0] = 0x75;
-        break;
+    case IT_JE:  buf[0] = 0x74; break;
+    case IT_JNE: buf[0] = 0x75; break;
+    case IT_JP:  buf[0] = 0x7A; break;
+    case IT_JLE: buf[0] = 0x7E; break;
+    case IT_JG:  buf[0] = 0x7F; break;
 
     default: assert(0);
     }
@@ -2665,6 +2671,7 @@ CBB* allocCaptureBB(Rewriter* c, uint64_t f, int esID)
     bb->nextBranch = 0;
     bb->nextFallThrough = 0;
     bb->endType = IT_None;
+    bb->preferBranch = False;
     bb->addr = 0;
     bb->size = 0;
 
@@ -2794,7 +2801,12 @@ void generate(Rewriter* c, CBB* cbb)
                    cbb->nextBranch->dec_addr, cbb->nextBranch->esID);
 
         switch(cbb->endType) {
-        case IT_JNE: break;
+        case IT_JE:
+        case IT_JNE:
+        case IT_JP:
+        case IT_JLE:
+        case IT_JG:
+            break;
         default: assert(0);
         }
         useCodeStorage(c->cs, 2);
@@ -2837,7 +2849,7 @@ typedef enum _CaptureState {
 } CaptureState;
 
 typedef enum _FlagType {
-    FT_Carry = 0, FT_Zero, FT_Sign,
+    FT_Carry = 0, FT_Zero, FT_Sign, FT_Parity,
     FT_Max
 } FlagType;
 
@@ -3831,13 +3843,16 @@ void capturePassThrough(Rewriter* c, Instr* orig, EmuState* es)
 
 // this ends a captured BB, queuing new paths to be traced
 uint64_t captureExit(Rewriter* r, InstrType it,
-                     uint64_t branchTarget, uint64_t fallthroughTarget)
+                     uint64_t branchTarget, uint64_t fallthroughTarget,
+                     Bool didBranch)
 {
     CBB *bb;
     int esID;
 
     bb = popCaptureBB(r);
     bb->endType = it;
+    // use observed behavior from trace as hint for code generation
+    bb->preferBranch = didBranch;
 
     esID = -1;
     if (fallthroughTarget > 0) {
@@ -3985,28 +4000,40 @@ uint64_t emulateInstr(Rewriter* c, EmuState* es, Instr* instr)
         break;
 
     case IT_JE:
-        assert(es->flag_state[FT_Zero] == CS_STATIC);
-        if (es->flag[FT_Zero] == True) return instr->dst.val;
-        return instr->addr + instr->len;
+        if (es->flag_state[FT_Zero] == CS_STATIC) {
+            if (es->flag[FT_Zero] == True) return instr->dst.val;
+            return instr->addr + instr->len;
+        }
+        return captureExit(c, IT_JE, instr->dst.val, instr->addr + instr->len,
+                           es->flag[FT_Zero]);
 
     case IT_JNE:
         if (es->flag_state[FT_Zero] == CS_STATIC) {
             if (es->flag[FT_Zero] == False) return instr->dst.val;
             return instr->addr + instr->len;
         }
-        return captureExit(c, IT_JNE, instr->dst.val, instr->addr + instr->len);
+        return captureExit(c, IT_JNE, instr->dst.val, instr->addr + instr->len,
+                           !es->flag[FT_Zero]);
 
     case IT_JLE:
-        assert(es->flag_state[FT_Zero] == CS_STATIC);
-        assert(es->flag_state[FT_Sign] == CS_STATIC);
-        if ((es->flag[FT_Zero] == True) || (es->flag[FT_Sign] == True)) return instr->dst.val;
-        return instr->addr + instr->len;
+        if ((es->flag_state[FT_Zero] == CS_STATIC) &&
+            (es->flag_state[FT_Sign] == CS_STATIC)) {
+            if ((es->flag[FT_Zero] == True) ||
+                (es->flag[FT_Sign] == True)) return instr->dst.val;
+            return instr->addr + instr->len;
+        }
+        return captureExit(c, IT_JLE, instr->dst.val, instr->addr + instr->len,
+                           es->flag[FT_Zero] && es->flag[FT_Sign]);
 
     case IT_JG:
-        assert(es->flag_state[FT_Zero] == CS_STATIC);
-        assert(es->flag_state[FT_Sign] == CS_STATIC);
-        if ((es->flag[FT_Zero] == False) && (es->flag[FT_Sign] == False)) return instr->dst.val;
-        return instr->addr + instr->len;
+        if ((es->flag_state[FT_Zero] == CS_STATIC) &&
+            (es->flag_state[FT_Sign] == CS_STATIC)) {
+            if ((es->flag[FT_Zero] == False) &&
+                (es->flag[FT_Sign] == False)) return instr->dst.val;
+            return instr->addr + instr->len;
+        }
+        return captureExit(c, IT_JG, instr->dst.val, instr->addr + instr->len,
+                           !es->flag[FT_Zero] && !es->flag[FT_Sign]);
 
     case IT_JP:
         // FIXME: assume P flag always cleared => fall through
@@ -4383,10 +4410,15 @@ uint64_t rewrite(Rewriter* c, ...)
     for(i=0; i < c->capBBCount; i++)
         generate(c, c->capBB + i);
 
-    // Pass2: simple (and broken) relocate
-    for(i=0; i < c->capBBCount; i++)
-        if (c->capBB->endType != IT_None)
+    // Pass2: simple relocate using 2-byte holes between generated BBs
+    for(i=0; i < c->capBBCount; i++) {
+        if (c->capBB[i].endType != IT_None)
             genJcc(c->capBB);
+        if (c->capBB[i].nextFallThrough) {
+            // ensure that fallthrough paths are correct
+            assert(c->capBB[i].nextFallThrough == &(c->capBB[i+1]));
+        }
+    }
 
     // return value according to calling convention
     return es->reg[Reg_AX];
