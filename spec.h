@@ -110,6 +110,13 @@ Rewriter* allocRewriter();
 // free rewriter resources
 void freeRewriter(Rewriter*);
 
+// configure size of internal buffer space of a rewriter
+void setRewriterDecodingCapacity(Rewriter* r,
+				 int instrCapacity, int bbCapacity);
+void setRewriterCaptureCapacity(Rewriter* r,
+                                int instrCapacity, int bbCapacity,
+                                int codeCapacity);
+
 // clear <c> from decoded/captured instructions
 void setFunc(Rewriter* rewriter, uint64_t f);
 
