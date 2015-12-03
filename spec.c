@@ -1398,6 +1398,16 @@ DBB* decodeBB(Rewriter* c, uint64_t f)
                             IT_ADD, vt, &o1, &o2);
                 break;
 
+            case 7:
+                // 81/7: cmp r/m 32/64, imm32
+                vt = (rex & REX_MASK_W) ? VT_64 : VT_32;
+                o2.type = OT_Imm32;
+                o2.val = *(uint32_t*)(fp + off);
+                off += 4;
+                addBinaryOp(c, a, (uint64_t)(fp + off),
+                            IT_CMP, vt, &o1, &o2);
+                break;
+
             default:
                 addSimple(c, a, (uint64_t)(fp + off), IT_Invalid);
                 break;
@@ -4214,6 +4224,7 @@ void captureBinaryOp(Rewriter* c, Instr* orig, EmuState* es, EmuValue* res)
     }
 
     // if dst (= 2.op) known/constant and a reg/stack, we need to update it
+    // example: %eax += %ebx with %eax known to be 5  =>  %eax=5, %eax+=%ebx
     getOpValue(&opval, es, &(orig->dst));
     if (keepsCaptureState(es, &(orig->dst)) && stateIsStatic(opval.state)) {
 
@@ -4280,11 +4291,26 @@ void captureLea(Rewriter* c, Instr* orig, EmuState* es, EmuValue* res)
 
 void captureCmp(Rewriter* c, Instr* orig, EmuState* es, CaptureState s)
 {
+    EmuValue opval;
     Instr i;
+    Operand *o;
 
     if (stateIsStatic(s)) return;
 
-    initBinaryInstr(&i, IT_CMP, orig->vtype, &(orig->dst), &(orig->src));
+    getOpValue(&opval, es, &(orig->dst));
+    if (stateIsStatic(opval.state)) {
+        // cannot replace dst with imm: no such encoding => update dst
+        initBinaryInstr(&i, IT_MOV, opval.type,
+                        &(orig->dst), getImmOp(opval.type, opval.val));
+        capture(c, &i);
+    }
+
+    o = &(orig->src);
+    getOpValue(&opval, es, &(orig->src));
+    if (stateIsStatic(opval.state))
+        o = getImmOp(opval.type, opval.val);
+
+    initBinaryInstr(&i, IT_CMP, orig->vtype, &(orig->dst), o);
     applyStaticToInd(&(i.dst), es);
     applyStaticToInd(&(i.src), es);
     capture(c, &i);

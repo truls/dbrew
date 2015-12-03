@@ -44,7 +44,7 @@ int test4(int a, int b)
 {
     int i = makeDynamic(0);
     for(; i < a; i++)
-        b++;
+        b += i;
     return b;
 }
 
