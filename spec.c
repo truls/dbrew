@@ -4986,6 +4986,8 @@ uint64_t rewrite(Rewriter* c, ...)
             case IT_JE:  buf[0] = 0x74; break;
             case IT_JNE: buf[0] = 0x75; break;
             case IT_JP:  buf[0] = 0x7A; break;
+            case IT_JL:  buf[0] = 0x7C; break;
+            case IT_JGE: buf[0] = 0x7D; break;
             case IT_JLE: buf[0] = 0x7E; break;
             case IT_JG:  buf[0] = 0x7F; break;
             default: assert(0);
@@ -5000,6 +5002,8 @@ uint64_t rewrite(Rewriter* c, ...)
             case IT_JE:  buf[1] = 0x84; break;
             case IT_JNE: buf[1] = 0x85; break;
             case IT_JP:  buf[1] = 0x8A; break;
+            case IT_JL:  buf[1] = 0x8C; break;
+            case IT_JGE: buf[1] = 0x8D; break;
             case IT_JLE: buf[1] = 0x8E; break;
             case IT_JG:  buf[1] = 0x8F; break;
             default: assert(0);
