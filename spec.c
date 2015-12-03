@@ -1262,6 +1262,20 @@ DBB* decodeBB(Rewriter* c, uint64_t f)
             addBinaryOp(c, a, (uint64_t)(fp + off), IT_AND, vt, &o1, &o2);
             break;
 
+        case 0x29:
+            // sub r/m,r 32/64 (MR)
+            vt = (rex & REX_MASK_W) ? VT_64 : VT_32;
+            off += parseModRM(fp+off, rex, 0, 0, VT_None, &o1, &o2, 0);
+            addBinaryOp(c, a, (uint64_t)(fp + off), IT_SUB, vt, &o1, &o2);
+            break;
+
+        case 0x2B:
+            // sub r,r/m 32/64 (RM)
+            vt = (rex & REX_MASK_W) ? VT_64 : VT_32;
+            off += parseModRM(fp+off, rex, 0, 0, VT_None, &o2, &o1, 0);
+            addBinaryOp(c, a, (uint64_t)(fp + off), IT_SUB, vt, &o1, &o2);
+            break;
+
         case 0x31:
             // xor r/m,r 32/64 (MR, dst: r/m, src: r)
             vt = (rex & REX_MASK_W) ? VT_64 : VT_32;
@@ -2373,11 +2387,11 @@ int genMov(uint8_t* buf, Operand* src, Operand* dst)
         switch(src->type) {
         case OT_Reg32:
         case OT_Reg64:
-            // use 'mov r/m,r 32/64' (0x89)
+            // use 'mov r/m,r 32/64' (0x89 MR)
             return genModRM(buf, 0x89, -1, dst, src);
 
         case OT_Imm32:
-            // use 'mov r/m 32/64, imm 32' (0xC7/0)
+            // use 'mov r/m 32/64, imm 32' (0xC7/0 MI)
             return genDigitMI(buf, 0xC7, 0, dst, src);
 
         default: assert(0);
@@ -2393,7 +2407,7 @@ int genMov(uint8_t* buf, Operand* src, Operand* dst)
         case OT_Reg32:
         case OT_Reg64:
             if (opValType(src) == opValType(dst)) {
-                // use 'mov r,r/m 32/64' (0x8B)
+                // use 'mov r,r/m 32/64' (0x8B RM)
                 return genModRM(buf, 0x8B, -1, src, dst);
             }
             else if ((opValType(src) == VT_32) &&
@@ -2464,7 +2478,7 @@ int genAdd(uint8_t* buf, Operand* src, Operand* dst)
         case OT_Reg64:
         case OT_Ind32:
         case OT_Ind64:
-            // use 'add r/m,r 32/64' (0x01)
+            // use 'add r/m,r 32/64' (0x01 MR)
             return genModRM(buf, 0x01, -1, dst, src);
 
         default: assert(0);
@@ -2477,7 +2491,7 @@ int genAdd(uint8_t* buf, Operand* src, Operand* dst)
         switch(dst->type) {
         case OT_Reg32:
         case OT_Reg64:
-            // use 'add r,r/m 32/64' (0x03)
+            // use 'add r,r/m 32/64' (0x03 RM)
             return genModRM(buf, 0x03, -1, src, dst);
 
         default: assert(0);
@@ -2491,7 +2505,7 @@ int genAdd(uint8_t* buf, Operand* src, Operand* dst)
         case OT_Reg64:
         case OT_Ind32:
         case OT_Ind64:
-            // use 'add r/m 32/64, imm8' (0x83/0)
+            // use 'add r/m 32/64, imm8' (0x83/0 MI)
             return genDigitMI(buf, 0x83, 0, dst, src);
 
         default: assert(0);
@@ -2505,7 +2519,7 @@ int genAdd(uint8_t* buf, Operand* src, Operand* dst)
         case OT_Reg64:
         case OT_Ind32:
         case OT_Ind64:
-            // use 'add r/m 32/64, imm32' (0x81/0)
+            // use 'add r/m 32/64, imm32' (0x81/0 MI)
             return genDigitMI(buf, 0x81, 0, dst, src);
 
         default: assert(0);
@@ -2531,6 +2545,20 @@ int genSub(uint8_t* buf, Operand* src, Operand* dst)
         case OT_Ind64:
             // use 'sub r/m,r 32/64' (0x29 MR)
             return genModRM(buf, 0x29, -1, dst, src);
+
+        default: assert(0);
+        }
+        break;
+
+    case OT_Ind32:
+    case OT_Ind64:
+        assert(opValType(src) == opValType(dst));
+        // src mem
+        switch(dst->type) {
+        case OT_Reg32:
+        case OT_Reg64:
+            // use 'sub r,r/m 32/64' (0x2B RM)
+            return genModRM(buf, 0x2B, -1, src, dst);
 
         default: assert(0);
         }
@@ -2654,7 +2682,35 @@ int genXor(uint8_t* buf, Operand* src, Operand* dst)
         case OT_Reg32:
         case OT_Reg64:
             // use 'xor r,r/m 32/64' (0x33 RM)
-            return genModRM(buf, 0x33, -1, dst, src);
+            return genModRM(buf, 0x33, -1, src, dst);
+
+        default: assert(0);
+        }
+        break;
+
+    case OT_Imm8:
+        // src imm8
+        switch(dst->type) {
+        case OT_Reg32:
+        case OT_Reg64:
+        case OT_Ind32:
+        case OT_Ind64:
+            // use 'xor r/m 32/64, imm8' (0x83/6 MI)
+            return genDigitMI(buf, 0x83, 6, dst, src);
+
+        default: assert(0);
+        }
+        break;
+
+    case OT_Imm32:
+        // src imm32
+        switch(dst->type) {
+        case OT_Reg32:
+        case OT_Reg64:
+        case OT_Ind32:
+        case OT_Ind64:
+            // use 'xor r/m 32/64, imm32' (0x81/6 MI)
+            return genDigitMI(buf, 0x81, 6, dst, src);
 
         default: assert(0);
         }
@@ -2692,7 +2748,35 @@ int genOr(uint8_t* buf, Operand* src, Operand* dst)
         case OT_Reg32:
         case OT_Reg64:
             // use 'or r,r/m 32/64' (0x0B RM)
-            return genModRM(buf, 0x0B, -1, dst, src);
+            return genModRM(buf, 0x0B, -1, src, dst);
+
+        default: assert(0);
+        }
+        break;
+
+    case OT_Imm8:
+        // src imm8
+        switch(dst->type) {
+        case OT_Reg32:
+        case OT_Reg64:
+        case OT_Ind32:
+        case OT_Ind64:
+            // use 'or r/m 32/64, imm8' (0x83/1 MI)
+            return genDigitMI(buf, 0x83, 1, dst, src);
+
+        default: assert(0);
+        }
+        break;
+
+    case OT_Imm32:
+        // src imm32
+        switch(dst->type) {
+        case OT_Reg32:
+        case OT_Reg64:
+        case OT_Ind32:
+        case OT_Ind64:
+            // use 'or r/m 32/64, imm32' (0x81/1 MI)
+            return genDigitMI(buf, 0x81, 1, dst, src);
 
         default: assert(0);
         }
@@ -2730,7 +2814,35 @@ int genAnd(uint8_t* buf, Operand* src, Operand* dst)
         case OT_Reg32:
         case OT_Reg64:
             // use 'and r,r/m 32/64' (0x23 RM)
-            return genModRM(buf, 0x23, -1, dst, src);
+            return genModRM(buf, 0x23, -1, src, dst);
+
+        default: assert(0);
+        }
+        break;
+
+    case OT_Imm8:
+        // src imm8
+        switch(dst->type) {
+        case OT_Reg32:
+        case OT_Reg64:
+        case OT_Ind32:
+        case OT_Ind64:
+            // use 'and r/m 32/64, imm8' (0x83/4 MI)
+            return genDigitMI(buf, 0x83, 4, dst, src);
+
+        default: assert(0);
+        }
+        break;
+
+    case OT_Imm32:
+        // src imm32
+        switch(dst->type) {
+        case OT_Reg32:
+        case OT_Reg64:
+        case OT_Ind32:
+        case OT_Ind64:
+            // use 'and r/m 32/64, imm32' (0x81/4 MI)
+            return genDigitMI(buf, 0x81, 4, dst, src);
 
         default: assert(0);
         }
@@ -2752,7 +2864,7 @@ int genShl(uint8_t* buf, Operand* src, Operand* dst)
         case OT_Ind32:
         case OT_Reg64:
         case OT_Ind64:
-            // use 'shl r/m 32/64,imm8' (0xC1/4 MI)
+            // use 'shl r/m 32/64, imm8' (0xC1/4 MI)
             return genDigitMI(buf, 0xC1, 4, dst, src);
 
         default: assert(0);
@@ -2794,6 +2906,36 @@ int genCltq(uint8_t* buf, ValType vt)
 int genCmp(uint8_t* buf, Operand* src, Operand* dst)
 {
     switch(src->type) {
+    // src reg
+    case OT_Reg32:
+    case OT_Reg64:
+        assert(opValType(src) == opValType(dst));
+        switch(dst->type) {
+        case OT_Reg32:
+        case OT_Ind32:
+        case OT_Reg64:
+        case OT_Ind64:
+            // use 'cmp r/m,r 32/64' (0x39 MR)
+            return genModRM(buf, 0x39, -1, dst, src);
+
+        default: assert(0);
+        }
+        break;
+
+    // src mem
+    case OT_Ind32:
+    case OT_Ind64:
+        assert(opValType(src) == opValType(dst));
+        switch(dst->type) {
+        case OT_Reg32:
+        case OT_Reg64:
+            // use 'cmp r,r/m 32/64' (0x3B RM)
+            return genModRM(buf, 0x3B, -1, src, dst);
+
+        default: assert(0);
+        }
+        break;
+
     case OT_Imm8:
         // src imm8
         switch(dst->type) {
@@ -2803,6 +2945,20 @@ int genCmp(uint8_t* buf, Operand* src, Operand* dst)
         case OT_Ind64:
             // use 'cmp r/m 32/64, imm8' (0x83/7 MI)
             return genDigitMI(buf, 0x83, 7, dst, src);
+
+        default: assert(0);
+        }
+        break;
+
+    case OT_Imm32:
+        // src imm32
+        switch(dst->type) {
+        case OT_Reg32:
+        case OT_Reg64:
+        case OT_Ind32:
+        case OT_Ind64:
+            // use 'cmp r/m 32/64, imm32' (0x81/7 MI)
+            return genDigitMI(buf, 0x81, 7, dst, src);
 
         default: assert(0);
         }
