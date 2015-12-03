@@ -134,7 +134,7 @@ typedef enum _InstrType {
     IT_PUSH, IT_POP, IT_LEAVE,
     IT_MOV, IT_MOVSX, IT_LEA,
     IT_NEG, IT_INC, IT_DEC,
-    IT_ADD, IT_SUB, IT_IMUL,
+    IT_ADD, IT_ADC, IT_SUB, IT_SBB, IT_IMUL,
     IT_XOR, IT_AND, IT_OR,
     IT_SHL, IT_SHR, IT_SAR,
     IT_CALL, IT_RET, IT_JMP,
@@ -1259,6 +1259,34 @@ DBB* decodeBB(Rewriter* c, uint64_t f)
             }
             break;
 
+        case 0x11:
+            // adc r/m,r 32/64 (MR, dst: r/m, src: r)
+            vt = (rex & REX_MASK_W) ? VT_64 : VT_32;
+            off += parseModRM(fp+off, rex, 0, 0, VT_None, &o1, &o2, 0);
+            addBinaryOp(c, a, (uint64_t)(fp + off), IT_ADC, vt, &o1, &o2);
+            break;
+
+        case 0x13:
+            // adc r,r/m 32/64 (RM, dst: r, src: r/m)
+            vt = (rex & REX_MASK_W) ? VT_64 : VT_32;
+            off += parseModRM(fp+off, rex, 0, 0, VT_None, &o2, &o1, 0);
+            addBinaryOp(c, a, (uint64_t)(fp + off), IT_ADC, vt, &o1, &o2);
+            break;
+
+        case 0x19:
+            // sbb r/m,r 32/64 (MR, dst: r/m, src: r)
+            vt = (rex & REX_MASK_W) ? VT_64 : VT_32;
+            off += parseModRM(fp+off, rex, 0, 0, VT_None, &o1, &o2, 0);
+            addBinaryOp(c, a, (uint64_t)(fp + off), IT_SBB, vt, &o1, &o2);
+            break;
+
+        case 0x1B:
+            // sbb r,r/m 32/64 (RM, dst: r, src: r/m)
+            vt = (rex & REX_MASK_W) ? VT_64 : VT_32;
+            off += parseModRM(fp+off, rex, 0, 0, VT_None, &o2, &o1, 0);
+            addBinaryOp(c, a, (uint64_t)(fp + off), IT_SBB, vt, &o1, &o2);
+            break;
+
         case 0x21:
             // and r/m,r 32/64 (MR, dst: r/m, src: r)
             vt = (rex & REX_MASK_W) ? VT_64 : VT_32;
@@ -1388,66 +1416,42 @@ DBB* decodeBB(Rewriter* c, uint64_t f)
         case 0x81:
             off += parseModRM(fp+off, rex, 0, 0, VT_None, &o1, 0, &digit);
             switch(digit) {
-            case 0:
-                // 81/0: add r/m 32/64, imm32
-                vt = (rex & REX_MASK_W) ? VT_64 : VT_32;
-                o2.type = OT_Imm32;
-                o2.val = *(uint32_t*)(fp + off);
-                off += 4;
-                addBinaryOp(c, a, (uint64_t)(fp + off),
-                            IT_ADD, vt, &o1, &o2);
-                break;
-
-            case 7:
-                // 81/7: cmp r/m 32/64, imm32
-                vt = (rex & REX_MASK_W) ? VT_64 : VT_32;
-                o2.type = OT_Imm32;
-                o2.val = *(uint32_t*)(fp + off);
-                off += 4;
-                addBinaryOp(c, a, (uint64_t)(fp + off),
-                            IT_CMP, vt, &o1, &o2);
-                break;
-
-            default:
-                addSimple(c, a, (uint64_t)(fp + off), IT_Invalid);
-                break;
+            case 0: it = IT_ADD; break; // 81/0: add r/m 32/64, imm32
+            case 1: it = IT_OR;  break; // 81/1: or  r/m 32/64, imm32
+            case 2: it = IT_ADC; break; // 81/2: adc r/m 32/64, imm32
+            case 3: it = IT_SBB; break; // 81/3: sbb r/m 32/64, imm32
+            case 4: it = IT_AND; break; // 81/4: and r/m 32/64, imm32
+            case 5: it = IT_SUB; break; // 81/5: sub r/m 32/64, imm32
+            case 6: it = IT_XOR; break; // 81/6: xor r/m 32/64, imm32
+            case 7: it = IT_CMP; break; // 81/7: cmp r/m 32/64, imm32
+            default: assert(0);
             }
+            vt = (rex & REX_MASK_W) ? VT_64 : VT_32;
+            o2.type = OT_Imm32;
+            o2.val = *(uint32_t*)(fp + off);
+            off += 4;
+            addBinaryOp(c, a, (uint64_t)(fp + off), it, vt, &o1, &o2);
             break;
 
         case 0x83:
             off += parseModRM(fp+off, rex, 0, 0, VT_None, &o1, 0, &digit);
+            // add/or/... r/m and sign-extended imm8
             switch(digit) {
-            case 0:
-                // 83/0: ADD r/m 32/64, imm8: Add sign-extended imm8 to r/m
-                vt = (rex & REX_MASK_W) ? VT_64 : VT_32;
-                o2.type = OT_Imm8;
-                o2.val = (uint8_t) (*(int8_t*)(fp + off));
-                off += 1;
-                addBinaryOp(c, a, (uint64_t)(fp + off), IT_ADD, vt, &o1, &o2);
-                break;
-
-            case 5:
-                // 83/5: SUB r/m 32/64, imm8: Subtract sign-extended imm8 from r/m
-                vt = (rex & REX_MASK_W) ? VT_64 : VT_32;
-                o2.type = OT_Imm8;
-                o2.val = (int64_t) (*(int8_t*)(fp + off));
-                off += 1;
-                addBinaryOp(c, a, (uint64_t)(fp + off), IT_SUB, vt, &o1, &o2);
-                break;
-
-            case 7:
-                // 83/7: CMP r/m 32/64, imm8 (MI)
-                vt = (rex & REX_MASK_W) ? VT_64 : VT_32;
-                o2.type = OT_Imm8;
-                o2.val = (int64_t) (*(int8_t*)(fp + off));
-                off += 1;
-                addBinaryOp(c, a, (uint64_t)(fp + off), IT_CMP, vt, &o1, &o2);
-                break;
-
-            default:
-                addSimple(c, a, (uint64_t)(fp + off), IT_Invalid);
-                break;
+            case 0: it = IT_ADD; break; // 83/0: add r/m 32/64, imm8
+            case 1: it = IT_OR;  break; // 83/1: or  r/m 32/64, imm8
+            case 2: it = IT_ADC; break; // 83/2: adc r/m 32/64, imm8
+            case 3: it = IT_SBB; break; // 83/3: sbb r/m 32/64, imm8
+            case 4: it = IT_AND; break; // 83/4: and r/m 32/64, imm8
+            case 5: it = IT_SUB; break; // 83/5: sub r/m 32/64, imm8
+            case 6: it = IT_XOR; break; // 83/6: xor r/m 32/64, imm8
+            case 7: it = IT_CMP; break; // 83/7: cmp r/m 32/64, imm8
+            default: assert(0);
             }
+            vt = (rex & REX_MASK_W) ? VT_64 : VT_32;
+            o2.type = OT_Imm8;
+            o2.val = (uint8_t) (*(int8_t*)(fp + off));
+            off += 1;
+            addBinaryOp(c, a, (uint64_t)(fp + off), it, vt, &o1, &o2);
             break;
 
         case 0x85:
@@ -1889,7 +1893,9 @@ char* instrName(InstrType it, int* opCount)
     case IT_INC:     n = "inc";     oc = 1; break;
     case IT_DEC:     n = "dec";     oc = 1; break;
     case IT_ADD:     n = "add";     oc = 2; break;
+    case IT_ADC:     n = "adc";     oc = 2; break;
     case IT_SUB:     n = "sub";     oc = 2; break;
+    case IT_SBB:     n = "sbb";     oc = 2; break;
     case IT_IMUL:    n = "imul";    oc = 2; break;
     case IT_AND:     n = "and";     oc = 2; break;
     case IT_OR:      n = "or";      oc = 2; break;
