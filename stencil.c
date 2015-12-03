@@ -194,8 +194,7 @@ int main(int argc, char* argv[])
     if (r) {
         // use another rewriter to show generated code
         Rewriter* r2 = allocRewriter();
-        setFunc(r2, generatedCode(r));
-        printDecodedBB( decodeBB(r2, generatedCode(r)) );
+        printDecoded(r2, generatedCode(r), generatedCodeSize(r));
         freeRewriter(r2);
     }
 

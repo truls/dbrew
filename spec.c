@@ -195,6 +195,12 @@ typedef enum _OperandForm {
     OF_Max
 } OperandForm;
 
+// information about capture state changes in Pass-Through instructions
+typedef enum _StateChange {
+    SC_None = 0,
+    SC_dstDyn // operand dst is valid, should change to dynamic
+} StateChange;
+
 typedef struct _Instr {
     uint64_t addr;
     int len;
@@ -205,6 +211,7 @@ typedef struct _Instr {
     PrefixSet ptPSet;
     unsigned char ptOpc[4];
     OperandEncoding ptEnc;
+    StateChange ptSChange;
 
     ValType vtype; // without explicit operands or all operands of same type
     OperandForm form;
@@ -755,6 +762,7 @@ void copyInstr(Instr* dst, Instr* src)
     if (src->ptLen > 0) {
         dst->ptPSet = src->ptPSet;
         dst->ptEnc  = src->ptEnc;
+        dst->ptSChange = src->ptSChange;
         for(int j=0; j < src->ptLen; j++)
             dst->ptOpc[j] = src->ptOpc[j];
     }
@@ -810,11 +818,13 @@ void initTernaryInstr(Instr* i, InstrType it,
 }
 
 
-void attachPassthrough(Instr* i, PrefixSet set, OperandEncoding enc,
+void attachPassthrough(Instr* i, PrefixSet set,
+                       OperandEncoding enc, StateChange sc,
                        int b1, int b2, int b3)
 {
     assert(i->ptLen == 0);
     i->ptEnc = enc;
+    i->ptSChange = sc;
     i->ptPSet = set;
     assert(b1>=0);
     i->ptLen++;
@@ -1139,7 +1149,7 @@ DBB* decodeBB(Rewriter* c, uint64_t f)
                 off += parseModRM(fp+off, rex, 1, 1, VT_64, &o2, &o1, 0);
                 ii = addBinaryOp(c, a, (uint64_t)(fp + off),
                                  IT_MOVSD, VT_64, &o1, &o2);
-                attachPassthrough(ii, PS_F2, OE_RM, 0x0F, 0x10, -1);
+                attachPassthrough(ii, PS_F2, OE_RM, SC_None, 0x0F, 0x10, -1);
                 break;
 
             case 0x11:
@@ -1148,7 +1158,7 @@ DBB* decodeBB(Rewriter* c, uint64_t f)
                 off += parseModRM(fp+off, rex, 1, 1, VT_64, &o1, &o2, 0);
                 ii = addBinaryOp(c, a, (uint64_t)(fp + off),
                                  IT_MOVSD, VT_64, &o1, &o2);
-                attachPassthrough(ii, PS_F2, OE_MR, 0x0F, 0x11, -1);
+                attachPassthrough(ii, PS_F2, OE_MR, SC_None, 0x0F, 0x11, -1);
                 break;
 
             case 0x1F:
@@ -1171,7 +1181,7 @@ DBB* decodeBB(Rewriter* c, uint64_t f)
                 off += parseModRM(fp+off, rex, 1, 1, VT_64, &o2, &o1, 0);
                 ii = addBinaryOp(c, a, (uint64_t)(fp + off),
                                  IT_UCOMISD, VT_64, &o1, &o2);
-                attachPassthrough(ii, PS_66, OE_RM, 0x0F, 0x2E, -1);
+                attachPassthrough(ii, PS_66, OE_RM, SC_None, 0x0F, 0x2E, -1);
                 break;
 
             case 0x58:
@@ -1180,7 +1190,7 @@ DBB* decodeBB(Rewriter* c, uint64_t f)
                 off += parseModRM(fp+off, rex, 1, 1, VT_64, &o2, &o1, 0);
                 ii = addBinaryOp(c, a, (uint64_t)(fp + off),
                                  IT_ADDSD, VT_64, &o1, &o2);
-                attachPassthrough(ii, PS_F2, OE_RM, 0x0F, 0x58, -1);
+                attachPassthrough(ii, PS_F2, OE_RM, SC_None, 0x0F, 0x58, -1);
                 break;
 
             case 0x59:
@@ -1189,7 +1199,7 @@ DBB* decodeBB(Rewriter* c, uint64_t f)
                 off += parseModRM(fp+off, rex, 1, 1, VT_64, &o2, &o1, 0);
                 ii = addBinaryOp(c, a, (uint64_t)(fp + off),
                                  IT_MULSD, VT_64, &o1, &o2);
-                attachPassthrough(ii, PS_F2, OE_RM, 0x0F, 0x59, -1);
+                attachPassthrough(ii, PS_F2, OE_RM, SC_None, 0x0F, 0x59, -1);
                 break;
 
             case 0x5C:
@@ -1198,7 +1208,7 @@ DBB* decodeBB(Rewriter* c, uint64_t f)
                 off += parseModRM(fp+off, rex, 1, 1, VT_64, &o2, &o1, 0);
                 ii = addBinaryOp(c, a, (uint64_t)(fp + off),
                                  IT_SUBSD, VT_64, &o1, &o2);
-                attachPassthrough(ii, PS_F2, OE_RM, 0x0F, 0x5C, -1);
+                attachPassthrough(ii, PS_F2, OE_RM, SC_None, 0x0F, 0x5C, -1);
                 break;
 
             case 0x7E:
@@ -1208,7 +1218,7 @@ DBB* decodeBB(Rewriter* c, uint64_t f)
                 off += parseModRM(fp+off, rex, 1, 0, vt, &o2, &o1, 0);
                 ii = addBinaryOp(c, a, (uint64_t)(fp + off),
                                  IT_MOV, vt, &o1, &o2);
-                attachPassthrough(ii, PS_66, OE_RM, 0x0F, 0x7E, -1);
+                attachPassthrough(ii, PS_66, OE_RM, SC_dstDyn, 0x0F, 0x7E, -1);
                 break;
 
             case 0x84: // JE/JZ rel32
@@ -1239,7 +1249,8 @@ DBB* decodeBB(Rewriter* c, uint64_t f)
                 off += parseModRM(fp+off, rex, 1, 1, vt, &o2, &o1, 0);
                 ii = addBinaryOp(c, a, (uint64_t)(fp + off),
                                  IT_PXOR, vt, &o1, &o2);
-                attachPassthrough(ii, has66 ? PS_66 : 0, OE_RM, 0x0F, 0xEF, -1);
+                attachPassthrough(ii, has66 ? PS_66 : 0, OE_RM, SC_None,
+                                  0x0F, 0xEF, -1);
                 break;
 
             default:
@@ -2191,7 +2202,7 @@ uint8_t* calcModRM(Operand* o1, Operand* o2, int* prex, int* plen)
         r2 = GPRegEncoding(o2->reg);
     }
     else if (opIsVReg(o2)) {
-        assert(opIsReg(o1) || opIsInd(o1));
+        assert(opIsVReg(o1) || opIsInd(o1));
         r2 = VRegEncoding(o2->reg);
     }
     else assert(0);
@@ -3252,8 +3263,8 @@ typedef struct _EmuState {
     uint64_t reg[Reg_Max];
     CaptureState reg_state[Reg_Max];
 
-    // x86 flags: carry (CF), zero (ZF), sign (SF)
-    // TODO: overflow, parity, auxiliary carry
+    // x86 flags: carry (CF), zero (ZF), sign (SF), overflow (OF), parity (PF)
+    // TODO: auxiliary carry
     Bool flag[FT_Max];
     CaptureState flag_state[FT_Max];
 
@@ -3432,7 +3443,10 @@ Bool csIsEqual(EmuState* es1, CaptureState s1, uint64_t v1,
     // normalize meta states: CS_STATIC2 is equivalent to CS_STATIC
     if (s1 == CS_STATIC2) s1 = CS_STATIC;
     if (s2 == CS_STATIC2) s2 = CS_STATIC;
-    
+    // handle DEAD equal to DYNAMIC (no need to distinguish)
+    if (s1 == CS_DEAD) s1 = CS_DYNAMIC;
+    if (s2 == CS_DEAD) s2 = CS_DYNAMIC;
+
     if (s1 != s2) return False;
     
     switch(s1) {
@@ -3458,13 +3472,13 @@ Bool esIsEqual(EmuState* es1, EmuState* es2)
     int i;
     
     // same state for registers?
-    for(i = 0; i < Reg_Max; i++) {
+    for(i = Reg_AX; i <= Reg_15; i++) {
         if (!csIsEqual(es1, es1->reg_state[i], es1->reg[i],
                        es2, es2->reg_state[i], es2->reg[i]))
             return False;
     }
     
-    // same state for registers?
+    // same state for flag registers?
     for(i = 0; i < FT_Max; i++) {
         if (!csIsEqual(es1, es1->flag_state[i], es1->flag[i],
                        es2, es2->flag_state[i], es2->flag[i]))
@@ -3550,10 +3564,17 @@ int saveEmuState(Rewriter* r)
 {
     int i;
 
-    for(i = 0; i < r->savedStateCount; i++)
-        if (esIsEqual(r->es, r->savedState[i]))
+    printf("Saving current emulator state: ");
+    //printStaticEmuState(r->es, -1);
+    for(i = 0; i < r->savedStateCount; i++) {
+        //printf("Check ES %d\n", i);
+        //printStaticEmuState(r->savedState[i], i);
+        if (esIsEqual(r->es, r->savedState[i])) {
+            printf("already existing, esID %d\n", i);
             return i;
-
+        }
+    }
+    printf("new with esID %d\n", i);
     assert(i < SAVEDSTATE_MAX);
     r->savedState[i] = cloneEmuState(r->es);
     r->savedStateCount++;
@@ -3566,6 +3587,18 @@ void restoreEmuState(Rewriter* r, int esID)
     assert((esID >= 0) && (esID < r->savedStateCount));
     assert(r->savedState[esID] != 0);
     copyEmuState(r->es, r->savedState[esID]);
+}
+
+char* flagName(int f)
+{
+    switch(f) {
+    case FT_Zero:     return "ZF";
+    case FT_Carry:    return "CF";
+    case FT_Sign:     return "SF";
+    case FT_Overflow: return "OF";
+    case FT_Parity:   return "PF";
+    }
+    assert(0);
 }
 
 void printEmuState(EmuState* es)
@@ -3589,12 +3622,13 @@ void printEmuState(EmuState* es)
     printf("    %%%-3s = 0x%016lx %c\n", regName(Reg_IP, OT_Reg64),
            es->reg[Reg_IP], captureState2Char( es->reg_state[Reg_IP] ));
 
-    printf("  Flags: CF %d %c  ZF %d %c  SF %d %c  OF %d %c  PF %d %c\n",
-           es->flag[FT_Carry], captureState2Char(es->flag_state[FT_Carry]),
-           es->flag[FT_Zero], captureState2Char(es->flag_state[FT_Zero]),
-           es->flag[FT_Sign], captureState2Char(es->flag_state[FT_Sign]),
-           es->flag[FT_Overflow], captureState2Char(es->flag_state[FT_Overflow]),
-           es->flag[FT_Parity], captureState2Char(es->flag_state[FT_Parity]) );
+    printf("  Flags: ");
+    for(i = 0; i < FT_Max; i++) {
+        if (i>0) printf("  ");
+        printf("%s %d %c", flagName(i), es->flag[i],
+               captureState2Char(es->flag_state[i]));
+    }
+    printf("\n");
 
     spOff = es->reg[Reg_SP] - es->stackStart;
     spMax = spOff /8*8 + 24;
@@ -3618,6 +3652,55 @@ void printEmuState(EmuState* es)
         printf("   %016lx  %s\n",
                (uint64_t) (es->stackStart + o), (o == spOff) ? "*" : " ");
     }
+}
+
+// print only state information important to distinguish for capturing
+void printStaticEmuState(EmuState* es, int esID)
+{
+    int i, c;
+
+    printf("Emulation Static State (esID %d, call depth %d):\n",
+           esID, es->depth);
+
+    printf("  Registers: ");
+    c = 0;
+    for(i=Reg_AX; i<Reg_15; i++) {
+        if (es->reg_state[i] == CS_DEAD) continue;
+        if (es->reg_state[i] == CS_DYNAMIC) continue;
+
+        if (c>0) printf(", ");
+        switch(es->reg_state[i]) {
+        case CS_STATIC:
+        case CS_STATIC2:
+            printf("%%%s (0x%lx)", regName(i, OT_Reg64), es->reg[i]);
+            break;
+        case CS_STACKRELATIVE:
+            printf("%%%s (R %ld)",
+                   regName(i, OT_Reg64), es->reg[i] - es->stackTop);
+            break;
+        default: assert(0);
+        }
+        c++;
+    }
+    if (c>0)
+        printf("\n");
+    else
+        printf("(none)\n");
+
+    printf("  Flags: ");
+    c = 0;
+    for(i = 0; i < FT_Max; i++) {
+        if (!stateIsStatic(es->flag_state[i])) continue;
+        if (c>0) printf(", ");
+        printf("%s (%d)", flagName(i), es->flag[i]);
+        c++;
+    }
+    if (c>0)
+        printf("\n");
+    else
+        printf("(none)\n");
+
+    // TODO: Stack
 }
 
 char combineState(CaptureState s1, CaptureState s2,
@@ -3761,7 +3844,7 @@ void setFlagsAdd(EmuState* es, EmuValue* v1, EmuValue* v2)
     }
 }
 
-// for bitwise operations: And, Xor, or
+// for bitwise operations: And, Xor, Or
 CaptureState setFlagsBit(EmuState* es, InstrType it,
                          EmuValue* v1, EmuValue* v2, Bool sameOperands)
 {
@@ -4236,6 +4319,25 @@ void captureRet(Rewriter* c, Instr* orig, EmuState* es)
     capture(c, orig);
 }
 
+// check for capture state modifications
+void processPassThrough(Rewriter* c, Instr* i, EmuState* es)
+{
+    assert(i->ptLen >0);
+    if (i->ptSChange == SC_None) return;
+
+    // FIXME: check memory writes for stack space
+
+    switch(i->dst.type) {
+    case OT_Reg32:
+    case OT_Reg64:
+        if (opIsGPReg(&(i->dst)))
+            es->reg_state[i->dst.reg] = CS_DYNAMIC;
+        break;
+
+    default: assert(0);
+    }
+}
+
 void capturePassThrough(Rewriter* c, Instr* orig, EmuState* es)
 {
     Instr i;
@@ -4312,8 +4414,10 @@ uint64_t emulateInstr(Rewriter* c, EmuState* es, Instr* instr)
     ValType vt;
 
     if (instr->ptLen > 0) {
-        // pass-through: no effect on emu-state, no emulation done
-        // still, emu-state have influence memory access
+        // pass-through: may have influence to emu state
+        processPassThrough(c, instr, es);
+
+        // memory addressing in captured instructions depends on emu state
         capturePassThrough(c, instr, es);
         return 0;
     }
@@ -4853,9 +4957,10 @@ uint64_t rewrite(Rewriter* c, ...)
     bb_addr = cbb->dec_addr;
     c->currentCapBB = cbb;
 
-    if (c->showEmuSteps)
-        printf("Tracing BB (%lx|%d), capture stack at %d ...\n",
-               cbb->dec_addr, cbb->esID, c->capStackTop);
+    if (c->showEmuSteps) {
+        printf("Processing BB (%lx|%d)\n", cbb->dec_addr, cbb->esID);
+        printStaticEmuState(es, cbb->esID);
+    }
     if (c->showEmuState) {
         es->reg[Reg_IP] = bb_addr;
         printEmuState(es);
@@ -4878,9 +4983,11 @@ uint64_t rewrite(Rewriter* c, ...)
             bb_addr = cbb->dec_addr;
             c->currentCapBB = cbb;
 
-            if (c->showEmuSteps)
-                printf("Tracing BB (%lx|%d), capture stack at %d ...\n",
+            if (c->showEmuSteps) {
+                printf("Processing BB (%lx|%d), %d BBs in queue\n",
                        cbb->dec_addr, cbb->esID, c->capStackTop);
+                printStaticEmuState(es, cbb->esID);
+            }
             if (c->showEmuState) {
                 es->reg[Reg_IP] = bb_addr;
                 printEmuState(es);
