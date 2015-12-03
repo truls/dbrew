@@ -117,10 +117,10 @@ void setRewriterCaptureCapacity(Rewriter* r,
                                 int instrCapacity, int bbCapacity,
                                 int codeCapacity);
 
-// clear <c> from decoded/captured instructions
+// clear <r> from decoded/captured instructions
 void setFunc(Rewriter* rewriter, uint64_t f);
 
-// set Code activities verbose or quiet
+// set rewriter activities to be verbose or quiet
 void setVerbosity(Rewriter* rewriter, Bool decode, Bool emuState, Bool emuSteps);
 
 // decode a piece of x86 binary code starting add address <f>
@@ -146,5 +146,10 @@ int generatedCodeSize(Rewriter* c);
 void resetRewriterConfig(Rewriter* c);
 void setRewriterStaticPar(Rewriter* c, int staticParPos);
 void setRewriterReturnFP(Rewriter* c);
+
+// function which can be used in code to be rewritten:
+// change capture state for value <v> to become dynamic/static
+uint64_t makeDynamic(uint64_t v);
+uint64_t makeStatic(uint64_t v);
 
 #endif // SPEC_H

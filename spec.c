@@ -13,6 +13,21 @@
 #include <stdint.h>
 
 
+// functions which can be used in code to be rewritten
+
+__attribute__ ((noinline))
+uint64_t makeDynamic(uint64_t v)
+{
+    return v;
+}
+
+__attribute__ ((noinline))
+uint64_t makeStatic(uint64_t v)
+{
+    return v;
+}
+
+
 // forward declarations
 typedef struct _DBB DBB;
 typedef struct _CBB CBB;
@@ -123,7 +138,7 @@ typedef enum _InstrType {
     IT_XOR, IT_AND, IT_OR,
     IT_SHL, IT_SHR, IT_SAR,
     IT_CALL, IT_RET, IT_JMP,
-    IT_JG, IT_JE, IT_JNE, IT_JLE, IT_JP,
+    IT_JG, IT_JE, IT_JL, IT_JNE, IT_JLE, IT_JGE, IT_JP,
     IT_CMP, IT_TEST,
     // SSE
     IT_PXOR, IT_MOVSD, IT_MULSD, IT_ADDSD, IT_SUBSD, IT_UCOMISD,
@@ -703,6 +718,8 @@ Bool instrIsJcc(InstrType it)
     case IT_JP:
     case IT_JLE:
     case IT_JG:
+    case IT_JL:
+    case IT_JGE:
         return True;
     }
     return False;
@@ -1092,6 +1109,20 @@ DBB* decodeBB(Rewriter* c, uint64_t f)
             addBinaryOp(c, a, (uint64_t)(fp + off), IT_ADD, vt, &o1, &o2);
             break;
 
+        case 0x09:
+            // or r/m,r 32/64 (MR, dst: r/m, src: r)
+            vt = (rex & REX_MASK_W) ? VT_64 : VT_32;
+            off += parseModRM(fp+off, rex, 0, 0, VT_None, &o1, &o2, 0);
+            addBinaryOp(c, a, (uint64_t)(fp + off), IT_OR, vt, &o1, &o2);
+            break;
+
+        case 0x0B:
+            // or r,r/m 32/64 (RM, dst: r, src: r/m)
+            vt = (rex & REX_MASK_W) ? VT_64 : VT_32;
+            off += parseModRM(fp+off, rex, 0, 0, VT_None, &o2, &o1, 0);
+            addBinaryOp(c, a, (uint64_t)(fp + off), IT_OR, vt, &o1, &o2);
+            break;
+
         case 0x0F:
             opc2 = fp[off++];
             switch(opc2) {
@@ -1183,6 +1214,8 @@ DBB* decodeBB(Rewriter* c, uint64_t f)
             case 0x84: // JE/JZ rel32
             case 0x85: // JNE/JNZ rel32
             case 0x8A: // JP rel32
+            case 0x8C: // JL/JNGE rel32
+            case 0x8D: // JGE/JNL rel32
             case 0x8E: // JLE/JNG rel32
             case 0x8F: // JG/JNLE rel32
                 o1.type = OT_Imm64;
@@ -1191,6 +1224,8 @@ DBB* decodeBB(Rewriter* c, uint64_t f)
                 if      (opc2 == 0x84) it = IT_JE;
                 else if (opc2 == 0x85) it = IT_JNE;
                 else if (opc2 == 0x8A) it = IT_JP;
+                else if (opc2 == 0x8C) it = IT_JL;
+                else if (opc2 == 0x8D) it = IT_JGE;
                 else if (opc2 == 0x8E) it = IT_JLE;
                 else if (opc2 == 0x8F) it = IT_JG;
                 else assert(0);
@@ -1213,10 +1248,31 @@ DBB* decodeBB(Rewriter* c, uint64_t f)
             }
             break;
 
+        case 0x21:
+            // and r/m,r 32/64 (MR, dst: r/m, src: r)
+            vt = (rex & REX_MASK_W) ? VT_64 : VT_32;
+            off += parseModRM(fp+off, rex, 0, 0, VT_None, &o1, &o2, 0);
+            addBinaryOp(c, a, (uint64_t)(fp + off), IT_AND, vt, &o1, &o2);
+            break;
+
+        case 0x23:
+            // and r,r/m 32/64 (RM, dst: r, src: r/m)
+            vt = (rex & REX_MASK_W) ? VT_64 : VT_32;
+            off += parseModRM(fp+off, rex, 0, 0, VT_None, &o2, &o1, 0);
+            addBinaryOp(c, a, (uint64_t)(fp + off), IT_AND, vt, &o1, &o2);
+            break;
+
         case 0x31:
             // xor r/m,r 32/64 (MR, dst: r/m, src: r)
             vt = (rex & REX_MASK_W) ? VT_64 : VT_32;
             off += parseModRM(fp+off, rex, 0, 0, VT_None, &o1, &o2, 0);
+            addBinaryOp(c, a, (uint64_t)(fp + off), IT_XOR, vt, &o1, &o2);
+            break;
+
+        case 0x33:
+            // xor r,r/m 32/64 (RM, dst: r, src: r/m)
+            vt = (rex & REX_MASK_W) ? VT_64 : VT_32;
+            off += parseModRM(fp+off, rex, 0, 0, VT_None, &o2, &o1, 0);
             addBinaryOp(c, a, (uint64_t)(fp + off), IT_XOR, vt, &o1, &o2);
             break;
 
@@ -1285,6 +1341,8 @@ DBB* decodeBB(Rewriter* c, uint64_t f)
         case 0x74: // JE/JZ rel8
         case 0x75: // JNE/JNZ rel8
         case 0x7A: // JP rel8
+        case 0x7C: // JL/JNGE rel8
+        case 0x7D: // JGE/JNL rel8
         case 0x7E: // JLE/JNG rel8
         case 0x7F: // JG/JNLE rel8
             o1.type = OT_Imm64;
@@ -1293,6 +1351,8 @@ DBB* decodeBB(Rewriter* c, uint64_t f)
             if      (opc == 0x74) it = IT_JE;
             else if (opc == 0x75) it = IT_JNE;
             else if (opc == 0x7A) it = IT_JP;
+            else if (opc == 0x7C) it = IT_JL;
+            else if (opc == 0x7D) it = IT_JGE;
             else if (opc == 0x7E) it = IT_JLE;
             else if (opc == 0x7F) it = IT_JG;
             else assert(0);
@@ -1785,6 +1845,8 @@ char* instrName(InstrType it, int* opCount)
     case IT_JNE:     n = "jne";     oc = 1; break;
     case IT_JLE:     n = "jle";     oc = 1; break;
     case IT_JG:      n = "jg";      oc = 1; break;
+    case IT_JL:      n = "jl";      oc = 1; break;
+    case IT_JGE:     n = "jge";     oc = 1; break;
     case IT_JP:      n = "jp";      oc = 1; break;
     case IT_MOV:     n = "mov";     oc = 2; break;
     case IT_MOVSX:   n = "movsx";   oc = 2; break;
@@ -1794,8 +1856,8 @@ char* instrName(InstrType it, int* opCount)
     case IT_ADD:     n = "add";     oc = 2; break;
     case IT_SUB:     n = "sub";     oc = 2; break;
     case IT_IMUL:    n = "imul";    oc = 2; break;
-    case IT_AND:     n = "xor";     oc = 2; break;
-    case IT_OR:      n = "xor";     oc = 2; break;
+    case IT_AND:     n = "and";     oc = 2; break;
+    case IT_OR:      n = "or";      oc = 2; break;
     case IT_XOR:     n = "xor";     oc = 2; break;
     case IT_SHL:     n = "shl";     oc = 2; break;
     case IT_SHR:     n = "shr";     oc = 2; break;
@@ -2584,10 +2646,101 @@ int genXor(uint8_t* buf, Operand* src, Operand* dst)
         }
         break;
 
+    // src mem
+    case OT_Ind32:
+    case OT_Ind64:
+        assert(opValType(src) == opValType(dst));
+        switch(dst->type) {
+        case OT_Reg32:
+        case OT_Reg64:
+            // use 'xor r,r/m 32/64' (0x33 RM)
+            return genModRM(buf, 0x33, -1, dst, src);
+
+        default: assert(0);
+        }
+        break;
+
     default: assert(0);
     }
     return 0;
 }
+
+int genOr(uint8_t* buf, Operand* src, Operand* dst)
+{
+    switch(src->type) {
+    // src reg
+    case OT_Reg32:
+    case OT_Reg64:
+        assert(opValType(src) == opValType(dst));
+        switch(dst->type) {
+        case OT_Reg32:
+        case OT_Ind32:
+        case OT_Reg64:
+        case OT_Ind64:
+            // use 'or r/m,r 32/64' (0x09 MR)
+            return genModRM(buf, 0x09, -1, dst, src);
+
+        default: assert(0);
+        }
+        break;
+
+    // src mem
+    case OT_Ind32:
+    case OT_Ind64:
+        assert(opValType(src) == opValType(dst));
+        switch(dst->type) {
+        case OT_Reg32:
+        case OT_Reg64:
+            // use 'or r,r/m 32/64' (0x0B RM)
+            return genModRM(buf, 0x0B, -1, dst, src);
+
+        default: assert(0);
+        }
+        break;
+
+    default: assert(0);
+    }
+    return 0;
+}
+
+int genAnd(uint8_t* buf, Operand* src, Operand* dst)
+{
+    switch(src->type) {
+    // src reg
+    case OT_Reg32:
+    case OT_Reg64:
+        assert(opValType(src) == opValType(dst));
+        switch(dst->type) {
+        case OT_Reg32:
+        case OT_Ind32:
+        case OT_Reg64:
+        case OT_Ind64:
+            // use 'and r/m,r 32/64' (0x21 MR)
+            return genModRM(buf, 0x21, -1, dst, src);
+
+        default: assert(0);
+        }
+        break;
+
+    // src mem
+    case OT_Ind32:
+    case OT_Ind64:
+        assert(opValType(src) == opValType(dst));
+        switch(dst->type) {
+        case OT_Reg32:
+        case OT_Reg64:
+            // use 'and r,r/m 32/64' (0x23 RM)
+            return genModRM(buf, 0x23, -1, dst, src);
+
+        default: assert(0);
+        }
+        break;
+
+    default: assert(0);
+    }
+    return 0;
+}
+
 
 int genShl(uint8_t* buf, Operand* src, Operand* dst)
 {
@@ -2819,17 +2972,23 @@ void generate(Rewriter* c, CBB* cbb)
             case IT_CMP:
                 used = genCmp(buf, &(instr->src), &(instr->dst));
                 break;
-	    case IT_DEC:
+            case IT_DEC:
                 used = genDec(buf, &(instr->dst));
                 break;
             case IT_IMUL:
                 used = genIMul(buf, &(instr->src), &(instr->dst));
                 break;
-	    case IT_INC:
+            case IT_INC:
                 used = genInc(buf, &(instr->dst));
                 break;
             case IT_XOR:
                 used = genXor(buf, &(instr->src), &(instr->dst));
+                break;
+            case IT_OR:
+                used = genOr(buf, &(instr->src), &(instr->dst));
+                break;
+            case IT_AND:
+                used = genAnd(buf, &(instr->src), &(instr->dst));
                 break;
             case IT_SHL:
                 used = genShl(buf, &(instr->src), &(instr->dst));
@@ -2921,7 +3080,7 @@ typedef enum _CaptureState {
 } CaptureState;
 
 typedef enum _FlagType {
-    FT_Carry = 0, FT_Zero, FT_Sign, FT_Parity,
+    FT_Carry = 0, FT_Zero, FT_Sign, FT_Overflow, FT_Parity,
     FT_Max
 } FlagType;
 
@@ -3274,10 +3433,12 @@ void printEmuState(EmuState* es)
     printf("    %%%-3s = 0x%016lx %c\n", regName(Reg_IP, OT_Reg64),
            es->reg[Reg_IP], captureState2Char( es->reg_state[Reg_IP] ));
 
-    printf("  Flags: CF %d %c  ZF %d %c  SF %d %c\n",
+    printf("  Flags: CF %d %c  ZF %d %c  SF %d %c  OF %d %c  PF %d %c\n",
            es->flag[FT_Carry], captureState2Char(es->flag_state[FT_Carry]),
            es->flag[FT_Zero], captureState2Char(es->flag_state[FT_Zero]),
-           es->flag[FT_Sign], captureState2Char(es->flag_state[FT_Sign]));
+           es->flag[FT_Sign], captureState2Char(es->flag_state[FT_Sign]),
+           es->flag[FT_Overflow], captureState2Char(es->flag_state[FT_Overflow]),
+           es->flag[FT_Parity], captureState2Char(es->flag_state[FT_Parity]) );
 
     spOff = es->reg[Reg_SP] - es->stackStart;
     spMax = spOff /8*8 + 24;
@@ -3345,68 +3506,106 @@ char combineState4Flags(CaptureState s1, CaptureState s2)
     return s;
 }
 
+/* Setting some flags can get complicated.
+ * From libx86emu/prim_ops.c (github.com/wfeldt/libx86emu)
+ */
+static uint32_t parity_tab[8] =
+{
+    0x96696996, 0x69969669, 0x69969669, 0x96696996,
+    0x69969669, 0x96696996, 0x96696996, 0x69969669,
+};
+
+#define PARITY(x)   (((parity_tab[(x) / 32] >> ((x) % 32)) & 1) == 0)
+#define XOR2(x)     (((x) ^ ((x)>>1)) & 0x1)
+
 // v1 - v2
 CaptureState setFlagsSub(EmuState* es, EmuValue* v1, EmuValue* v2)
 {
-    CaptureState s;
+    CaptureState st;
+    uint64_t r, bc, d, s;
 
-    s = combineState4Flags(v1->state, v2->state);
-    es->flag_state[FT_Carry] = s;
-    es->flag_state[FT_Zero] = s;
-    es->flag_state[FT_Sign] = s;
+    st = combineState4Flags(v1->state, v2->state);
+    es->flag_state[FT_Carry]    = st;
+    es->flag_state[FT_Zero]     = st;
+    es->flag_state[FT_Sign]     = st;
+    es->flag_state[FT_Overflow] = st;
+    es->flag_state[FT_Parity]   = st;
 
     assert(v1->type == v2->type);
 
-    es->flag[FT_Carry] = (v1->val < v2->val);
-    es->flag[FT_Zero]  = (v1->val == v2->val);
+    d = v1->val;
+    s = v2->val;
+    r = d - s;
+    bc = (r & (~d | s)) | (~d & s);
+
+    es->flag[FT_Zero]   = (d == s);
+    es->flag[FT_Parity] = PARITY(r & 0xff);
     switch(v1->type) {
     case VT_8:
-        es->flag[FT_Sign] = (((v1->val - v2->val) & (1l<<7)) != 0);
+        es->flag[FT_Sign]     = (r >> 7) & 1;
+        es->flag[FT_Carry]    = (bc >>7) & 1;
+        es->flag[FT_Overflow] = XOR2(bc >> 6);
         break;
     case VT_32:
-        es->flag[FT_Sign] = (((v1->val - v2->val) & (1l<<31)) != 0);
+        es->flag[FT_Sign]     = (r >> 31) & 1;
+        es->flag[FT_Carry]    = (bc >>31) & 1;
+        es->flag[FT_Overflow] = XOR2(bc >> 30);
         break;
     case VT_64:
-        es->flag[FT_Sign] = (((v1->val - v2->val) & (1l<<63)) != 0);
+        es->flag[FT_Sign]     = (r >> 63) & 1;
+        es->flag[FT_Carry]    = (bc >>63) & 1;
+        es->flag[FT_Overflow] = XOR2(bc >> 62);
         break;
     default: assert(0);
     }
 
-    return s;
+    return st;
 }
 
 void setFlagsAdd(EmuState* es, EmuValue* v1, EmuValue* v2)
 {
-    CaptureState s;
+    CaptureState st;
+    uint64_t r, cc, d, s;
 
-    s = combineState4Flags(v1->state, v2->state);
-    es->flag_state[FT_Carry] = s;
-    es->flag_state[FT_Zero] = s;
-    es->flag_state[FT_Sign] = s;
+    st = combineState4Flags(v1->state, v2->state);
+    es->flag_state[FT_Carry]    = st;
+    es->flag_state[FT_Zero]     = st;
+    es->flag_state[FT_Sign]     = st;
+    es->flag_state[FT_Overflow] = st;
+    es->flag_state[FT_Parity]   = st;
 
     assert(v1->type == v2->type);
 
+    d = v1->val;
+    s = v2->val;
+    r = d + s;
+    cc = (r & (~d | s)) | (~d & s);
+
+    es->flag[FT_Parity] = PARITY(r & 0xff);
     switch(v1->type) {
     case VT_8:
-        es->flag[FT_Carry] = (v1->val + v2->val >= (1<<8));
-        es->flag[FT_Zero]  = ((v1->val + v2->val) & ((1<<8)-1) == 0);
-        es->flag[FT_Sign]  = (((v1->val + v2->val) & (1l<<7)) != 0);
+        es->flag[FT_Carry]    = (cc >> 7) & 1;
+        es->flag[FT_Zero]     = ((r & ((1<<8)-1)) == 0);
+        es->flag[FT_Sign]     = (r >> 7) & 1;
+        es->flag[FT_Overflow] = XOR2(cc >> 6);
         break;
     case VT_32:
-        es->flag[FT_Carry] = (v1->val + v2->val >= (1l<<32));
-        es->flag[FT_Zero]  = ((v1->val + v2->val) & ((1l<<32)-1) == 0);
-        es->flag[FT_Sign]  = (((v1->val + v2->val) & (1l<<31)) != 0);
+        es->flag[FT_Carry]    = (cc >> 31) & 1;
+        es->flag[FT_Zero]     = ((r & ((1l<<32)-1)) == 0);
+        es->flag[FT_Sign]     = (r >> 31) & 1;
+        es->flag[FT_Overflow] = XOR2(cc >> 30);
         break;
     case VT_64:
-        es->flag[FT_Carry] = ((v1->val + v2->val) < v1->val);
-        es->flag[FT_Zero]  = ((v1->val + v2->val) == 0);
-        es->flag[FT_Sign]  = (((v1->val + v2->val) & (1l<<63)) != 0);
+        es->flag[FT_Carry]    = (cc >> 63) & 1;
+        es->flag[FT_Zero]     = (r  == 0);
+        es->flag[FT_Sign]     = (r >> 63) & 1;
+        es->flag[FT_Overflow] = XOR2(cc >> 62);
         break;
     default: assert(0);
     }
 }
 
-// for bitwise operations: And, Xor
+// for bitwise operations: And, Xor, or
 CaptureState setFlagsBit(EmuState* es, InstrType it,
                          EmuValue* v1, EmuValue* v2, Bool sameOperands)
 {
@@ -3419,20 +3618,25 @@ CaptureState setFlagsBit(EmuState* es, InstrType it,
     // xor op,op results in known zero
     if ((it == IT_XOR) && sameOperands) s = CS_STATIC;
 
-    // carry always cleared (TODO: also overflow)
+    // carry/overflow always cleared
     es->flag[FT_Carry] = 0;
+    es->flag[FT_Overflow] = 0;
     es->flag_state[FT_Carry] = CS_STATIC;
+    es->flag_state[FT_Overflow] = CS_STATIC;
 
     es->flag_state[FT_Zero] = s;
     es->flag_state[FT_Sign] = s;
+    es->flag_state[FT_Parity] = s;
 
     switch(it) {
     case IT_AND: res = v1->val & v2->val; break;
     case IT_XOR: res = v1->val ^ v2->val; break;
+    case IT_OR:  res = v1->val | v2->val; break;
     default: assert(0);
     }
 
     es->flag[FT_Zero]  = (res == 0);
+    es->flag[FT_Parity] = PARITY(res & 0xff);
     switch(v1->type) {
     case VT_8:
         es->flag[FT_Sign] = ((res & (1l<<7)) != 0);
@@ -4008,6 +4212,20 @@ uint64_t emulateInstr(Rewriter* c, EmuState* es, Instr* instr)
 
         es->ret_stack[es->depth++] = v2.val;
 
+        // special handling for known functions
+        if ((v1.val == (uint64_t) makeDynamic) &&
+            stateIsStatic(es->reg_state[Reg_DI])) {
+            // update register value to static value
+            Instr i;
+            initBinaryInstr(&i, IT_MOV, VT_64,
+                            getRegOp(VT_64, Reg_DI),
+                            getImmOp(VT_64, es->reg[Reg_DI]));
+            capture(c, &i);
+            es->reg_state[Reg_DI] = CS_DYNAMIC;
+        }
+        if (v1.val == (uint64_t) makeStatic)
+            es->reg_state[Reg_DI] = CS_STATIC2;
+
         // address to jump to
         return v1.val;
 
@@ -4142,14 +4360,36 @@ uint64_t emulateInstr(Rewriter* c, EmuState* es, Instr* instr)
         if ((es->flag_state[FT_Zero] != CS_STATIC) ||
             (es->flag_state[FT_Sign] != CS_STATIC)) {
             captureJcc(c, IT_JG, instr->dst.val, instr->addr + instr->len,
-                        !es->flag[FT_Zero] && !es->flag[FT_Sign]);
+                       !es->flag[FT_Zero] && !es->flag[FT_Sign]);
         }
         if ((es->flag[FT_Zero] == False) &&
             (es->flag[FT_Sign] == False)) return instr->dst.val;
         return instr->addr + instr->len;
 
+    case IT_JL:
+        if ((es->flag_state[FT_Sign] != CS_STATIC) ||
+            (es->flag_state[FT_Overflow] != CS_STATIC)) {
+            captureJcc(c, IT_JL, instr->dst.val, instr->addr + instr->len,
+                       es->flag[FT_Sign] != es->flag[FT_Overflow]);
+        }
+        if (es->flag[FT_Sign] != es->flag[FT_Overflow]) return instr->dst.val;
+        return instr->addr + instr->len;
+
+    case IT_JGE:
+        if ((es->flag_state[FT_Sign] != CS_STATIC) ||
+            (es->flag_state[FT_Overflow] != CS_STATIC)) {
+            captureJcc(c, IT_JGE, instr->dst.val, instr->addr + instr->len,
+                       es->flag[FT_Sign] == es->flag[FT_Overflow]);
+        }
+        if (es->flag[FT_Sign] == es->flag[FT_Overflow]) return instr->dst.val;
+        return instr->addr + instr->len;
+
     case IT_JP:
-        // FIXME: assume P flag always cleared => fall through
+        if (es->flag_state[FT_Parity] != CS_STATIC) {
+            captureJcc(c, IT_JP, instr->dst.val, instr->addr + instr->len,
+                       es->flag[FT_Parity]);
+        }
+        if (es->flag[FT_Parity] == True) return instr->dst.val;
         return instr->addr + instr->len;
 
     case IT_JMP:
@@ -4383,13 +4623,20 @@ uint64_t emulateInstr(Rewriter* c, EmuState* es, Instr* instr)
         break;
 
     case IT_XOR:
+    case IT_OR:
+    case IT_AND:
         getOpValue(&v1, es, &(instr->dst));
         getOpValue(&v2, es, &(instr->src));
 
         assert(v1.type == v2.type);
-        v1.state = setFlagsBit(es, IT_XOR, &v1, &v2,
+        v1.state = setFlagsBit(es, instr->type, &v1, &v2,
                                opsAreSame(&(instr->dst), &(instr->src)));
-        v1.val = v1.val ^ v2.val;
+        switch(instr->type) {
+        case IT_AND: v1.val = v1.val & v2.val; break;
+        case IT_XOR: v1.val = v1.val ^ v2.val; break;
+        case IT_OR:  v1.val = v1.val | v2.val; break;
+        default: assert(0);
+        }
         // for capturing we need state of original dst
         captureBinaryOp(c, instr, es, &v1);
         setOpValue(&v1, es, &(instr->dst));

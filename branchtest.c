@@ -39,6 +39,14 @@ int test3(int a, int b)
     return c;
 }
 
+__attribute__ ((noinline))
+int test4(int a, int b)
+{
+    int i = makeDynamic(0);
+    for(; i < a; i++)
+        b++;
+    return b;
+}
 
 // decode captured code from c1 into c2
 void emulateCaptureRun(char* t1, char* t2,
@@ -97,8 +105,9 @@ void runTest(char* fname, uint64_t f, int p1, int p2, int sp1)
 
 int main()
 {
-    runTest("test1", (uint64_t) test1, 1,7, 2);
-    runTest("test2", (uint64_t) test2, 4,7, 3);
-    runTest("test3", (uint64_t) test3, 4,7, 3);
+    //runTest("test1", (uint64_t) test1, 1,7, 2);
+    //runTest("test2", (uint64_t) test2, 4,7, 3);
+    //runTest("test3", (uint64_t) test3, 4,7, 3);
+    runTest("test4", (uint64_t) test4, 4,7, 3);
     return 0;
 }
