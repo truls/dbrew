@@ -2187,11 +2187,11 @@ uint8_t* calcModRM(Operand* o1, Operand* o2, int* prex, int* plen)
     assert(opValType(o1) == opValType(o2));
 
     if (opIsGPReg(o2)) {
-        assert(opIsGPReg(o1) || opIsInd(o1));
+        assert(opIsReg(o1) || opIsInd(o1));
         r2 = GPRegEncoding(o2->reg);
     }
     else if (opIsVReg(o2)) {
-        assert(opIsVReg(o1) || opIsInd(o1));
+        assert(opIsReg(o1) || opIsInd(o1));
         r2 = VRegEncoding(o2->reg);
     }
     else assert(0);

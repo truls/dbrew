@@ -101,8 +101,8 @@ void applyLoop(int size, TYPE* src, TYPE* dst, apply_func af, Stencil* s)
 {
     int x,y;
 
-    for(y=1;y<size-1;y++)
-        for(x=1;x<size-1;x++)
+    for(y=makeDynamic(1);y<size-1;y++)
+        for(x=makeDynamic(1);x<size-1;x++)
             dst[x+y*size] = af(&(src[x+y*size]), size, s);
 }
 
