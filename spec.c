@@ -183,7 +183,8 @@ typedef enum _PrefixSet {
     PS_REX = 1,
     PS_66 = 2,
     PS_F2 = 4,
-    PS_F3 = 8
+    PS_F3 = 8,
+    PS_2E = 16
 } PrefixSet;
 
 typedef enum _OperandForm {
@@ -286,7 +287,7 @@ typedef struct _Rewriter {
     EmuState* savedState[SAVEDSTATE_MAX];
 
     // stack of unfinished BBs to capture
-#define CAPTURESTACK_LEN 10
+#define CAPTURESTACK_LEN 20
     int capStackTop;
     CBB* capStack[CAPTURESTACK_LEN];
 
@@ -362,7 +363,7 @@ void initRewriter(Rewriter* r)
 
     if (r->decBB == 0) {
         // default
-        if (r->decBBCapacity == 0) r->decBBCapacity = 20;
+        if (r->decBBCapacity == 0) r->decBBCapacity = 50;
         r->decBB = (DBB*) malloc(sizeof(DBB) * r->decBBCapacity);
     }
     r->decBBCount = 0;
@@ -376,7 +377,7 @@ void initRewriter(Rewriter* r)
 
     if (r->capBB == 0) {
         // default
-        if (r->capBBCapacity == 0) r->capBBCapacity = 20;
+        if (r->capBBCapacity == 0) r->capBBCapacity = 50;
         r->capBB = (CBB*) malloc(sizeof(CBB) * r->capBBCapacity);
     }
     r->capBBCount = 0;
@@ -1033,6 +1034,7 @@ int parseModRM(uint8_t* p, int rex, Bool o1IsVec, Bool o2IsVec, ValType vt,
 DBB* decodeBB(Rewriter* c, uint64_t f)
 {
     Bool hasRex, hasF2, hasF3, has66;
+    Bool has2E; // cs-segment override or branch not taken hint (Jcc)
     int rex;
     uint64_t a;
     int i, off, opc, opc2, digit, old_icount;
@@ -1071,6 +1073,7 @@ DBB* decodeBB(Rewriter* c, uint64_t f)
     hasF2 = False;
     hasF3 = False;
     has66 = False;
+    has2E = False;
     exitLoop = False;
     while(!exitLoop) {
         a = (uint64_t)(fp + off);
@@ -1095,6 +1098,11 @@ DBB* decodeBB(Rewriter* c, uint64_t f)
             }
             if (fp[off] == 0x66) {
                 has66 = True;
+                off++;
+                continue;
+            }
+            if (fp[off] == 0x2E) {
+                has2E = True;
                 off++;
                 continue;
             }
@@ -1638,6 +1646,7 @@ DBB* decodeBB(Rewriter* c, uint64_t f)
         hasF2 = False;
         hasF3 = False;
         has66 = False;
+        has2E = False;
     }
 
     assert(dbb->addr == dbb->instr->addr);
@@ -3680,7 +3689,7 @@ void printStaticEmuState(EmuState* es, int esID)
 
     printf("  Registers: ");
     c = 0;
-    for(i=Reg_AX; i<Reg_15; i++) {
+    for(i=Reg_AX; i<=Reg_15; i++) {
         if (es->reg_state[i] == CS_DEAD) continue;
         if (es->reg_state[i] == CS_DYNAMIC) continue;
 
