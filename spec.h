@@ -136,7 +136,7 @@ void configEmuState(Rewriter *c, int stacksize);
 
 // emulate the given decoded binary code
 // initialize state with function parameters ('...')
-uint64_t rewrite(Rewriter* c, ...);
+uint64_t emulateAndCapture(Rewriter* r, ...);
 
 // buffer with regenerated code, captured from emulation
 uint64_t generatedCode(Rewriter* c);
@@ -151,5 +151,11 @@ void setRewriterReturnFP(Rewriter* c);
 // change capture state for value <v> to become dynamic/static
 uint64_t makeDynamic(uint64_t v);
 uint64_t makeStatic(uint64_t v);
+
+
+// convenience functions, using default rewriter
+void setDefaultVerbosity(Bool decode, Bool emuState, Bool emuSteps);
+uint64_t rewrite(uint64_t func, ...);
+
 
 #endif // SPEC_H

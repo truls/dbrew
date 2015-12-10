@@ -56,7 +56,7 @@ void emulateCaptureRun(char* t1, char* t2,
     int res;
 
     printf("Tracing emulation of %s(%d,%ld) %s:\n", t1, sp1, sp2, t2);
-    res = (int)rewrite(c1, sp1, sp2);
+    res = (int)emulateAndCapture(c1, sp1, sp2);
     printf("Result from emulation: %d\n", res);
 
     printf("Rewritten code (size %d bytes):\n", generatedCodeSize(c1));

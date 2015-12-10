@@ -11,6 +11,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdint.h>
+#include <stdarg.h>
 
 
 // functions which can be used in code to be rewritten
@@ -4950,7 +4951,7 @@ uint64_t emulateInstr(Rewriter* c, EmuState* es, Instr* instr)
 }
 
 
-uint64_t rewrite(Rewriter* c, ...)
+uint64_t vEmulateAndCapture(Rewriter* c, va_list args)
 {
     // calling convention x86-64: parameters are stored in registers
     static Reg parReg[5] = { Reg_DI, Reg_SI, Reg_DX, Reg_CX, Reg_8 };
@@ -4963,6 +4964,15 @@ uint64_t rewrite(Rewriter* c, ...)
     Instr* instr;
     uint64_t bb_addr, nextbb_addr;
 
+    par[0] = va_arg(args, uint64_t);
+    par[1] = va_arg(args, uint64_t);
+    par[2] = va_arg(args, uint64_t);
+    par[3] = va_arg(args, uint64_t);
+    par[4] = va_arg(args, uint64_t);
+
+#if 0
+    // with rewrite(Rewriter *r, ...)
+    //
     // setup int parameters for virtual CPU according to x86_64 calling conv.
     // see https://en.wikipedia.org/wiki/X86_calling_conventions
     asm("mov %%rsi, %0;" : "=r" (par[0]) : );
@@ -4970,6 +4980,7 @@ uint64_t rewrite(Rewriter* c, ...)
     asm("mov %%rcx, %0;" : "=r" (par[2]) : );
     asm("mov %%r8, %0;"  : "=r" (par[3]) : );
     asm("mov %%r9, %0;"  : "=r" (par[4]) : );
+#endif
 
     if (!c->es)
         c->es = allocEmuState(1024);
@@ -5170,5 +5181,50 @@ uint64_t rewrite(Rewriter* c, ...)
 
     // return value according to calling convention
     return es->reg[Reg_AX];
+}
+
+uint64_t emulateAndCapture(Rewriter* r, ...)
+{
+    uint64_t res;
+    va_list argptr;
+
+    va_start(argptr, r);
+    res = vEmulateAndCapture(r, argptr);
+    va_end(argptr);
+
+    return res;
+}
+
+//-----------------------------------------------------------------
+// convenience functions, using defaults
+
+Rewriter* defaultRewriter = 0;
+
+Rewriter* getDefaultRewriter()
+{
+    if (!defaultRewriter)
+        defaultRewriter = allocRewriter();
+
+    return defaultRewriter;
+}
+
+void setDefaultVerbosity(Bool decode, Bool emuState, Bool emuSteps)
+{
+    setVerbosity(getDefaultRewriter(), decode, emuState, emuSteps);
+}
+
+uint64_t rewrite(uint64_t func, ...)
+{
+    Rewriter* r;
+    va_list argptr;
+
+    r = getDefaultRewriter();
+    setFunc(r, func);
+
+    va_start(argptr, func);
+    vEmulateAndCapture(r, argptr);
+    va_end(argptr);
+
+    return generatedCode(r);
 }
 

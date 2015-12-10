@@ -175,7 +175,7 @@ int main(int argc, char* argv[])
         setRewriterStaticPar(r, 0); // size is constant
         setRewriterStaticPar(r, 3); // apply func is constant
         setRewriterStaticPar(r, 4); // stencil is constant
-        rewrite(r, size, m1, m2, af, s);
+        emulateAndCapture(r, size, m1, m2, af, s);
         al = (apply_loop) generatedCode(r);
     }
     else {
@@ -186,7 +186,7 @@ int main(int argc, char* argv[])
             setRewriterStaticPar(r, 1); // size is constant
             setRewriterStaticPar(r, 2); // stencil is constant
             setRewriterReturnFP(r);
-            rewrite(r, m1 + size + 1, size, s);
+            emulateAndCapture(r, m1 + size + 1, size, s);
             af = (apply_func) generatedCode(r);
         }
     }

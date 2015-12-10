@@ -1,7 +1,7 @@
 CFLAGS=-g
 LDFLAGS=-g
 
-all: test stencil branchtest
+all: test stencil branchtest strcmp
 
 test: test.o spec.o
 
