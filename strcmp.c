@@ -10,7 +10,8 @@ int isHello(char* s)
 
 int main(int argc, char* argv[])
 {
-    strcmp("Foo", argv[0]); // trigger lazy relocation of strcmp
+    // force relocation of strcmp
+    if (strcmp("Foo", argv[0])==0) return 0;
 
     setDefaultVerbosity(True, True, True);
     f_t f = (f_t) rewrite((uint64_t) isHello, "Bla");
