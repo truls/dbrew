@@ -597,7 +597,7 @@ Bool opIsInd(Operand* o)
     return False;
 }
 
-Bool opsAreSame(Operand* o1, Operand* o2)
+Bool opIsEqual(Operand* o1, Operand* o2)
 {
     if (o1->type != o2->type)
         return False;
@@ -960,9 +960,9 @@ Instr* addTernaryOp(Rewriter* c, uint64_t a, uint64_t a2,
 }
 
 // r/m, r. r parsed as op2/reg and digit. Encoding see SDM 2.1
-// Input: o1 or o2 may be vector registers, type may be known (or VT_None)
+// Input: o1 or o2 may be vector registers
 // Fills o1/o2/digit and returns number of bytes parsed
-int parseModRM(uint8_t* p, int rex, Bool o1IsVec, Bool o2IsVec, ValType vt,
+int parseModRM(uint8_t* p, int rex, Bool o1IsVec, Bool o2IsVec,
                Operand* o1, Operand* o2, int* digit)
 {
     int modrm, mod, rm, reg; // modRM byte
@@ -980,13 +980,6 @@ int parseModRM(uint8_t* p, int rex, Bool o1IsVec, Bool o2IsVec, ValType vt,
     rm = modrm & 7;
 
     ot = (hasRex && (rex & REX_MASK_W)) ? OT_Reg64 : OT_Reg32;
-    switch(vt) {
-    case VT_32:  ot = OT_Reg32; break;
-    case VT_64:  ot = OT_Reg64; break;
-    case VT_128: ot = OT_Reg128; break;
-    case VT_256: ot = OT_Reg256; break;
-    }
-
     // r part: reg or digit, give both back to caller
     if (digit) *digit = reg;
     if (o2) {
@@ -1035,13 +1028,6 @@ int parseModRM(uint8_t* p, int rex, Bool o1IsVec, Bool o2IsVec, ValType vt,
     }
 
     ot = (hasRex && (rex & REX_MASK_W)) ? OT_Ind64 : OT_Ind32;
-    switch(vt) {
-    case VT_32:  ot = OT_Ind32; break;
-    case VT_64:  ot = OT_Ind64; break;
-    case VT_128: ot = OT_Ind128; break;
-    case VT_256: ot = OT_Ind256; break;
-    }
-
     o1->type = ot;
     o1->scale = scale;
     o1->val = (uint64_t) disp;
@@ -1153,28 +1139,28 @@ DBB* decodeBB(Rewriter* c, uint64_t f)
         case 0x01:
             // add r/m,r 32/64 (MR, dst: r/m, src: r)
             vt = (rex & REX_MASK_W) ? VT_64 : VT_32;
-            off += parseModRM(fp+off, rex, 0, 0, VT_None, &o1, &o2, 0);
+            off += parseModRM(fp+off, rex, 0, 0, &o1, &o2, 0);
             addBinaryOp(c, a, (uint64_t)(fp + off), IT_ADD, vt, &o1, &o2);
             break;
 
         case 0x03:
             // add r,r/m 32/64 (RM, dst: r, src: r/m)
             vt = (rex & REX_MASK_W) ? VT_64 : VT_32;
-            off += parseModRM(fp+off, rex, 0, 0, VT_None, &o2, &o1, 0);
+            off += parseModRM(fp+off, rex, 0, 0, &o2, &o1, 0);
             addBinaryOp(c, a, (uint64_t)(fp + off), IT_ADD, vt, &o1, &o2);
             break;
 
         case 0x09:
             // or r/m,r 32/64 (MR, dst: r/m, src: r)
             vt = (rex & REX_MASK_W) ? VT_64 : VT_32;
-            off += parseModRM(fp+off, rex, 0, 0, VT_None, &o1, &o2, 0);
+            off += parseModRM(fp+off, rex, 0, 0, &o1, &o2, 0);
             addBinaryOp(c, a, (uint64_t)(fp + off), IT_OR, vt, &o1, &o2);
             break;
 
         case 0x0B:
             // or r,r/m 32/64 (RM, dst: r, src: r/m)
             vt = (rex & REX_MASK_W) ? VT_64 : VT_32;
-            off += parseModRM(fp+off, rex, 0, 0, VT_None, &o2, &o1, 0);
+            off += parseModRM(fp+off, rex, 0, 0, &o2, &o1, 0);
             addBinaryOp(c, a, (uint64_t)(fp + off), IT_OR, vt, &o1, &o2);
             break;
 
@@ -1184,14 +1170,16 @@ DBB* decodeBB(Rewriter* c, uint64_t f)
             case 0xAF:
                 // imul r 32/64, r/m 32/64 (RM, dst: r)
                 vt = (rex & REX_MASK_W) ? VT_64 : VT_32;
-                off += parseModRM(fp+off, rex, 0, 0, VT_None, &o2, &o1, 0);
+                off += parseModRM(fp+off, rex, 0, 0, &o2, &o1, 0);
                 addBinaryOp(c, a, (uint64_t)(fp + off), IT_IMUL, vt, &o1, &o2);
                 break;
 
             case 0x10:
                 assert(hasF2);
                 // movsd xmm2,xmm1/m64 (RM)
-                off += parseModRM(fp+off, rex, 1, 1, VT_64, &o2, &o1, 0);
+                off += parseModRM(fp+off, rex, 1, 1, &o2, &o1, 0);
+                opOverwriteType(&o1, VT_64);
+                opOverwriteType(&o2, VT_64);
                 ii = addBinaryOp(c, a, (uint64_t)(fp + off),
                                  IT_MOVSD, VT_64, &o1, &o2);
                 attachPassthrough(ii, PS_F2, OE_RM, SC_None, 0x0F, 0x10, -1);
@@ -1200,14 +1188,16 @@ DBB* decodeBB(Rewriter* c, uint64_t f)
             case 0x11:
                 assert(hasF2);
                 // movsd xmm2/m64,xmm1 (MR)
-                off += parseModRM(fp+off, rex, 1, 1, VT_64, &o1, &o2, 0);
+                off += parseModRM(fp+off, rex, 1, 1, &o1, &o2, 0);
+                opOverwriteType(&o1, VT_64);
+                opOverwriteType(&o2, VT_64);
                 ii = addBinaryOp(c, a, (uint64_t)(fp + off),
                                  IT_MOVSD, VT_64, &o1, &o2);
                 attachPassthrough(ii, PS_F2, OE_MR, SC_None, 0x0F, 0x11, -1);
                 break;
 
             case 0x1F:
-                off += parseModRM(fp+off, rex, 0, 0, VT_None, &o1, 0, &digit);
+                off += parseModRM(fp+off, rex, 0, 0, &o1, 0, &digit);
                 switch(digit) {
                 case 0:
                     // 0F 1F /0: nop r/m 32
@@ -1223,7 +1213,9 @@ DBB* decodeBB(Rewriter* c, uint64_t f)
             case 0x2E:
                 assert(has66);
                 // ucomisd xmm1,xmm2/m64 (RM)
-                off += parseModRM(fp+off, rex, 1, 1, VT_64, &o2, &o1, 0);
+                off += parseModRM(fp+off, rex, 1, 1, &o2, &o1, 0);
+                opOverwriteType(&o1, VT_64);
+                opOverwriteType(&o2, VT_64);
                 ii = addBinaryOp(c, a, (uint64_t)(fp + off),
                                  IT_UCOMISD, VT_64, &o1, &o2);
                 attachPassthrough(ii, PS_66, OE_RM, SC_None, 0x0F, 0x2E, -1);
@@ -1232,7 +1224,9 @@ DBB* decodeBB(Rewriter* c, uint64_t f)
             case 0x58:
                 assert(hasF2);
                 // addsd xmm1,xmm2/m64 (RM)
-                off += parseModRM(fp+off, rex, 1, 1, VT_64, &o2, &o1, 0);
+                off += parseModRM(fp+off, rex, 1, 1, &o2, &o1, 0);
+                opOverwriteType(&o1, VT_64);
+                opOverwriteType(&o2, VT_64);
                 ii = addBinaryOp(c, a, (uint64_t)(fp + off),
                                  IT_ADDSD, VT_64, &o1, &o2);
                 attachPassthrough(ii, PS_F2, OE_RM, SC_None, 0x0F, 0x58, -1);
@@ -1241,7 +1235,9 @@ DBB* decodeBB(Rewriter* c, uint64_t f)
             case 0x59:
                 assert(hasF2);
                 // mulsd xmm1,xmm2/m64 (RM)
-                off += parseModRM(fp+off, rex, 1, 1, VT_64, &o2, &o1, 0);
+                off += parseModRM(fp+off, rex, 1, 1, &o2, &o1, 0);
+                opOverwriteType(&o1, VT_64);
+                opOverwriteType(&o2, VT_64);
                 ii = addBinaryOp(c, a, (uint64_t)(fp + off),
                                  IT_MULSD, VT_64, &o1, &o2);
                 attachPassthrough(ii, PS_F2, OE_RM, SC_None, 0x0F, 0x59, -1);
@@ -1250,7 +1246,9 @@ DBB* decodeBB(Rewriter* c, uint64_t f)
             case 0x5C:
                 assert(hasF2);
                 // subsd xmm1,xmm2/m64 (RM)
-                off += parseModRM(fp+off, rex, 1, 1, VT_64, &o2, &o1, 0);
+                off += parseModRM(fp+off, rex, 1, 1, &o2, &o1, 0);
+                opOverwriteType(&o1, VT_64);
+                opOverwriteType(&o2, VT_64);
                 ii = addBinaryOp(c, a, (uint64_t)(fp + off),
                                  IT_SUBSD, VT_64, &o1, &o2);
                 attachPassthrough(ii, PS_F2, OE_RM, SC_None, 0x0F, 0x5C, -1);
@@ -1260,7 +1258,9 @@ DBB* decodeBB(Rewriter* c, uint64_t f)
                 assert(has66);
                 // movd/q xmm,r/m 32/64 (RM)
                 vt = (rex & REX_MASK_W) ? VT_64 : VT_32;
-                off += parseModRM(fp+off, rex, 1, 0, vt, &o2, &o1, 0);
+                off += parseModRM(fp+off, rex, 1, 0, &o2, &o1, 0);
+                opOverwriteType(&o1, vt);
+                opOverwriteType(&o2, vt);
                 ii = addBinaryOp(c, a, (uint64_t)(fp + off),
                                  IT_MOV, vt, &o1, &o2);
                 attachPassthrough(ii, PS_66, OE_RM, SC_dstDyn, 0x0F, 0x7E, -1);
@@ -1291,7 +1291,9 @@ DBB* decodeBB(Rewriter* c, uint64_t f)
             case 0xEF:
                 // pxor xmm1, xmm2/m 64/128 (RM)
                 vt = has66 ? VT_128 : VT_64;
-                off += parseModRM(fp+off, rex, 1, 1, vt, &o2, &o1, 0);
+                off += parseModRM(fp+off, rex, 1, 1, &o2, &o1, 0);
+                opOverwriteType(&o1, vt);
+                opOverwriteType(&o2, vt);
                 ii = addBinaryOp(c, a, (uint64_t)(fp + off),
                                  IT_PXOR, vt, &o1, &o2);
                 attachPassthrough(ii, has66 ? PS_66 : 0, OE_RM, SC_None,
@@ -1307,84 +1309,84 @@ DBB* decodeBB(Rewriter* c, uint64_t f)
         case 0x11:
             // adc r/m,r 32/64 (MR, dst: r/m, src: r)
             vt = (rex & REX_MASK_W) ? VT_64 : VT_32;
-            off += parseModRM(fp+off, rex, 0, 0, VT_None, &o1, &o2, 0);
+            off += parseModRM(fp+off, rex, 0, 0, &o1, &o2, 0);
             addBinaryOp(c, a, (uint64_t)(fp + off), IT_ADC, vt, &o1, &o2);
             break;
 
         case 0x13:
             // adc r,r/m 32/64 (RM, dst: r, src: r/m)
             vt = (rex & REX_MASK_W) ? VT_64 : VT_32;
-            off += parseModRM(fp+off, rex, 0, 0, VT_None, &o2, &o1, 0);
+            off += parseModRM(fp+off, rex, 0, 0, &o2, &o1, 0);
             addBinaryOp(c, a, (uint64_t)(fp + off), IT_ADC, vt, &o1, &o2);
             break;
 
         case 0x19:
             // sbb r/m,r 32/64 (MR, dst: r/m, src: r)
             vt = (rex & REX_MASK_W) ? VT_64 : VT_32;
-            off += parseModRM(fp+off, rex, 0, 0, VT_None, &o1, &o2, 0);
+            off += parseModRM(fp+off, rex, 0, 0, &o1, &o2, 0);
             addBinaryOp(c, a, (uint64_t)(fp + off), IT_SBB, vt, &o1, &o2);
             break;
 
         case 0x1B:
             // sbb r,r/m 32/64 (RM, dst: r, src: r/m)
             vt = (rex & REX_MASK_W) ? VT_64 : VT_32;
-            off += parseModRM(fp+off, rex, 0, 0, VT_None, &o2, &o1, 0);
+            off += parseModRM(fp+off, rex, 0, 0, &o2, &o1, 0);
             addBinaryOp(c, a, (uint64_t)(fp + off), IT_SBB, vt, &o1, &o2);
             break;
 
         case 0x21:
             // and r/m,r 32/64 (MR, dst: r/m, src: r)
             vt = (rex & REX_MASK_W) ? VT_64 : VT_32;
-            off += parseModRM(fp+off, rex, 0, 0, VT_None, &o1, &o2, 0);
+            off += parseModRM(fp+off, rex, 0, 0, &o1, &o2, 0);
             addBinaryOp(c, a, (uint64_t)(fp + off), IT_AND, vt, &o1, &o2);
             break;
 
         case 0x23:
             // and r,r/m 32/64 (RM, dst: r, src: r/m)
             vt = (rex & REX_MASK_W) ? VT_64 : VT_32;
-            off += parseModRM(fp+off, rex, 0, 0, VT_None, &o2, &o1, 0);
+            off += parseModRM(fp+off, rex, 0, 0, &o2, &o1, 0);
             addBinaryOp(c, a, (uint64_t)(fp + off), IT_AND, vt, &o1, &o2);
             break;
 
         case 0x29:
             // sub r/m,r 32/64 (MR)
             vt = (rex & REX_MASK_W) ? VT_64 : VT_32;
-            off += parseModRM(fp+off, rex, 0, 0, VT_None, &o1, &o2, 0);
+            off += parseModRM(fp+off, rex, 0, 0, &o1, &o2, 0);
             addBinaryOp(c, a, (uint64_t)(fp + off), IT_SUB, vt, &o1, &o2);
             break;
 
         case 0x2B:
             // sub r,r/m 32/64 (RM)
             vt = (rex & REX_MASK_W) ? VT_64 : VT_32;
-            off += parseModRM(fp+off, rex, 0, 0, VT_None, &o2, &o1, 0);
+            off += parseModRM(fp+off, rex, 0, 0, &o2, &o1, 0);
             addBinaryOp(c, a, (uint64_t)(fp + off), IT_SUB, vt, &o1, &o2);
             break;
 
         case 0x31:
             // xor r/m,r 32/64 (MR, dst: r/m, src: r)
             vt = (rex & REX_MASK_W) ? VT_64 : VT_32;
-            off += parseModRM(fp+off, rex, 0, 0, VT_None, &o1, &o2, 0);
+            off += parseModRM(fp+off, rex, 0, 0, &o1, &o2, 0);
             addBinaryOp(c, a, (uint64_t)(fp + off), IT_XOR, vt, &o1, &o2);
             break;
 
         case 0x33:
             // xor r,r/m 32/64 (RM, dst: r, src: r/m)
             vt = (rex & REX_MASK_W) ? VT_64 : VT_32;
-            off += parseModRM(fp+off, rex, 0, 0, VT_None, &o2, &o1, 0);
+            off += parseModRM(fp+off, rex, 0, 0, &o2, &o1, 0);
             addBinaryOp(c, a, (uint64_t)(fp + off), IT_XOR, vt, &o1, &o2);
             break;
 
         case 0x39:
             // cmp r/m,r 32/64 (MR)
             vt = (rex & REX_MASK_W) ? VT_64 : VT_32;
-            off += parseModRM(fp+off, rex, 0, 0, VT_None, &o1, &o2, 0);
+            off += parseModRM(fp+off, rex, 0, 0, &o1, &o2, 0);
             addBinaryOp(c, a, (uint64_t)(fp + off), IT_CMP, vt, &o1, &o2);
             break;
 
         case 0x3B:
             // cmp r,r/m 32/64 (RM)
             vt = (rex & REX_MASK_W) ? VT_64 : VT_32;
-            off += parseModRM(fp+off, rex, 0, 0, VT_None, &o2, &o1, 0);
+            off += parseModRM(fp+off, rex, 0, 0, &o2, &o1, 0);
             addBinaryOp(c, a, (uint64_t)(fp + off), IT_CMP, vt, &o1, &o2);
             break;
 
@@ -1406,7 +1408,7 @@ DBB* decodeBB(Rewriter* c, uint64_t f)
         case 0x63:
             // movsx r64,r/m32 (RM) mov with sign extension
             assert(rex & REX_MASK_W);
-            off += parseModRM(fp+off, rex, 0, 0, VT_None, &o2, &o1, 0);
+            off += parseModRM(fp+off, rex, 0, 0, &o2, &o1, 0);
             // src is 32 bit
             switch(o2.type) {
             case OT_Reg64: o2.type = OT_Reg32; break;
@@ -1427,7 +1429,7 @@ DBB* decodeBB(Rewriter* c, uint64_t f)
 
         case 0x69:
             // imul r,r/m32/64,imm32 (RMI)
-            off += parseModRM(fp+off, rex, 0, 0, VT_None, &o2, &o1, 0);
+            off += parseModRM(fp+off, rex, 0, 0, &o2, &o1, 0);
             o3.type = OT_Imm32;
             o3.val = *(uint32_t*)(fp + off);
             off += 4;
@@ -1444,7 +1446,7 @@ DBB* decodeBB(Rewriter* c, uint64_t f)
 
         case 0x6B:
             // imul r,r/m32/64,imm8 (RMI)
-            off += parseModRM(fp+off, rex, 0, 0, VT_None, &o2, &o1, 0);
+            off += parseModRM(fp+off, rex, 0, 0, &o2, &o1, 0);
             o3.type = OT_Imm8;
             o3.val = *(uint8_t*)(fp + off);
             off += 1;
@@ -1475,7 +1477,7 @@ DBB* decodeBB(Rewriter* c, uint64_t f)
             break;
 
         case 0x81:
-            off += parseModRM(fp+off, rex, 0, 0, VT_None, &o1, 0, &digit);
+            off += parseModRM(fp+off, rex, 0, 0, &o1, 0, &digit);
             switch(digit) {
             case 0: it = IT_ADD; break; // 81/0: add r/m 32/64, imm32
             case 1: it = IT_OR;  break; // 81/1: or  r/m 32/64, imm32
@@ -1495,7 +1497,7 @@ DBB* decodeBB(Rewriter* c, uint64_t f)
             break;
 
         case 0x83:
-            off += parseModRM(fp+off, rex, 0, 0, VT_None, &o1, 0, &digit);
+            off += parseModRM(fp+off, rex, 0, 0, &o1, 0, &digit);
             // add/or/... r/m and sign-extended imm8
             switch(digit) {
             case 0: it = IT_ADD; break; // 83/0: add r/m 32/64, imm8
@@ -1518,27 +1520,27 @@ DBB* decodeBB(Rewriter* c, uint64_t f)
         case 0x85:
             // test r/m,r 32/64 (dst: r/m, src: r)
             vt = (rex & REX_MASK_W) ? VT_64 : VT_32;
-            off += parseModRM(fp+off, rex, 0, 0, VT_None, &o1, &o2, 0);
+            off += parseModRM(fp+off, rex, 0, 0, &o1, &o2, 0);
             addBinaryOp(c, a, (uint64_t)(fp + off), IT_TEST, vt, &o1, &o2);
             break;
 
         case 0x89:
             // mov r/m,r 32/64 (dst: r/m, src: r)
             vt = (rex & REX_MASK_W) ? VT_64 : VT_32;
-            off += parseModRM(fp+off, rex, 0, 0, VT_None, &o1, &o2, 0);
+            off += parseModRM(fp+off, rex, 0, 0, &o1, &o2, 0);
             addBinaryOp(c, a, (uint64_t)(fp + off), IT_MOV, vt, &o1, &o2);
             break;
 
         case 0x8B:
             // mov r,r/m 32/64 (dst: r, src: r/m)
             vt = (rex & REX_MASK_W) ? VT_64 : VT_32;
-            off += parseModRM(fp+off, rex, 0, 0, VT_None, &o2, &o1, 0);
+            off += parseModRM(fp+off, rex, 0, 0, &o2, &o1, 0);
             addBinaryOp(c, a, (uint64_t)(fp + off), IT_MOV, vt, &o1, &o2);
             break;
 
         case 0x8D:
             // lea r32/64,m
-            off += parseModRM(fp+off, rex, 0, 0, VT_None, &o2, &o1, 0);
+            off += parseModRM(fp+off, rex, 0, 0, &o2, &o1, 0);
             assert(opIsInd(&o2)); // TODO: bad code error
             addBinaryOp(c, a, (uint64_t)(fp + off),
                         IT_LEA, VT_None, &o1, &o2);
@@ -1578,7 +1580,7 @@ DBB* decodeBB(Rewriter* c, uint64_t f)
             break;
 
         case 0xC1:
-            off += parseModRM(fp+off, rex, 0, 0, VT_None, &o1, 0, &digit);
+            off += parseModRM(fp+off, rex, 0, 0, &o1, 0, &digit);
             switch(digit) {
             case 4:
                 // shl r/m 32/64,imm8 (MI) (= sal)
@@ -1602,7 +1604,7 @@ DBB* decodeBB(Rewriter* c, uint64_t f)
             break;
 
         case 0xC7:
-            off += parseModRM(fp+off, rex, 0, 0, VT_None, &o1, 0, &digit);
+            off += parseModRM(fp+off, rex, 0, 0, &o1, 0, &digit);
             switch(digit) {
             case 0:
                 // mov r/m 32/64, imm32
@@ -1652,7 +1654,7 @@ DBB* decodeBB(Rewriter* c, uint64_t f)
             break;
 
         case 0xF7:
-            off += parseModRM(fp+off, rex, 0, 0, VT_None, &o1, 0, &digit);
+            off += parseModRM(fp+off, rex, 0, 0, &o1, 0, &digit);
             switch(digit) {
             case 3:
                 // neg r/m 32/64
@@ -1666,7 +1668,7 @@ DBB* decodeBB(Rewriter* c, uint64_t f)
             break;
 
         case 0xFF:
-            off += parseModRM(fp+off, rex, 0, 0, VT_None, &o1, 0, &digit);
+            off += parseModRM(fp+off, rex, 0, 0, &o1, 0, &digit);
             switch(digit) {
             case 0:
                 // inc r/m 32/64
@@ -5012,7 +5014,7 @@ uint64_t emulateInstr(Rewriter* c, EmuState* es, Instr* instr)
 
         assert(v1.type == v2.type);
         v1.state = setFlagsBit(es, instr->type, &v1, &v2,
-                               opsAreSame(&(instr->dst), &(instr->src)));
+                               opIsEqual(&(instr->dst), &(instr->src)));
         switch(instr->type) {
         case IT_AND: v1.val = v1.val & v2.val; break;
         case IT_XOR: v1.val = v1.val ^ v2.val; break;
