@@ -133,7 +133,7 @@ typedef enum _InstrType {
     IT_NOP,
     IT_CLTQ,
     IT_PUSH, IT_POP, IT_LEAVE,
-    IT_MOV, IT_MOVSX, IT_LEA,
+    IT_MOV, IT_MOVSX, IT_LEA, IT_MOVZBL,
     IT_NEG, IT_INC, IT_DEC,
     IT_ADD, IT_ADC, IT_SUB, IT_SBB, IT_IMUL,
     IT_XOR, IT_AND, IT_OR,
@@ -141,8 +141,10 @@ typedef enum _InstrType {
     IT_CALL, IT_RET, IT_JMP, IT_JMPI,
     IT_JG, IT_JE, IT_JL, IT_JNE, IT_JLE, IT_JGE, IT_JP,
     IT_CMP, IT_TEST,
+    IT_BSF,
     // SSE
     IT_PXOR, IT_MOVSD, IT_MULSD, IT_ADDSD, IT_SUBSD, IT_UCOMISD,
+    IT_MOVDQU, IT_PCMPEQB, IT_PMINUB, IT_PMOVMSKB,
     //
     IT_Max
 } InstrType;
@@ -692,12 +694,14 @@ void copyOperand(Operand* dst, Operand* src)
     case OT_Imm64:
         dst->val = src->val;
         break;
+    case OT_Reg8:
     case OT_Reg32:
     case OT_Reg64:
     case OT_Reg128:
     case OT_Reg256:
         dst->reg = src->reg;
         break;
+    case OT_Ind8:
     case OT_Ind32:
     case OT_Ind64:
     case OT_Ind128:
@@ -736,8 +740,14 @@ void opOverwriteType(Operand* o, ValType vt)
         case VT_16:  o->type = OT_Reg16; break;
         case VT_32:  o->type = OT_Reg32; break;
         case VT_64:  o->type = OT_Reg64; break;
-        case VT_128: o->type = OT_Reg128; break;
-        case VT_256: o->type = OT_Reg256; break;
+        case VT_128:
+            o->type = OT_Reg128;
+            assert(opIsVReg(o));
+            break;
+        case VT_256:
+            o->type = OT_Reg256;
+            assert(opIsVReg(o));
+            break;
         default: assert(0);
         }
     }
@@ -931,9 +941,7 @@ Instr* addBinaryOp(Rewriter* c, uint64_t a, uint64_t a2,
     if (vt != VT_None) {
         // if we specify a value type, it must match destination
         assert(vt == opValType(o1));
-        // if 2nd operand is other than immediate, types also must match
-        if (!opIsImm(o2))
-            assert(vt == opValType(o2));
+        // 2nd operand does not have to match (e.g. conversion/mask extraction)
     }
 
     Instr* i = nextInstr(c, a, a2 - a);
@@ -1254,6 +1262,29 @@ DBB* decodeBB(Rewriter* c, uint64_t f)
                 attachPassthrough(ii, PS_F2, OE_RM, SC_None, 0x0F, 0x5C, -1);
                 break;
 
+            case 0x6F:
+                assert(hasF3);
+                // movdqu xmm1,xmm2/m128 (RM): move unaligned dqw xmm2 -> xmm1
+                off += parseModRM(fp+off, rex, 1, 1, &o2, &o1, 0);
+                opOverwriteType(&o1, VT_128);
+                opOverwriteType(&o2, VT_128);
+                ii = addBinaryOp(c, a, (uint64_t)(fp + off),
+                                 IT_MOVDQU, VT_128, &o1, &o2);
+                attachPassthrough(ii, PS_F3, OE_RM, SC_None, 0x0F, 0x6F, -1);
+                break;
+
+            case 0x74:
+                // pcmpeqb mm,mm/m 64/128 (RM): compare packed bytes
+                vt = has66 ? VT_128 : VT_64;
+                off += parseModRM(fp+off, rex, 1, 1, &o2, &o1, 0);
+                opOverwriteType(&o1, vt);
+                opOverwriteType(&o2, vt);
+                ii = addBinaryOp(c, a, (uint64_t)(fp + off),
+                                 IT_PCMPEQB, vt, &o1, &o2);
+                attachPassthrough(ii, has66 ? PS_66:0, OE_RM, SC_None,
+                                  0x0F, 0x74, -1);
+                break;
+
             case 0x7E:
                 assert(has66);
                 // movd/q xmm,r/m 32/64 (RM)
@@ -1287,6 +1318,47 @@ DBB* decodeBB(Rewriter* c, uint64_t f)
                 addUnaryOp(c, a, (uint64_t)(fp + off), it, &o1);
                 exitLoop = True;
                 break;
+
+            case 0xB6:
+                // movzbl r32/64,r/m8 (RM): move byte to (d)word, zero-extend
+                vt = (rex & REX_MASK_W) ? VT_64 : VT_32;
+                off += parseModRM(fp+off, rex, 0, 0, &o2, &o1, 0);
+                opOverwriteType(&o1, vt);
+                opOverwriteType(&o2, VT_8); // src, r/m8
+                addBinaryOp(c, a, (uint64_t)(fp + off), IT_MOVZBL, vt, &o1, &o2);
+                break;
+
+            case 0xBC:
+                // bsf r,r/m 32/64 (RM): bit scan forward
+                vt = (rex & REX_MASK_W) ? VT_64 : VT_32;
+                off += parseModRM(fp+off, rex, 0, 0, &o2, &o1, 0);
+                addBinaryOp(c, a, (uint64_t)(fp + off), IT_BSF, vt, &o1, &o2);
+                break;
+
+            case 0xD7:
+                // pmovmskb r,mm 64/128 (RM): minimum of packed bytes
+                vt = has66 ? VT_128 : VT_64;
+                off += parseModRM(fp+off, rex, 1, 0, &o2, &o1, 0);
+                opOverwriteType(&o1, VT_32);
+                opOverwriteType(&o2, vt);
+                ii = addBinaryOp(c, a, (uint64_t)(fp + off),
+                                 IT_PMOVMSKB, VT_32, &o1, &o2);
+                attachPassthrough(ii, has66 ? PS_66:0, OE_RM, SC_dstDyn,
+                                  0x0F, 0xD7, -1);
+                break;
+
+            case 0xDA:
+                // pminub mm,mm/m 64/128 (RM): minimum of packed bytes
+                vt = has66 ? VT_128 : VT_64;
+                off += parseModRM(fp+off, rex, 1, 1, &o2, &o1, 0);
+                opOverwriteType(&o1, vt);
+                opOverwriteType(&o2, vt);
+                ii = addBinaryOp(c, a, (uint64_t)(fp + off),
+                                 IT_PMINUB, vt, &o1, &o2);
+                attachPassthrough(ii, has66 ? PS_66:0, OE_RM, SC_None,
+                                  0x0F, 0xDA, -1);
+                break;
+
 
             case 0xEF:
                 // pxor xmm1, xmm2/m 64/128 (RM)
@@ -1348,6 +1420,15 @@ DBB* decodeBB(Rewriter* c, uint64_t f)
             addBinaryOp(c, a, (uint64_t)(fp + off), IT_AND, vt, &o1, &o2);
             break;
 
+        case 0x25:
+            // and eax,imm32
+            o1.type = OT_Imm32;
+            o1.val = *(uint32_t*)(fp + off);
+            off += 4;
+            addBinaryOp(c, a, (uint64_t)(fp + off), IT_AND, VT_32,
+                        getRegOp(VT_32, Reg_AX), &o1);
+            break;
+
         case 0x29:
             // sub r/m,r 32/64 (MR)
             vt = (rex & REX_MASK_W) ? VT_64 : VT_32;
@@ -1390,6 +1471,14 @@ DBB* decodeBB(Rewriter* c, uint64_t f)
             addBinaryOp(c, a, (uint64_t)(fp + off), IT_CMP, vt, &o1, &o2);
             break;
 
+        case 0x3D:
+            // cmp eax,imm32
+            o1.type = OT_Imm32;
+            o1.val = *(uint32_t*)(fp + off);
+            off += 4;
+            addBinaryOp(c, a, (uint64_t)(fp + off), IT_CMP, VT_32,
+                        getRegOp(VT_32, Reg_AX), &o1);
+            break;
 
         case 0x50: case 0x51: case 0x52: case 0x53:
         case 0x54: case 0x55: case 0x56: case 0x57:
@@ -1962,6 +2051,7 @@ char* instrName(InstrType it, int* opCount)
     case IT_JP:      n = "jp";      oc = 1; break;
     case IT_MOV:     n = "mov";     oc = 2; break;
     case IT_MOVSX:   n = "movsx";   oc = 2; break;
+    case IT_MOVZBL:  n = "movzbl";  oc = 2; break;
     case IT_NEG:     n = "neg";     oc = 1; break;
     case IT_INC:     n = "inc";     oc = 1; break;
     case IT_DEC:     n = "dec";     oc = 1; break;
@@ -1978,12 +2068,17 @@ char* instrName(InstrType it, int* opCount)
     case IT_LEA:     n = "lea";     oc = 2; break;
     case IT_CMP:     n = "cmp";     oc = 2; break;
     case IT_TEST:    n = "test";    oc = 2; break;
+    case IT_BSF:     n = "bsf";     oc = 2; break;
     case IT_PXOR:    n = "pxor";    oc = 2; break;
     case IT_MOVSD:   n = "movsd";   oc = 2; break;
     case IT_UCOMISD: n = "ucomisd"; oc = 2; break;
     case IT_MULSD:   n = "mulsd";   oc = 2; break;
     case IT_ADDSD:   n = "addsd";   oc = 2; break;
     case IT_SUBSD:   n = "subsd";   oc = 2; break;
+    case IT_MOVDQU:  n = "movdqu";  oc = 2; break;
+    case IT_PCMPEQB: n = "pcmpeqb"; oc = 2; break;
+    case IT_PMINUB:  n = "pminub";  oc = 2; break;
+    case IT_PMOVMSKB:n = "pmovmskb";oc = 2; break;
     }
 
     if (opCount) *opCount = oc;
