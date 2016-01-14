@@ -1,4 +1,4 @@
-CFLAGS=-g
+CFLAGS=-g -std=gnu99
 LDFLAGS=-g
 
 PRGS = test stencil branchtest strcmp
