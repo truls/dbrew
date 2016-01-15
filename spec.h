@@ -105,7 +105,7 @@ typedef struct _Rewriter Rewriter;
 typedef struct _DBB DBB;
 
 // allocate space for a given number of decoded instructions
-Rewriter* allocRewriter();
+Rewriter* allocRewriter(void);
 
 // free rewriter resources
 void freeRewriter(Rewriter*);
