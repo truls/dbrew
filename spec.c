@@ -537,8 +537,8 @@ int opTypeWidth(Operand* o)
     case VT_64: return 64;
     case VT_128: return 128;
     case VT_256: return 256;
+    default: assert(0);
     }
-    assert(0);
     return 0;
 }
 
@@ -2347,7 +2347,7 @@ uint8_t* calcModRMDigit(Operand* o1, int digit, int* prex, int* plen)
             else {
                 if (o1->reg == Reg_BP) {
                     // cannot use mod == 00
-                    if (modrm & 192 == 0) {
+                    if ((modrm & 192) == 0) {
                         modrm |= 64;
                         useDisp8 = 1;
                     }
@@ -2505,7 +2505,7 @@ int genDigitMI(uint8_t* buf, int opc, int digit, Operand* o1, Operand* o2)
 // Operand o1: r (gets part of opcode), o2: imm
 int genOI(uint8_t* buf, int opc, Operand* o1, Operand* o2)
 {
-    int rex = 0, len = 0;
+    int rex = 0;
     int o = 0, r;
 
     assert(opIsReg(o1));
@@ -3442,7 +3442,7 @@ typedef struct _EmuState {
 
     // when saving an EmuState, remember root
     EmuState* parent;
-    
+
     // general registers: Reg_AX .. Reg_R15
     uint64_t reg[Reg_Max];
     CaptureState reg_state[Reg_Max];
@@ -3632,18 +3632,18 @@ Bool csIsEqual(EmuState* es1, CaptureState s1, uint64_t v1,
     if (s2 == CS_DEAD) s2 = CS_DYNAMIC;
 
     if (s1 != s2) return False;
-    
+
     switch(s1) {
     case CS_STATIC:
         // for static capture states, values have to be equal
         return (v1 == v2);
-        
+
     case CS_STACKRELATIVE:
         // FIXME: in reality: same offset from a versioned anchor
         // for now: assume same anchor version (within same rewriting action)
         if (es1->parent != es2->parent) return False;
         return (v1 == v2);
-        
+
     default:
         break;
     }
@@ -3654,14 +3654,14 @@ Bool csIsEqual(EmuState* es1, CaptureState s1, uint64_t v1,
 Bool esIsEqual(EmuState* es1, EmuState* es2)
 {
     int i;
-    
+
     // same state for registers?
     for(i = Reg_AX; i <= Reg_15; i++) {
         if (!csIsEqual(es1, es1->reg_state[i], es1->reg[i],
                        es2, es2->reg_state[i], es2->reg[i]))
             return False;
     }
-    
+
     // same state for flag registers?
     for(i = 0; i < FT_Max; i++) {
         if (!csIsEqual(es1, es1->flag_state[i], es1->flag[i],
@@ -4577,7 +4577,7 @@ void capturePassThrough(Rewriter* c, Instr* orig, EmuState* es)
 }
 
 // this ends a captured BB, queuing new paths to be traced
-uint64_t captureJcc(Rewriter* r, InstrType it,
+void captureJcc(Rewriter* r, InstrType it,
                      uint64_t branchTarget, uint64_t fallthroughTarget,
                      Bool didBranch)
 {
@@ -4633,7 +4633,7 @@ uint64_t emulateInstr(Rewriter* c, EmuState* es, Instr* instr)
         if (instr->src.type == OT_Imm8) {
             // sign-extend to 64bit (may be cutoff later)
             v2.val = (int64_t) (int8_t) v2.val;
-            v2.type = (vt == VT_32) ? OT_Imm32 : OT_Imm64;
+            v2.type = vt;
         }
 
         setFlagsAdd(es, &v1, &v2);
@@ -4712,7 +4712,7 @@ uint64_t emulateInstr(Rewriter* c, EmuState* es, Instr* instr)
         if (instr->src.type == OT_Imm8) {
             // sign-extend to 64bit (may be cutoff later)
             v2.val = (int64_t) (int8_t) v2.val;
-            v2.type = (vt == VT_32) ? OT_Imm32 : OT_Imm64;
+            v2.type = vt;
         }
         s = setFlagsSub(es, &v1, &v2);
         captureCmp(c, instr, es, s);
@@ -5068,7 +5068,12 @@ uint64_t emulateInstr(Rewriter* c, EmuState* es, Instr* instr)
         if (instr->src.type == OT_Imm8) {
             // sign-extend to 64bit (may be cutoff later)
             v2.val = (int64_t) (int8_t) v2.val;
-            v2.type = (vt == VT_32) ? OT_Imm32 : OT_Imm64;
+            v2.type = vt;
+        }
+        else if (instr->src.type == OT_Imm32 && vt == VT_64) {
+            // sign-extend to 64bit (may be cutoff later)
+            v2.val = (int64_t) (int32_t) v2.val;
+            v2.type = vt;
         }
 
         setFlagsSub(es, &v1, &v2);
@@ -5404,4 +5409,3 @@ uint64_t rewrite(uint64_t func, ...)
 
     return generatedCode(r);
 }
-
