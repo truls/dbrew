@@ -1072,6 +1072,7 @@ DBB* decodeBB(Rewriter* c, uint64_t f)
     Bool exitLoop;
     uint8_t* fp;
     Operand o1, o2, o3;
+    Reg r;
     ValType vt;
     InstrType it;
     Instr* ii;
@@ -1483,15 +1484,19 @@ DBB* decodeBB(Rewriter* c, uint64_t f)
         case 0x50: case 0x51: case 0x52: case 0x53:
         case 0x54: case 0x55: case 0x56: case 0x57:
             // push
+            r = Reg_AX + (opc - 0x50);
+            if (hasRex && (rex & REX_MASK_B)) r += 8;
             addUnaryOp(c, a, (uint64_t)(fp + off),
-                       IT_PUSH, getRegOp(VT_64, Reg_AX+(opc-0x50)));
+                       IT_PUSH, getRegOp(VT_64, r));
             break;
 
         case 0x58: case 0x59: case 0x5A: case 0x5B:
         case 0x5C: case 0x5D: case 0x5E: case 0x5F:
             // pop
+            r = Reg_AX + (opc - 0x58);
+            if (hasRex && (rex & REX_MASK_B)) r += 8;
             addUnaryOp(c, a, (uint64_t)(fp + off),
-                       IT_POP, getRegOp(VT_64, Reg_AX+(opc-0x58)));
+                       IT_POP, getRegOp(VT_64, r));
             break;
 
         case 0x63:
@@ -2226,17 +2231,31 @@ int genRet(uint8_t* buf)
 int genPush(uint8_t* buf, Operand* o)
 {
     assert(o->type == OT_Reg64);
-    assert((o->reg >= Reg_AX) && (o->reg <= Reg_DI));
-    buf[0] = 0x50 + (o->reg - Reg_AX);
-    return 1;
+    if ((o->reg >= Reg_AX) && (o->reg <= Reg_DI)) {
+        buf[0] = 0x50 + (o->reg - Reg_AX);
+        return 1;
+    }
+    else if ((o->reg >= Reg_8) && (o->reg <= Reg_15)) {
+        buf[0] = 0x41; // REX with MASK_B
+        buf[1] = 0x50 + (o->reg - Reg_8);
+        return 2;
+    }
+    assert(0);
 }
 
 int genPop(uint8_t* buf, Operand* o)
 {
     assert(o->type == OT_Reg64);
-    assert((o->reg >= Reg_AX) && (o->reg <= Reg_DI));
-    buf[0] = 0x58 + (o->reg - Reg_AX);
-    return 1;
+    if ((o->reg >= Reg_AX) && (o->reg <= Reg_DI)) {
+        buf[0] = 0x58 + (o->reg - Reg_AX);
+        return 1;
+    }
+    else if ((o->reg >= Reg_8) && (o->reg <= Reg_15)) {
+        buf[0] = 0x41; // REX with MASK_B
+        buf[1] = 0x58 + (o->reg - Reg_8);
+        return 2;
+    }
+    assert(0);
 }
 
 // return 0 - 15 for RAX - R15
@@ -2297,8 +2316,8 @@ uint8_t* calcModRMDigit(Operand* o1, int digit, int* prex, int* plen)
                 modrm |= 128;
         }
 
-        if (o1->scale == 0) {
-            assert(o1->reg != Reg_SP); // rm 4 reserved for SIB encoding
+        if ((o1->scale == 0) && (o1->reg != Reg_SP)) {
+            // no SIB needed (reg not sp which requires SIB)
             if (o1->reg == Reg_None) {
                 useDisp32 = 1; // encoding needs disp32
                 useDisp8 = 0;
@@ -2331,11 +2350,19 @@ uint8_t* calcModRMDigit(Operand* o1, int digit, int* prex, int* plen)
             else if (o1->scale == 4) sib |= 128;
             else if (o1->scale == 8) sib |= 192;
             else
-                assert(o1->scale == 1);
+                assert((o1->scale == 0) || (o1->scale == 1));
 
-            ri = GPRegEncoding(o1->ireg);
-            if (ri & 8) *prex |= REX_MASK_X;
-            sib |= (ri & 7) <<3;
+            if ((o1->scale == 0) || (o1->ireg == Reg_None)) {
+                // no index register: uses index 4 (usually SP, not allowed)
+                sib |= (4 << 3);
+            }
+            else {
+                ri = GPRegEncoding(o1->ireg);
+                // offset 4 not allowed here, used for "no scaling"
+                assert((ri & 7) != 4);
+                if (ri & 8) *prex |= REX_MASK_X;
+                sib |= (ri & 7) <<3;
+            }
 
             if (o1->reg == Reg_None) {
                 // encoding requires disp32 with mod = 00 / base 5 = none
@@ -2614,20 +2641,30 @@ int genMov(uint8_t* buf, Operand* src, Operand* dst)
             break;
 
         case OT_Imm32:
+            if (src->val == 0) {
+                // setting to 0: use 'xor r/m,r 32/64' (0x31 MR)
+                return genModRM(buf, 0x31, -1, dst, dst);
+            }
             // use 'mov r/m 32/64, imm 32' (0xC7/0)
             return genDigitMI(buf, 0xC7, 0, dst, src);
 
         case OT_Imm64: {
+            if (src->val == 0) {
+                // setting to 0: use 'xor r/m,r 32/64' (0x31 MR)
+                return genModRM(buf, 0x31, -1, dst, dst);
+            }
             // try to convert 64-bit immediate to 32bit if value fits
             Operand o;
             int64_t v = (int64_t) src->val;
             if ((v < (1l<<31)) && (v > -(1l<<31))) {;
                 o.val = (uint32_t) v;
                 o.type = OT_Imm32;
+                // use 'mov r/m 32/64, imm 32' (0xC7/0)
                 return genDigitMI(buf, 0xC7, 0, dst, &o);
             }
             o.val = src->val;
             o.type = OT_Imm64;
+            // use 'mov r64,imm64' (REX.W + 0xB8)
             return genOI(buf, 0xB8, dst, &o);
         }
 
@@ -3100,6 +3137,28 @@ int genCltq(uint8_t* buf, ValType vt)
 
 int genCmp(uint8_t* buf, Operand* src, Operand* dst)
 {
+    Operand o; // used for immediates with reduced width
+
+    if (src->type == OT_Imm64) {
+        // reduction possible if signed 64bit fits into signed 32bit
+        int64_t v = (int64_t) src->val;
+        if ((v > -(1l << 31)) && (v < (1l << 31))) {
+            o.type = OT_Imm32;
+            o.val = (uint32_t) (int32_t) v;
+            src = &o;
+        }
+    }
+
+    if (src->type == OT_Imm32) {
+        // reduction possible if signed 32bit fits into signed 8bit
+        int32_t v = (int32_t) src->val;
+        if ((v > -(1<<7)) && (v < (1<<7))) {
+            o.type = OT_Imm8;
+            o.val = (uint8_t) (int8_t) v;
+            src = &o;
+        }
+    }
+
     switch(src->type) {
     // src reg
     case OT_Reg32:
