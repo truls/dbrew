@@ -97,14 +97,26 @@ TYPE apply3(TYPE *m, int xsize, Stencil* s)
 
 typedef void (*apply_loop)(int, TYPE*, TYPE*, apply_func, Stencil*);
 
+#if 1
 void applyLoop(int size, TYPE* src, TYPE* dst, apply_func af, Stencil* s)
 {
     int x,y;
 
-    for(y=makeDynamic(1);y<size-1;y++)
-        for(x=makeDynamic(1);x<size-1;x++)
+    for(y=1;y<size-1;y++)
+        for(x=1;x<size-1;x++)
             dst[x+y*size] = af(&(src[x+y*size]), size, s);
 }
+#else
+void applyLoop(int size, TYPE* src, TYPE* dst, apply_func af, Stencil* s)
+{
+    int x,y;
+    int f = makeDynamic(1), t = makeDynamic(size-1);
+
+    for(y=f;y<t;y++)
+        for(x=f;x<t;x++)
+            dst[x+y*size] = af(&(src[x+y*size]), size, s);
+}
+#endif
 
 int main(int argc, char* argv[])
 {
@@ -202,10 +214,22 @@ int main(int argc, char* argv[])
            size, (int)(size*size*sizeof(TYPE)), iter, av);
     iter = iter/2;
 
+#if 1
     for(i=0;i<iter;i++) {
         al(size, m1, m2, af, s);
         al(size, m2, m1, af, s);
     }
+#else
+    // allow vectorization?
+    for(i=0;i<iter;i++) {
+      for(y=1;y<size-1;y++)
+	for(x=1;x<size-1;x++)
+	  m1[x+y*size] = apply2(&(m2[x+y*size]), size, s);
+      for(y=1;y<size-1;y++)
+	for(x=1;x<size-1;x++)
+	  m2[x+y*size] = apply2(&(m1[x+y*size]), size, s);
+    }
+#endif
 
     diff = 0;
     for(y=1;y<size-1;y++) {
