@@ -3472,12 +3472,15 @@ typedef struct _EmuValue {
     CaptureState state;
 } EmuValue;
 
-#define CC_MAXPARAM 5
+#define CC_MAXPARAM     5
+#define CC_MAXCALLDEPTH 5
 typedef struct _CaptureConfig
 {
     CaptureState par_state[CC_MAXPARAM];
      // does function to rewrite return floating point?
     Bool hasReturnFP;
+	// avoid unrolling at call depths
+	Bool force_unknown[CC_MAXCALLDEPTH];
 } CaptureConfig;
 
 char captureState2Char(CaptureState s)
@@ -3510,6 +3513,8 @@ void resetRewriterConfig(Rewriter* c)
     cc = (CaptureConfig*) malloc(sizeof(CaptureConfig));
     for(i=0; i < CC_MAXPARAM; i++)
         cc->par_state[i] = CS_DYNAMIC;
+	for(i=0; i < CC_MAXCALLDEPTH; i++)
+        cc->force_unknown[i] = False;
     cc->hasReturnFP = False;
 
     c->cc = cc;
@@ -3530,6 +3535,22 @@ void setRewriterStaticPar(Rewriter* c, int staticParPos)
 
     assert((staticParPos >= 0) && (staticParPos < CC_MAXPARAM));
     cc->par_state[staticParPos] = CS_STATIC2;
+}
+
+/**
+ * This allows to specify for a given function inlining depth that
+ * values produced by binary operations always should be forced to unknown.
+ * Thus, when result is known, it is converted to unknown state with
+ * the value being loaded as immediate into destination.
+ *
+ * Brute force approach to prohibit loop unrolling.
+ */
+void setRewriterForceUnknown(Rewriter* r, int depth)
+{
+    CaptureConfig* cc = getCaptureConfig(r);
+
+    assert((depth >= 0) && (depth < CC_MAXCALLDEPTH));
+    cc->force_unknown[depth] = True;
 }
 
 void setRewriterReturnFP(Rewriter* c)
@@ -4386,9 +4407,14 @@ void captureBinaryOp(Rewriter* c, Instr* orig, EmuState* es, EmuValue* res)
     if (res->state == CS_DEAD) return;
 
     if (csIsStatic(res->state)) {
-        // no need to update data if capture state is maintained
-        if (keepsCaptureState(es, &(orig->dst))) return;
-
+        // force results to become unknown?
+        if (c->cc->force_unknown[es->depth]) {
+            res->state = CS_DYNAMIC;
+        }
+        else {
+            // no need to update data if capture state is maintained
+            if (keepsCaptureState(es, &(orig->dst))) return;
+        }
         // if result is known and goes to memory, generate imm store
         initBinaryInstr(&i, IT_MOV, res->type,
                         &(orig->dst), getImmOp(res->type, res->val));

@@ -146,6 +146,7 @@ int generatedCodeSize(Rewriter* c);
 void resetRewriterConfig(Rewriter* c);
 void setRewriterStaticPar(Rewriter* c, int staticParPos);
 void setRewriterReturnFP(Rewriter* c);
+void setRewriterForceUnknown(Rewriter* r, int depth);
 
 // function which can be used in code to be rewritten:
 // change capture state for value <v> to become dynamic/static

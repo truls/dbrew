@@ -158,40 +158,55 @@ int main(int argc, char* argv[])
     for(i=0;i<size*size;i++)
         m2[i] = m1[i];
 
+    printf("Stencil code version: ");
     switch(av) {
     case 1:
-    case 4:
+    case 5:
+        // generic version
+        printf("generic");
         af = apply;
         s = &s5;
         break;
     case 2:
-    case 5:
+    case 6:
+        // generic version grouped by factor
+        printf("grouped generic");
         af = (apply_func) applyS;
         s = (Stencil*) &s5s;
         break;
     case 3:
-    case 6:
+    case 7:
+        // manual version
+        printf("manual");
         af = apply2;
         s = 0;
         break;
-    case 7:
+    case 4:
+    case 8:
+        // no computation, just return center value
+        printf("(center)");
         af = apply3;
         s = 0;
         break;
     }
 
+
+
     if (rewriteApplyLoop) {
+        printf(", rewriting with loops.\n");
         r = allocRewriter();
         setVerbosity(r, True, True, True);
         setFunc(r, (uint64_t) al);
         setRewriterStaticPar(r, 0); // size is constant
         setRewriterStaticPar(r, 3); // apply func is constant
         setRewriterStaticPar(r, 4); // stencil is constant
+        setRewriterForceUnknown(r, 0); // do not unroll in applyLoop
         emulateAndCapture(r, size, m1, m2, af, s);
         al = (apply_loop) generatedCode(r);
     }
     else {
-        if (av > 3) {
+        printf(",%s rewriting.\n", (av<5) ? " no":"");
+        if (av >= 5) {
             r = allocRewriter();
             setVerbosity(r, True, True, True);
             setFunc(r, (uint64_t) af);
@@ -220,14 +235,14 @@ int main(int argc, char* argv[])
         al(size, m2, m1, af, s);
     }
 #else
-    // allow vectorization?
+    // this version should allow vectorization
     for(i=0;i<iter;i++) {
-      for(y=1;y<size-1;y++)
-	for(x=1;x<size-1;x++)
-	  m1[x+y*size] = apply2(&(m2[x+y*size]), size, s);
-      for(y=1;y<size-1;y++)
-	for(x=1;x<size-1;x++)
-	  m2[x+y*size] = apply2(&(m1[x+y*size]), size, s);
+        for(y=1;y<size-1;y++)
+            for(x=1;x<size-1;x++)
+                m1[x+y*size] = apply2(&(m2[x+y*size]), size, s);
+        for(y=1;y<size-1;y++)
+            for(x=1;x<size-1;x++)
+                m2[x+y*size] = apply2(&(m1[x+y*size]), size, s);
     }
 #endif
 
