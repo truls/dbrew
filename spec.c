@@ -168,10 +168,10 @@ typedef enum _OpType {
 } OpType;
 
 typedef struct _Operand {
+    uint64_t val; // imm or displacement
     OpType type;
     Reg reg;
     Reg ireg; // with SIB
-    uint64_t val; // imm or displacement
     int scale; // with SIB
 } Operand;
 
@@ -1227,7 +1227,7 @@ DBB* decodeBB(Rewriter* c, uint64_t f)
                 opOverwriteType(&o1, VT_64);
                 opOverwriteType(&o2, VT_64);
                 ii = addBinaryOp(c, a, (uint64_t)(fp + off),
-                                 IT_UCOMISD, VT_64, &o1, &o2);
+                                 IT_UCOMISD, VT_Implicit, &o1, &o2);
                 attachPassthrough(ii, PS_66, OE_RM, SC_None, 0x0F, 0x2E, -1);
                 break;
 
@@ -1238,7 +1238,7 @@ DBB* decodeBB(Rewriter* c, uint64_t f)
                 opOverwriteType(&o1, VT_64);
                 opOverwriteType(&o2, VT_64);
                 ii = addBinaryOp(c, a, (uint64_t)(fp + off),
-                                 IT_ADDSD, VT_64, &o1, &o2);
+                                 IT_ADDSD, VT_Implicit, &o1, &o2);
                 attachPassthrough(ii, PS_F2, OE_RM, SC_None, 0x0F, 0x58, -1);
                 break;
 
@@ -1249,7 +1249,7 @@ DBB* decodeBB(Rewriter* c, uint64_t f)
                 opOverwriteType(&o1, VT_64);
                 opOverwriteType(&o2, VT_64);
                 ii = addBinaryOp(c, a, (uint64_t)(fp + off),
-                                 IT_MULSD, VT_64, &o1, &o2);
+                                 IT_MULSD, VT_Implicit, &o1, &o2);
                 attachPassthrough(ii, PS_F2, OE_RM, SC_None, 0x0F, 0x59, -1);
                 break;
 
@@ -1260,7 +1260,7 @@ DBB* decodeBB(Rewriter* c, uint64_t f)
                 opOverwriteType(&o1, VT_64);
                 opOverwriteType(&o2, VT_64);
                 ii = addBinaryOp(c, a, (uint64_t)(fp + off),
-                                 IT_SUBSD, VT_64, &o1, &o2);
+                                 IT_SUBSD, VT_Implicit, &o1, &o2);
                 attachPassthrough(ii, PS_F2, OE_RM, SC_None, 0x0F, 0x5C, -1);
                 break;
 
@@ -1271,7 +1271,7 @@ DBB* decodeBB(Rewriter* c, uint64_t f)
                 opOverwriteType(&o1, VT_128);
                 opOverwriteType(&o2, VT_128);
                 ii = addBinaryOp(c, a, (uint64_t)(fp + off),
-                                 IT_MOVDQU, VT_128, &o1, &o2);
+                                 IT_MOVDQU, VT_Implicit, &o1, &o2);
                 attachPassthrough(ii, PS_F3, OE_RM, SC_None, 0x0F, 0x6F, -1);
                 break;
 
@@ -1282,7 +1282,7 @@ DBB* decodeBB(Rewriter* c, uint64_t f)
                 opOverwriteType(&o1, vt);
                 opOverwriteType(&o2, vt);
                 ii = addBinaryOp(c, a, (uint64_t)(fp + off),
-                                 IT_PCMPEQB, vt, &o1, &o2);
+                                 IT_PCMPEQB, VT_Implicit, &o1, &o2);
                 attachPassthrough(ii, has66 ? PS_66:0, OE_RM, SC_None,
                                   0x0F, 0x74, -1);
                 break;
@@ -1295,7 +1295,7 @@ DBB* decodeBB(Rewriter* c, uint64_t f)
                 opOverwriteType(&o1, vt);
                 opOverwriteType(&o2, vt);
                 ii = addBinaryOp(c, a, (uint64_t)(fp + off),
-                                 IT_MOV, vt, &o1, &o2);
+                                 IT_MOV, VT_Implicit, &o1, &o2);
                 attachPassthrough(ii, PS_66, OE_RM, SC_dstDyn, 0x0F, 0x7E, -1);
                 break;
 
@@ -1356,7 +1356,7 @@ DBB* decodeBB(Rewriter* c, uint64_t f)
                 opOverwriteType(&o1, vt);
                 opOverwriteType(&o2, vt);
                 ii = addBinaryOp(c, a, (uint64_t)(fp + off),
-                                 IT_PMINUB, vt, &o1, &o2);
+                                 IT_PMINUB, VT_Implicit, &o1, &o2);
                 attachPassthrough(ii, has66 ? PS_66:0, OE_RM, SC_None,
                                   0x0F, 0xDA, -1);
                 break;
@@ -1369,7 +1369,7 @@ DBB* decodeBB(Rewriter* c, uint64_t f)
                 opOverwriteType(&o1, vt);
                 opOverwriteType(&o2, vt);
                 ii = addBinaryOp(c, a, (uint64_t)(fp + off),
-                                 IT_PXOR, vt, &o1, &o2);
+                                 IT_PXOR, VT_Implicit, &o1, &o2);
                 attachPassthrough(ii, has66 ? PS_66 : 0, OE_RM, SC_None,
                                   0x0F, 0xEF, -1);
                 break;
@@ -2033,61 +2033,62 @@ char* op2string(Operand* o, ValType t)
     return buf;
 }
 
-char* instrName(InstrType it, int* opCount)
+char* instrName(InstrType it, int* pOpCount)
 {
-    char* n = "<Invalid>";
-    int oc = 0;
+    char* n;
+    int opCount = 0;
 
     switch(it) {
     case IT_NOP:     n = "nop"; break;
     case IT_RET:     n = "ret"; break;
     case IT_LEAVE:   n = "leave"; break;
     case IT_CLTQ:    n = "clt"; break;
-    case IT_PUSH:    n = "push";    oc = 1; break;
-    case IT_POP:     n = "pop";     oc = 1; break;
-    case IT_CALL:    n = "call";    oc = 1; break;
-    case IT_JMP:     n = "jmp";     oc = 1; break;
-    case IT_JMPI:    n = "jmp*";    oc = 1; break;
-    case IT_JE:      n = "je";      oc = 1; break;
-    case IT_JNE:     n = "jne";     oc = 1; break;
-    case IT_JLE:     n = "jle";     oc = 1; break;
-    case IT_JG:      n = "jg";      oc = 1; break;
-    case IT_JL:      n = "jl";      oc = 1; break;
-    case IT_JGE:     n = "jge";     oc = 1; break;
-    case IT_JP:      n = "jp";      oc = 1; break;
-    case IT_MOV:     n = "mov";     oc = 2; break;
-    case IT_MOVSX:   n = "movsx";   oc = 2; break;
-    case IT_MOVZBL:  n = "movzbl";  oc = 2; break;
-    case IT_NEG:     n = "neg";     oc = 1; break;
-    case IT_INC:     n = "inc";     oc = 1; break;
-    case IT_DEC:     n = "dec";     oc = 1; break;
-    case IT_ADD:     n = "add";     oc = 2; break;
-    case IT_ADC:     n = "adc";     oc = 2; break;
-    case IT_SUB:     n = "sub";     oc = 2; break;
-    case IT_SBB:     n = "sbb";     oc = 2; break;
-    case IT_IMUL:    n = "imul";    oc = 2; break;
-    case IT_AND:     n = "and";     oc = 2; break;
-    case IT_OR:      n = "or";      oc = 2; break;
-    case IT_XOR:     n = "xor";     oc = 2; break;
-    case IT_SHL:     n = "shl";     oc = 2; break;
-    case IT_SHR:     n = "shr";     oc = 2; break;
-    case IT_LEA:     n = "lea";     oc = 2; break;
-    case IT_CMP:     n = "cmp";     oc = 2; break;
-    case IT_TEST:    n = "test";    oc = 2; break;
-    case IT_BSF:     n = "bsf";     oc = 2; break;
-    case IT_PXOR:    n = "pxor";    oc = 2; break;
-    case IT_MOVSD:   n = "movsd";   oc = 2; break;
-    case IT_UCOMISD: n = "ucomisd"; oc = 2; break;
-    case IT_MULSD:   n = "mulsd";   oc = 2; break;
-    case IT_ADDSD:   n = "addsd";   oc = 2; break;
-    case IT_SUBSD:   n = "subsd";   oc = 2; break;
-    case IT_MOVDQU:  n = "movdqu";  oc = 2; break;
-    case IT_PCMPEQB: n = "pcmpeqb"; oc = 2; break;
-    case IT_PMINUB:  n = "pminub";  oc = 2; break;
-    case IT_PMOVMSKB:n = "pmovmskb";oc = 2; break;
+    case IT_PUSH:    n = "push";    opCount = 1; break;
+    case IT_POP:     n = "pop";     opCount = 1; break;
+    case IT_CALL:    n = "call";    opCount = 1; break;
+    case IT_JMP:     n = "jmp";     opCount = 1; break;
+    case IT_JMPI:    n = "jmp*";    opCount = 1; break;
+    case IT_JE:      n = "je";      opCount = 1; break;
+    case IT_JNE:     n = "jne";     opCount = 1; break;
+    case IT_JLE:     n = "jle";     opCount = 1; break;
+    case IT_JG:      n = "jg";      opCount = 1; break;
+    case IT_JL:      n = "jl";      opCount = 1; break;
+    case IT_JGE:     n = "jge";     opCount = 1; break;
+    case IT_JP:      n = "jp";      opCount = 1; break;
+    case IT_MOV:     n = "mov";     opCount = 2; break;
+    case IT_MOVSX:   n = "movsx";   opCount = 2; break;
+    case IT_MOVZBL:  n = "movzbl";  opCount = 2; break;
+    case IT_NEG:     n = "neg";     opCount = 1; break;
+    case IT_INC:     n = "inc";     opCount = 1; break;
+    case IT_DEC:     n = "dec";     opCount = 1; break;
+    case IT_ADD:     n = "add";     opCount = 2; break;
+    case IT_ADC:     n = "adc";     opCount = 2; break;
+    case IT_SUB:     n = "sub";     opCount = 2; break;
+    case IT_SBB:     n = "sbb";     opCount = 2; break;
+    case IT_IMUL:    n = "imul";    opCount = 2; break;
+    case IT_AND:     n = "and";     opCount = 2; break;
+    case IT_OR:      n = "or";      opCount = 2; break;
+    case IT_XOR:     n = "xor";     opCount = 2; break;
+    case IT_SHL:     n = "shl";     opCount = 2; break;
+    case IT_SHR:     n = "shr";     opCount = 2; break;
+    case IT_LEA:     n = "lea";     opCount = 2; break;
+    case IT_CMP:     n = "cmp";     opCount = 2; break;
+    case IT_TEST:    n = "test";    opCount = 2; break;
+    case IT_BSF:     n = "bsf";     opCount = 2; break;
+    case IT_PXOR:    n = "pxor";    opCount = 2; break;
+    case IT_MOVSD:   n = "movsd";   opCount = 2; break;
+    case IT_UCOMISD: n = "ucomisd"; opCount = 2; break;
+    case IT_MULSD:   n = "mulsd";   opCount = 2; break;
+    case IT_ADDSD:   n = "addsd";   opCount = 2; break;
+    case IT_SUBSD:   n = "subsd";   opCount = 2; break;
+    case IT_MOVDQU:  n = "movdqu";  opCount = 2; break;
+    case IT_PCMPEQB: n = "pcmpeqb"; opCount = 2; break;
+    case IT_PMINUB:  n = "pminub";  opCount = 2; break;
+    case IT_PMOVMSKB:n = "pmovmskb";opCount = 2; break;
+    default: n = "<Invalid>"; break;
     }
 
-    if (opCount) *opCount = oc;
+    if (pOpCount) *pOpCount = opCount;
     return n;
 }
 
@@ -2221,43 +2222,7 @@ void printDecoded(Rewriter* c, uint64_t f, int count)
 /* x86_64 code generation
  */
 
-// generator helpers: return number of bytes written
-
-int genRet(uint8_t* buf)
-{
-    buf[0] = 0xc3;
-    return 1;
-}
-
-int genPush(uint8_t* buf, Operand* o)
-{
-    assert(o->type == OT_Reg64);
-    if ((o->reg >= Reg_AX) && (o->reg <= Reg_DI)) {
-        buf[0] = 0x50 + (o->reg - Reg_AX);
-        return 1;
-    }
-    else if ((o->reg >= Reg_8) && (o->reg <= Reg_15)) {
-        buf[0] = 0x41; // REX with MASK_B
-        buf[1] = 0x50 + (o->reg - Reg_8);
-        return 2;
-    }
-    assert(0);
-}
-
-int genPop(uint8_t* buf, Operand* o)
-{
-    assert(o->type == OT_Reg64);
-    if ((o->reg >= Reg_AX) && (o->reg <= Reg_DI)) {
-        buf[0] = 0x58 + (o->reg - Reg_AX);
-        return 1;
-    }
-    else if ((o->reg >= Reg_8) && (o->reg <= Reg_15)) {
-        buf[0] = 0x41; // REX with MASK_B
-        buf[1] = 0x58 + (o->reg - Reg_8);
-        return 2;
-    }
-    assert(0);
-}
+// helpers for operand encodings
 
 // return 0 - 15 for RAX - R15
 int GPRegEncoding(Reg r)
@@ -2273,6 +2238,7 @@ int VRegEncoding(Reg r)
     return r - Reg_X0;
 }
 
+// returns static buffer with requested operand encoding
 uint8_t* calcModRMDigit(Operand* o1, int digit, int* prex, int* plen)
 {
     static uint8_t buf[10];
@@ -2576,6 +2542,82 @@ int genOI(uint8_t* buf, int opc, Operand* o1, Operand* o2)
     return o;
 }
 
+// if imm64 and value fitting into imm32, return imm32 version
+// otherwise, or if operand is not imm, just return the original
+Operand* reduceImm64to32(Operand* o)
+{
+    static Operand newOp;
+
+    if (o->type == OT_Imm64) {
+        // reduction possible if signed 64bit fits into signed 32bit
+        int64_t v = (int64_t) o->val;
+        if ((v > -(1l << 31)) && (v < (1l << 31))) {
+            newOp.type = OT_Imm32;
+            newOp.val = (uint32_t) (int32_t) v;
+            return &newOp;
+        }
+    }
+    return o;
+}
+
+Operand* reduceImm32to8(Operand* o)
+{
+    static Operand newOp;
+
+    if (o->type == OT_Imm32) {
+        // reduction possible if signed 32bit fits into signed 8bit
+        int32_t v = (int32_t) o->val;
+        if ((v > -(1<<7)) && (v < (1<<7))) {
+            newOp.type = OT_Imm8;
+            newOp.val = (uint8_t) (int8_t) v;
+            return &newOp;
+        }
+    }
+    return o;
+}
+
+
+// machine code generators for instruction types
+//
+// 1st par is buffer to write to, with at least 15 bytes space.
+// Return number of bytes written
+
+int genRet(uint8_t* buf)
+{
+    buf[0] = 0xc3;
+    return 1;
+}
+
+int genPush(uint8_t* buf, Operand* o)
+{
+    assert(o->type == OT_Reg64);
+    if ((o->reg >= Reg_AX) && (o->reg <= Reg_DI)) {
+        buf[0] = 0x50 + (o->reg - Reg_AX);
+        return 1;
+    }
+    else if ((o->reg >= Reg_8) && (o->reg <= Reg_15)) {
+        buf[0] = 0x41; // REX with MASK_B
+        buf[1] = 0x50 + (o->reg - Reg_8);
+        return 2;
+    }
+    assert(0);
+}
+
+int genPop(uint8_t* buf, Operand* o)
+{
+    assert(o->type == OT_Reg64);
+    if ((o->reg >= Reg_AX) && (o->reg <= Reg_DI)) {
+        buf[0] = 0x58 + (o->reg - Reg_AX);
+        return 1;
+    }
+    else if ((o->reg >= Reg_8) && (o->reg <= Reg_15)) {
+        buf[0] = 0x41; // REX with MASK_B
+        buf[1] = 0x58 + (o->reg - Reg_8);
+        return 2;
+    }
+    assert(0);
+}
+
 int genDec(uint8_t* buf, Operand* dst)
 {
     switch(dst->type) {
@@ -2608,6 +2650,8 @@ int genInc(uint8_t* buf, Operand* dst)
 
 int genMov(uint8_t* buf, Operand* src, Operand* dst)
 {
+    src = reduceImm64to32(src);
+
     switch(dst->type) {
     case OT_Ind32:
     case OT_Ind64:
@@ -2620,7 +2664,7 @@ int genMov(uint8_t* buf, Operand* src, Operand* dst)
             return genModRM(buf, 0x89, -1, dst, src, VT_None);
 
         case OT_Imm32:
-            // use 'mov r/m 32/64, imm 32' (0xC7/0 MI)
+            // use 'mov r/m 32/64, imm32' (0xC7/0 MI)
             return genDigitMI(buf, 0xC7, 0, dst, src);
 
         default: assert(0);
@@ -2652,7 +2696,7 @@ int genMov(uint8_t* buf, Operand* src, Operand* dst)
                 // setting to 0: use 'xor r/m,r 32/64' (0x31 MR)
                 return genModRM(buf, 0x31, -1, dst, dst, VT_None);
             }
-            // use 'mov r/m 32/64, imm 32' (0xC7/0)
+            // use 'mov r/m 32/64, imm32' (0xC7/0)
             return genDigitMI(buf, 0xC7, 0, dst, src);
 
         case OT_Imm64: {
@@ -2660,19 +2704,8 @@ int genMov(uint8_t* buf, Operand* src, Operand* dst)
                 // setting to 0: use 'xor r/m,r 32/64' (0x31 MR)
                 return genModRM(buf, 0x31, -1, dst, dst, VT_None);
             }
-            // try to convert 64-bit immediate to 32bit if value fits
-            Operand o;
-            int64_t v = (int64_t) src->val;
-            if ((v < (1l<<31)) && (v > -(1l<<31))) {;
-                o.val = (uint32_t) v;
-                o.type = OT_Imm32;
-                // use 'mov r/m 32/64, imm 32' (0xC7/0)
-                return genDigitMI(buf, 0xC7, 0, dst, &o);
-            }
-            o.val = src->val;
-            o.type = OT_Imm64;
             // use 'mov r64,imm64' (REX.W + 0xB8)
-            return genOI(buf, 0xB8, dst, &o);
+            return genOI(buf, 0xB8, dst, src);
         }
 
         default: assert(0);
@@ -2684,29 +2717,12 @@ int genMov(uint8_t* buf, Operand* src, Operand* dst)
     return 0;
 }
 
+
 int genAdd(uint8_t* buf, Operand* src, Operand* dst)
 {
-    Operand o; // used for immediates with reduced width
-
-    if (src->type == OT_Imm64) {
-        // reduction possible if signed 64bit fits into signed 32bit
-        int64_t v = (int64_t) src->val;
-        if ((v > -(1l << 31)) && (v < (1l << 31))) {
-            o.type = OT_Imm32;
-            o.val = (uint32_t) (int32_t) v;
-            src = &o;
-        }
-    }
-
-    if (src->type == OT_Imm32) {
-        // reduction possible if signed 32bit fits into signed 8bit
-        int32_t v = (int32_t) src->val;
-        if ((v > -(1<<7)) && (v < (1<<7))) {
-            o.type = OT_Imm8;
-            o.val = (uint8_t) (int8_t) v;
-            src = &o;
-        }
-    }
+    // if src is imm, try to reduce width
+    src = reduceImm64to32(src);
+    src = reduceImm32to8(src);
 
     switch(src->type) {
     case OT_Reg32:
@@ -2772,6 +2788,10 @@ int genAdd(uint8_t* buf, Operand* src, Operand* dst)
 
 int genSub(uint8_t* buf, Operand* src, Operand* dst)
 {
+    // if src is imm, try to reduce width
+    src = reduceImm64to32(src);
+    src = reduceImm32to8(src);
+
     switch(src->type) {
     case OT_Reg32:
     case OT_Reg64:
@@ -2838,17 +2858,8 @@ int genSub(uint8_t* buf, Operand* src, Operand* dst)
 
 int genIMul(uint8_t* buf, Operand* src, Operand* dst)
 {
-    Operand o; // used for immediates with reduced width
-
-    if (src->type == OT_Imm32) {
-        // reduction possible if signed 32bit fits into signed 8bit
-        int32_t v = (int32_t) src->val;
-        if ((v > -(1<<7)) && (v < (1<<7))) {
-            o.type = OT_Imm8;
-            o.val = (uint8_t) (int8_t) v;
-            src = &o;
-        }
-    }
+    // if src is imm, try to reduce width
+    src = reduceImm32to8(src);
 
     switch(src->type) {
     case OT_Reg32:
@@ -3144,27 +3155,9 @@ int genCltq(uint8_t* buf, ValType vt)
 
 int genCmp(uint8_t* buf, Operand* src, Operand* dst)
 {
-    Operand o; // used for immediates with reduced width
-
-    if (src->type == OT_Imm64) {
-        // reduction possible if signed 64bit fits into signed 32bit
-        int64_t v = (int64_t) src->val;
-        if ((v > -(1l << 31)) && (v < (1l << 31))) {
-            o.type = OT_Imm32;
-            o.val = (uint32_t) (int32_t) v;
-            src = &o;
-        }
-    }
-
-    if (src->type == OT_Imm32) {
-        // reduction possible if signed 32bit fits into signed 8bit
-        int32_t v = (int32_t) src->val;
-        if ((v > -(1<<7)) && (v < (1<<7))) {
-            o.type = OT_Imm8;
-            o.val = (uint8_t) (int8_t) v;
-            src = &o;
-        }
-    }
+    // if src is imm, try to reduce width
+    src = reduceImm64to32(src);
+    src = reduceImm32to8(src);
 
     switch(src->type) {
     // src reg
