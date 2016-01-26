@@ -126,6 +126,14 @@ void applyLoop1(int size, TYPE* src, TYPE* dst, apply_func af, Stencil* s)
         dst[x+size] = af(&(src[x+size]), size, s);
 }
 
+void apply4(int size, TYPE* src, TYPE* dst, apply_func af, Stencil* s)
+{
+    dst[0] = af(&(src[0]), size, s);
+    dst[1] = af(&(src[1]), size, s);
+    dst[2] = af(&(src[2]), size, s);
+    dst[3] = af(&(src[3]), size, s);
+}
+
 
 int main(int argc, char* argv[])
 {
@@ -137,6 +145,7 @@ int main(int argc, char* argv[])
     Stencil* s;
     Rewriter* r = 0;
     int rewriteApplyLoop = 0;
+    int do4 = 0;
     int verbose = 0;
     int arg = 1;
 
@@ -153,6 +162,11 @@ int main(int argc, char* argv[])
     if (av == 0) av = 1;
 
     al = applyLoop;
+    if (av>40) {
+        do4 = 1;
+        al = apply4;
+        av -= 40;
+    }
     if (av>20) {
         al = applyLoop1;
         av -= 20;
@@ -209,8 +223,6 @@ int main(int argc, char* argv[])
         break;
     }
 
-
-
     if (rewriteApplyLoop) {
         printf(", rewriting with loops.\n");
         r = allocRewriter();
@@ -220,7 +232,8 @@ int main(int argc, char* argv[])
         setRewriterStaticPar(r, 0); // size is constant
         setRewriterStaticPar(r, 3); // apply func is constant
         setRewriterStaticPar(r, 4); // stencil is constant
-        setRewriterForceUnknown(r, 0); // do not unroll in applyLoop
+        if (!do4)
+            setRewriterForceUnknown(r, 0); // do not unroll in applyLoop
         emulateAndCapture(r, size, m1, m2, af, s);
         al = (apply_loop) generatedCode(r);
     }
@@ -251,9 +264,25 @@ int main(int argc, char* argv[])
     iter = iter/2;
 
 #if 1
-    for(i=0;i<iter;i++) {
-        al(size, m1, m2, af, s);
-        al(size, m2, m1, af, s);
+    if (do4) {
+        for(i=0;i<iter;i++) {
+            for(y=1;y<size-1;y++)
+                for(x=1;x<size-1;x+=4) {
+                    int o = x+y*size;
+                    al(size, m1+o, m2+o, af, s);
+                }
+            for(y=1;y<size-1;y++)
+                for(x=1;x<size-1;x+=4) {
+                    int o = x+y*size;
+                    al(size, m2+o, m1+o, af, s);
+                }
+        }
+    }
+    else {
+        for(i=0;i<iter;i++) {
+            al(size, m1, m2, af, s);
+            al(size, m2, m1, af, s);
+        }
     }
 #else
     // this version should allow vectorization
