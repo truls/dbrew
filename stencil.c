@@ -137,10 +137,16 @@ int main(int argc, char* argv[])
     Stencil* s;
     Rewriter* r = 0;
     int rewriteApplyLoop = 0;
+    int verbose = 0;
+    int arg = 1;
 
-    if (argc>1) av = atoi(argv[1]);
-    if (argc>2) size = atoi(argv[2]);
-    if (argc>3) iter = atoi(argv[3]);
+    while ((argc > arg) && (argv[arg][0] == '-')) {
+        if (argv[arg][1] == 'v') verbose++;
+        arg++;
+    }
+    if (argc > arg) { av   = atoi(argv[arg]); arg++; }
+    if (argc > arg) { size = atoi(argv[arg]); arg++; }
+    if (argc > arg) { iter = atoi(argv[arg]); arg++; }
 
     if (size == 0) size = 1000;
     if (iter == 0) iter = 100;
@@ -208,7 +214,8 @@ int main(int argc, char* argv[])
     if (rewriteApplyLoop) {
         printf(", rewriting with loops.\n");
         r = allocRewriter();
-        setVerbosity(r, True, True, True);
+        if (verbose>1)
+            setVerbosity(r, True, True, True);
         setFunc(r, (uint64_t) al);
         setRewriterStaticPar(r, 0); // size is constant
         setRewriterStaticPar(r, 3); // apply func is constant
@@ -221,7 +228,8 @@ int main(int argc, char* argv[])
         printf(",%s rewriting.\n", (av<5) ? " no":"");
         if (av >= 5) {
             r = allocRewriter();
-            setVerbosity(r, True, True, True);
+            if (verbose>1)
+                setVerbosity(r, True, True, True);
             setFunc(r, (uint64_t) af);
             setRewriterStaticPar(r, 1); // size is constant
             setRewriterStaticPar(r, 2); // stencil is constant
@@ -231,7 +239,7 @@ int main(int argc, char* argv[])
         }
     }
 
-    if (r) {
+    if (r && (verbose>0)) {
         // use another rewriter to show generated code
         Rewriter* r2 = allocRewriter();
         printDecoded(r2, generatedCode(r), generatedCodeSize(r));
