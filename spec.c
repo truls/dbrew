@@ -150,7 +150,8 @@ typedef enum _InstrType {
 } InstrType;
 
 typedef enum _ValType {
-    VT_None = 0,
+    // implicit: width given by opcode, use with Instr.vtype
+    VT_None = 0, VT_Implicit,
     VT_8, VT_16, VT_32, VT_64, VT_128, VT_256,
     //
     VT_Max
@@ -938,10 +939,10 @@ Instr* addUnaryOp(Rewriter* c, uint64_t a, uint64_t a2,
 Instr* addBinaryOp(Rewriter* c, uint64_t a, uint64_t a2,
                    InstrType it, ValType vt, Operand* o1, Operand* o2)
 {
-    if (vt != VT_None) {
-        // if we specify a value type, it must match destination
-        assert(vt == opValType(o1));
+    if ((vt != VT_None) && (vt != VT_Implicit)) {
+        // if we specify an explicit value type, it must match destination
         // 2nd operand does not have to match (e.g. conversion/mask extraction)
+        assert(vt == opValType(o1));
     }
 
     Instr* i = nextInstr(c, a, a2 - a);
@@ -1046,13 +1047,13 @@ int parseModRM(uint8_t* p, int rex, Bool o1IsVec, Bool o2IsVec,
         return o;
     }
 
+    if (hasRex && (rex & REX_MASK_X)) idx += 8;
     r = Reg_AX + idx;
-    if (hasRex && (rex & REX_MASK_X)) r += 8;
     o1->ireg = (idx == 4) ? Reg_None : r;
 
 
+    if (hasRex && (rex & REX_MASK_B)) base += 8;
     r = Reg_AX + base;
-    if (hasRex && (rex & REX_MASK_B)) r += 8;
     o1->reg = ((base == 5) && (mod == 0)) ? Reg_None : r;
 
     // no need to use SIB if index register not used
@@ -1190,7 +1191,7 @@ DBB* decodeBB(Rewriter* c, uint64_t f)
                 opOverwriteType(&o1, VT_64);
                 opOverwriteType(&o2, VT_64);
                 ii = addBinaryOp(c, a, (uint64_t)(fp + off),
-                                 IT_MOVSD, VT_64, &o1, &o2);
+                                 IT_MOVSD, VT_Implicit, &o1, &o2);
                 attachPassthrough(ii, PS_F2, OE_RM, SC_None, 0x0F, 0x10, -1);
                 break;
 
@@ -1201,7 +1202,7 @@ DBB* decodeBB(Rewriter* c, uint64_t f)
                 opOverwriteType(&o1, VT_64);
                 opOverwriteType(&o2, VT_64);
                 ii = addBinaryOp(c, a, (uint64_t)(fp + off),
-                                 IT_MOVSD, VT_64, &o1, &o2);
+                                 IT_MOVSD, VT_Implicit, &o1, &o2);
                 attachPassthrough(ii, PS_F2, OE_MR, SC_None, 0x0F, 0x11, -1);
                 break;
 
@@ -2359,7 +2360,7 @@ uint8_t* calcModRMDigit(Operand* o1, int digit, int* prex, int* plen)
             else {
                 ri = GPRegEncoding(o1->ireg);
                 // offset 4 not allowed here, used for "no scaling"
-                assert((ri & 7) != 4);
+                assert(ri != 4);
                 if (ri & 8) *prex |= REX_MASK_X;
                 sib |= (ri & 7) <<3;
             }
@@ -2423,14 +2424,20 @@ uint8_t* calcModRM(Operand* o1, Operand* o2, int* prex, int* plen)
 }
 
 
-// Operand o1: r/m, o2: r
-int genModRM(uint8_t* buf, int opc, int opc2, Operand* o1, Operand* o2)
+// Generate instruction with operand encoding RM (o1: r/m, o2: r)
+// into buf, up to 2 opcodes (2 if opc2 >=0).
+// If result type (vt) is explicitly specified as "VT_Implicit", do not
+// automatically generate REX prefix depending on operand types.
+// Returns byte length of generated instruction.
+int genModRM(uint8_t* buf, int opc, int opc2,
+             Operand* o1, Operand* o2, ValType vt)
 {
     int rex = 0, len = 0;
     int o = 0;
     uint8_t* rmBuf;
 
     rmBuf = calcModRM(o1, o2, &rex, &len);
+    if (vt == VT_Implicit) rex &= ~REX_MASK_W;
     if (rex)
         buf[o++] = 0x40 | rex;
     buf[o++] = (uint8_t) opc;
@@ -2610,7 +2617,7 @@ int genMov(uint8_t* buf, Operand* src, Operand* dst)
         case OT_Reg32:
         case OT_Reg64:
             // use 'mov r/m,r 32/64' (0x89 MR)
-            return genModRM(buf, 0x89, -1, dst, src);
+            return genModRM(buf, 0x89, -1, dst, src, VT_None);
 
         case OT_Imm32:
             // use 'mov r/m 32/64, imm 32' (0xC7/0 MI)
@@ -2630,20 +2637,20 @@ int genMov(uint8_t* buf, Operand* src, Operand* dst)
         case OT_Reg64:
             if (opValType(src) == opValType(dst)) {
                 // use 'mov r,r/m 32/64' (0x8B RM)
-                return genModRM(buf, 0x8B, -1, src, dst);
+                return genModRM(buf, 0x8B, -1, src, dst, VT_None);
             }
             else if ((opValType(src) == VT_32) &&
                      (opValType(dst) == VT_64)) {
                 src->type = (src->type == OT_Reg32) ? OT_Reg64 : OT_Ind64;
                 // use 'movsx r64 ,r/m 32' (0x63)
-                return genModRM(buf, 0x63, -1, src, dst);
+                return genModRM(buf, 0x63, -1, src, dst, VT_None);
             }
             break;
 
         case OT_Imm32:
             if (src->val == 0) {
                 // setting to 0: use 'xor r/m,r 32/64' (0x31 MR)
-                return genModRM(buf, 0x31, -1, dst, dst);
+                return genModRM(buf, 0x31, -1, dst, dst, VT_None);
             }
             // use 'mov r/m 32/64, imm 32' (0xC7/0)
             return genDigitMI(buf, 0xC7, 0, dst, src);
@@ -2651,7 +2658,7 @@ int genMov(uint8_t* buf, Operand* src, Operand* dst)
         case OT_Imm64: {
             if (src->val == 0) {
                 // setting to 0: use 'xor r/m,r 32/64' (0x31 MR)
-                return genModRM(buf, 0x31, -1, dst, dst);
+                return genModRM(buf, 0x31, -1, dst, dst, VT_None);
             }
             // try to convert 64-bit immediate to 32bit if value fits
             Operand o;
@@ -2711,7 +2718,7 @@ int genAdd(uint8_t* buf, Operand* src, Operand* dst)
         case OT_Ind32:
         case OT_Ind64:
             // use 'add r/m,r 32/64' (0x01 MR)
-            return genModRM(buf, 0x01, -1, dst, src);
+            return genModRM(buf, 0x01, -1, dst, src, VT_None);
 
         default: assert(0);
         }
@@ -2724,7 +2731,7 @@ int genAdd(uint8_t* buf, Operand* src, Operand* dst)
         case OT_Reg32:
         case OT_Reg64:
             // use 'add r,r/m 32/64' (0x03 RM)
-            return genModRM(buf, 0x03, -1, src, dst);
+            return genModRM(buf, 0x03, -1, src, dst, VT_None);
 
         default: assert(0);
         }
@@ -2776,7 +2783,7 @@ int genSub(uint8_t* buf, Operand* src, Operand* dst)
         case OT_Ind32:
         case OT_Ind64:
             // use 'sub r/m,r 32/64' (0x29 MR)
-            return genModRM(buf, 0x29, -1, dst, src);
+            return genModRM(buf, 0x29, -1, dst, src, VT_None);
 
         default: assert(0);
         }
@@ -2790,7 +2797,7 @@ int genSub(uint8_t* buf, Operand* src, Operand* dst)
         case OT_Reg32:
         case OT_Reg64:
             // use 'sub r,r/m 32/64' (0x2B RM)
-            return genModRM(buf, 0x2B, -1, src, dst);
+            return genModRM(buf, 0x2B, -1, src, dst, VT_None);
 
         default: assert(0);
         }
@@ -2853,7 +2860,7 @@ int genIMul(uint8_t* buf, Operand* src, Operand* dst)
         case OT_Reg32:
         case OT_Reg64:
             // use 'imul r,r/m 32/64' (0x0F 0xAF RM)
-            return genModRM(buf, 0x0F, 0xAF, src, dst);
+            return genModRM(buf, 0x0F, 0xAF, src, dst, VT_None);
 
         default: assert(0);
         }
@@ -2900,7 +2907,7 @@ int genXor(uint8_t* buf, Operand* src, Operand* dst)
         case OT_Reg64:
         case OT_Ind64:
             // use 'xor r/m,r 32/64' (0x31 MR)
-            return genModRM(buf, 0x31, -1, dst, src);
+            return genModRM(buf, 0x31, -1, dst, src, VT_None);
 
         default: assert(0);
         }
@@ -2914,7 +2921,7 @@ int genXor(uint8_t* buf, Operand* src, Operand* dst)
         case OT_Reg32:
         case OT_Reg64:
             // use 'xor r,r/m 32/64' (0x33 RM)
-            return genModRM(buf, 0x33, -1, src, dst);
+            return genModRM(buf, 0x33, -1, src, dst, VT_None);
 
         default: assert(0);
         }
@@ -2966,7 +2973,7 @@ int genOr(uint8_t* buf, Operand* src, Operand* dst)
         case OT_Reg64:
         case OT_Ind64:
             // use 'or r/m,r 32/64' (0x09 MR)
-            return genModRM(buf, 0x09, -1, dst, src);
+            return genModRM(buf, 0x09, -1, dst, src, VT_None);
 
         default: assert(0);
         }
@@ -2980,7 +2987,7 @@ int genOr(uint8_t* buf, Operand* src, Operand* dst)
         case OT_Reg32:
         case OT_Reg64:
             // use 'or r,r/m 32/64' (0x0B RM)
-            return genModRM(buf, 0x0B, -1, src, dst);
+            return genModRM(buf, 0x0B, -1, src, dst, VT_None);
 
         default: assert(0);
         }
@@ -3032,7 +3039,7 @@ int genAnd(uint8_t* buf, Operand* src, Operand* dst)
         case OT_Reg64:
         case OT_Ind64:
             // use 'and r/m,r 32/64' (0x21 MR)
-            return genModRM(buf, 0x21, -1, dst, src);
+            return genModRM(buf, 0x21, -1, dst, src, VT_None);
 
         default: assert(0);
         }
@@ -3046,7 +3053,7 @@ int genAnd(uint8_t* buf, Operand* src, Operand* dst)
         case OT_Reg32:
         case OT_Reg64:
             // use 'and r,r/m 32/64' (0x23 RM)
-            return genModRM(buf, 0x23, -1, src, dst);
+            return genModRM(buf, 0x23, -1, src, dst, VT_None);
 
         default: assert(0);
         }
@@ -3117,7 +3124,7 @@ int genLea(uint8_t* buf, Operand* src, Operand* dst)
     case OT_Reg32:
     case OT_Reg64:
         // use 'lea r/m,r 32/64' (0x8d)
-        return genModRM(buf, 0x8d, -1, src, dst);
+        return genModRM(buf, 0x8d, -1, src, dst, VT_None);
 
     default: assert(0);
     }
@@ -3170,7 +3177,7 @@ int genCmp(uint8_t* buf, Operand* src, Operand* dst)
         case OT_Reg64:
         case OT_Ind64:
             // use 'cmp r/m,r 32/64' (0x39 MR)
-            return genModRM(buf, 0x39, -1, dst, src);
+            return genModRM(buf, 0x39, -1, dst, src, VT_None);
 
         default: assert(0);
         }
@@ -3184,7 +3191,7 @@ int genCmp(uint8_t* buf, Operand* src, Operand* dst)
         case OT_Reg32:
         case OT_Reg64:
             // use 'cmp r,r/m 32/64' (0x3B RM)
-            return genModRM(buf, 0x3B, -1, src, dst);
+            return genModRM(buf, 0x3B, -1, src, dst, VT_None);
 
         default: assert(0);
         }
@@ -3242,12 +3249,12 @@ int genPassThrough(uint8_t* buf, Instr* instr)
     switch(instr->ptEnc) {
     case OE_MR:
         o += genModRM(buf+o, instr->ptOpc[0], instr->ptOpc[1],
-                &(instr->dst), &(instr->src));
+                &(instr->dst), &(instr->src), instr->vtype);
         break;
 
     case OE_RM:
         o += genModRM(buf+o, instr->ptOpc[0], instr->ptOpc[1],
-                &(instr->src), &(instr->dst));
+                &(instr->src), &(instr->dst), instr->vtype);
         break;
 
     default: assert(0);
@@ -4629,6 +4636,8 @@ void capturePassThrough(Rewriter* c, Instr* orig, EmuState* es)
 
     assert(orig->ptLen >0);
     initSimpleInstr(&i, orig->type);
+    i.vtype  = orig->vtype;
+
     i.ptLen  = orig->ptLen;
     i.ptEnc  = orig->ptEnc;
     i.ptPSet = orig->ptPSet;
