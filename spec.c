@@ -4591,8 +4591,18 @@ void captureLea(Rewriter* c, Instr* orig, EmuState* es, EmuValue* res)
 {
     Instr i;
 
-    if (csIsStatic(res->state)) return;
+    assert(opIsReg(&(orig->dst)));
+    if (csIsStatic(res->state)) {
+        if (c->cc->force_unknown[es->depth]) {
+            // force results to become unknown => load value into dest
 
+            res->state = CS_DYNAMIC;
+            initBinaryInstr(&i, IT_MOV, res->type,
+                            &(orig->dst), getImmOp(res->type, res->val));
+            capture(c, &i);
+        }
+        return;
+    }
     initBinaryInstr(&i, IT_LEA, orig->vtype, &(orig->dst), &(orig->src));
     applyStaticToInd(&(i.src), es);
     capture(c, &i);
