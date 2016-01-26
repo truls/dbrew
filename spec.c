@@ -3749,9 +3749,40 @@ Bool esIsEqual(EmuState* es1, EmuState* es2)
             return False;
     }
 
-    // TODO: Stack. May need to explicitly remember types/offsets
-
+    // for equality, must be at same call depth
     if (es1->depth != es2->depth) return False;
+
+    // Stack
+    // all known data has to be the same
+    if (es1->stackSize < es2->stackSize) {
+        int diff = es2->stackSize - es1->stackSize;
+        // stack of es2 is larger: bottom should not be static
+        for(i = 0; i < diff; i++) {
+            if (csIsStatic(es2->stackState[i]))
+                return False;
+        }
+        // check for equal state at byte granularity
+        for(i = 0; i < es1->stackSize; i++) {
+            if (!csIsEqual(es1, es1->stackState[i], es1->stack[i],
+                           es2, es2->stackState[i+diff], es2->stack[i+diff]))
+                return False;
+        }
+    }
+    else {
+        // es1 larger
+        int diff = es1->stackSize - es2->stackSize;
+        // bottom of es1 should not be static
+        for(i = 0; i < diff; i++) {
+            if (csIsStatic(es1->stackState[i]))
+                return False;
+        }
+        // check for equal state at byte granularity
+        for(i = 0; i < es2->stackSize; i++) {
+            if (!csIsEqual(es1, es1->stackState[i+diff], es1->stack[i+diff],
+                           es2, es2->stackState[i], es2->stack[i]))
+                return False;
+        }
+    }
 
     return True;
 }
@@ -3895,7 +3926,7 @@ void printEmuState(EmuState* es)
     printf("\n");
 
     spOff = es->reg[Reg_SP] - es->stackStart;
-    spMax = spOff /8*8 + 24;
+    spMax = spOff /8*8 + 40;
     spMin = spOff /8*8 - 32;
     if (es->stackStart + spMin < es->stackAccessed)
         spMin = (es->stackAccessed - es->stackStart)/8*8;
@@ -3921,7 +3952,7 @@ void printEmuState(EmuState* es)
 // print only state information important to distinguish for capturing
 void printStaticEmuState(EmuState* es, int esID)
 {
-    int i, c;
+    int i, c, cc;
 
     printf("Emulation Static State (esID %d, call depth %d):\n",
            esID, es->depth);
@@ -3964,7 +3995,26 @@ void printStaticEmuState(EmuState* es, int esID)
     else
         printf("(none)\n");
 
-    // TODO: Stack
+    printf("  Stack: ");
+    cc = 0;
+    c = 0;
+    for(i = 0; i < es->stackSize; i++) {
+        if (!csIsStatic(es->stackState[i])) {
+            c = 0;
+            continue;
+        }
+        if (c == 0)
+            printf("\n   %016lx ", (uint64_t) (es->stackStart + i));
+        else
+            printf(" ");
+        printf("%02x", es->stack[i]);
+        cc++;
+        c++;
+    }
+    if (cc>0)
+        printf("\n");
+    else
+        printf("(none)\n");
 }
 
 char combineState(CaptureState s1, CaptureState s2,
