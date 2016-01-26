@@ -103,6 +103,10 @@ Tasks/Todo
     - easier by maintaining a virtual register mapping in emulation?
   * "if": state gets known in if/else path
   * optimization: guard + special case inlining for parameters
+  * better avoidance of unrolling:
+    - split dynamic BBs into static by analyzing control flow
+    - replace existing BB translation with "more constant" world state
+      with one with "more variable" world state
 
 
 Students Work
