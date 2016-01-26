@@ -118,6 +118,15 @@ void applyLoop(int size, TYPE* src, TYPE* dst, apply_func af, Stencil* s)
 }
 #endif
 
+// only top line
+void applyLoop1(int size, TYPE* src, TYPE* dst, apply_func af, Stencil* s)
+{
+    int x;
+    for(x=1;x<size-1;x++)
+        dst[x+size] = af(&(src[x+size]), size, s);
+}
+
+
 int main(int argc, char* argv[])
 {
     int i, x, y;
@@ -137,11 +146,15 @@ int main(int argc, char* argv[])
     if (iter == 0) iter = 100;
     if (av == 0) av = 1;
 
+    al = applyLoop;
+    if (av>20) {
+        al = applyLoop1;
+        av -= 20;
+    }
     if (av>10) {
         rewriteApplyLoop = 1;
         av -= 10;
     }
-    al = applyLoop;
 
     m1 = (TYPE*) malloc(sizeof(TYPE) * size * size);
     m2 = (TYPE*) malloc(sizeof(TYPE) * size * size);
