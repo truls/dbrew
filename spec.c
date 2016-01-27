@@ -2303,7 +2303,16 @@ uint8_t* calcModRMDigit(Operand* o1, int digit, int* prex, int* plen)
                 }
                 else {
                     r1 = GPRegEncoding(o1->reg);
-                    assert((modrm >63) || (r1 != 5)); // do not use RIP encoding
+
+                    if ((r1 == 5) && (v==0)) {
+                        // encoding for rbp without displacement is reused
+                        // for RIP-relative addressing!
+                        // we need to enforce +disp8 with disp8 = 0
+                        // (see SDM, table 2-5 in 2.2.1.2)
+                        useDisp8 = 1;
+                        assert(modrm < 64); // check that mod = 0
+                        modrm |= 64;
+                    }
                 }
                 if (r1 & 8) *prex |= REX_MASK_B;
                 modrm |= (r1 & 7);

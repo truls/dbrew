@@ -157,8 +157,8 @@ int main(int argc, char* argv[])
     if (argc > arg) { size = atoi(argv[arg]); arg++; }
     if (argc > arg) { iter = atoi(argv[arg]); arg++; }
 
-    if (size == 0) size = 1000;
-    if (iter == 0) iter = 100;
+    if (size == 0) size = 1002;
+    if (iter == 0) iter = 1000;
     if (av == 0) av = 1;
 
     al = applyLoop;
