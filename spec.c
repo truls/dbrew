@@ -301,7 +301,7 @@ typedef struct _Rewriter {
     CBB* genOrder[GENORDER_MAX];
 
     // debug output
-    Bool showDecoding, showEmuState, showEmuSteps;
+    Bool showDecoding, showEmuState, showEmuSteps, showOptSteps;
 } Rewriter;
 
 // REX prefix, used in parseModRM
@@ -461,6 +461,11 @@ void setVerbosity(Rewriter* rewriter,
     rewriter->showDecoding = decode;
     rewriter->showEmuState = emuState;
     rewriter->showEmuSteps = emuSteps;
+}
+
+void setOptVerbosity(Rewriter* r, Bool v)
+{
+    r->showOptSteps = v;
 }
 
 uint64_t generatedCode(Rewriter* c)
@@ -3265,6 +3270,13 @@ int genPassThrough(uint8_t* buf, Instr* instr)
     return o;
 }
 
+
+//---------------------------------------------------------------
+// Functions to find/allocate new (captured) basic blocks (CBBs).
+// A CBB is keyed by a function address and world state ID
+// (actually an emulator state esID)
+
+// remove any previously allocated CBBs (keep allocated memory space)
 void resetCapturing(Rewriter* r)
 {
     // only to be called after initRewriter()
@@ -3291,7 +3303,7 @@ CBB *findCaptureBB(Rewriter* r, uint64_t f, int esID)
     return 0;
 }
 
-// allocate an BB structure to collect instructions for capturing
+// allocate a BB structure to collect instructions for capturing
 CBB* getCaptureBB(Rewriter* c, uint64_t f, int esID)
 {
     CBB* bb;
@@ -3306,12 +3318,14 @@ CBB* getCaptureBB(Rewriter* c, uint64_t f, int esID)
     c->capBBCount++;
     bb->dec_addr = f;
     bb->esID = esID;
+
     bb->count = 0;
-    bb->instr = 0; // reset on first instruction added
+    bb->instr = 0; // updated on first instruction added
     bb->nextBranch = 0;
     bb->nextFallThrough = 0;
     bb->endType = IT_None;
     bb->preferBranch = False;
+
     bb->size = -1; // size of 0 could be valid
     bb->addr1 = 0;
     bb->addr2 = 0;
@@ -3460,10 +3474,12 @@ void generate(Rewriter* c, CBB* cbb)
         }
     }
 
-    // add padding between BBs
+    // add padding space after generated code for jump instruction
     buf = useCodeStorage(c->cs, 10);
 
     cbb->size = usedTotal;
+    // start address of generated code.
+    // if CBB had no instruction, this points to the padding buffer
     cbb->addr1 = (cbb->count == 0) ? ((uint64_t)buf) : cbb->instr[0].addr;
 }
 
@@ -4068,6 +4084,12 @@ char combineState4Flags(CaptureState s1, CaptureState s2)
     return s;
 }
 
+//---------------------------------------------------------
+// emulator functions
+
+
+// flag setting helpers
+
 /* Setting some flags can get complicated.
  * From libx86emu/prim_ops.c (github.com/wfeldt/libx86emu)
  */
@@ -4080,7 +4102,7 @@ static uint32_t parity_tab[8] =
 #define PARITY(x)   (((parity_tab[(x) / 32] >> ((x) % 32)) & 1) == 0)
 #define XOR2(x)     (((x) ^ ((x)>>1)) & 0x1)
 
-// v1 - v2
+// set flags for operation "v1 - v2"
 CaptureState setFlagsSub(EmuState* es, EmuValue* v1, EmuValue* v2)
 {
     CaptureState st;
@@ -4124,6 +4146,7 @@ CaptureState setFlagsSub(EmuState* es, EmuValue* v1, EmuValue* v2)
     return st;
 }
 
+// set flags for operation "v1 + v2"
 void setFlagsAdd(EmuState* es, EmuValue* v1, EmuValue* v2)
 {
     CaptureState st;
@@ -4214,6 +4237,9 @@ CaptureState setFlagsBit(EmuState* es, InstrType it,
 
     return s;
 }
+
+
+// helpers for capture processing
 
 // if addr on stack, return true and stack offset in <off>,
 //  otherwise return false
@@ -4375,6 +4401,7 @@ void setMemValue(EmuValue* v, EmuValue* addr, EmuState* es, ValType t,
     }
 }
 
+// helper for getOpAddr()
 void addRegToValue(EmuValue* v, EmuState* es, Reg r, int scale)
 {
     if (r == Reg_None) return;
@@ -4383,7 +4410,7 @@ void addRegToValue(EmuValue* v, EmuState* es, Reg r, int scale)
     v->val += scale * es->reg[r];
 }
 
-
+// get resulting address (and state) for memory operands
 void getOpAddr(EmuValue* v, EmuState* es, Operand* o)
 {
     assert(opIsInd(o));
@@ -4399,7 +4426,7 @@ void getOpAddr(EmuValue* v, EmuState* es, Operand* o)
         addRegToValue(v, es, o->ireg, o->scale);
 }
 
-// returned value should be casted to expected type (8/16/32 bit)
+// returned value v should be casted to expected type (8/16/32 bit)
 void getOpValue(EmuValue* v, EmuState* es, Operand* o)
 {
     EmuValue addr;
@@ -4461,13 +4488,16 @@ void setOpValue(EmuValue* v, EmuState* es, Operand* o)
     }
 }
 
-// false if not on stack or stack offset not static/known
+// Do we maintain capture state for a value pointed to by an operand?
+// Returns false for memory locations not on stack or when stack offset
+//  is not static/known.
 Bool keepsCaptureState(EmuState* es, Operand* o)
 {
     EmuValue addr;
     EmuValue off;
     Bool isOnStack;
 
+    // never should be called with immediate ops (do not point to location)
     assert(!opIsImm(o));
     if (opIsGPReg(o)) return 1;
 
@@ -4477,6 +4507,7 @@ Bool keepsCaptureState(EmuState* es, Operand* o)
     return csIsStatic(off.state);
 }
 
+// apply known state to memory operand (this modifies the operand in-place)
 void applyStaticToInd(Operand* o, EmuState* es)
 {
     if (!opIsInd(o)) return;
@@ -4490,6 +4521,9 @@ void applyStaticToInd(Operand* o, EmuState* es)
         o->scale = 0;
     }
 }
+
+
+// capture processing for instruction types
 
 // both MOV and MOVSX (sign extend 32->64)
 void captureMov(Rewriter* c, Instr* orig, EmuState* es, EmuValue* res)
@@ -4673,13 +4707,12 @@ void captureRet(Rewriter* c, Instr* orig, EmuState* es)
     capture(c, orig);
 }
 
-// check for capture state modifications
+// helper for capturePassThrough: do capture state modifications
+// if provided as meta information (e.g. setting values in locations unknown)
 void processPassThrough(Rewriter* c, Instr* i, EmuState* es)
 {
     assert(i->ptLen >0);
     if (i->ptSChange == SC_None) return;
-
-    // FIXME: check memory writes for stack space
 
     switch(i->dst.type) {
     case OT_Reg32:
@@ -4688,6 +4721,8 @@ void processPassThrough(Rewriter* c, Instr* i, EmuState* es)
             es->reg_state[i->dst.reg] = CS_DYNAMIC;
         break;
 
+        // memory locations not handled yet
+
     default: assert(0);
     }
 }
@@ -4695,6 +4730,9 @@ void processPassThrough(Rewriter* c, Instr* i, EmuState* es)
 void capturePassThrough(Rewriter* c, Instr* orig, EmuState* es)
 {
     Instr i;
+
+    // pass-through: may have influence to emu state
+    processPassThrough(c, orig, es);
 
     assert(orig->ptLen >0);
     initSimpleInstr(&i, orig->type);
@@ -4734,8 +4772,8 @@ void capturePassThrough(Rewriter* c, Instr* orig, EmuState* es)
 
 // this ends a captured BB, queuing new paths to be traced
 void captureJcc(Rewriter* r, InstrType it,
-                     uint64_t branchTarget, uint64_t fallthroughTarget,
-                     Bool didBranch)
+                uint64_t branchTarget, uint64_t fallthroughTarget,
+                Bool didBranch)
 {
     CBB *cbb, *cbbBR, *cbbFT;
     int esID;
@@ -4760,7 +4798,25 @@ void captureJcc(Rewriter* r, InstrType it,
         pushCaptureBB(r, cbbBR);
         pushCaptureBB(r, cbbFT);
     }
+    // current CBB should be closed.
+    // (we have to open a new CBB before allowing new instructions to capture)
+    assert(r->currentCapBB == 0);
 }
+
+//----------------------------------------------------------
+// optimization pass
+
+void optPass(Rewriter* r, CBB* cbb)
+{
+    if (r->showOptSteps) {
+        printf("Run Optimization for CBB (%lx|%d)\n",
+               cbb->dec_addr, cbb->esID);
+    }
+    // TODO
+}
+
+//----------------------------------------------------------
+// Emulator for instruction types
 
 // return 0 to fall through to next instruction, or return address to jump to
 uint64_t emulateInstr(Rewriter* c, EmuState* es, Instr* instr)
@@ -4770,9 +4826,6 @@ uint64_t emulateInstr(Rewriter* c, EmuState* es, Instr* instr)
     ValType vt;
 
     if (instr->ptLen > 0) {
-        // pass-through: may have influence to emu state
-        processPassThrough(c, instr, es);
-
         // memory addressing in captured instructions depends on emu state
         capturePassThrough(c, instr, es);
         return 0;
@@ -4808,7 +4861,7 @@ uint64_t emulateInstr(Rewriter* c, EmuState* es, Instr* instr)
         }
 
         v1.state = combineState(v1.state, v2.state, 0);
-        // for capture we need state of dst, do before setting dst
+        // for capture we need state of original dst, do it before setting dst
         captureBinaryOp(c, instr, es, &v1);
         setOpValue(&v1, es, &(instr->dst));
         break;
@@ -5288,7 +5341,10 @@ uint64_t emulateInstr(Rewriter* c, EmuState* es, Instr* instr)
     return 0;
 }
 
+//----------------------------------------------------------
+// Rewrite engine
 
+// FIXME: this always assumes 5 parameters
 uint64_t vEmulateAndCapture(Rewriter* c, va_list args)
 {
     // calling convention x86-64: parameters are stored in registers
@@ -5337,9 +5393,14 @@ uint64_t vEmulateAndCapture(Rewriter* c, va_list args)
     es->reg[Reg_SP] = (uint64_t) (es->stackStart + es->stackSize);
     es->reg_state[Reg_SP] = CS_STACKRELATIVE;
 
-    // queue BB at c->func for being captured
+    // Pass 1: traverse all paths and generate CBBs
+
+    // push new CBB for c->func (as request to decode and emulate/capture
+    // starting at that address)
     esID = saveEmuState(c);
     cbb = getCaptureBB(c, c->func, esID);
+    // new CBB has to be first in this rewriter (we start with it in Pass 2)
+    assert(cbb = c->capBB);
     pushCaptureBB(c, cbb);
     assert(c->capStackTop == 0);
 
@@ -5358,6 +5419,7 @@ uint64_t vEmulateAndCapture(Rewriter* c, va_list args)
 
     while(1) {
         if (c->currentCapBB == 0) {
+            // open next yet-to-be-processed CBB
             while(c->capStackTop >= 0) {
                 cbb = c->capStack[c->capStackTop];
                 if (cbb->endType == IT_None) break;
@@ -5384,6 +5446,8 @@ uint64_t vEmulateAndCapture(Rewriter* c, va_list args)
             }
         }
 
+        // decode and process instructions starting at bb_addr.
+        // note: multiple original BBs may be combined into one CBB
         dbb = decodeBB(c, bb_addr);
         for(i = 0; i < dbb->count; i++) {
             instr = dbb->instr + i;
@@ -5402,6 +5466,7 @@ uint64_t vEmulateAndCapture(Rewriter* c, va_list args)
                 printEmuState(es);
             }
 
+            // side-exit taken?
             if (nextbb_addr != 0) break;
         }
         if (i == dbb->count) {
@@ -5420,8 +5485,17 @@ uint64_t vEmulateAndCapture(Rewriter* c, va_list args)
         bb_addr = nextbb_addr;
     }
 
-    // Pass 1: generating code for BBs without linking them
+    // Pass 2: apply optimization passes to CBBs
+
+    for(i = 0; i < c->capBBCount; i++) {
+        cbb = c->capBB + i;
+        optPass(c, cbb);
+    }
+
+    // Pass 3: generating code for BBs without linking them
+
     assert(c->capStackTop == -1);
+    // start with first CBB created
     pushCaptureBB(c, c->capBB);
     while(c->capStackTop >= 0) {
         cbb = c->capStack[c->capStackTop];
@@ -5439,7 +5513,8 @@ uint64_t vEmulateAndCapture(Rewriter* c, va_list args)
         }
     }
 
-    // Pass 2: determine trailing bytes needed for each BB
+    // Pass 4: determine trailing bytes needed for each BB
+
     c->genOrder[c->genOrderCount] = 0;
     for(i=0; i < c->genOrderCount; i++) {
         uint8_t* buf;
@@ -5464,7 +5539,8 @@ uint64_t vEmulateAndCapture(Rewriter* c, va_list args)
         }
     }
 
-    // Pass 3: fill trailing bytes
+    // Pass 5: fill trailing bytes with jump instructions
+
     for(i=0; i < c->genOrderCount; i++) {
         uint8_t* buf;
         uint64_t buf_addr;
@@ -5560,6 +5636,7 @@ uint64_t rewrite(uint64_t func, ...)
     setFunc(r, func);
 
     va_start(argptr, func);
+    // throw away result of emulation
     vEmulateAndCapture(r, argptr);
     va_end(argptr);
 

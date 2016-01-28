@@ -123,6 +123,8 @@ void setFunc(Rewriter* rewriter, uint64_t f);
 // set rewriter activities to be verbose or quiet
 void setVerbosity(Rewriter* rewriter, Bool decode, Bool emuState, Bool emuSteps);
 
+void setOptVerbosity(Rewriter* r, Bool v);
+
 // decode a piece of x86 binary code starting add address <f>
 DBB* decodeBB(Rewriter* c, uint64_t f);
 

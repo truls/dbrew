@@ -226,8 +226,10 @@ int main(int argc, char* argv[])
     if (rewriteApplyLoop) {
         printf(", rewriting with loops.\n");
         r = allocRewriter();
-        if (verbose>1)
+        if (verbose>1) {
             setVerbosity(r, True, True, True);
+            setOptVerbosity(r, True);
+        }
         setFunc(r, (uint64_t) al);
         setRewriterStaticPar(r, 0); // size is constant
         setRewriterStaticPar(r, 3); // apply func is constant
@@ -241,8 +243,10 @@ int main(int argc, char* argv[])
         printf(",%s rewriting.\n", (av<5) ? " no":"");
         if (av >= 5) {
             r = allocRewriter();
-            if (verbose>1)
+            if (verbose>1) {
                 setVerbosity(r, True, True, True);
+                setOptVerbosity(r, True);
+            }
             setFunc(r, (uint64_t) af);
             setRewriterStaticPar(r, 1); // size is constant
             setRewriterStaticPar(r, 2); // stencil is constant
