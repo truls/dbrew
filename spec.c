@@ -3354,21 +3354,34 @@ CBB* popCaptureBB(Rewriter* r)
     return bb;
 }
 
-// capture a new instruction
-void capture(Rewriter* c, Instr* instr)
+Instr* newCapInstr(Rewriter* r)
 {
-    CBB* cbb = c->currentCapBB;
+    Instr* instr;
+
+    assert(r->capInstrCount < r->capInstrCapacity);
+    instr = r->capInstr + r->capInstrCount;
+    r->capInstrCount++;
+
+    return instr;
+}
+
+// capture a new instruction
+void capture(Rewriter* r, Instr* instr)
+{
+    Instr* newInstr;
+    CBB* cbb = r->currentCapBB;
     if (cbb == 0) return;
 
-    if (c->showEmuSteps)
+    if (r->showEmuSteps)
         printf("Capture '%s' (into 0x%lx|%d + %d)\n",
                instr2string(instr, 0), cbb->dec_addr, cbb->esID, cbb->count);
 
-    assert(c->capInstrCount < c->capInstrCapacity);
-    if (cbb->instr == 0)
-        cbb->instr = c->capInstr + c->capInstrCount;
-    copyInstr(cbb->instr + cbb->count, instr);
-    c->capInstrCount++;
+    newInstr = newCapInstr(r);
+    if (cbb->instr == 0) {
+        cbb->instr = newInstr;
+        assert(cbb->count == 0);
+    }
+    copyInstr(newInstr, instr);
     cbb->count++;
 }
 
@@ -4806,13 +4819,35 @@ void captureJcc(Rewriter* r, InstrType it,
 //----------------------------------------------------------
 // optimization pass
 
+// test: simply copy instructions
+Instr* optPassCopy(Rewriter* r, CBB* cbb)
+{
+    Instr *first, *instr;
+    int i;
+
+    if (cbb->count == 0) return 0;
+
+    first = newCapInstr(r);
+    copyInstr(first, cbb->instr);
+    for(i = 1; i < cbb->count; i++) {
+        instr = newCapInstr(r);
+        copyInstr(instr, cbb->instr + i);
+    }
+    return first;
+}
+
 void optPass(Rewriter* r, CBB* cbb)
 {
+    Instr* newInstrs;
+
     if (r->showOptSteps) {
         printf("Run Optimization for CBB (%lx|%d)\n",
                cbb->dec_addr, cbb->esID);
     }
-    // TODO
+
+    newInstrs = optPassCopy(r, cbb);
+    if (newInstrs)
+        cbb->instr = newInstrs;
 }
 
 //----------------------------------------------------------
