@@ -65,21 +65,21 @@ void emulateCaptureRun(char* t1, char* t2, Bool use_i2p,
     int res;
 
     printf("Tracing emulation of %s(%d,%ld) %s:\n", t1, sp1, sp2, t2);
-    res = (int)emulateAndCapture(c1, sp1, sp2);
+    res = (int)brew_emulate_capture(c1, sp1, sp2);
     printf("Result from emulation: %d\n", res);
 
-    printf("Rewritten code (size %d bytes):\n", generatedCodeSize(c1));
-    setFunc(c2, generatedCode(c1));
-    setVerbosity(c2, False, False, False);
-    printDecodedBB( decodeBB(c2, generatedCode(c1)) );
-    setVerbosity(c2, True, True, True);
+    printf("Rewritten code (size %d bytes):\n", brew_generated_size(c1));
+    brew_set_function(c2, brew_generated_code(c1));
+    brew_verbose(c2, False, False, False);
+    brew_print_decoded( brew_decode(c2, brew_generated_code(c1)) );
+    brew_verbose(c2, True, True, True);
 
     if (use_i2p) {
-        i2p_func f = (i2p_func) generatedCode(c1);
+        i2p_func f = (i2p_func) brew_generated_code(c1);
         res = f(p1, (int*) p2);
     }
     else {
-        i2_func f = (i2_func) generatedCode(c1);
+        i2_func f = (i2_func) brew_generated_code(c1);
         res = f(p1, p2);
     }
     printf("Run rewritten code %s(%d,%ld) = %d\n", t1, p1, p2, res);
@@ -100,12 +100,12 @@ void runTest(char* fname, uint64_t f, Bool use_i2p,
 
     printf(">>> Testing with function %s\n\n", fname);
 
-    c1 = allocRewriter();
-    c2 = allocRewriter();
-    c3 = allocRewriter();
+    c1 = brew_new();
+    c2 = brew_new();
+    c3 = brew_new();
 
-    setVerbosity(c1, True, True, True);
-    setVerbosity(c2, True, True, True);
+    brew_verbose(c1, True, True, True);
+    brew_verbose(c2, True, True, True);
 
     if (use_i2p) {
         i2p_func ff = (i2p_func) f;
@@ -117,44 +117,44 @@ void runTest(char* fname, uint64_t f, Bool use_i2p,
     }
     printf("Run native: %s(%d,%ld) = %d\n", fname, p1, p2, res);
 
-    setFunc(c1, f);
+    brew_set_function(c1, f);
 
     if (runOrig)
         emulateCaptureRun(fname, "unmodified", use_i2p, p1,p2,sp1,sp2, c1, c2);
 
     if (runSpec1) {
         // Specialize for p1
-        resetRewriterConfig(c1);
-        setRewriterStaticPar(c1, 0);
+        brew_config_reset(c1);
+        brew_config_staticpar(c1, 0);
         emulateCaptureRun(fname, "p1 fix", use_i2p, p1,p2,sp1,sp2, c1, c2);
 
         // Nesting
-        resetRewriterConfig(c2);
-        setRewriterStaticPar(c2, 1);
+        brew_config_reset(c2);
+        brew_config_staticpar(c2, 1);
         emulateCaptureRun(fname, "nested + p2 fix", use_i2p, p1,p2,sp1,sp2, c2, c3);
     }
 
     if (runSpec2) {
         // Specialize for p2
-        resetRewriterConfig(c1);
-        setRewriterStaticPar(c1, 1);
+        brew_config_reset(c1);
+        brew_config_staticpar(c1, 1);
         emulateCaptureRun(fname, "p2 fix", use_i2p, p1,p2,sp1,sp2, c1, c2);
 
         // Nesting
-        resetRewriterConfig(c2);
-        setRewriterStaticPar(c2, 0);
+        brew_config_reset(c2);
+        brew_config_staticpar(c2, 0);
         emulateCaptureRun(fname, "nested + p1 fix", use_i2p, p1,p2,sp1,sp2, c2, c3);
     }
 
     // Specialize Par 1 and 2
-    resetRewriterConfig(c1);
-    setRewriterStaticPar(c1, 0);
-    setRewriterStaticPar(c1, 1);
+    brew_config_reset(c1);
+    brew_config_staticpar(c1, 0);
+    brew_config_staticpar(c1, 1);
     emulateCaptureRun(fname, "p1+p2 fix", use_i2p, p1,p2,sp1,sp2, c1, c2);
 
-    freeRewriter(c1);
-    freeRewriter(c2);
-    freeRewriter(c3);
+    brew_free(c1);
+    brew_free(c2);
+    brew_free(c3);
 }
 
 

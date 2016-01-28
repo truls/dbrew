@@ -225,42 +225,42 @@ int main(int argc, char* argv[])
 
     if (rewriteApplyLoop) {
         printf(", rewriting with loops.\n");
-        r = allocRewriter();
+        r = brew_new();
         if (verbose>1) {
-            setVerbosity(r, True, True, True);
-            setOptVerbosity(r, True);
+            brew_verbose(r, True, True, True);
+            brew_optverbose(r, True);
         }
-        setFunc(r, (uint64_t) al);
-        setRewriterStaticPar(r, 0); // size is constant
-        setRewriterStaticPar(r, 3); // apply func is constant
-        setRewriterStaticPar(r, 4); // stencil is constant
+        brew_set_function(r, (uint64_t) al);
+        brew_config_staticpar(r, 0); // size is constant
+        brew_config_staticpar(r, 3); // apply func is constant
+        brew_config_staticpar(r, 4); // stencil is constant
         if (!do4)
-            setRewriterForceUnknown(r, 0); // do not unroll in applyLoop
-        emulateAndCapture(r, size, m1, m2, af, s);
-        al = (apply_loop) generatedCode(r);
+            brew_config_force_unknown(r, 0); // do not unroll in applyLoop
+        brew_emulate_capture(r, size, m1, m2, af, s);
+        al = (apply_loop) brew_generated_code(r);
     }
     else {
         printf(",%s rewriting.\n", (av<5) ? " no":"");
         if (av >= 5) {
-            r = allocRewriter();
+            r = brew_new();
             if (verbose>1) {
-                setVerbosity(r, True, True, True);
-                setOptVerbosity(r, True);
+                brew_verbose(r, True, True, True);
+                brew_optverbose(r, True);
             }
-            setFunc(r, (uint64_t) af);
-            setRewriterStaticPar(r, 1); // size is constant
-            setRewriterStaticPar(r, 2); // stencil is constant
-            setRewriterReturnFP(r);
-            emulateAndCapture(r, m1 + size + 1, size, s);
-            af = (apply_func) generatedCode(r);
+            brew_set_function(r, (uint64_t) af);
+            brew_config_staticpar(r, 1); // size is constant
+            brew_config_staticpar(r, 2); // stencil is constant
+            brew_config_returnfp(r);
+            brew_emulate_capture(r, m1 + size + 1, size, s);
+            af = (apply_func) brew_generated_code(r);
         }
     }
 
     if (r && (verbose>0)) {
         // use another rewriter to show generated code
-        Rewriter* r2 = allocRewriter();
-        printDecoded(r2, generatedCode(r), generatedCodeSize(r));
-        freeRewriter(r2);
+        Rewriter* r2 = brew_new();
+        brew_decode_print(r2, brew_generated_code(r), brew_generated_size(r));
+        brew_free(r2);
     }
 
     printf("Width %d, matrix size %d, %d iterations, apply V %d\n",
@@ -315,5 +315,5 @@ int main(int argc, char* argv[])
 
     free(m1);
     free(m2);
-    if (r) freeRewriter(r);
+    if (r) brew_free(r);
 }

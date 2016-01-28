@@ -35,8 +35,8 @@ typedef struct _CBB CBB;
 typedef struct _EmuState EmuState;
 typedef struct _CaptureConfig CaptureConfig;
 
-void printDecodedBB(DBB* bb);
-DBB* decodeBB(Rewriter* c, uint64_t f);
+void brew_print_decoded(DBB* bb);
+DBB* brew_decode(Rewriter* c, uint64_t f);
 void freeEmuState(Rewriter*);
 void freeCaptureConfig(Rewriter*);
 
@@ -310,7 +310,7 @@ typedef struct _Rewriter {
 #define REX_MASK_R 4
 #define REX_MASK_W 8
 
-Rewriter* allocRewriter()
+Rewriter* brew_new()
 {
     Rewriter* r;
     int i;
@@ -396,7 +396,7 @@ void initRewriter(Rewriter* r)
         r->cs->used = 0;
 }
 
-void freeRewriter(Rewriter* r)
+void brew_free(Rewriter* r)
 {
     if (!r) return;
 
@@ -413,7 +413,7 @@ void freeRewriter(Rewriter* r)
     free(r);
 }
 
-void setRewriterDecodingCapacity(Rewriter* r,
+void brew_set_decoding_capacity(Rewriter* r,
                                  int instrCapacity, int bbCapacity)
 {
     r->decInstrCapacity = instrCapacity;
@@ -425,7 +425,7 @@ void setRewriterDecodingCapacity(Rewriter* r,
     r->decBB = 0;
 }
 
-void setRewriterCaptureCapacity(Rewriter* r,
+void brew_set_capture_capacity(Rewriter* r,
                                 int instrCapacity, int bbCapacity,
                                 int codeCapacity)
 {
@@ -444,18 +444,18 @@ void setRewriterCaptureCapacity(Rewriter* r,
 }
 
 
-void setFunc(Rewriter* rewriter, uint64_t f)
+void brew_set_function(Rewriter* rewriter, uint64_t f)
 {
     rewriter->func = f;
 
     // reset all decoding/state
     initRewriter(rewriter);
-    resetRewriterConfig(rewriter);
+    brew_config_reset(rewriter);
 
     freeEmuState(rewriter);
 }
 
-void setVerbosity(Rewriter* rewriter,
+void brew_verbose(Rewriter* rewriter,
                   Bool decode, Bool emuState, Bool emuSteps)
 {
     rewriter->showDecoding = decode;
@@ -463,12 +463,12 @@ void setVerbosity(Rewriter* rewriter,
     rewriter->showEmuSteps = emuSteps;
 }
 
-void setOptVerbosity(Rewriter* r, Bool v)
+void brew_optverbose(Rewriter* r, Bool v)
 {
     r->showOptSteps = v;
 }
 
-uint64_t generatedCode(Rewriter* c)
+uint64_t brew_generated_code(Rewriter* c)
 {
     if ((c->cs == 0) || (c->cs->used == 0))
         return 0;
@@ -479,7 +479,7 @@ uint64_t generatedCode(Rewriter* c)
     //return (uint64_t) c->cs->buf;
 }
 
-int generatedCodeSize(Rewriter* c)
+int brew_generated_size(Rewriter* c)
 {
     if ((c->cs == 0) || (c->cs->used == 0))
         return 0;
@@ -1068,7 +1068,7 @@ int parseModRM(uint8_t* p, int rex, Bool o1IsVec, Bool o2IsVec,
 }
 
 // decode the basic block starting at f (automatically triggered by emulator)
-DBB* decodeBB(Rewriter* c, uint64_t f)
+DBB* brew_decode(Rewriter* c, uint64_t f)
 {
     Bool hasRex, hasF2, hasF3, has66;
     Bool has2E; // cs-segment override or branch not taken hint (Jcc)
@@ -1817,7 +1817,7 @@ DBB* decodeBB(Rewriter* c, uint64_t f)
     dbb->size = off;
 
     if (c->showDecoding)
-        printDecodedBB(dbb);
+        brew_print_decoded(dbb);
 
     return dbb;
 }
@@ -2184,7 +2184,7 @@ char* bytes2string(Instr* instr, int start, int count)
     return buf;
 }
 
-void printDecodedBB(DBB* bb)
+void brew_print_decoded(DBB* bb)
 {
     int i;
     for(i = 0; i < bb->count; i++) {
@@ -2205,18 +2205,18 @@ void printDecodedBBs(Rewriter* c)
     int i;
     for(i=0; i< c->decBBCount; i++) {
         printf("BB %lx (%d instructions):\n", c->decBB[i].addr, c->decBB[i].count);
-        printDecodedBB(c->decBB + i);
+        brew_print_decoded(c->decBB + i);
     }
 }
 
-void printDecoded(Rewriter* c, uint64_t f, int count)
+void brew_decode_print(Rewriter* c, uint64_t f, int count)
 {
     DBB* dbb;
     int decoded = 0;
 
     c->decBBCount = 0;
     while(decoded < count) {
-        dbb = decodeBB(c, f + decoded);
+        dbb = brew_decode(c, f + decoded);
         decoded += dbb->size;
     }
     printDecodedBBs(c);
@@ -3586,7 +3586,7 @@ void freeCaptureConfig(Rewriter* r)
     r->cc = 0;
 }
 
-void resetRewriterConfig(Rewriter* c)
+void brew_config_reset(Rewriter* c)
 {
     CaptureConfig* cc;
     int i;
@@ -3608,12 +3608,12 @@ void resetRewriterConfig(Rewriter* c)
 CaptureConfig* getCaptureConfig(Rewriter* c)
 {
     if (c->cc == 0)
-        resetRewriterConfig(c);
+        brew_config_reset(c);
 
     return c->cc;
 }
 
-void setRewriterStaticPar(Rewriter* c, int staticParPos)
+void brew_config_staticpar(Rewriter* c, int staticParPos)
 {
     CaptureConfig* cc = getCaptureConfig(c);
 
@@ -3629,7 +3629,7 @@ void setRewriterStaticPar(Rewriter* c, int staticParPos)
  *
  * Brute force approach to prohibit loop unrolling.
  */
-void setRewriterForceUnknown(Rewriter* r, int depth)
+void brew_config_force_unknown(Rewriter* r, int depth)
 {
     CaptureConfig* cc = getCaptureConfig(r);
 
@@ -3637,7 +3637,7 @@ void setRewriterForceUnknown(Rewriter* r, int depth)
     cc->force_unknown[depth] = True;
 }
 
-void setRewriterReturnFP(Rewriter* c)
+void brew_config_returnfp(Rewriter* c)
 {
     CaptureConfig* cc = getCaptureConfig(c);
     cc->hasReturnFP = True;
@@ -5448,7 +5448,7 @@ uint64_t vEmulateAndCapture(Rewriter* c, va_list args)
 
         // decode and process instructions starting at bb_addr.
         // note: multiple original BBs may be combined into one CBB
-        dbb = decodeBB(c, bb_addr);
+        dbb = brew_decode(c, bb_addr);
         for(i = 0; i < dbb->count; i++) {
             instr = dbb->instr + i;
 
@@ -5597,7 +5597,7 @@ uint64_t vEmulateAndCapture(Rewriter* c, va_list args)
     return es->reg[Reg_AX];
 }
 
-uint64_t emulateAndCapture(Rewriter* r, ...)
+uint64_t brew_emulate_capture(Rewriter* r, ...)
 {
     uint64_t res;
     va_list argptr;
@@ -5617,28 +5617,28 @@ Rewriter* defaultRewriter = 0;
 Rewriter* getDefaultRewriter()
 {
     if (!defaultRewriter)
-        defaultRewriter = allocRewriter();
+        defaultRewriter = brew_new();
 
     return defaultRewriter;
 }
 
-void setDefaultVerbosity(Bool decode, Bool emuState, Bool emuSteps)
+void brew_def_verbose(Bool decode, Bool emuState, Bool emuSteps)
 {
-    setVerbosity(getDefaultRewriter(), decode, emuState, emuSteps);
+    brew_verbose(getDefaultRewriter(), decode, emuState, emuSteps);
 }
 
-uint64_t rewrite(uint64_t func, ...)
+uint64_t brew_rewrite(uint64_t func, ...)
 {
     Rewriter* r;
     va_list argptr;
 
     r = getDefaultRewriter();
-    setFunc(r, func);
+    brew_set_function(r, func);
 
     va_start(argptr, func);
     // throw away result of emulation
     vEmulateAndCapture(r, argptr);
     va_end(argptr);
 
-    return generatedCode(r);
+    return brew_generated_code(r);
 }

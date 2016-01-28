@@ -56,14 +56,14 @@ void emulateCaptureRun(char* t1, char* t2,
     int res;
 
     printf("Tracing emulation of %s(%d,%ld) %s:\n", t1, sp1, sp2, t2);
-    res = (int)emulateAndCapture(c1, sp1, sp2);
+    res = (int)brew_emulate_capture(c1, sp1, sp2);
     printf("Result from emulation: %d\n", res);
 
-    printf("Rewritten code (size %d bytes):\n", generatedCodeSize(c1));
-    setFunc(c2, generatedCode(c1));
-    printDecoded(c2, generatedCode(c1), generatedCodeSize(c1));
+    printf("Rewritten code (size %d bytes):\n", brew_generated_size(c1));
+    brew_set_function(c2, brew_generated_code(c1));
+    brew_decode_print(c2, brew_generated_code(c1), brew_generated_size(c1));
 
-    i2_func f = (i2_func) generatedCode(c1);
+    i2_func f = (i2_func) brew_generated_code(c1);
     res = f(p1,p2);
 
     printf("Run rewritten code %s(%d,%ld) = %d\n", t1, p1, p2, res);
@@ -82,24 +82,24 @@ void runTest(char* fname, uint64_t f, int p1, int p2, int sp1)
 
     printf(">>> Testing with function %s\n\n", fname);
 
-    c1 = allocRewriter();
-    setVerbosity(c1, True, True, True);
-    c2 = allocRewriter();
+    c1 = brew_new();
+    brew_verbose(c1, True, True, True);
+    c2 = brew_new();
 
     i2_func ff = (i2_func) f;
     res = ff(p1, p2);
     printf("Run native: %s(%d,%d) = %d\n", fname, p1, p2, res);
 
-    setFunc(c1, f);
+    brew_set_function(c1, f);
 
     emulateCaptureRun(fname, "unmodified", p1, p2, sp1, p2, c1, c2);
 
-    resetRewriterConfig(c1);
-    setRewriterStaticPar(c1, 0);
+    brew_config_reset(c1);
+    brew_config_staticpar(c1, 0);
     emulateCaptureRun(fname, "p1 fix", p1, p2, sp1, p2, c1, c2);
 
-    freeRewriter(c1);
-    freeRewriter(c2);
+    brew_free(c1);
+    brew_free(c2);
 }
 
 

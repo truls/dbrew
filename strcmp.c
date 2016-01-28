@@ -13,8 +13,8 @@ int main(int argc, char* argv[])
     // force relocation of strcmp
     if (strcmp("Foo", argv[0])==0) return 0;
 
-    setDefaultVerbosity(True, True, True);
-    f_t f = (f_t) rewrite((uint64_t) isHello, "Bla");
+    brew_def_verbose(True, True, True);
+    f_t f = (f_t) brew_rewrite((uint64_t) isHello, "Bla");
 
     return f(argv[1]);
 }
