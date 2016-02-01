@@ -130,6 +130,10 @@ typedef enum _Reg {
 
 typedef enum _InstrType {
     IT_None = 0, IT_Invalid,
+    // Hints: not actual instructions
+    IT_HINT_CALL, // starting inlining of another function at this point
+    IT_HINT_RET,  // ending inlining at this point
+    //
     IT_NOP,
     IT_CLTQ,
     IT_PUSH, IT_POP, IT_LEAVE,
@@ -300,6 +304,10 @@ typedef struct _Rewriter {
     int genOrderCount;
     CBB* genOrder[GENORDER_MAX];
 
+    // for optimization passes
+    Bool addInliningHints;
+    Bool doCopyPass; // test pass
+
     // debug output
     Bool showDecoding, showEmuState, showEmuSteps, showOptSteps;
 } Rewriter;
@@ -347,6 +355,10 @@ Rewriter* brew_new()
 
     r->cc = 0;
     r->es = 0;
+
+    // optimization passes
+    r->addInliningHints = True;
+    r->doCopyPass = True;
 
     // default: debug off
     r->showDecoding = False;
@@ -2044,6 +2056,9 @@ char* instrName(InstrType it, int* pOpCount)
     int opCount = 0;
 
     switch(it) {
+    case IT_HINT_CALL: n = "H-call"; break;
+    case IT_HINT_RET:  n = "H-ret"; break;
+
     case IT_NOP:     n = "nop"; break;
     case IT_RET:     n = "ret"; break;
     case IT_LEAVE:   n = "leave"; break;
@@ -2175,13 +2190,13 @@ char* bytes2string(Instr* instr, int start, int count)
 {
     static char buf[100];
     int off = 0, i, j;
-    for(i = start, j=0; i < instr->len && j<count; i++, j++) {
+    for(i = start, j=0; (i < instr->len) && (j<count); i++, j++) {
         uint8_t b = ((uint8_t*) instr->addr)[i];
         off += sprintf(buf+off, " %02x", b);
     }
     for(;j<count;j++)
         off += sprintf(buf+off, "   ");
-    return buf;
+    return (off == 0) ? "" : buf;
 }
 
 void brew_print_decoded(DBB* bb)
@@ -2670,10 +2685,10 @@ int genMov(uint8_t* buf, Operand* src, Operand* dst)
     case OT_Ind32:
     case OT_Ind64:
         // dst memory
-        assert(opValType(src) == opValType(dst));
         switch(src->type) {
         case OT_Reg32:
         case OT_Reg64:
+            assert(opValType(src) == opValType(dst));
             // use 'mov r/m,r 32/64' (0x89 MR)
             return genModRM(buf, 0x89, -1, dst, src, VT_None);
 
@@ -3457,6 +3472,10 @@ void generate(Rewriter* c, CBB* cbb)
                 break;
             case IT_SUB:
                 used = genSub(buf, &(instr->src), &(instr->dst));
+                break;
+            case IT_HINT_CALL:
+            case IT_HINT_RET:
+                used = 0;
                 break;
             default: assert(0);
             }
@@ -4845,13 +4864,17 @@ void optPass(Rewriter* r, CBB* cbb)
                cbb->dec_addr, cbb->esID);
     }
 
-    newInstrs = optPassCopy(r, cbb);
-    if (newInstrs)
-        cbb->instr = newInstrs;
+    if (r->doCopyPass) {
+        newInstrs = optPassCopy(r, cbb);
+        if (newInstrs)
+            cbb->instr = newInstrs;
+    }
 }
 
 //----------------------------------------------------------
 // Emulator for instruction types
+
+
 
 // return 0 to fall through to next instruction, or return address to jump to
 uint64_t emulateInstr(Rewriter* c, EmuState* es, Instr* instr)
@@ -4902,6 +4925,7 @@ uint64_t emulateInstr(Rewriter* c, EmuState* es, Instr* instr)
         break;
 
     case IT_CALL:
+        // TODO: keep call. For now, we always inline
         getOpValue(&v1, es, &(instr->dst));
         assert(es->depth < MAX_CALLDEPTH);
         assert(csIsStatic(v1.state)); // call target must be known
@@ -4915,6 +4939,12 @@ uint64_t emulateInstr(Rewriter* c, EmuState* es, Instr* instr)
         setMemValue(&v2, &addr, es, VT_64, 1);
 
         es->ret_stack[es->depth++] = v2.val;
+
+        if (c->addInliningHints) {
+            Instr i;
+            initSimpleInstr(&i, IT_HINT_CALL);
+            capture(c, &i);
+        }
 
         // special handling for known functions
         if ((v1.val == (uint64_t) makeDynamic) &&
@@ -5270,6 +5300,12 @@ uint64_t emulateInstr(Rewriter* c, EmuState* es, Instr* instr)
         break;
 
     case IT_RET:
+        if (c->addInliningHints) {
+            Instr i;
+            initSimpleInstr(&i, IT_HINT_RET);
+            capture(c, &i);
+        }
+
         es->depth--;
         if (es->depth >= 0) {
             // pop return address from stack
@@ -5442,6 +5478,12 @@ uint64_t vEmulateAndCapture(Rewriter* c, va_list args)
     // and start with this CBB
     bb_addr = cbb->dec_addr;
     c->currentCapBB = cbb;
+    if (c->addInliningHints) {
+        // hint: here starts a function, we can assume ABI calling conventions
+        Instr i;
+        initSimpleInstr(&i, IT_HINT_CALL);
+        capture(c, &i);
+    }
 
     if (c->showEmuSteps) {
         printf("Processing BB (%lx|%d)\n", cbb->dec_addr, cbb->esID);
