@@ -12,9 +12,10 @@ Goals:
   - specialization/partial evaluation: take advantage of values known
 
 Approach:
-* use function call interface/calling convention to influence generator
+* use function call convention to influence generator
 * code generation by following emulator executing other code
 * use generator request struct to specify actions
+* complete-unroll and reconstruct loops in code
 
 Wanted features:
 * x86_64/Linux
