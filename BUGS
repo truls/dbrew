@@ -1,14 +1,8 @@
-Bugs:
+Missing in x86-64 decoder:
+* segment override prefixes (fs: 0x64, ...)
 
-* extend world state to private stack
 
 
 MAYBE FIX:
 
 * RIP-relative addressing of data may need constant pool
-
-Missing in Generator:
-* 400cda: 66 48 0f 7e c0    movq   %xmm0,%rax
-  (stencil)
-
-* movq   %xmm0,%rax: should set capture state of %rax to dynamic
