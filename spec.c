@@ -5541,8 +5541,6 @@ uint64_t emulateInstr(Rewriter* c, EmuState* es, Instr* instr)
             case IT_SAR: v1.val = ((int64_t)v1.val >> (v2.val & 63)); break;
             default: assert(0);
             }
-
-            v1.val = v1.val << (v2.val & 63);
             break;
 
         default: assert(0);
