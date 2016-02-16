@@ -135,11 +135,11 @@ typedef enum _InstrType {
     IT_HINT_RET,  // ending inlining at this point
     //
     IT_NOP,
-    IT_CLTQ,
+    IT_CLTQ, IT_CQTO,
     IT_PUSH, IT_POP, IT_LEAVE,
     IT_MOV, IT_MOVSX, IT_LEA, IT_MOVZBL,
     IT_NEG, IT_INC, IT_DEC,
-    IT_ADD, IT_ADC, IT_SUB, IT_SBB, IT_IMUL,
+    IT_ADD, IT_ADC, IT_SUB, IT_SBB, IT_IMUL, IT_IDIV1,
     IT_XOR, IT_AND, IT_OR,
     IT_SHL, IT_SHR, IT_SAR,
     IT_CALL, IT_RET, IT_JMP, IT_JMPI,
@@ -1715,6 +1715,12 @@ DBB* brew_decode(Rewriter* c, uint64_t f)
                            hasRex && (rex & REX_MASK_W) ? VT_64 : VT_32);
             break;
 
+        case 0x99:
+            // cqto (Intel: cqo - sign-extend rax to rdx/rax, eax to edx/eax)
+            addSimpleVType(c, a, (uint64_t)(fp + off), IT_CQTO,
+                           hasRex && (rex & REX_MASK_W) ? VT_128 : VT_64);
+            break;
+
         case 0xB8: case 0xB9: case 0xBA: case 0xBB:
         case 0xBC: case 0xBD: case 0xBE: case 0xBF:
             // MOV r32/64,imm32/64
@@ -1836,6 +1842,11 @@ DBB* brew_decode(Rewriter* c, uint64_t f)
             case 3:
                 // neg r/m 32/64
                 addUnaryOp(c, a, (uint64_t)(fp + off), IT_NEG, &o1);
+                break;
+
+            case 7:
+                // idiv r/m 32/64 (signed divide eax/rax by rm
+                addUnaryOp(c, a, (uint64_t)(fp + off), IT_IDIV1, &o1);
                 break;
 
             default:
@@ -2134,7 +2145,8 @@ char* instrName(InstrType it, int* pOpCount)
     case IT_NOP:     n = "nop"; break;
     case IT_RET:     n = "ret"; break;
     case IT_LEAVE:   n = "leave"; break;
-    case IT_CLTQ:    n = "clt"; break;
+    case IT_CLTQ:    n = "cltq"; break;
+    case IT_CQTO:    n = "cqto"; break;
     case IT_PUSH:    n = "push";    opCount = 1; break;
     case IT_POP:     n = "pop";     opCount = 1; break;
     case IT_CALL:    n = "call";    opCount = 1; break;
@@ -2158,6 +2170,7 @@ char* instrName(InstrType it, int* pOpCount)
     case IT_SUB:     n = "sub";     opCount = 2; break;
     case IT_SBB:     n = "sbb";     opCount = 2; break;
     case IT_IMUL:    n = "imul";    opCount = 2; break;
+    case IT_IDIV1:   n = "idiv";    opCount = 1; break;
     case IT_AND:     n = "and";     opCount = 2; break;
     case IT_OR:      n = "or";      opCount = 2; break;
     case IT_XOR:     n = "xor";     opCount = 2; break;
@@ -3021,6 +3034,22 @@ int genIMul(uint8_t* buf, Operand* src, Operand* dst)
     return 0;
 }
 
+int genIDiv1(uint8_t* buf, Operand* src)
+{
+    switch(src->type) {
+    case OT_Reg32:
+    case OT_Ind32:
+    case OT_Reg64:
+    case OT_Ind64:
+        // use 'idiv r/m 32/64' (0xF7/7 M)
+        return genDigitRM(buf, 0xF7, 7, src);
+
+    default: assert(0);
+    }
+    return 0;
+}
+
+
 int genXor(uint8_t* buf, Operand* src, Operand* dst)
 {
     switch(src->type) {
@@ -3312,6 +3341,16 @@ int genCltq(uint8_t* buf, ValType vt)
     return 0;
 }
 
+int genCqto(uint8_t* buf, ValType vt)
+{
+    switch(vt) {
+    case VT_64: buf[0] = 0x99; return 1;
+    case VT_128: buf[0] = 0x48; buf[1] = 0x99; return 2;
+    default: assert(0);
+    }
+    return 0;
+}
+
 
 int genCmp(uint8_t* buf, Operand* src, Operand* dst)
 {
@@ -3561,6 +3600,9 @@ void generate(Rewriter* c, CBB* cbb)
             case IT_CLTQ:
                 used = genCltq(buf, instr->vtype);
                 break;
+            case IT_CQTO:
+                used = genCqto(buf, instr->vtype);
+                break;
             case IT_CMP:
                 used = genCmp(buf, &(instr->src), &(instr->dst));
                 break;
@@ -3569,6 +3611,9 @@ void generate(Rewriter* c, CBB* cbb)
                 break;
             case IT_IMUL:
                 used = genIMul(buf, &(instr->src), &(instr->dst));
+                break;
+            case IT_IDIV1:
+                used = genIDiv1(buf, &(instr->src));
                 break;
             case IT_INC:
                 used = genInc(buf, &(instr->dst));
@@ -5171,6 +5216,23 @@ uint64_t emulateInstr(Rewriter* c, EmuState* es, Instr* instr)
             break;
         default: assert(0);
         }
+        if (!csIsStatic(es->reg_state[Reg_AX]))
+            capture(c, instr);
+        break;
+
+    case IT_CQTO:
+        switch(instr->vtype) {
+        case VT_64:
+            // sign-extend eax to edx:eax
+            es->reg[Reg_DX] = (es->reg[Reg_AX] & (1<<30)) ? ((uint32_t)-1) : 0;
+            break;
+        case VT_128:
+            // sign-extend rax to rdx:rax
+            es->reg[Reg_DX] = (es->reg[Reg_AX] & (1ul<<62)) ? ((uint64_t)-1) : 0;
+            break;
+        default: assert(0);
+        }
+        es->reg_state[Reg_DX] = es->reg_state[Reg_AX];
         if (!csIsStatic(es->reg_state[Reg_AX]))
             capture(c, instr);
         break;
