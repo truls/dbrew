@@ -1612,6 +1612,28 @@ DBB* brew_decode(Rewriter* c, uint64_t f)
             exitLoop = True;
             break;
 
+        case 0x80:
+            // add/or/... r/m and imm8
+            off += parseModRM(fp+off, rex, segOv, 0, 0, &o1, 0, &digit);
+            switch(digit) {
+            case 0: it = IT_ADD; break; // 80/0: add r/m8,imm8
+            case 1: it = IT_OR;  break; // 80/1: or  r/m8,imm8
+            case 2: it = IT_ADC; break; // 80/2: adc r/m8,imm8
+            case 3: it = IT_SBB; break; // 80/3: sbb r/m8,imm8
+            case 4: it = IT_AND; break; // 80/4: and r/m8,imm8
+            case 5: it = IT_SUB; break; // 80/5: sub r/m8,imm8
+            case 6: it = IT_XOR; break; // 80/6: xor r/m8,imm8
+            case 7: it = IT_CMP; break; // 80/7: cmp r/m8,imm8
+            default: assert(0);
+            }
+            vt = VT_8;
+            opOverwriteType(&o1, vt);
+            o2.type = OT_Imm8;
+            o2.val = (uint8_t) (*(int8_t*)(fp + off));
+            off += 1;
+            addBinaryOp(c, a, (uint64_t)(fp + off), it, vt, &o1, &o2);
+            break;
+
         case 0x81:
             off += parseModRM(fp+off, rex, segOv, 0, 0, &o1, 0, &digit);
             switch(digit) {
@@ -1726,6 +1748,25 @@ DBB* brew_decode(Rewriter* c, uint64_t f)
                 addBinaryOp(c, a, (uint64_t)(fp + off),
                             IT_SHL, VT_None, &o1, &o2);
                 break;
+
+            case 5:
+                // shr r/m 32/64,imm8 (MI)
+                o2.type = OT_Imm8;
+                o2.val = *(uint8_t*)(fp + off);
+                off += 1;
+                addBinaryOp(c, a, (uint64_t)(fp + off),
+                            IT_SHR, VT_None, &o1, &o2);
+                break;
+
+            case 7:
+                // sar r/m 32/64,imm8 (MI)
+                o2.type = OT_Imm8;
+                o2.val = *(uint8_t*)(fp + off);
+                off += 1;
+                addBinaryOp(c, a, (uint64_t)(fp + off),
+                            IT_SAR, VT_None, &o1, &o2);
+                break;
+
 
             default:
                 addSimple(c, a, (uint64_t)(fp + off), IT_Invalid);
@@ -2122,6 +2163,7 @@ char* instrName(InstrType it, int* pOpCount)
     case IT_XOR:     n = "xor";     opCount = 2; break;
     case IT_SHL:     n = "shl";     opCount = 2; break;
     case IT_SHR:     n = "shr";     opCount = 2; break;
+    case IT_SAR:     n = "sar";     opCount = 2; break;
     case IT_LEA:     n = "lea";     opCount = 2; break;
     case IT_CMP:     n = "cmp";     opCount = 2; break;
     case IT_TEST:    n = "test";    opCount = 2; break;
@@ -2290,7 +2332,8 @@ int VRegEncoding(Reg r)
 }
 
 // returns static buffer with requested operand encoding
-uint8_t* calcModRMDigit(Operand* o1, int digit, int* prex, int* plen)
+uint8_t* calcModRMDigit(Operand* o1, int digit,
+                        int* prex, OpSegOverride* pso, int* plen)
 {
     static uint8_t buf[10];
     int modrm, r1;
@@ -2333,6 +2376,9 @@ uint8_t* calcModRMDigit(Operand* o1, int digit, int* prex, int* plen)
             if (useDisp32)
                 modrm |= 128;
         }
+
+        // may need to generated segment override prefix
+        *pso = o1->seg;
 
         if ((o1->scale == 0) && (o1->reg != Reg_SP)) {
             // no SIB needed (reg not sp which requires SIB)
@@ -2429,7 +2475,8 @@ uint8_t* calcModRMDigit(Operand* o1, int digit, int* prex, int* plen)
     return buf;
 }
 
-uint8_t* calcModRM(Operand* o1, Operand* o2, int* prex, int* plen)
+uint8_t* calcModRM(Operand* o1, Operand* o2,
+                   int* prex, OpSegOverride* pso, int* plen)
 {
     int r2; // register offset encoding for operand 2
 
@@ -2446,9 +2493,18 @@ uint8_t* calcModRM(Operand* o1, Operand* o2, int* prex, int* plen)
     else assert(0);
 
     if (r2 & 8) *prex |= REX_MASK_R;
-    return calcModRMDigit(o1, r2 & 7, prex, plen);
+    return calcModRMDigit(o1, r2 & 7, prex, pso, plen);
 }
 
+int genPrefix(uint8_t* buf, int rex, OpSegOverride so)
+{
+    int o = 0;
+    if (so == OSO_UseFS) buf[o++] = 0x64;
+    if (so == OSO_UseGS) buf[o++] = 0x65;
+    if (rex)
+        buf[o++] = 0x40 | rex;
+    return o;
+}
 
 // Generate instruction with operand encoding RM (o1: r/m, o2: r)
 // into buf, up to 2 opcodes (2 if opc2 >=0).
@@ -2458,14 +2514,14 @@ uint8_t* calcModRM(Operand* o1, Operand* o2, int* prex, int* plen)
 int genModRM(uint8_t* buf, int opc, int opc2,
              Operand* o1, Operand* o2, ValType vt)
 {
+    OpSegOverride so = OSO_None;
     int rex = 0, len = 0;
     int o = 0;
     uint8_t* rmBuf;
 
-    rmBuf = calcModRM(o1, o2, &rex, &len);
+    rmBuf = calcModRM(o1, o2, &rex, &so, &len);
     if (vt == VT_Implicit) rex &= ~REX_MASK_W;
-    if (rex)
-        buf[o++] = 0x40 | rex;
+    o += genPrefix(buf, rex, so);
     buf[o++] = (uint8_t) opc;
     if (opc2 >=0)
         buf[o++] = (uint8_t) opc2;
@@ -2479,13 +2535,13 @@ int genModRM(uint8_t* buf, int opc, int opc2,
 // Operand o1: r/m
 int genDigitRM(uint8_t* buf, int opc, int digit, Operand* o1)
 {
+    OpSegOverride so = OSO_None;
     int rex = 0, len = 0;
     int o = 0;
     uint8_t* rmBuf;
 
-    rmBuf = calcModRMDigit(o1, digit, &rex, &len);
-    if (rex)
-        buf[o++] = 0x40 | rex;
+    rmBuf = calcModRMDigit(o1, digit, &rex, &so, &len);
+    o += genPrefix(buf, rex, so);
     buf[o++] = (uint8_t) opc;
     while(len>0) {
         buf[o++] = *rmBuf++;
@@ -2498,13 +2554,13 @@ int genDigitRM(uint8_t* buf, int opc, int digit, Operand* o1)
 int genModRMI(uint8_t* buf, int opc, int opc2,
               Operand* o1, Operand* o2, Operand* o3)
 {
+    OpSegOverride so = OSO_None;
     int rex = 0, len = 0;
     int o = 0;
     uint8_t* rmBuf;
 
-    rmBuf = calcModRM(o1, o2, &rex, &len);
-    if (rex)
-        buf[o++] = 0x40 | rex;
+    rmBuf = calcModRM(o1, o2, &rex, &so, &len);
+    o += genPrefix(buf, rex, so);
     buf[o++] = (uint8_t) opc;
     if (opc2 >=0)
         buf[o++] = (uint8_t) opc2;
@@ -2530,14 +2586,14 @@ int genModRMI(uint8_t* buf, int opc, int opc2,
 // Operand o1: r/m, o2: imm
 int genDigitMI(uint8_t* buf, int opc, int digit, Operand* o1, Operand* o2)
 {
+    OpSegOverride so = OSO_None;
     int rex = 0, len = 0;
     int o = 0;
     uint8_t* rmBuf;
 
     assert(opIsImm(o2));
-    rmBuf = calcModRMDigit(o1, digit, &rex, &len);
-    if (rex)
-        buf[o++] = 0x40 | rex;
+    rmBuf = calcModRMDigit(o1, digit, &rex, &so, &len);
+    o += genPrefix(buf, rex, so);
     buf[o++] = (uint8_t) opc;
     while(len>0) {
         buf[o++] = *rmBuf++;
@@ -3186,6 +3242,50 @@ int genShl(uint8_t* buf, Operand* src, Operand* dst)
     return 0;
 }
 
+int genShr(uint8_t* buf, Operand* src, Operand* dst)
+{
+    switch(src->type) {
+    // src reg
+    case OT_Imm8:
+        switch(dst->type) {
+        case OT_Reg32:
+        case OT_Ind32:
+        case OT_Reg64:
+        case OT_Ind64:
+            // use 'shr r/m 32/64, imm8' (0xC1/5 MI)
+            return genDigitMI(buf, 0xC1, 5, dst, src);
+
+        default: assert(0);
+        }
+        break;
+
+    default: assert(0);
+    }
+    return 0;
+}
+
+int genSar(uint8_t* buf, Operand* src, Operand* dst)
+{
+    switch(src->type) {
+    // src reg
+    case OT_Imm8:
+        switch(dst->type) {
+        case OT_Reg32:
+        case OT_Ind32:
+        case OT_Reg64:
+        case OT_Ind64:
+            // use 'sar r/m 32/64, imm8' (0xC1/7 MI)
+            return genDigitMI(buf, 0xC1, 7, dst, src);
+
+        default: assert(0);
+        }
+        break;
+
+    default: assert(0);
+    }
+    return 0;
+}
+
 
 int genLea(uint8_t* buf, Operand* src, Operand* dst)
 {
@@ -3484,6 +3584,12 @@ void generate(Rewriter* c, CBB* cbb)
                 break;
             case IT_SHL:
                 used = genShl(buf, &(instr->src), &(instr->dst));
+                break;
+            case IT_SHR:
+                used = genShr(buf, &(instr->src), &(instr->dst));
+                break;
+            case IT_SAR:
+                used = genSar(buf, &(instr->src), &(instr->dst));
                 break;
             case IT_LEA:
                 used = genLea(buf, &(instr->src), &(instr->dst));
@@ -4426,8 +4532,53 @@ void getMemValue(EmuValue* v, EmuValue* addr, EmuState* es, ValType t,
 
     v->type = t;
     switch(t) {
+    case VT_8:  v->val = *(uint8_t*) addr->val; break;
     case VT_32: v->val = *(uint32_t*) addr->val; break;
     case VT_64: v->val = *(uint64_t*) addr->val; break;
+    default: assert(0);
+    }
+}
+
+// reading memory using segmend override (fs/gs)
+void getSegMemValue(EmuValue* v, EmuValue* addr, ValType t, OpSegOverride s)
+{
+    assert(s != OSO_None);
+    uint32_t v32;
+    uint8_t v8;
+
+    // memory accessed via fs/gs always is dynamic
+    v->state = CS_DYNAMIC;
+    v->type = t;
+    switch(t) {
+    case VT_8:
+        switch(s) {
+        case OSO_UseFS:
+            __asm__ ("mov %%fs:(%1),%0" : "=r" (v8) : "r" (addr->val) );
+            break;
+        default: assert(0);
+        }
+        v->val = v8;
+        break;
+
+    case VT_32:
+        switch(s) {
+        case OSO_UseFS:
+            __asm__ ("mov %%fs:(%1),%0" : "=r" (v32) : "r" (addr->val) );
+            break;
+        default: assert(0);
+        }
+        v->val = v32;
+        break;
+
+    case VT_64:
+        switch(s) {
+        case OSO_UseFS:
+            __asm__ ("mov %%fs:(%1),%0" : "=r" (v->val) : "r" (addr->val) );
+            break;
+        default: assert(0);
+        }
+        break;
+
     default: assert(0);
     }
 }
@@ -4474,10 +4625,11 @@ void addRegToValue(EmuValue* v, EmuState* es, Reg r, int scale)
 }
 
 // get resulting address (and state) for memory operands
+// this cannot be used with fs/gs segment override
 void getOpAddr(EmuValue* v, EmuState* es, Operand* o)
 {
     assert(opIsInd(o));
-    assert(o->seg == OSO_None); // TODO
+    assert(o->seg == OSO_None);
 
     v->type = VT_64;
     v->val = o->val;
@@ -4515,10 +4667,23 @@ void getOpValue(EmuValue* v, EmuState* es, Operand* o)
         v->state = es->reg_state[o->reg];
         return;
 
+    case OT_Ind8:
     case OT_Ind32:
     case OT_Ind64:
-        getOpAddr(&addr, es, o);
-        getMemValue(v, &addr, es, opValType(o), 0);
+        if (o->seg != OSO_None) {
+            // access memory with segment override (fs:/gs:)
+            // get offset within the segment
+            Operand noSegOp;
+            copyOperand(&noSegOp, o);
+            noSegOp.seg = OSO_None;
+            getOpAddr(&addr, es, &noSegOp);
+
+            getSegMemValue(v, &addr, opValType(o), o->seg);
+        }
+        else {
+            getOpAddr(&addr, es, o);
+            getMemValue(v, &addr, es, opValType(o), 0);
+        }
         return;
 
     default: assert(0);
@@ -4670,6 +4835,7 @@ void captureBinaryOp(Rewriter* c, Instr* orig, EmuState* es, EmuValue* res)
         if (((orig->type == IT_ADD) && (opval.val == 0)) ||
             ((orig->type == IT_SHL) && (opval.val == 0)) ||
             ((orig->type == IT_SHR) && (opval.val == 0)) ||
+            ((orig->type == IT_SAR) && (opval.val == 0)) ||
             ((orig->type == IT_IMUL) && (opval.val == 1))) {
             // adding 0 / multiplying with 1 changes nothing...
             return;
@@ -5351,16 +5517,31 @@ uint64_t emulateInstr(Rewriter* c, EmuState* es, Instr* instr)
         break;
 
     case IT_SHL:
+    case IT_SHR:
+    case IT_SAR:
         // FIXME: do flags (shifting into CF, set OF)
         getOpValue(&v1, es, &(instr->dst));
         getOpValue(&v2, es, &(instr->src));
 
         switch(opValType(&(instr->dst))) {
         case VT_32:
-            v1.val = (uint32_t) (v1.val << (v2.val & 31));
+            switch (instr->type) {
+            case IT_SHL: v1.val = (uint32_t) (v1.val << (v2.val & 31)); break;
+            case IT_SHR: v1.val = (uint32_t) (v1.val >> (v2.val & 31)); break;
+            case IT_SAR:
+                v1.val = (uint32_t) ((int32_t)v1.val >> (v2.val & 31)); break;
+            default: assert(0);
+            }
             break;
 
         case VT_64:
+            switch (instr->type) {
+            case IT_SHL: v1.val = v1.val << (v2.val & 63); break;
+            case IT_SHR: v1.val = v1.val >> (v2.val & 63); break;
+            case IT_SAR: v1.val = ((int64_t)v1.val >> (v2.val & 63)); break;
+            default: assert(0);
+            }
+
             v1.val = v1.val << (v2.val & 63);
             break;
 
