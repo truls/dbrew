@@ -3613,7 +3613,7 @@ void generate(Rewriter* c, CBB* cbb)
                 used = genIMul(buf, &(instr->src), &(instr->dst));
                 break;
             case IT_IDIV1:
-                used = genIDiv1(buf, &(instr->src));
+                used = genIDiv1(buf, &(instr->dst));
                 break;
             case IT_INC:
                 used = genInc(buf, &(instr->dst));
@@ -5305,6 +5305,49 @@ uint64_t emulateInstr(Rewriter* c, EmuState* es, Instr* instr)
         setOpValue(&vres, es, &(instr->dst));
         break;
 
+    case IT_IDIV1: {
+        uint64_t v, quRes, modRes;
+
+        getOpValue(&v1, es, &(instr->dst));
+        // TODO: raise "division by 0" exception
+        assert(v1.val != 0);
+        s = combineState(es->reg_state[Reg_DX], es->reg_state[Reg_AX], 1);
+        s = combineState(s, v1.state, 0);
+
+        switch(instr->dst.type) {
+        case OT_Reg32:
+        case OT_Ind32:
+            v = (es->reg[Reg_DX] << 32) + (es->reg[Reg_AX] & ((1ul<<32)-1) );
+            v1.val = (int32_t) v1.val;
+            quRes = v / v1.val;
+            assert(quRes < (1u<<31)); // fits into 32 bit (TODO: raise exc)
+            modRes = v % v1.val;
+            break;
+
+        case OT_Reg64:
+        case OT_Ind64:
+            // FIXME: should use rdx
+            quRes = es->reg[Reg_AX] / v1.val;
+            modRes = es->reg[Reg_AX] % v1.val;
+            break;
+
+        default:assert(0);
+        }
+
+        // capture if not static
+        if (!csIsStatic(s)) {
+            Instr i;
+            initUnaryInstr(&i, instr->type, &(instr->dst));
+            applyStaticToInd(&(i.dst), es);
+            capture(c, &i);
+        }
+
+        es->reg[Reg_AX] = quRes;
+        es->reg[Reg_DX] = modRes;
+        es->reg_state[Reg_DX] = s;
+        es->reg_state[Reg_AX] = s;
+        break;
+    }
     case IT_INC:
         getOpValue(&v1, es, &(instr->dst));
         switch(instr->dst.type) {
