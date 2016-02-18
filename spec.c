@@ -138,6 +138,8 @@ typedef enum _InstrType {
     IT_CLTQ, IT_CQTO,
     IT_PUSH, IT_POP, IT_LEAVE,
     IT_MOV, IT_MOVSX, IT_LEA, IT_MOVZBL,
+    IT_CMOVZ, IT_CMOVC, IT_CMOVO, IT_CMOVS,
+    IT_CMOVNZ, IT_CMOVNC, IT_CMOVNO, IT_CMOVNS,
     IT_NEG, IT_INC, IT_DEC,
     IT_ADD, IT_ADC, IT_SUB, IT_SBB, IT_IMUL, IT_IDIV1,
     IT_XOR, IT_AND, IT_OR,
@@ -1272,6 +1274,30 @@ DBB* brew_decode(Rewriter* c, uint64_t f)
                 attachPassthrough(ii, PS_66, OE_RM, SC_None, 0x0F, 0x2E, -1);
                 break;
 
+            case 0x40: // cmovo   r,r/m 32/64
+            case 0x41: // cmovno  r,r/m 32/64
+            case 0x42: // cmovc   r,r/m 32/64
+            case 0x43: // cmovnc  r,r/m 32/64
+            case 0x44: // cmovz   r,r/m 32/64
+            case 0x45: // cmovnz  r,r/m 32/64
+            case 0x48: // cmovs   r,r/m 32/64
+            case 0x49: // cmovns  r,r/m 32/64
+                switch(opc2) {
+                case 0x40: it = IT_CMOVO; break;
+                case 0x41: it = IT_CMOVNO; break;
+                case 0x42: it = IT_CMOVC; break;
+                case 0x43: it = IT_CMOVNC; break;
+                case 0x44: it = IT_CMOVZ; break;
+                case 0x45: it = IT_CMOVNZ; break;
+                case 0x48: it = IT_CMOVS; break;
+                case 0x49: it = IT_CMOVNS; break;
+                default: assert(0);
+                }
+                vt = (rex & REX_MASK_W) ? VT_64 : VT_32;
+                off += parseModRM(fp+off, rex, segOv, 0, 0, &o2, &o1, 0);
+                addBinaryOp(c, a, (uint64_t)(fp + off), it, vt, &o1, &o2);
+                break;
+
             case 0x58:
                 assert(hasF2);
                 // addsd xmm1,xmm2/m64 (RM)
@@ -2191,6 +2217,15 @@ char* instrName(InstrType it, int* pOpCount)
     case IT_PCMPEQB: n = "pcmpeqb"; opCount = 2; break;
     case IT_PMINUB:  n = "pminub";  opCount = 2; break;
     case IT_PMOVMSKB:n = "pmovmskb";opCount = 2; break;
+    case IT_CMOVO :  n = "cmovo";   opCount = 2; break;
+    case IT_CMOVNO:  n = "cmovno";  opCount = 2; break;
+    case IT_CMOVC :  n = "cmovc";   opCount = 2; break;
+    case IT_CMOVNC:  n = "cmovnc";  opCount = 2; break;
+    case IT_CMOVZ :  n = "cmovz";   opCount = 2; break;
+    case IT_CMOVNZ:  n = "cmovnz";  opCount = 2; break;
+    case IT_CMOVS :  n = "cmovs";   opCount = 2; break;
+    case IT_CMOVNS:  n = "cmovns";  opCount = 2; break;
+
     default: n = "<Invalid>"; break;
     }
 
@@ -4823,6 +4858,41 @@ void captureMov(Rewriter* c, Instr* orig, EmuState* es, EmuValue* res)
     capture(c, &i);
 }
 
+void captureCMov(Rewriter* c, Instr* orig, EmuState* es,
+                 EmuValue* res, CaptureState cState, Bool cond)
+{
+    Instr i;
+
+    // data movement from orig->src to orig->dst, value is res
+    // but only if condition is true
+
+    // cmov always has a register as destination
+    assert(opIsReg(&(orig->dst)));
+
+    if (csIsStatic(cState)) {
+        if (cond) captureMov(c, orig, es, res);
+        return;
+    }
+    // condition state is unknown
+
+    if (res->state == CS_DEAD) return;
+
+    if (csIsStatic(res->state)) {
+        // we need to be prepared that there may be a move happening
+        // need to update source with known value as it may be moved
+        initBinaryInstr(&i, IT_MOV, res->type,
+                        &(orig->src), getImmOp(res->type, res->val));
+        applyStaticToInd(&(i.src), es);
+        capture(c, &i);
+
+        // resulting value becomes unknown, even if source was static
+        res->state = CS_DYNAMIC;
+    }
+    initBinaryInstr(&i, orig->type, orig->vtype, &(orig->dst), &(orig->src));
+    applyStaticToInd(&(i.src), es);
+    capture(c, &i);
+}
+
 // dst = dst op src
 void captureBinaryOp(Rewriter* c, Instr* orig, EmuState* es, EmuValue* res)
 {
@@ -5237,6 +5307,32 @@ uint64_t emulateInstr(Rewriter* c, EmuState* es, Instr* instr)
             capture(c, instr);
         break;
 
+    case IT_CMOVZ: case IT_CMOVNZ:
+    case IT_CMOVC: case IT_CMOVNC:
+    case IT_CMOVO: case IT_CMOVNO:
+    case IT_CMOVS: case IT_CMOVNS:
+    {
+        FlagType ft;
+        Bool cond;
+        switch(instr->type) {
+        case IT_CMOVZ:  ft = FT_Zero;     cond =  es->flag[ft]; break;
+        case IT_CMOVNZ: ft = FT_Zero;     cond = !es->flag[ft]; break;
+        case IT_CMOVC:  ft = FT_Carry;    cond =  es->flag[ft]; break;
+        case IT_CMOVNC: ft = FT_Carry;    cond = !es->flag[ft]; break;
+        case IT_CMOVO:  ft = FT_Overflow; cond =  es->flag[ft]; break;
+        case IT_CMOVNO: ft = FT_Overflow; cond = !es->flag[ft]; break;
+        case IT_CMOVS:  ft = FT_Sign;     cond =  es->flag[ft]; break;
+        case IT_CMOVNS: ft = FT_Sign;     cond = !es->flag[ft]; break;
+        default: assert(0);
+        }
+        assert(opValType(&(instr->src)) == opValType(&(instr->dst)));
+        getOpValue(&v1, es, &(instr->src));
+        captureCMov(c, instr, es, &v1, es->flag_state[ft], cond);
+        // FIXME? if cond state unknown, set destination state always to unknown
+        if (cond == True) setOpValue(&v1, es, &(instr->dst));
+        break;
+    }
+
     case IT_CMP:
         getOpValue(&v1, es, &(instr->dst));
         getOpValue(&v2, es, &(instr->src));
@@ -5308,6 +5404,7 @@ uint64_t emulateInstr(Rewriter* c, EmuState* es, Instr* instr)
     case IT_IDIV1: {
         uint64_t v, quRes, modRes;
 
+        // FIXME: Set flags!
         getOpValue(&v1, es, &(instr->dst));
         // TODO: raise "division by 0" exception
         assert(v1.val != 0);
