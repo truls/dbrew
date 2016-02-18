@@ -3814,6 +3814,9 @@ typedef struct _CaptureConfig
     Bool hasReturnFP;
 	// avoid unrolling at call depths
 	Bool force_unknown[CC_MAXCALLDEPTH];
+    // all branches forced known
+    Bool branches_known;
+
 } CaptureConfig;
 
 char captureState2Char(CaptureState s)
@@ -3849,6 +3852,7 @@ void brew_config_reset(Rewriter* c)
 	for(i=0; i < CC_MAXCALLDEPTH; i++)
         cc->force_unknown[i] = False;
     cc->hasReturnFP = False;
+    cc->branches_known = False;
 
     c->cc = cc;
 }
@@ -3886,11 +3890,18 @@ void brew_config_force_unknown(Rewriter* r, int depth)
     cc->force_unknown[depth] = True;
 }
 
-void brew_config_returnfp(Rewriter* c)
+void brew_config_returnfp(Rewriter* r)
 {
-    CaptureConfig* cc = getCaptureConfig(c);
+    CaptureConfig* cc = getCaptureConfig(r);
     cc->hasReturnFP = True;
 }
+
+void brew_config_branches_known(Rewriter* r, Bool b)
+{
+    CaptureConfig* cc = getCaptureConfig(r);
+    cc->branches_known = b;
+}
+
 
 EmuValue emuValue(uint64_t v, ValType t, CaptureState s)
 {
@@ -5122,6 +5133,9 @@ void captureJcc(Rewriter* r, InstrType it,
 {
     CBB *cbb, *cbbBR, *cbbFT;
     int esID;
+
+    // do not end BB and assume jump fixed?
+    if (r->cc->branches_known) return;
 
     cbb = popCaptureBB(r);
     cbb->endType = it;

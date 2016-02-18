@@ -149,7 +149,10 @@ int brew_generated_size(Rewriter* c);
 void brew_config_reset(Rewriter* c);
 void brew_config_staticpar(Rewriter* c, int staticParPos);
 void brew_config_returnfp(Rewriter* c);
+// assume all calculated results to be unknown at call depth lower <depth>
 void brew_config_force_unknown(Rewriter* r, int depth);
+// assume all branches to be fixed according to rewriter input parameters
+void brew_config_branches_known(Rewriter* r, Bool);
 
 // function which can be used in code to be rewritten:
 // change capture state for value <v> to become dynamic/static
