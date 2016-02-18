@@ -2881,6 +2881,43 @@ int genMov(uint8_t* buf, Operand* src, Operand* dst)
     return 0;
 }
 
+int genCMov(uint8_t* buf, InstrType it, Operand* src, Operand* dst)
+{
+    int opc;
+
+    switch(dst->type) {
+    case OT_Reg32:
+    case OT_Reg64:
+        // dst reg
+        switch(src->type) {
+        case OT_Ind32:
+        case OT_Ind64:
+        case OT_Reg32:
+        case OT_Reg64:
+            assert(opValType(src) == opValType(dst));
+            switch(it) {
+            case IT_CMOVZ:  opc = 0x44; break; // cmovz  r,r/m 32/64
+            case IT_CMOVNZ: opc = 0x45; break; // cmovnz r,r/m 32/64
+            case IT_CMOVC:  opc = 0x42; break; // cmovc  r,r/m 32/64
+            case IT_CMOVNC: opc = 0x43; break; // cmovnc r,r/m 32/64
+            case IT_CMOVO:  opc = 0x40; break; // cmovo  r,r/m 32/64
+            case IT_CMOVNO: opc = 0x41; break; // cmovno r,r/m 32/64
+            case IT_CMOVS:  opc = 0x48; break; // cmovs  r,r/m 32/64
+            case IT_CMOVNS: opc = 0x49; break; // cmovns r,r/m 32/64
+            default: assert(0);
+            }
+            // use 'cmov r,r/m 32/64' (opc RM)
+            return genModRM(buf, opc, -1, src, dst, VT_None);
+            break;
+
+        default: assert(0);
+        }
+        break;
+
+    default: assert(0);
+    }
+    return 0;
+}
 
 int genAdd(uint8_t* buf, Operand* src, Operand* dst)
 {
@@ -2988,7 +3025,6 @@ int genSub(uint8_t* buf, Operand* src, Operand* dst)
         break;
 
     case OT_Imm8:
-        // src imm32
         switch(dst->type) {
         case OT_Reg32:
         case OT_Reg64:
@@ -3010,6 +3046,44 @@ int genSub(uint8_t* buf, Operand* src, Operand* dst)
         case OT_Ind64:
             // use 'sub r/m 32/64, imm32' (0x81/5 MI)
             return genDigitMI(buf, 0x81, 5, dst, src);
+
+        default: assert(0);
+        }
+        break;
+
+    default: assert(0);
+    }
+    return 0;
+}
+
+int genTest(uint8_t* buf, Operand* src, Operand* dst)
+{
+    switch(src->type) {
+    case OT_Reg32:
+    case OT_Reg64:
+        assert(opValType(src) == opValType(dst));
+        // src reg
+        switch(dst->type) {
+        case OT_Reg32:
+        case OT_Reg64:
+        case OT_Ind32:
+        case OT_Ind64:
+            // use 'test r/m,r 32/64' (0x85 MR)
+            return genModRM(buf, 0x85, -1, dst, src, VT_None);
+
+        default: assert(0);
+        }
+        break;
+
+    case OT_Imm32:
+        // src imm32
+        switch(dst->type) {
+        case OT_Reg32:
+        case OT_Reg64:
+        case OT_Ind32:
+        case OT_Ind64:
+            // use 'sub r/m 32/64,imm32' (0xF7/0 MI)
+            return genDigitMI(buf, 0xF7, 0, dst, src);
 
         default: assert(0);
         }
@@ -3678,6 +3752,12 @@ void generate(Rewriter* c, CBB* cbb)
             case IT_MOVSX: // converting move
                 used = genMov(buf, &(instr->src), &(instr->dst));
                 break;
+            case IT_CMOVZ: case IT_CMOVNZ:
+            case IT_CMOVC: case IT_CMOVNC:
+            case IT_CMOVO: case IT_CMOVNO:
+            case IT_CMOVS: case IT_CMOVNS:
+                used = genCMov(buf, instr->type, &(instr->src), &(instr->dst));
+                break;
             case IT_POP:
                 used = genPop(buf, &(instr->dst));
                 break;
@@ -3689,6 +3769,9 @@ void generate(Rewriter* c, CBB* cbb)
                 break;
             case IT_SUB:
                 used = genSub(buf, &(instr->src), &(instr->dst));
+                break;
+            case IT_TEST:
+                used = genTest(buf, &(instr->src), &(instr->dst));
                 break;
             case IT_HINT_CALL:
             case IT_HINT_RET:
