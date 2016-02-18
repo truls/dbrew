@@ -4904,6 +4904,45 @@ void captureCMov(Rewriter* c, Instr* orig, EmuState* es,
     capture(c, &i);
 }
 
+void captureIDiv(Rewriter* r, Instr* orig, CaptureState resState, EmuState* es)
+{
+    Instr i;
+    EmuValue v;
+
+    // capture if not static
+    if (csIsStatic(resState)) return;
+
+
+    getOpValue(&v, es, &(orig->dst));
+    if (csIsStatic(v.state)) {
+        // divide by 1 can be skipped
+        if (v.val == 1) return;
+
+        initBinaryInstr(&i, IT_MOV, v.type,
+                        &(orig->dst), getImmOp(v.type, v.val));
+        applyStaticToInd(&(i.dst), es); // dst may be memory on stack!
+        capture(r, &i);
+    }
+
+    // update ax/dx with known values, use type from idiv operand
+    if (csIsStatic(es->reg_state[Reg_AX])) {
+        initBinaryInstr(&i, IT_MOV, v.type,
+                        getRegOp(v.type, Reg_AX),
+                        getImmOp(v.type, es->reg[Reg_AX]));
+        capture(r, &i);
+    }
+    if (csIsStatic(es->reg_state[Reg_DX])) {
+        initBinaryInstr(&i, IT_MOV, v.type,
+                        getRegOp(v.type, Reg_DX),
+                        getImmOp(v.type, es->reg[Reg_DX]));
+        capture(r, &i);
+    }
+
+    initUnaryInstr(&i, orig->type, &(orig->dst));
+    applyStaticToInd(&(i.dst), es);
+    capture(r, &i);
+}
+
 // dst = dst op src
 void captureBinaryOp(Rewriter* c, Instr* orig, EmuState* es, EmuValue* res)
 {
@@ -5445,13 +5484,7 @@ uint64_t emulateInstr(Rewriter* c, EmuState* es, Instr* instr)
         default:assert(0);
         }
 
-        // capture if not static
-        if (!csIsStatic(s)) {
-            Instr i;
-            initUnaryInstr(&i, instr->type, &(instr->dst));
-            applyStaticToInd(&(i.dst), es);
-            capture(c, &i);
-        }
+        captureIDiv(c, instr, s, es);
 
         es->reg[Reg_AX] = quRes;
         es->reg[Reg_DX] = modRes;
