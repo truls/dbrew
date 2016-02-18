@@ -5678,6 +5678,7 @@ uint64_t emulateInstr(Rewriter* c, EmuState* es, Instr* instr)
     case IT_PUSH:
         switch(instr->dst.type) {
         case OT_Reg32:
+        case OT_Imm32:
             es->reg[Reg_SP] -= 4;
             addr = emuValue(es->reg[Reg_SP], VT_64, es->reg_state[Reg_SP]);
             getOpValue(&v1, es, &(instr->dst));
