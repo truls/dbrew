@@ -1,7 +1,5 @@
-Missing in x86-64 decoder:
-* segment override prefixes (fs: 0x64, ...)
-
-
+* idiv: bei /1 wird rdx nicht auf konstant 0 gesetzt
+* cmov: nicht korrekt bei Konstanten als Eingabe und unbekannter Bedingung
 
 MAYBE FIX:
 
