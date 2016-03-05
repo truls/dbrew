@@ -42,6 +42,7 @@ int test3(int a, int b)
 __attribute__ ((noinline))
 int test4(int a, int b)
 {
+    // printf("HELLO\n");
     int i = makeDynamic(0);
     for(; i < a; i++)
         b += i;

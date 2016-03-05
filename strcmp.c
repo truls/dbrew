@@ -1,5 +1,6 @@
 #include <string.h>
-#include "spec.c"
+#include <spec.h>
+// #include "spec.c"
 
 typedef int (*f_t)(char*);
 

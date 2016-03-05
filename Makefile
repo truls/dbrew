@@ -1,32 +1,25 @@
-CFLAGS=-g -std=gnu99
+CFLAGS=-g -std=gnu99 -Iinclude -Wall -Wextra  -Wmissing-field-initializers -Wunused-parameter -Wold-style-definition -Wmissing-declarations -Wmissing-prototypes -Wredundant-decls -Wmissing-noreturn -Wshadow -Wpointer-arith -Wcast-align -Wwrite-strings -Winline -Wformat-nonliteral -Wformat-security -Wswitch-enum -Wswitch-default -Wswitch -Winit-self -Wmissing-include-dirs -Wundef -Waggregate-return -Wmissing-format-attribute -Wnested-externs -Wstrict-prototypes
 LDFLAGS=-g
 
 PRGS = test stencil branchtest strcmp
 
+SRCS = $(wildcard lib/*.c)
+OBJS = $(SRCS:.c=.o)
+HEADER = $(wildcard include/*.h)
+
 all: $(PRGS)
 
+test.o: test.c $(HEADER)
+test: test.o $(OBJS)
 
-test.o: test.c spec.h
+branchtest.o: branchtest.c $(HEADER)
+branchtest: branchtest.o $(OBJS)
 
-test: test.o spec.o
+stencil.o: stencil.c $(HEADER)
+stencil: stencil.o $(OBJS)
 
-
-strcmp.o: strcmp.c spec.c
-
-
-branchtest.o: branchtest.c spec.h
-
-branchtest: branchtest.o spec.o
-
-
-stencil.o: stencil.c spec.h
-
-stencil: stencil.o spec.o
-
-
-
-spec.o: spec.h spec.c
+strcmp.o: strcmp.c $(HEADER)
+strcmp: strcmp.o $(OBJS)
 
 clean:
-	rm -rf *~ *.o $(PRGS)
-
+	rm -rf *~ *.o $(PRGS) $(OBJS)
