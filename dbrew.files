@@ -15,7 +15,7 @@ src/instr.c
 src/printer.c
 tests/op-tls.c
 tests/test-parser.c
-branchtest.c
-stencil.c
-strcmp.c
-test.c
+tests/branchtest.c
+tests/test.c
+examples/stencil.c
+examples/strcmp.c

@@ -1,25 +1,51 @@
-CFLAGS=-g -std=gnu99 -Iinclude -Wall -Wextra  -Wmissing-field-initializers -Wunused-parameter -Wold-style-definition -Wmissing-declarations -Wmissing-prototypes -Wredundant-decls -Wmissing-noreturn -Wshadow -Wpointer-arith -Wcast-align -Wwrite-strings -Winline -Wformat-nonliteral -Wformat-security -Wswitch-enum -Wswitch-default -Wswitch -Winit-self -Wmissing-include-dirs -Wundef -Waggregate-return -Wmissing-format-attribute -Wnested-externs -Wstrict-prototypes
+CFLAGS=-g -std=gnu99 -Iinclude \
+       -Wall -Wextra \
+       -Wmissing-field-initializers -Wunused-parameter -Wold-style-definition \
+       -Wmissing-declarations -Wmissing-prototypes -Wredundant-decls \
+       -Wmissing-noreturn -Wshadow -Wpointer-arith -Wcast-align \
+       -Wwrite-strings -Winline -Wformat-nonliteral -Wformat-security \
+       -Wswitch-enum -Wswitch-default -Wswitch -Winit-self \
+       -Wmissing-include-dirs -Wundef -Waggregate-return \
+       -Wmissing-format-attribute -Wnested-externs -Wstrict-prototypes
 LDFLAGS=-g
 
-PRGS = test stencil branchtest strcmp
+TEST_PRGS = tests/test tests/branchtest
+TEST_OBJS = tests/test.o tests/branchtest.o
 
+EXAMPLE_PRGS = examples/stencil examples/strcmp
+EXAMPLE_OBJS = examples/stencil.o examples/strcmp.o
+
+
+# DBrew (todo: make lib)
 SRCS = $(wildcard src/*.c)
 OBJS = $(SRCS:.c=.o)
 HEADER = $(wildcard include/*.h)
 
-all: $(PRGS)
 
-test.o: test.c $(HEADER)
-test: test.o $(OBJS)
+all: $(EXAMPLE_PRGS) $(TEST_PRGS)
 
-branchtest.o: branchtest.c $(HEADER)
-branchtest: branchtest.o $(OBJS)
+#
+# tests
+#
 
-stencil.o: stencil.c $(HEADER)
-stencil: stencil.o $(OBJS)
+tests/test.o: tests/test.c $(HEADER)
+tests/test: tests/test.o $(OBJS)
 
-strcmp.o: strcmp.c $(HEADER)
-strcmp: strcmp.o $(OBJS)
+tests/branchtest.o: tests/branchtest.c $(HEADER)
+tests/branchtest: tests/branchtest.o $(OBJS)
+
+#
+# examples
+#
+
+examples/stencil.o: examples/stencil.c $(HEADER)
+examples/stencil: examples/stencil.o $(OBJS)
+
+examples/strcmp.o: examples/strcmp.c $(HEADER)
+examples/strcmp: examples/strcmp.o $(OBJS)
+
 
 clean:
-	rm -rf *~ *.o $(PRGS) $(OBJS)
+	rm -rf *~ *.o $(OBJS) \
+		$(TEST_OBJS) $(EXAMPLE_OBJS) $(TEST_PRGS) $(EXAMPLE_PRGS)
+
