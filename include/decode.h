@@ -17,15 +17,15 @@
  * along with DBrew.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef BREW_DECODER
-#define BREW_DECODER
+#ifndef DECODE_H
+#define DECODE_H
 
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdint.h>
 
-#include <brew-common.h>
+#include "common.h"
 
 Instr* nextInstr(Rewriter* c, uint64_t a, int len);
 Instr* addSimple(Rewriter* c, uint64_t a, uint64_t a2, InstrType it);

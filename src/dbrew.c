@@ -17,22 +17,20 @@
  * along with DBrew.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "spec.h"
+#include "dbrew.h"
 
 #include <assert.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>
 
-#include <brew-code-storage.h>
-#include <brew-common.h>
-#include <brew-instruction.h>
-#include <brew-printer.h>
-#include <brew-decoder.h>
-#include <brew-emulator.h>
-#include <brew-encoder.h>
-
-
+#include "buffers.h"
+#include "common.h"
+#include "instr.h"
+#include "printer.h"
+#include "decode.h"
+#include "emulate.h"
+#include "generate.h"
 
 
 

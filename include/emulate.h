@@ -17,8 +17,8 @@
  * along with DBrew.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef BREW_EMULATOR
-#define BREW_EMULATOR
+#ifndef EMULATE_H
+#define EMULATE_H
 
 #include <assert.h>
 #include <stdio.h>
@@ -27,8 +27,8 @@
 #include <stdarg.h>
 #include <stdint.h>
 
-#include <brew-common.h>
-#include <brew-instruction.h>
+#include <common.h>
+#include <instr.h>
 
 
 /*------------------------------------------------------------*/
@@ -97,4 +97,4 @@ uint64_t vEmulateAndCapture(Rewriter* c, va_list args);
 
 uint64_t brew_emulate_capture(Rewriter* r, ...);
 
-#endif
+#endif // EMULATE_H

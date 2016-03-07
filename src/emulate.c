@@ -17,17 +17,17 @@
  * along with DBrew.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "emulate.h"
+
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdint.h>
 
-#include <brew-emulator.h>
-
-#include <brew-common.h>
-#include <brew-decoder.h>
-#include <brew-printer.h>
-#include <brew-instruction.h>
+#include "common.h"
+#include "decode.h"
+#include "printer.h"
+#include "instr.h"
 
 
 // functions which can be used in code to be rewritten

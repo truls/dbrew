@@ -1,6 +1,12 @@
+/*
+ * Example for DBrew API
+ *
+ * Generic 2d stencil code.
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
-#include "spec.h"
+#include "dbrew.h"
 
 //#define USEINT
 

@@ -6,7 +6,7 @@
  */
 
 #include <stdio.h>
-#include "spec.h"
+#include "dbrew.h"
 
 typedef int (*i2_func)(int,int);
 

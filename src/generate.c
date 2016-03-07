@@ -17,15 +17,15 @@
  * along with DBrew.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "generate.h"
+
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdint.h>
 
-#include <brew-encoder.h>
-
-#include <brew-common.h>
-#include <brew-printer.h>
+#include "common.h"
+#include "printer.h"
 
 
 /*------------------------------------------------------------*/

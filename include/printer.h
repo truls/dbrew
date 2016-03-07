@@ -17,28 +17,22 @@
  * along with DBrew.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef BREW_CODE_STORAGE
-#define BREW_CODE_STORAGE
+#ifndef PRINTER_H
+#define PRINTER_H
 
+#include <assert.h>
+#include <stdio.h>
+#include <string.h>
 #include <stdint.h>
 
-// XXX: Move Struct in C file after removing all direct dependencies!
-struct _CodeStorage {
-    int size;
-    int fullsize; /* rounded to multiple of a page size */
-    int used;
-    uint8_t* buf;
-};
+#include "common.h"
 
-typedef struct _CodeStorage CodeStorage;
+const char* regName(Reg r, OpType t);
+char* op2string(Operand* o, ValType t);
+const char* instrName(InstrType it, int* pOpCount);
+char* instr2string(Instr* instr, int align);
+char* bytes2string(Instr* instr, int start, int count);
+void brew_print_decoded(DBB* bb);
+void printDecodedBBs(Rewriter* c);
 
-CodeStorage* initCodeStorage(int size);
-void freeCodeStorage(CodeStorage* cs);
-
-/* this checks whether enough storage is available, but does
- * not change <used>.
- */
-uint8_t* reserveCodeStorage(CodeStorage* cs, int size);
-uint8_t* useCodeStorage(CodeStorage* cs, int size);
-
-#endif
+#endif // PRINTER_H

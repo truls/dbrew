@@ -17,13 +17,13 @@
  * along with DBrew.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef BREW_COMMON
-#define BREW_COMMON
+#ifndef COMMON_H
+#define COMMON_H
 
 #include <stdint.h>
 
-#include <brew-code-storage.h>
-#include <brew-instruction.h>
+#include "buffers.h"
+#include "instr.h"
 
 struct _CBB;
 
@@ -199,4 +199,4 @@ typedef struct _Rewriter {
 #define REX_MASK_R 4
 #define REX_MASK_W 8
 
-#endif
+#endif // COMMON_H

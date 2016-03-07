@@ -17,12 +17,12 @@
  * along with DBrew.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef BREW_INSTRUCTION
-#define BREW_INSTRUCTION
+#ifndef INSTR_H
+#define INSTR_H
 
 #include <stdint.h>
 
-#ifndef SPEC_H
+#ifndef DBREW_H
 typedef enum { False, True } Bool;
 #endif
 
@@ -194,4 +194,4 @@ void attachPassthrough(Instr* i, PrefixSet set,
                        int b1, int b2, int b3);
 
 
-#endif
+#endif // INSTR_H

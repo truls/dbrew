@@ -1,6 +1,11 @@
+/*
+ * Example for DBrew API
+ *
+ * Rewrite a shared library function
+ */
+
 #include <string.h>
-#include <spec.h>
-// #include "spec.c"
+#include "dbrew.h"
 
 typedef int (*f_t)(char*);
 

@@ -17,13 +17,13 @@
  * along with DBrew.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "buffers.h"
+
 #include <assert.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/mman.h>
-
-#include <brew-code-storage.h>
 
 
 CodeStorage* initCodeStorage(int size)

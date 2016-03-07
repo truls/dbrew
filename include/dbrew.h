@@ -92,8 +92,8 @@
  * See example usage in examples/
  */
 
-#ifndef SPEC_H
-#define SPEC_H
+#ifndef DBREW_H
+#define DBREW_H
 
 #include <stdint.h>
 
@@ -166,4 +166,4 @@ void brew_def_verbose(Bool decode, Bool emuState, Bool emuSteps);
 uint64_t brew_rewrite(uint64_t func, ...);
 
 
-#endif // SPEC_H
+#endif // DBREW_H
