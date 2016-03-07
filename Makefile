@@ -3,7 +3,7 @@ LDFLAGS=-g
 
 PRGS = test stencil branchtest strcmp
 
-SRCS = $(wildcard lib/*.c)
+SRCS = $(wildcard src/*.c)
 OBJS = $(SRCS:.c=.o)
 HEADER = $(wildcard include/*.h)
 
