@@ -5,4 +5,4 @@ optest1: optest1.s test-parser.c
 	cc optest1.s test-parser.c ../spec.c -o optest1
 
 clean:
-	rm -f optest1 op-tls
+	rm -f *.o *~ optest1 op-tls test-op-inc test-op-pxor

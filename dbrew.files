@@ -19,3 +19,7 @@ tests/branchtest.c
 tests/test.c
 examples/stencil.c
 examples/strcmp.c
+docs/BUGS
+docs/CONCEPTS
+docs/TODO
+README.md

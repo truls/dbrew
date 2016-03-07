@@ -24,9 +24,8 @@ HEADER = $(wildcard include/*.h)
 
 all: $(EXAMPLE_PRGS) $(TEST_PRGS)
 
-#
-# tests
-#
+
+# tests (todo: separate Makefile to use different CFLAGS, e.g. -O3)
 
 tests/test.o: tests/test.c $(HEADER)
 tests/test: tests/test.o $(OBJS)
@@ -34,9 +33,8 @@ tests/test: tests/test.o $(OBJS)
 tests/branchtest.o: tests/branchtest.c $(HEADER)
 tests/branchtest: tests/branchtest.o $(OBJS)
 
-#
-# examples
-#
+
+# examples (todo: separate Makefile to use different CFLAGS, e.g. -O3)
 
 examples/stencil.o: examples/stencil.c $(HEADER)
 examples/stencil: examples/stencil.o $(OBJS)
@@ -48,4 +46,5 @@ examples/strcmp: examples/strcmp.o $(OBJS)
 clean:
 	rm -rf *~ *.o $(OBJS) \
 		$(TEST_OBJS) $(EXAMPLE_OBJS) $(TEST_PRGS) $(EXAMPLE_PRGS)
+	(cd tests; make clean)
 
