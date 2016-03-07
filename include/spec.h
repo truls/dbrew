@@ -1,17 +1,33 @@
 /**
- * Simple x86_64 code rewriter (decoder/emulator/re-generator)
- * (c) 2015, Josef Weidendorfer, GPLv2+
+ * This file is part of DBrew, the dynamic binary rewriting library.
+ *
+ * (c) 2015-2016, Josef Weidendorfer <josef.weidendorfer@gmx.de>
+ *
+ * DBrew is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Lesser General Public License (LGPL)
+ * as published by the Free Software Foundation, either version 2.1 of
+ * the License, or (at your option) any later version.
+ *
+ * DBrew is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with DBrew.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+/*
+ * Header file defining the DBrew API.
  *
  * This library allows functions to be rewritten at runtime in specified
  * ways, that is, rewriting happens on the binary level. Rewritten functions
  * are called in exact the same way as the original function.
  *
- * Envisioned use cases:
- *
+ * Use cases:
  * - partial evaluation/specialization at rewriting time.
  *   This allows to capture values of some variables during rewriting,
  *   such that each rewriting creates a special version of a generic function.
- *
  * - observe/insert/modify properties of binary code.
  *   - observe reads/write accesses to variables/data structures
  *   - insert function calls before/after operations
@@ -73,22 +89,7 @@
  * - at value usage: value, operations are parameters
  * - at operation: operand values are parameters
  *
- *
- * Basic interface:
- *
- *  typedef ... (func_t*)(...)
- *
- *  Rewriter* allocRewriter();
- *
- *   Create a new rewriter instance
- *
- *  void setFuncFlags(Rewriter* r, func_t f, int pNo, MetaState s)
- *
- *   Add meta state for parameter <pNo> of function <f> on entering.
- *
- *  func_t rewrite(Rewriter* r, func_t myfunc, <myfunc parameters>...)
- *
- *    Rewrite function <myfunc>.
+ * See example usage in examples/
  */
 
 #ifndef SPEC_H
