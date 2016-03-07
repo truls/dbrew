@@ -1,4 +1,4 @@
-CFLAGS=-g -std=gnu99 -Iinclude \
+CFLAGS=-g -std=gnu99 -Iinclude -Iinclude/priv\
        -Wall -Wextra \
        -Wmissing-field-initializers -Wunused-parameter -Wold-style-definition \
        -Wmissing-declarations -Wmissing-prototypes -Wredundant-decls \
