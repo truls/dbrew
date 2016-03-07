@@ -208,7 +208,7 @@ int parseModRM(uint8_t* p,
 
 
 // decode the basic block starting at f (automatically triggered by emulator)
-DBB* brew_decode(Rewriter* c, uint64_t f)
+DBB* dbrew_decode(Rewriter* c, uint64_t f)
 {
     Bool hasRex, hasF2, hasF3, has66;
     Bool has2E; // cs-segment override or branch not taken hint (Jcc)
@@ -1046,7 +1046,7 @@ DBB* brew_decode(Rewriter* c, uint64_t f)
     dbb->size = off;
 
     if (c->showDecoding)
-        brew_print_decoded(dbb);
+        dbrew_print_decoded(dbb);
 
     return dbb;
 }

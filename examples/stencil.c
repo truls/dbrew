@@ -233,39 +233,39 @@ int main(int argc, char* argv[])
         printf(", rewriting with loops.\n");
         r = brew_new();
         if (verbose>1) {
-            brew_verbose(r, True, True, True);
-            brew_optverbose(r, True);
+            dbrew_verbose(r, True, True, True);
+            dbrew_optverbose(r, True);
         }
-        brew_set_function(r, (uint64_t) al);
-        brew_config_staticpar(r, 0); // size is constant
-        brew_config_staticpar(r, 3); // apply func is constant
-        brew_config_staticpar(r, 4); // stencil is constant
+        dbrew_set_function(r, (uint64_t) al);
+        dbrew_config_staticpar(r, 0); // size is constant
+        dbrew_config_staticpar(r, 3); // apply func is constant
+        dbrew_config_staticpar(r, 4); // stencil is constant
         if (!do4)
-            brew_config_force_unknown(r, 0); // do not unroll in applyLoop
-        brew_emulate_capture(r, size, m1, m2, af, s);
-        al = (apply_loop) brew_generated_code(r);
+            dbrew_config_force_unknown(r, 0); // do not unroll in applyLoop
+        dbrew_emulate_capture(r, size, m1, m2, af, s);
+        al = (apply_loop) dbrew_generated_code(r);
     }
     else {
         printf(",%s rewriting.\n", (av<5) ? " no":"");
         if (av >= 5) {
             r = brew_new();
             if (verbose>1) {
-                brew_verbose(r, True, True, True);
-                brew_optverbose(r, True);
+                dbrew_verbose(r, True, True, True);
+                dbrew_optverbose(r, True);
             }
-            brew_set_function(r, (uint64_t) af);
-            brew_config_staticpar(r, 1); // size is constant
-            brew_config_staticpar(r, 2); // stencil is constant
-            brew_config_returnfp(r);
-            brew_emulate_capture(r, m1 + size + 1, size, s);
-            af = (apply_func) brew_generated_code(r);
+            dbrew_set_function(r, (uint64_t) af);
+            dbrew_config_staticpar(r, 1); // size is constant
+            dbrew_config_staticpar(r, 2); // stencil is constant
+            dbrew_config_returnfp(r);
+            dbrew_emulate_capture(r, m1 + size + 1, size, s);
+            af = (apply_func) dbrew_generated_code(r);
         }
     }
 
     if (r && (verbose>0)) {
         // use another rewriter to show generated code
         Rewriter* r2 = brew_new();
-        brew_decode_print(r2, brew_generated_code(r), brew_generated_size(r));
+        dbrew_decode_print(r2, dbrew_generated_code(r), dbrew_generated_size(r));
         brew_free(r2);
     }
 

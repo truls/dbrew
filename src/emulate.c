@@ -83,7 +83,7 @@ void freeCaptureConfig(Rewriter* r)
     r->cc = 0;
 }
 
-void brew_config_reset(Rewriter* c)
+void dbrew_config_reset(Rewriter* c)
 {
     CaptureConfig* cc;
     int i;
@@ -106,12 +106,12 @@ void brew_config_reset(Rewriter* c)
 CaptureConfig* getCaptureConfig(Rewriter* c)
 {
     if (c->cc == 0)
-        brew_config_reset(c);
+        dbrew_config_reset(c);
 
     return c->cc;
 }
 
-void brew_config_staticpar(Rewriter* c, int staticParPos)
+void dbrew_config_staticpar(Rewriter* c, int staticParPos)
 {
     CaptureConfig* cc = getCaptureConfig(c);
 
@@ -127,7 +127,7 @@ void brew_config_staticpar(Rewriter* c, int staticParPos)
  *
  * Brute force approach to prohibit loop unrolling.
  */
-void brew_config_force_unknown(Rewriter* r, int depth)
+void dbrew_config_force_unknown(Rewriter* r, int depth)
 {
     CaptureConfig* cc = getCaptureConfig(r);
 
@@ -135,13 +135,13 @@ void brew_config_force_unknown(Rewriter* r, int depth)
     cc->force_unknown[depth] = True;
 }
 
-void brew_config_returnfp(Rewriter* r)
+void dbrew_config_returnfp(Rewriter* r)
 {
     CaptureConfig* cc = getCaptureConfig(r);
     cc->hasReturnFP = True;
 }
 
-void brew_config_branches_known(Rewriter* r, Bool b)
+void dbrew_config_branches_known(Rewriter* r, Bool b)
 {
     CaptureConfig* cc = getCaptureConfig(r);
     cc->branches_known = b;
@@ -2235,7 +2235,7 @@ uint64_t vEmulateAndCapture(Rewriter* c, va_list args)
 
         // decode and process instructions starting at bb_addr.
         // note: multiple original BBs may be combined into one CBB
-        dbb = brew_decode(c, bb_addr);
+        dbb = dbrew_decode(c, bb_addr);
         for(i = 0; i < dbb->count; i++) {
             instr = dbb->instr + i;
 
@@ -2384,7 +2384,7 @@ uint64_t vEmulateAndCapture(Rewriter* c, va_list args)
     return es->reg[Reg_AX];
 }
 
-uint64_t brew_emulate_capture(Rewriter* r, ...)
+uint64_t dbrew_emulate_capture(Rewriter* r, ...)
 {
     uint64_t res;
     va_list argptr;

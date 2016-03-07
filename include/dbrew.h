@@ -111,49 +111,49 @@ Rewriter* brew_new(void);
 void brew_free(Rewriter*);
 
 // configure size of internal buffer space of a rewriter
-void brew_set_decoding_capacity(Rewriter* r,
-                                int instrCapacity, int bbCapacity);
-void brew_set_capture_capacity(Rewriter* r,
-                               int instrCapacity, int bbCapacity,
-                               int codeCapacity);
+void dbrew_set_decoding_capacity(Rewriter* r,
+                                 int instrCapacity, int bbCapacity);
+void dbrew_set_capture_capacity(Rewriter* r,
+                                int instrCapacity, int bbCapacity,
+                                int codeCapacity);
 
 // set function to rewrite
 // this clears any previously decoded/captured instructions
-void brew_set_function(Rewriter* rewriter, uint64_t f);
+void dbrew_set_function(Rewriter* rewriter, uint64_t f);
 
 // set rewriter activities to be verbose or quiet
-void brew_verbose(Rewriter* rewriter,
-                  Bool decode, Bool emuState, Bool emuSteps);
-void brew_optverbose(Rewriter* r, Bool v);
+void dbrew_verbose(Rewriter* rewriter,
+                   Bool decode, Bool emuState, Bool emuSteps);
+void dbrew_optverbose(Rewriter* r, Bool v);
 
 // decode a piece of x86 binary code starting add address <f>
-DBB* brew_decode(Rewriter* c, uint64_t f);
+DBB* dbrew_decode(Rewriter* c, uint64_t f);
 
 // decode and print <count> instructions starting add address <f>
-void brew_decode_print(Rewriter* c, uint64_t f, int count);
+void dbrew_decode_print(Rewriter* c, uint64_t f, int count);
 
 // print instructions from a decoded basic block
-void brew_print_decoded(DBB* bb);
+void dbrew_print_decoded(DBB* bb);
 
 // initialize emulator, use given stack size
-void brew_set_stacksize(Rewriter *c, int stacksize);
+void dbrew_set_stacksize(Rewriter *c, int stacksize);
 
 // emulate the given decoded binary code
 // initialize state with function parameters ('...')
-uint64_t brew_emulate_capture(Rewriter* r, ...);
+uint64_t dbrew_emulate_capture(Rewriter* r, ...);
 
 // buffer with regenerated code, captured from emulation
-uint64_t brew_generated_code(Rewriter* c);
-int brew_generated_size(Rewriter* c);
+uint64_t dbrew_generated_code(Rewriter* c);
+int dbrew_generated_size(Rewriter* c);
 
 // configure rewriter
-void brew_config_reset(Rewriter* c);
-void brew_config_staticpar(Rewriter* c, int staticParPos);
-void brew_config_returnfp(Rewriter* c);
+void dbrew_config_reset(Rewriter* c);
+void dbrew_config_staticpar(Rewriter* c, int staticParPos);
+void dbrew_config_returnfp(Rewriter* c);
 // assume all calculated results to be unknown at call depth lower <depth>
-void brew_config_force_unknown(Rewriter* r, int depth);
+void dbrew_config_force_unknown(Rewriter* r, int depth);
 // assume all branches to be fixed according to rewriter input parameters
-void brew_config_branches_known(Rewriter* r, Bool);
+void dbrew_config_branches_known(Rewriter* r, Bool);
 
 // function which can be used in code to be rewritten:
 // change capture state for value <v> to become dynamic/static
@@ -162,8 +162,8 @@ uint64_t makeStatic(uint64_t v);
 
 
 // convenience functions, using default rewriter
-void brew_def_verbose(Bool decode, Bool emuState, Bool emuSteps);
-uint64_t brew_rewrite(uint64_t func, ...);
+void dbrew_def_verbose(Bool decode, Bool emuState, Bool emuSteps);
+uint64_t dbrew_rewrite(uint64_t func, ...);
 
 
 #endif // DBREW_H

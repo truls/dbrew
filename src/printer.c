@@ -404,7 +404,7 @@ char* bytes2string(Instr* instr, int start, int count)
     return (off == 0) ? "" : buf;
 }
 
-void brew_print_decoded(DBB* bb)
+void dbrew_print_decoded(DBB* bb)
 {
     int i;
     for(i = 0; i < bb->count; i++) {
@@ -425,6 +425,6 @@ void printDecodedBBs(Rewriter* c)
     int i;
     for(i=0; i< c->decBBCount; i++) {
         printf("BB %lx (%d instructions):\n", c->decBB[i].addr, c->decBB[i].count);
-        brew_print_decoded(c->decBB + i);
+        dbrew_print_decoded(c->decBB + i);
     }
 }

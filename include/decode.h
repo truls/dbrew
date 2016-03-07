@@ -47,6 +47,6 @@ int parseModRM(uint8_t* p,
                int rex, OpSegOverride o1Seg, Bool o1IsVec, Bool o2IsVec,
                Operand* o1, Operand* o2, int* digit);
 // decode the basic block starting at f (automatically triggered by emulator)
-DBB* brew_decode(Rewriter* c, uint64_t f);
+DBB* dbrew_decode(Rewriter* c, uint64_t f);
 
 #endif

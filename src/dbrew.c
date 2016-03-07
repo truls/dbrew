@@ -44,14 +44,14 @@ void freeCaptureConfig(Rewriter*);
 
 
 
-void brew_decode_print(Rewriter* c, uint64_t f, int count)
+void dbrew_decode_print(Rewriter* c, uint64_t f, int count)
 {
     DBB* dbb;
     int decoded = 0;
 
     c->decBBCount = 0;
     while(decoded < count) {
-        dbb = brew_decode(c, f + decoded);
+        dbb = dbrew_decode(c, f + decoded);
         decoded += dbb->size;
     }
     printDecodedBBs(c);
@@ -164,7 +164,7 @@ void brew_free(Rewriter* r)
     free(r);
 }
 
-void brew_set_decoding_capacity(Rewriter* r,
+void dbrew_set_decoding_capacity(Rewriter* r,
                                  int instrCapacity, int bbCapacity)
 {
     r->decInstrCapacity = instrCapacity;
@@ -176,7 +176,7 @@ void brew_set_decoding_capacity(Rewriter* r,
     r->decBB = 0;
 }
 
-void brew_set_capture_capacity(Rewriter* r,
+void dbrew_set_capture_capacity(Rewriter* r,
                                 int instrCapacity, int bbCapacity,
                                 int codeCapacity)
 {
@@ -195,18 +195,18 @@ void brew_set_capture_capacity(Rewriter* r,
 }
 
 
-void brew_set_function(Rewriter* rewriter, uint64_t f)
+void dbrew_set_function(Rewriter* rewriter, uint64_t f)
 {
     rewriter->func = f;
 
     // reset all decoding/state
     initRewriter(rewriter);
-    brew_config_reset(rewriter);
+    dbrew_config_reset(rewriter);
 
     freeEmuState(rewriter);
 }
 
-void brew_verbose(Rewriter* rewriter,
+void dbrew_verbose(Rewriter* rewriter,
                   Bool decode, Bool emuState, Bool emuSteps)
 {
     rewriter->showDecoding = decode;
@@ -214,12 +214,12 @@ void brew_verbose(Rewriter* rewriter,
     rewriter->showEmuSteps = emuSteps;
 }
 
-void brew_optverbose(Rewriter* r, Bool v)
+void dbrew_optverbose(Rewriter* r, Bool v)
 {
     r->showOptSteps = v;
 }
 
-uint64_t brew_generated_code(Rewriter* c)
+uint64_t dbrew_generated_code(Rewriter* c)
 {
     if ((c->cs == 0) || (c->cs->used == 0))
         return 0;
@@ -230,7 +230,7 @@ uint64_t brew_generated_code(Rewriter* c)
     //return (uint64_t) c->cs->buf;
 }
 
-int brew_generated_size(Rewriter* c)
+int dbrew_generated_size(Rewriter* c)
 {
     if ((c->cs == 0) || (c->cs->used == 0))
         return 0;
@@ -268,23 +268,23 @@ Rewriter* getDefaultRewriter()
     return defaultRewriter;
 }
 
-void brew_def_verbose(Bool decode, Bool emuState, Bool emuSteps)
+void dbrew_def_verbose(Bool decode, Bool emuState, Bool emuSteps)
 {
-    brew_verbose(getDefaultRewriter(), decode, emuState, emuSteps);
+    dbrew_verbose(getDefaultRewriter(), decode, emuState, emuSteps);
 }
 
-uint64_t brew_rewrite(uint64_t func, ...)
+uint64_t dbrew_rewrite(uint64_t func, ...)
 {
     Rewriter* r;
     va_list argptr;
 
     r = getDefaultRewriter();
-    brew_set_function(r, func);
+    dbrew_set_function(r, func);
 
     va_start(argptr, func);
     // throw away result of emulation
     vEmulateAndCapture(r, argptr);
     va_end(argptr);
 
-    return brew_generated_code(r);
+    return dbrew_generated_code(r);
 }

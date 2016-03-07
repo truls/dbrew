@@ -52,12 +52,12 @@
  */
 
 
-void brew_config_reset(Rewriter* c);
+void dbrew_config_reset(Rewriter* c);
 
 
 CaptureConfig* getCaptureConfig(Rewriter* c);
 
-void brew_config_staticpar(Rewriter* c, int staticParPos);
+void dbrew_config_staticpar(Rewriter* c, int staticParPos);
 
 /**
  * This allows to specify for a given function inlining depth that
@@ -67,11 +67,11 @@ void brew_config_staticpar(Rewriter* c, int staticParPos);
  *
  * Brute force approach to prohibit loop unrolling.
  */
-void brew_config_force_unknown(Rewriter* r, int depth);
+void dbrew_config_force_unknown(Rewriter* r, int depth);
 
-void brew_config_returnfp(Rewriter* r);
+void dbrew_config_returnfp(Rewriter* r);
 
-void brew_config_branches_known(Rewriter* r, Bool b);
+void dbrew_config_branches_known(Rewriter* r, Bool b);
 
 
 
@@ -95,6 +95,6 @@ uint64_t emulateInstr(Rewriter* c, EmuState* es, Instr* instr);
 // FIXME: this always assumes 5 parameters
 uint64_t vEmulateAndCapture(Rewriter* c, va_list args);
 
-uint64_t brew_emulate_capture(Rewriter* r, ...);
+uint64_t dbrew_emulate_capture(Rewriter* r, ...);
 
 #endif // EMULATE_H
