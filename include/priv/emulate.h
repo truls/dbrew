@@ -20,15 +20,10 @@
 #ifndef EMULATE_H
 #define EMULATE_H
 
-#include <assert.h>
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
-#include <stdarg.h>
 #include <stdint.h>
 
-#include <common.h>
-#include <instr.h>
+#include "common.h"
+#include "instr.h"
 
 
 /*------------------------------------------------------------*/
@@ -51,50 +46,29 @@
  * Saving copies the complete EmuState, inheriting the individual states.
  */
 
+// exported functions
 
-void dbrew_config_reset(Rewriter* c);
+// get a new emulator state with stack size <size>
+EmuState* allocEmuState(int size);
+void freeEmuState(Rewriter* r);
+void resetEmuState(EmuState* es);
+// save current emulator state for later rollback, return ID
+int saveEmuState(Rewriter* r);
+// set current emulator state to previously saved state <esID>
+void restoreEmuState(Rewriter* r, int esID);
+void printEmuState(EmuState* es);
+void printStaticEmuState(EmuState* es, int esID);
 
+void resetCapturing(Rewriter* r);
+CBB* getCaptureBB(Rewriter* c, uint64_t f, int esID);
+int pushCaptureBB(Rewriter* r, CBB* bb);
+CBB* popCaptureBB(Rewriter* r);
+Instr* newCapInstr(Rewriter* r);
+void capture(Rewriter* r, Instr* instr);
+void captureRet(Rewriter* c, Instr* orig, EmuState* es);
 
-CaptureConfig* getCaptureConfig(Rewriter* c);
-
-void dbrew_config_staticpar(Rewriter* c, int staticParPos);
-
-/**
- * This allows to specify for a given function inlining depth that
- * values produced by binary operations always should be forced to unknown.
- * Thus, when result is known, it is converted to unknown state with
- * the value being loaded as immediate into destination.
- *
- * Brute force approach to prohibit loop unrolling.
- */
-void dbrew_config_force_unknown(Rewriter* r, int depth);
-
-void dbrew_config_returnfp(Rewriter* r);
-
-void dbrew_config_branches_known(Rewriter* r, Bool b);
-
-
-
-//---------------------------------------------------------
-// emulator functions
-
-
-//----------------------------------------------------------
-// Emulator for instruction types
-
-
-
+// emulate <instr> by changing <es> and capture it if not static.
 // return 0 to fall through to next instruction, or return address to jump to
 uint64_t emulateInstr(Rewriter* c, EmuState* es, Instr* instr);
-
-
-
-//----------------------------------------------------------
-// Rewrite engine
-
-// FIXME: this always assumes 5 parameters
-uint64_t vEmulateAndCapture(Rewriter* c, va_list args);
-
-uint64_t dbrew_emulate_capture(Rewriter* r, ...);
 
 #endif // EMULATE_H

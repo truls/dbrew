@@ -17,6 +17,8 @@
  * along with DBrew.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+/* For now, decoder only does x86-64 */
+
 #include "decode.h"
 
 #include <assert.h>
@@ -26,6 +28,7 @@
 
 #include "common.h"
 #include "printer.h"
+#include "engine.h"
 
 Instr* nextInstr(Rewriter* c, uint64_t a, int len)
 {

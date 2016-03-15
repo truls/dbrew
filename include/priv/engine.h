@@ -17,12 +17,20 @@
  * along with DBrew.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef GENERATE_H
-#define GENERATE_H
+#ifndef ENGINE_H
+#define ENGINE_H
 
-#include <common.h>
+#include "common.h"
 
-// generate code for a captured BB
-void generate(Rewriter* c, CBB* cbb);
+#include <stdarg.h>
+#include <stdint.h>
 
-#endif // GENERATE_H
+Rewriter* allocRewriter();
+void initRewriter(Rewriter* r);
+void freeRewriter(Rewriter* r);
+
+// Rewrite engine
+uint64_t vEmulateAndCapture(Rewriter* c, va_list args);
+uint64_t dbrew_emulate_capture(Rewriter* r, ...);
+
+#endif // ENGINE_H

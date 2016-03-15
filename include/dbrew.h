@@ -100,6 +100,12 @@
 typedef void (*void_func)(void);
 typedef enum { False, True } Bool;
 
+// function which can be used in code to be rewritten
+// mark a passed-through value as dynamic
+uint64_t makeDynamic(uint64_t v);
+// mark a passed-through value as static
+uint64_t makeStatic(uint64_t v);
+
 // opaque data structures used in interface
 typedef struct _Rewriter Rewriter;
 typedef struct _DBB DBB;
@@ -154,11 +160,6 @@ void dbrew_config_returnfp(Rewriter* c);
 void dbrew_config_force_unknown(Rewriter* r, int depth);
 // assume all branches to be fixed according to rewriter input parameters
 void dbrew_config_branches_known(Rewriter* r, Bool);
-
-// function which can be used in code to be rewritten:
-// change capture state for value <v> to become dynamic/static
-uint64_t makeDynamic(uint64_t v);
-uint64_t makeStatic(uint64_t v);
 
 
 // convenience functions, using default rewriter

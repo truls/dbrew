@@ -30,18 +30,48 @@
 #include "printer.h"
 #include "decode.h"
 #include "emulate.h"
+#include "engine.h"
 #include "generate.h"
 
+/**
+ * Functions which may be used in code to be rewritten
+*/
+
+// mark a passed-through value as dynamic
+
+__attribute__ ((noinline))
+uint64_t makeDynamic(uint64_t v)
+{
+    return v;
+}
+
+// mark a passed-through value as static
+
+__attribute__ ((noinline))
+uint64_t makeStatic(uint64_t v)
+{
+    return v;
+}
 
 
-// forward declarations
-void freeEmuState(Rewriter*);
-void freeCaptureConfig(Rewriter*);
+/**
+ * DBrew API functions
+ */
+
+Rewriter* brew_new()
+{
+    return allocRewriter();
+}
+
+void brew_free(Rewriter* r)
+{
+    freeRewriter(r);
+}
+
 
 /*------------------------------------------------------------*/
 /* x86_64 Analyzers
  */
-
 
 
 void dbrew_decode_print(Rewriter* c, uint64_t f, int count)
@@ -57,112 +87,6 @@ void dbrew_decode_print(Rewriter* c, uint64_t f, int count)
     printDecodedBBs(c);
 }
 
-Rewriter* brew_new()
-{
-    Rewriter* r;
-    int i;
-
-    r = (Rewriter*) malloc(sizeof(Rewriter));
-
-    // allocation of other members on demand, capacities may be reset
-
-    r->decInstrCount = 0;
-    r->decInstrCapacity = 0;
-    r->decInstr = 0;
-
-    r->decBBCount = 0;
-    r->decBBCapacity = 0;
-    r->decBB = 0;
-
-    r->capInstrCount = 0;
-    r->capInstrCapacity = 0;
-    r->capInstr = 0;
-
-    r->capBBCount = 0;
-    r->capBBCapacity = 0;
-    r->capBB = 0;
-    r->currentCapBB = 0;
-    r->capStackTop = -1;
-    r->genOrderCount = 0;
-
-    r->savedStateCount = 0;
-    for(i=0; i< SAVEDSTATE_MAX; i++)
-        r->savedState[i] = 0;
-
-    r->capCodeCapacity = 0;
-    r->cs = 0;
-
-    r->cc = 0;
-    r->es = 0;
-
-    // optimization passes
-    r->addInliningHints = True;
-    r->doCopyPass = True;
-
-    // default: debug off
-    r->showDecoding = False;
-    r->showEmuState = False;
-    r->showEmuSteps = False;
-
-    return r;
-}
-
-void initRewriter(Rewriter* r)
-{
-    if (r->decInstr == 0) {
-        // default
-        if (r->decInstrCapacity == 0) r->decInstrCapacity = 500;
-        r->decInstr = (Instr*) malloc(sizeof(Instr) * r->decInstrCapacity);
-    }
-    r->decInstrCount = 0;
-
-    if (r->decBB == 0) {
-        // default
-        if (r->decBBCapacity == 0) r->decBBCapacity = 50;
-        r->decBB = (DBB*) malloc(sizeof(DBB) * r->decBBCapacity);
-    }
-    r->decBBCount = 0;
-
-    if (r->capInstr == 0) {
-        // default
-        if (r->capInstrCapacity == 0) r->capInstrCapacity = 500;
-        r->capInstr = (Instr*) malloc(sizeof(Instr) * r->capInstrCapacity);
-    }
-    r->capInstrCount = 0;
-
-    if (r->capBB == 0) {
-        // default
-        if (r->capBBCapacity == 0) r->capBBCapacity = 50;
-        r->capBB = (CBB*) malloc(sizeof(CBB) * r->capBBCapacity);
-    }
-    r->capBBCount = 0;
-    r->currentCapBB = 0;
-
-    if (r->cs == 0) {
-        if (r->capCodeCapacity == 0) r->capCodeCapacity = 3000;
-        if (r->capCodeCapacity >0)
-            r->cs = initCodeStorage(r->capCodeCapacity);
-    }
-    if (r->cs)
-        r->cs->used = 0;
-}
-
-void brew_free(Rewriter* r)
-{
-    if (!r) return;
-
-    free(r->decInstr);
-    free(r->decBB);
-    free(r->capInstr);
-    free(r->capBB);
-
-    freeCaptureConfig(r);
-    freeEmuState(r);
-
-    if (r->cs)
-        freeCodeStorage(r->cs);
-    free(r);
-}
 
 void dbrew_set_decoding_capacity(Rewriter* r,
                                  int instrCapacity, int bbCapacity)

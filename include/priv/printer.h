@@ -20,11 +20,6 @@
 #ifndef PRINTER_H
 #define PRINTER_H
 
-#include <assert.h>
-#include <stdio.h>
-#include <string.h>
-#include <stdint.h>
-
 #include "common.h"
 
 const char* regName(Reg r, OpType t);

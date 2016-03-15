@@ -25,14 +25,8 @@
 #include "buffers.h"
 #include "instr.h"
 
-struct _CBB;
-
 typedef struct _CBB CBB;
-
-struct _DBB;
-
 typedef struct _DBB DBB;
-
 
 
 // a decoded basic block

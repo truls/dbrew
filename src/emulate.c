@@ -17,32 +17,22 @@
  * along with DBrew.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "dbrew.h"
 #include "emulate.h"
 
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdint.h>
+#include <stdlib.h>
 
 #include "common.h"
 #include "decode.h"
-#include "printer.h"
+#include "engine.h"
 #include "instr.h"
+#include "printer.h"
 
 
-// functions which can be used in code to be rewritten
-
-__attribute__ ((noinline))
-uint64_t makeDynamic(uint64_t v)
-{
-    return v;
-}
-
-__attribute__ ((noinline))
-uint64_t makeStatic(uint64_t v)
-{
-    return v;
-}
 
 /*------------------------------------------------------------*/
 /* x86_64 capturing emulator
@@ -77,75 +67,6 @@ Bool csIsStatic(CaptureState s)
     return False;
 }
 
-void freeCaptureConfig(Rewriter* r)
-{
-    free(r->cc);
-    r->cc = 0;
-}
-
-void dbrew_config_reset(Rewriter* c)
-{
-    CaptureConfig* cc;
-    int i;
-
-    if (c->cc)
-        freeCaptureConfig(c);
-
-    cc = (CaptureConfig*) malloc(sizeof(CaptureConfig));
-    for(i=0; i < CC_MAXPARAM; i++)
-        cc->par_state[i] = CS_DYNAMIC;
-    for(i=0; i < CC_MAXCALLDEPTH; i++)
-        cc->force_unknown[i] = False;
-    cc->hasReturnFP = False;
-    cc->branches_known = False;
-
-    c->cc = cc;
-}
-
-
-CaptureConfig* getCaptureConfig(Rewriter* c)
-{
-    if (c->cc == 0)
-        dbrew_config_reset(c);
-
-    return c->cc;
-}
-
-void dbrew_config_staticpar(Rewriter* c, int staticParPos)
-{
-    CaptureConfig* cc = getCaptureConfig(c);
-
-    assert((staticParPos >= 0) && (staticParPos < CC_MAXPARAM));
-    cc->par_state[staticParPos] = CS_STATIC2;
-}
-
-/**
- * This allows to specify for a given function inlining depth that
- * values produced by binary operations always should be forced to unknown.
- * Thus, when result is known, it is converted to unknown state with
- * the value being loaded as immediate into destination.
- *
- * Brute force approach to prohibit loop unrolling.
- */
-void dbrew_config_force_unknown(Rewriter* r, int depth)
-{
-    CaptureConfig* cc = getCaptureConfig(r);
-
-    assert((depth >= 0) && (depth < CC_MAXCALLDEPTH));
-    cc->force_unknown[depth] = True;
-}
-
-void dbrew_config_returnfp(Rewriter* r)
-{
-    CaptureConfig* cc = getCaptureConfig(r);
-    cc->hasReturnFP = True;
-}
-
-void dbrew_config_branches_known(Rewriter* r, Bool b)
-{
-    CaptureConfig* cc = getCaptureConfig(r);
-    cc->branches_known = b;
-}
 
 
 EmuValue emuValue(uint64_t v, ValType t, CaptureState s)
@@ -589,6 +510,121 @@ char combineState4Flags(CaptureState s1, CaptureState s2)
     return s;
 }
 
+//---------------------------------------------------------------
+// Functions to find/allocate new (captured) basic blocks (CBBs).
+// A CBB is keyed by a function address and world state ID
+// (actually an emulator state esID)
+
+// remove any previously allocated CBBs (keep allocated memory space)
+void resetCapturing(Rewriter* r)
+{
+    // only to be called after initRewriter()
+    assert(r->capInstr != 0);
+    assert(r->capBB != 0);
+
+    r->capBBCount = 0;
+    r->capInstrCount = 0;
+    r->currentCapBB = 0;
+
+    r->capStackTop = -1;
+    r->savedStateCount = 0;
+}
+
+// return 0 if not found
+CBB *findCaptureBB(Rewriter* r, uint64_t f, int esID)
+{
+    int i;
+
+    for(i = 0; i < r->capBBCount; i++)
+        if ((r->capBB[i].dec_addr == f) && (r->capBB[i].esID == esID))
+            return &(r->capBB[i]);
+
+    return 0;
+}
+
+// allocate a BB structure to collect instructions for capturing
+CBB* getCaptureBB(Rewriter* c, uint64_t f, int esID)
+{
+    CBB* bb;
+
+    // already captured?
+    bb = findCaptureBB(c, f, esID);
+    if (bb) return bb;
+
+    // start capturing of new BB beginning at f
+    assert(c->capBBCount < c->capBBCapacity);
+    bb = &(c->capBB[c->capBBCount]);
+    c->capBBCount++;
+    bb->dec_addr = f;
+    bb->esID = esID;
+
+    bb->count = 0;
+    bb->instr = 0; // updated on first instruction added
+    bb->nextBranch = 0;
+    bb->nextFallThrough = 0;
+    bb->endType = IT_None;
+    bb->preferBranch = False;
+
+    bb->size = -1; // size of 0 could be valid
+    bb->addr1 = 0;
+    bb->addr2 = 0;
+    bb->genJcc8 = False;
+    bb->genJump = False;
+
+    return bb;
+}
+
+int pushCaptureBB(Rewriter* r, CBB* bb)
+{
+    assert(r->capStackTop + 1 < CAPTURESTACK_LEN);
+    r->capStackTop++;
+    r->capStack[r->capStackTop] = bb;
+
+    return r->capStackTop;
+}
+
+CBB* popCaptureBB(Rewriter* r)
+{
+    CBB* bb = r->currentCapBB;
+    assert(r->capStack[r->capStackTop] == bb);
+    r->capStackTop--;
+    r->currentCapBB = 0;
+
+    return bb;
+}
+
+Instr* newCapInstr(Rewriter* r)
+{
+    Instr* instr;
+
+    assert(r->capInstrCount < r->capInstrCapacity);
+    instr = r->capInstr + r->capInstrCount;
+    r->capInstrCount++;
+
+    return instr;
+}
+
+// capture a new instruction
+void capture(Rewriter* r, Instr* instr)
+{
+    Instr* newInstr;
+    CBB* cbb = r->currentCapBB;
+    if (cbb == 0) return;
+
+    if (r->showEmuSteps)
+        printf("Capture '%s' (into 0x%lx|%d + %d)\n",
+               instr2string(instr, 0), cbb->dec_addr, cbb->esID, cbb->count);
+
+    newInstr = newCapInstr(r);
+    if (cbb->instr == 0) {
+        cbb->instr = newInstr;
+        assert(cbb->count == 0);
+    }
+    copyInstr(newInstr, instr);
+    cbb->count++;
+}
+
+
 //---------------------------------------------------------
 // emulator functions
 
@@ -875,7 +911,7 @@ void getMemValue(EmuValue* v, EmuValue* addr, EmuState* es, ValType t,
     }
 }
 
-// reading memory using segmend override (fs/gs)
+// reading memory using segment override (fs/gs)
 void getSegMemValue(EmuValue* v, EmuValue* addr, ValType t, OpSegOverride s)
 {
     assert(s != OSO_None);
@@ -1446,43 +1482,6 @@ void captureJcc(Rewriter* r, InstrType it,
     assert(r->currentCapBB == 0);
 }
 
-//----------------------------------------------------------
-// optimization pass
-
-// test: simply copy instructions
-Instr* optPassCopy(Rewriter* r, CBB* cbb)
-{
-    Instr *first, *instr;
-    int i;
-
-    if (cbb->count == 0) return 0;
-
-    first = newCapInstr(r);
-    copyInstr(first, cbb->instr);
-    for(i = 1; i < cbb->count; i++) {
-        instr = newCapInstr(r);
-        copyInstr(instr, cbb->instr + i);
-    }
-    return first;
-}
-
-void optPass(Rewriter* r, CBB* cbb)
-{
-    Instr* newInstrs;
-
-    printf("OPT!!\n");
-
-    if (r->showOptSteps) {
-        printf("Run Optimization for CBB (%lx|%d)\n",
-               cbb->dec_addr, cbb->esID);
-    }
-
-    if (r->doCopyPass) {
-        newInstrs = optPassCopy(r, cbb);
-        if (newInstrs)
-            cbb->instr = newInstrs;
-    }
-}
 
 //----------------------------------------------------------
 // Emulator for instruction types
@@ -2122,276 +2121,3 @@ uint64_t emulateInstr(Rewriter* c, EmuState* es, Instr* instr)
 
 
 
-//----------------------------------------------------------
-// Rewrite engine
-
-// FIXME: this always assumes 5 parameters
-uint64_t vEmulateAndCapture(Rewriter* c, va_list args)
-{
-    // calling convention x86-64: parameters are stored in registers
-    static Reg parReg[5] = { Reg_DI, Reg_SI, Reg_DX, Reg_CX, Reg_8 };
-
-    int i, esID;
-    uint64_t par[5];
-    EmuState* es;
-    DBB *dbb;
-    CBB *cbb;
-    Instr* instr;
-    uint64_t bb_addr, nextbb_addr;
-
-    par[0] = va_arg(args, uint64_t);
-    par[1] = va_arg(args, uint64_t);
-    par[2] = va_arg(args, uint64_t);
-    par[3] = va_arg(args, uint64_t);
-    par[4] = va_arg(args, uint64_t);
-
-#if 0
-    // with rewrite(Rewriter *r, ...)
-    //
-    // setup int parameters for virtual CPU according to x86_64 calling conv.
-    // see https://en.wikipedia.org/wiki/X86_calling_conventions
-    asm("mov %%rsi, %0;" : "=r" (par[0]) : );
-    asm("mov %%rdx, %0;" : "=r" (par[1]) : );
-    asm("mov %%rcx, %0;" : "=r" (par[2]) : );
-    asm("mov %%r8, %0;"  : "=r" (par[3]) : );
-    asm("mov %%r9, %0;"  : "=r" (par[4]) : );
-#endif
-
-    if (!c->es)
-        c->es = allocEmuState(1024);
-    resetEmuState(c->es);
-    es = c->es;
-
-    resetCapturing(c);
-    if (c->cs)
-        c->cs->used = 0;
-
-    for(i=0;i<5;i++) {
-        es->reg[parReg[i]] = par[i];
-        es->reg_state[parReg[i]] = c->cc ? c->cc->par_state[i] : CS_DYNAMIC;
-    }
-
-    es->reg[Reg_SP] = (uint64_t) (es->stackStart + es->stackSize);
-    es->reg_state[Reg_SP] = CS_STACKRELATIVE;
-
-    // Pass 1: traverse all paths and generate CBBs
-
-    // push new CBB for c->func (as request to decode and emulate/capture
-    // starting at that address)
-    esID = saveEmuState(c);
-    cbb = getCaptureBB(c, c->func, esID);
-    // new CBB has to be first in this rewriter (we start with it in Pass 2)
-    assert(cbb = c->capBB);
-    pushCaptureBB(c, cbb);
-    assert(c->capStackTop == 0);
-
-    // and start with this CBB
-    bb_addr = cbb->dec_addr;
-    c->currentCapBB = cbb;
-    if (c->addInliningHints) {
-        // hint: here starts a function, we can assume ABI calling conventions
-        Instr i;
-        initSimpleInstr(&i, IT_HINT_CALL);
-        capture(c, &i);
-    }
-
-    if (c->showEmuSteps) {
-        printf("Processing BB (%lx|%d)\n", cbb->dec_addr, cbb->esID);
-        printStaticEmuState(es, cbb->esID);
-    }
-    if (c->showEmuState) {
-        es->reg[Reg_IP] = bb_addr;
-        printEmuState(es);
-    }
-
-    while(1) {
-        if (c->currentCapBB == 0) {
-            // open next yet-to-be-processed CBB
-            while(c->capStackTop >= 0) {
-                cbb = c->capStack[c->capStackTop];
-                if (cbb->endType == IT_None) break;
-                // cbb already handled; go to previous item on capture stack
-                c->capStackTop--;
-            }
-            // all paths captured?
-            if (c->capStackTop < 0) break;
-
-            assert(cbb != 0);
-            assert(cbb->count == 0); // should have no instructions yet
-            restoreEmuState(c, cbb->esID);
-            bb_addr = cbb->dec_addr;
-            c->currentCapBB = cbb;
-
-            if (c->showEmuSteps) {
-                printf("Processing BB (%lx|%d), %d BBs in queue\n",
-                       cbb->dec_addr, cbb->esID, c->capStackTop);
-                printStaticEmuState(es, cbb->esID);
-            }
-            if (c->showEmuState) {
-                es->reg[Reg_IP] = bb_addr;
-                printEmuState(es);
-            }
-        }
-
-        // decode and process instructions starting at bb_addr.
-        // note: multiple original BBs may be combined into one CBB
-        dbb = dbrew_decode(c, bb_addr);
-        for(i = 0; i < dbb->count; i++) {
-            instr = dbb->instr + i;
-
-            if (c->showEmuSteps)
-                printf("Emulate '%p: %s'\n",
-                       (void*) instr->addr, instr2string(instr, 0));
-
-            // for RIP-relative accesses
-            es->reg[Reg_IP] = instr->addr + instr->len;
-
-            nextbb_addr = emulateInstr(c, es, instr);
-
-            if (c->showEmuState) {
-                if (nextbb_addr != 0) es->reg[Reg_IP] = nextbb_addr;
-                printEmuState(es);
-            }
-
-            // side-exit taken?
-            if (nextbb_addr != 0) break;
-        }
-        if (i == dbb->count) {
-            // fall through at end of BB
-            nextbb_addr = instr->addr + instr->len;
-        }
-        if (es->depth < 0) {
-            // finish this path
-            assert(instr->type == IT_RET);
-            captureRet(c, instr, es);
-
-            // go to next path to trace
-            cbb = popCaptureBB(c);
-            cbb->endType = IT_RET;
-        }
-        bb_addr = nextbb_addr;
-    }
-
-    // Pass 2: apply optimization passes to CBBs
-
-    for(i = 0; i < c->capBBCount; i++) {
-        cbb = c->capBB + i;
-        optPass(c, cbb);
-    }
-
-    // Pass 3: generating code for BBs without linking them
-
-    assert(c->capStackTop == -1);
-    // start with first CBB created
-    pushCaptureBB(c, c->capBB);
-    while(c->capStackTop >= 0) {
-        cbb = c->capStack[c->capStackTop];
-        c->capStackTop--;
-        if (cbb->size >= 0) continue;
-
-        assert(c->genOrderCount < GENORDER_MAX);
-        c->genOrder[c->genOrderCount++] = cbb;
-        generate(c, cbb);
-
-        if (instrIsJcc(cbb->endType)) {
-            // FIXME: order according to branch preference
-            pushCaptureBB(c, cbb->nextBranch);
-            pushCaptureBB(c, cbb->nextFallThrough);
-        }
-    }
-
-    // Pass 4: determine trailing bytes needed for each BB
-
-    c->genOrder[c->genOrderCount] = 0;
-    for(i=0; i < c->genOrderCount; i++) {
-        uint8_t* buf;
-        int diff;
-
-        cbb = c->genOrder[i];
-        buf = useCodeStorage(c->cs, cbb->size);
-        cbb->addr2 = (uint64_t) buf;
-        if (cbb->size > 0) {
-            assert(cbb->count>0);
-            memcpy(buf, (char*)cbb->addr1, cbb->size);
-        }
-        if (!instrIsJcc(cbb->endType)) continue;
-
-        diff = cbb->nextBranch->addr1 - (cbb->addr1 + cbb->size);
-        if ((diff > -120) && (diff < 120))
-            cbb->genJcc8 = True;
-        useCodeStorage(c->cs, cbb->genJcc8 ? 2 : 6);
-        if (cbb->nextFallThrough != c->genOrder[i+1]) {
-            cbb->genJump = True;
-            useCodeStorage(c->cs, 5);
-        }
-    }
-
-    // Pass 5: fill trailing bytes with jump instructions
-
-    for(i=0; i < c->genOrderCount; i++) {
-        uint8_t* buf;
-        uint64_t buf_addr;
-        int diff;
-
-        cbb = c->genOrder[i];
-        if (!instrIsJcc(cbb->endType)) continue;
-
-        buf = (uint8_t*) (cbb->addr2 + cbb->size);
-        buf_addr = (uint64_t) buf;
-        if (cbb->genJcc8) {
-            diff = cbb->nextBranch->addr2 - (buf_addr + 2);
-            assert((diff > -128) && (diff < 127));
-
-            switch(cbb->endType) {
-            case IT_JE:  buf[0] = 0x74; break;
-            case IT_JNE: buf[0] = 0x75; break;
-            case IT_JP:  buf[0] = 0x7A; break;
-            case IT_JL:  buf[0] = 0x7C; break;
-            case IT_JGE: buf[0] = 0x7D; break;
-            case IT_JLE: buf[0] = 0x7E; break;
-            case IT_JG:  buf[0] = 0x7F; break;
-            default: assert(0);
-            }
-            buf[1] = (int8_t) diff;
-            buf += 2;
-        }
-        else {
-            diff = cbb->nextBranch->addr2 - (buf_addr + 6);
-            buf[0] = 0x0F;
-            switch(cbb->endType) {
-            case IT_JE:  buf[1] = 0x84; break;
-            case IT_JNE: buf[1] = 0x85; break;
-            case IT_JP:  buf[1] = 0x8A; break;
-            case IT_JL:  buf[1] = 0x8C; break;
-            case IT_JGE: buf[1] = 0x8D; break;
-            case IT_JLE: buf[1] = 0x8E; break;
-            case IT_JG:  buf[1] = 0x8F; break;
-            default: assert(0);
-            }
-            *(int32_t*)(buf+2) = diff;
-            buf += 6;
-        }
-        if (cbb->genJump) {
-            buf_addr = (uint64_t) buf;
-            diff = cbb->nextFallThrough->addr2 - (buf_addr + 5);
-            buf[0] = 0xE9;
-            *(int32_t*)(buf+1) = diff;
-            buf += 5;
-        }
-    }
-
-    // return value according to calling convention
-    return es->reg[Reg_AX];
-}
-
-uint64_t dbrew_emulate_capture(Rewriter* r, ...)
-{
-    uint64_t res;
-    va_list argptr;
-
-    va_start(argptr, r);
-    res = vEmulateAndCapture(r, argptr);
-    va_end(argptr);
-
-    return res;
-}

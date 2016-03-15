@@ -17,6 +17,8 @@
  * along with DBrew.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+/* For now, decoded instructions in DBrew are x86-64 */
+
 #ifndef INSTR_H
 #define INSTR_H
 
