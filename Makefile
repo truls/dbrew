@@ -10,42 +10,25 @@ WFLAGS= -Wall -Wextra \
 CFLAGS=-g -std=gnu99 -Iinclude -Iinclude/priv #$(WFLAGS)
 LDFLAGS=-g
 
-TEST_PRGS = tests/test tests/branchtest
-TEST_OBJS = tests/test.o tests/branchtest.o
-
-EXAMPLE_PRGS = examples/stencil examples/strcmp
-EXAMPLE_OBJS = examples/stencil.o examples/strcmp.o
-
-
-# DBrew (todo: make lib)
 SRCS = $(wildcard src/*.c)
 OBJS = $(SRCS:.c=.o)
-HEADER = $(wildcard include/*.h)
+HEADERS = $(wildcard include/*.h)
 
+SUBDIRS=tests examples
+.PHONY: $(SUBDIRS)
 
-all: $(EXAMPLE_PRGS) $(TEST_PRGS)
+all: libdbrew.a $(SUBDIRS)
 
+libdbrew.a: $(OBJS)
+	ar rcs libdbrew.a $(OBJS)
 
-# tests (todo: separate Makefile to use different CFLAGS, e.g. -O3)
+tests:
+	cd tests && $(MAKE)
 
-tests/test.o: tests/test.c $(HEADER)
-tests/test: tests/test.o $(OBJS)
-
-tests/branchtest.o: tests/branchtest.c $(HEADER)
-tests/branchtest: tests/branchtest.o $(OBJS)
-
-
-# examples (todo: separate Makefile to use different CFLAGS, e.g. -O3)
-
-examples/stencil.o: examples/stencil.c $(HEADER)
-examples/stencil: examples/stencil.o $(OBJS)
-
-examples/strcmp.o: examples/strcmp.c $(HEADER)
-examples/strcmp: examples/strcmp.o $(OBJS)
-
+examples:
+	cd examples && $(MAKE)
 
 clean:
-	rm -rf *~ *.o $(OBJS) \
-		$(TEST_OBJS) $(EXAMPLE_OBJS) $(TEST_PRGS) $(EXAMPLE_PRGS)
-	(cd tests; make clean)
-
+	rm -rf *~ *.o $(OBJS) libdbrew.a
+	cd tests && make clean
+	cd examples && make clean
