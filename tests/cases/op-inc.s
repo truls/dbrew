@@ -1,4 +1,4 @@
-        .text
+    .text
 	.globl	f1
 	.type	f1, @function
 f1:
