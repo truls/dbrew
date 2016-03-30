@@ -160,7 +160,8 @@ void dbrew_config_returnfp(Rewriter* c);
 void dbrew_config_force_unknown(Rewriter* r, int depth);
 // assume all branches to be fixed according to rewriter input parameters
 void dbrew_config_branches_known(Rewriter* r, Bool);
-
+// provide a name for a function (for debugging)
+void dbrew_config_function_setname(Rewriter* r, uint64_t f, const char* name);
 
 // convenience functions, using default rewriter
 void dbrew_def_verbose(Bool decode, Bool emuState, Bool emuSteps);

@@ -401,7 +401,22 @@ char* bytes2string(Instr* instr, int start, int count)
     }
     for(;j<count;j++)
         off += sprintf(buf+off, "   ");
-    return (off == 0) ? "" : buf;
+    if (off == 0) buf[0] = 0;
+    return buf;
+}
+
+char* prettyAddress(uint64_t a, FunctionConfig* fc)
+{
+    static char buf[100];
+
+    if ((fc == 0) || (fc->func > a))
+        sprintf(buf, "0x%lx", a);
+    else if (a == fc->func)
+        sprintf(buf, "%s", fc->name);
+    else
+        sprintf(buf, "%s+%lx", fc->name, a - fc->func);
+
+    return buf;
 }
 
 void dbrew_print_decoded(DBB* bb)
@@ -409,13 +424,13 @@ void dbrew_print_decoded(DBB* bb)
     int i;
     for(i = 0; i < bb->count; i++) {
         Instr* instr = bb->instr + i;
-        printf("  %p: %s  %s\n", (void*) instr->addr,
+        printf("  %18s: %s  %s\n", prettyAddress(instr->addr, bb->fc),
                bytes2string(instr, 0, 7), instr2string(instr, 1));
         if (instr->len > 7)
-            printf("  %p: %s\n", (void*) instr->addr + 7,
+            printf("  %18s: %s\n", prettyAddress(instr->addr + 7, bb->fc),
                    bytes2string(instr, 7, 7));
         if (instr->len > 14)
-            printf("  %p: %s\n", (void*) instr->addr + 14,
+            printf("  %18s: %s\n", prettyAddress(instr->addr + 14, bb->fc),
                    bytes2string(instr, 14, 7));
     }
 }
@@ -424,7 +439,9 @@ void printDecodedBBs(Rewriter* c)
 {
     int i;
     for(i=0; i< c->decBBCount; i++) {
-        printf("BB %lx (%d instructions):\n", c->decBB[i].addr, c->decBB[i].count);
+        printf("BB %s (%d instructions):\n",
+               prettyAddress(c->decBB[i].addr, c->decBB[i].fc),
+               c->decBB[i].count);
         dbrew_print_decoded(c->decBB + i);
     }
 }

@@ -243,6 +243,7 @@ DBB* dbrew_decode(Rewriter* c, uint64_t f)
     dbb = &(c->decBB[c->decBBCount]);
     c->decBBCount++;
     dbb->addr = f;
+    dbb->fc = config_find_function(c, f);
     dbb->count = 0;
     dbb->size = 0;
     dbb->instr = c->decInstr + c->decInstrCount;

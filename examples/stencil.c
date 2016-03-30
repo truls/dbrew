@@ -235,6 +235,7 @@ int main(int argc, char* argv[])
         if (verbose>1) {
             dbrew_verbose(r, True, True, True);
             dbrew_optverbose(r, True);
+            dbrew_config_function_setname(r, (uint64_t) al, "ApplyLoop");
         }
         dbrew_set_function(r, (uint64_t) al);
         dbrew_config_staticpar(r, 0); // size is constant
@@ -252,6 +253,7 @@ int main(int argc, char* argv[])
             if (verbose>1) {
                 dbrew_verbose(r, True, True, True);
                 dbrew_optverbose(r, True);
+                dbrew_config_function_setname(r, (uint64_t) af, "apply");
             }
             dbrew_set_function(r, (uint64_t) af);
             dbrew_config_staticpar(r, 1); // size is constant
@@ -265,7 +267,9 @@ int main(int argc, char* argv[])
     if (r && (verbose>0)) {
         // use another rewriter to show generated code
         Rewriter* r2 = brew_new();
-        dbrew_decode_print(r2, dbrew_generated_code(r), dbrew_generated_size(r));
+        uint64_t genfunc = dbrew_generated_code(r);
+        dbrew_config_function_setname(r2, genfunc, "gen");
+        dbrew_decode_print(r2, genfunc, dbrew_generated_size(r));
         brew_free(r2);
     }
 

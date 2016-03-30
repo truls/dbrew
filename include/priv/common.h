@@ -27,11 +27,13 @@
 
 typedef struct _CBB CBB;
 typedef struct _DBB DBB;
-
+typedef struct _FunctionConfig FunctionConfig;
+typedef struct _Rewriter Rewriter;
 
 // a decoded basic block
 struct _DBB {
     uint64_t addr;
+    FunctionConfig* fc; // if !=0, the BB is in this function
     int size; // in bytes
     int count;
     Instr* instr; // pointer to first decoded instruction
@@ -74,6 +76,21 @@ typedef enum _CaptureState {
     CS_Max
 } CaptureState;
 
+
+
+//
+// Rewriter Configuration
+//
+
+typedef struct _FunctionConfig FunctionConfig;
+struct _FunctionConfig
+{
+    uint64_t func;
+    char* name;
+
+    FunctionConfig* next; // chain
+};
+
 typedef struct _CaptureConfig
 {
     CaptureState par_state[CC_MAXPARAM];
@@ -84,7 +101,19 @@ typedef struct _CaptureConfig
     // all branches forced known
     Bool branches_known;
 
+    // linked list of configurations per function
+    FunctionConfig* function_configs;
+
 } CaptureConfig;
+
+
+FunctionConfig* config_find_function(Rewriter* r, uint64_t f);
+
+
+
+//
+// Emulation
+//
 
 typedef enum _FlagType {
     FT_Carry = 0, FT_Zero, FT_Sign, FT_Overflow, FT_Parity,
@@ -134,7 +163,7 @@ struct _EmuState {
 };
 
 
-typedef struct _Rewriter {
+struct _Rewriter {
 
     // decoded instructions
     int decInstrCount, decInstrCapacity;
@@ -184,7 +213,7 @@ typedef struct _Rewriter {
 
     // debug output
     Bool showDecoding, showEmuState, showEmuSteps, showOptSteps;
-} Rewriter;
+};
 
 
 // REX prefix, used in parseModRM

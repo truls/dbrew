@@ -22,9 +22,11 @@ tests/op-tls.c
 tests/test-parser.c
 tests/branchtest.c
 tests/test.c
+tests/Makefile
 
 examples/stencil.c
 examples/strcmp.c
+examples/Makefile
 
 docs/BUGS
 docs/CONCEPTS
