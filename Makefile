@@ -22,13 +22,13 @@ all: libdbrew.a $(SUBDIRS)
 libdbrew.a: $(OBJS)
 	ar rcs libdbrew.a $(OBJS)
 
-tests:
-	cd tests && $(MAKE)
+test: libdbrew.a
+	$(MAKE) test -C tests
 
 examples:
 	cd examples && $(MAKE)
 
 clean:
 	rm -rf *~ *.o $(OBJS) libdbrew.a
-	cd tests && make clean
+	$(MAKE) clean -C tests
 	cd examples && make clean

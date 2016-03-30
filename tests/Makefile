@@ -1,11 +1,13 @@
-TESTPROGS = test branchtest op-tls
-CPPFLAGS=-I../include
-LDLIBS=-L.. -ldbrew
-CFLAGS=-O2
+.PHONY: all test store clean
 
-all: $(TESTPROGS)
+all:
+	./test.py --compile-only
 
-op-tls: op-tls.o test-parser.o
+test:
+	./test.py
+
+store:
+	./test.py --store
 
 clean:
-	rm -f *.o *~ $(TESTPROGS) test-op-inc test-op-pxor
+	rm -f *.o *~
