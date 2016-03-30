@@ -1,27 +1,27 @@
 Saving current emulator state: new with esID 0
-Capture 'H-call' (into 0x400996|0 + 0)
-Processing BB (400996|0)
+Capture 'H-call' (into test|0 + 0)
+Processing BB (test|0)
 Emulation Static State (esID 0, call depth 0):
   Registers: %rsp (R 0), %rdi (0x1)
   Flags: (none)
   Stack: (none)
-Decoding BB 400996 ...
-  0x400996:  89 f8                 mov     %edi,%eax
-  0x400998:  ff c0                 inc     %eax
-  0x40099a:  ff c8                 dec     %eax
-  0x40099c:  c3                    ret
-Emulate '0x400996: mov %edi,%eax'
-Emulate '0x400998: inc %eax'
-Emulate '0x40099a: dec %eax'
-Emulate '0x40099c: ret'
-Capture 'H-ret' (into 0x400996|0 + 1)
-Capture 'mov $0x1,%rax' (into 0x400996|0 + 2)
-Capture 'ret' (into 0x400996|0 + 3)
+Decoding BB test ...
+                test:  89 f8                 mov     %edi,%eax
+              test+2:  ff c0                 inc     %eax
+              test+4:  ff c8                 dec     %eax
+              test+6:  c3                    ret    
+Emulate 'test: mov %edi,%eax'
+Emulate 'test+2: inc %eax'
+Emulate 'test+4: dec %eax'
+Emulate 'test+6: ret'
+Capture 'H-ret' (into test|0 + 1)
+Capture 'mov $0x1,%rax' (into test|0 + 2)
+Capture 'ret' (into test|0 + 3)
 OPT!!
-Generating code for BB 400996|0 (4 instructions)
-  I 0 : H-call                           7f8201df7000
-  I 1 : H-ret                            7f8201df7000
-  I 2 : mov     $0x1,%rax                7f8201df7000  48 c7 c0 01 00 00 00
-  I 3 : ret                              7f8201df7007  c3
-  0x7f8201df7012:  48 c7 c0 01 00 00 00  mov     $0x1,%rax
-  0x7f8201df7019:  c3                    ret
+Generating code for BB (test|0) (4 instructions)
+  I 0 : H-call                           7f9bedd50000 
+  I 1 : H-ret                            7f9bedd50000 
+  I 2 : mov     $0x1,%rax                7f9bedd50000  48 c7 c0 01 00 00 00
+  I 3 : ret                              7f9bedd50007  c3
+                 gen:  48 c7 c0 01 00 00 00  mov     $0x1,%rax
+               gen+7:  c3                    ret    

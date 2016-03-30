@@ -557,6 +557,7 @@ CBB* getCaptureBB(Rewriter* c, uint64_t f, int esID)
     c->capBBCount++;
     bb->dec_addr = f;
     bb->esID = esID;
+    bb->fc = config_find_function(c, f);
 
     bb->count = 0;
     bb->instr = 0; // updated on first instruction added
@@ -572,6 +573,23 @@ CBB* getCaptureBB(Rewriter* c, uint64_t f, int esID)
     bb->genJump = False;
 
     return bb;
+}
+
+char* cbb_prettyName(CBB* bb)
+{
+    static char buf[100];
+    int off;
+
+    if ((bb->fc == 0) || (bb->fc->func > bb->dec_addr))
+        off = sprintf(buf, "0x%lx", bb->dec_addr);
+    else if (bb->fc->func == bb->dec_addr)
+        off = sprintf(buf, "%s", bb->fc->name);
+    else
+        off = sprintf(buf, "%s+%lx", bb->fc->name, bb->dec_addr - bb->fc->func);
+
+    sprintf(buf+off, "|%d", bb->esID);
+
+    return buf;
 }
 
 int pushCaptureBB(Rewriter* r, CBB* bb)
@@ -612,8 +630,8 @@ void capture(Rewriter* r, Instr* instr)
     if (cbb == 0) return;
 
     if (r->showEmuSteps)
-        printf("Capture '%s' (into 0x%lx|%d + %d)\n",
-               instr2string(instr, 0), cbb->dec_addr, cbb->esID, cbb->count);
+        printf("Capture '%s' (into %s + %d)\n",
+               instr2string(instr, 0), cbb_prettyName(cbb), cbb->count);
 
     newInstr = newCapInstr(r);
     if (cbb->instr == 0) {

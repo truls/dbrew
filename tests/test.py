@@ -8,7 +8,7 @@ import difflib
 
 def compile(testCase):
     print("==TEST Compiling", testCase)
-    outFile = testCase + ".o"
+    outFile = testCase + ".out"
     exitCode = call(["cc", "-o", outFile, testCase, "test-parser.c", "../libdbrew.a", "-I../include"])
     if exitCode != 0:
         print("==TEST ERROR while compiling, skipping")

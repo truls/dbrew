@@ -39,11 +39,17 @@ struct _DBB {
     Instr* instr; // pointer to first decoded instruction
 };
 
+char* prettyAddress(uint64_t a, FunctionConfig* fc);
+
+
 // a captured basic block
 struct _CBB {
     // ID: address of original BB + EmuState at start
     uint64_t dec_addr;
     int esID;
+
+    // if !=0, capturing of instructions in this BB started in this function
+    FunctionConfig* fc;
 
     // instructions captured within this BB
     int count;
@@ -61,6 +67,9 @@ struct _CBB {
     uint64_t addr1, addr2;
     Bool genJcc8, genJump;
 };
+
+char* cbb_prettyName(CBB* bb);
+
 
 
 #define CC_MAXPARAM     5

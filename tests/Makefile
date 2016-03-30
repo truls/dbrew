@@ -10,4 +10,4 @@ store:
 	./test.py --store
 
 clean:
-	rm -f *.o *~
+	rm -f *.o */*.out *~

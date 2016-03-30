@@ -22,6 +22,7 @@ tests/op-tls.c
 tests/test-parser.c
 tests/branchtest.c
 tests/test.c
+tests/test.py
 tests/Makefile
 
 examples/stencil.c
@@ -35,3 +36,4 @@ docs/IDEAS
 
 Makefile
 README.md
+.gitignore

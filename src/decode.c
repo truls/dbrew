@@ -235,8 +235,6 @@ DBB* dbrew_decode(Rewriter* c, uint64_t f)
     for(i = 0; i < c->decBBCount; i++)
         if (c->decBB[i].addr == f) return &(c->decBB[i]);
 
-    if (c->showDecoding)
-        printf("Decoding BB %lx ...\n", f);
 
     // start decoding of new BB beginning at f
     assert(c->decBBCount < c->decBBCapacity);
@@ -248,6 +246,9 @@ DBB* dbrew_decode(Rewriter* c, uint64_t f)
     dbb->size = 0;
     dbb->instr = c->decInstr + c->decInstrCount;
     old_icount = c->decInstrCount;
+
+    if (c->showDecoding)
+        printf("Decoding BB %s ...\n", prettyAddress(f, dbb->fc));
 
     fp = (uint8_t*) f;
     off = 0;

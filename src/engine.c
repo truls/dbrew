@@ -249,7 +249,7 @@ uint64_t vEmulateAndCapture(Rewriter* c, va_list args)
     }
 
     if (c->showEmuSteps) {
-        printf("Processing BB (%lx|%d)\n", cbb->dec_addr, cbb->esID);
+        printf("Processing BB (%s)\n", cbb_prettyName(cbb));
         printStaticEmuState(es, cbb->esID);
     }
     if (c->showEmuState) {
@@ -276,8 +276,8 @@ uint64_t vEmulateAndCapture(Rewriter* c, va_list args)
             c->currentCapBB = cbb;
 
             if (c->showEmuSteps) {
-                printf("Processing BB (%lx|%d), %d BBs in queue\n",
-                       cbb->dec_addr, cbb->esID, c->capStackTop);
+                printf("Processing BB (%s), %d BBs in queue\n",
+                       cbb_prettyName(cbb), c->capStackTop);
                 printStaticEmuState(es, cbb->esID);
             }
             if (c->showEmuState) {
@@ -293,8 +293,9 @@ uint64_t vEmulateAndCapture(Rewriter* c, va_list args)
             instr = dbb->instr + i;
 
             if (c->showEmuSteps)
-                printf("Emulate '%p: %s'\n",
-                       (void*) instr->addr, instr2string(instr, 0));
+                printf("Emulate '%s: %s'\n",
+                       prettyAddress(instr->addr, dbb->fc),
+                       instr2string(instr, 0));
 
             // for RIP-relative accesses
             es->reg[Reg_IP] = instr->addr + instr->len;

@@ -1246,8 +1246,8 @@ void generate(Rewriter* c, CBB* cbb)
     if (c->cs == 0) return;
 
     if (c->showEmuSteps)
-        printf("Generating code for BB %lx|%d (%d instructions)\n",
-               cbb->dec_addr, cbb->esID, cbb->count);
+        printf("Generating code for BB (%s) (%d instructions)\n",
+               cbb_prettyName(cbb), cbb->count);
 
     usedTotal = 0;
     for(i = 0; i < cbb->count; i++) {
