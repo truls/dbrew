@@ -25,8 +25,9 @@ def runTestCase(testCase):
     for stream in proc.communicate():
         for out in stream.splitlines():
             # Filter out debug output and remove trailing whitespaces for git
+            out = out.decode("utf-8")
             if len(out) >= 4 and out[:4] == "!DBG": continue
-            testResult.append(out.decode("utf-8").rstrip() + "\n")
+            testResult.append(out + "\n")
 
     if proc.returncode != 0:
         print("==TEST CRASH", testCase, "return code", proc.returncode)

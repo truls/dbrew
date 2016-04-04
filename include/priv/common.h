@@ -25,6 +25,8 @@
 #include "buffers.h"
 #include "instr.h"
 
+#define debug(format, ...) printf("!DBG %s: " format "\n", __PRETTY_FUNCTION__, ##__VA_ARGS__)
+
 typedef struct _CBB CBB;
 typedef struct _DBB DBB;
 typedef struct _FunctionConfig FunctionConfig;

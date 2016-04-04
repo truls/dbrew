@@ -19,9 +19,9 @@ Capture 'mov $0x1,%rax' (into test|0 + 2)
 Capture 'ret' (into test|0 + 3)
 OPT!!
 Generating code for BB (test|0) (4 instructions)
-  I 0 : H-call                           7f9bedd50000 
-  I 1 : H-ret                            7f9bedd50000 
-  I 2 : mov     $0x1,%rax                7f9bedd50000  48 c7 c0 01 00 00 00
-  I 3 : ret                              7f9bedd50007  c3
+  I 0 : H-call                           7fb71c7a3000 
+  I 1 : H-ret                            7fb71c7a3000 
+  I 2 : mov     $0x1,%rax                7fb71c7a3000  48 c7 c0 01 00 00 00
+  I 3 : ret                              7fb71c7a3007  c3
                  gen:  48 c7 c0 01 00 00 00  mov     $0x1,%rax
                gen+7:  c3                    ret    
