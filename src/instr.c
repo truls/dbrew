@@ -367,6 +367,8 @@ void initSimpleInstr(Instr* i, InstrType it)
     i->dst.type = OT_None;
     i->src.type = OT_None;
     i->src2.type = OT_None;
+
+    i->info_memAddr = 0;
 }
 
 void initUnaryInstr(Instr* i, InstrType it, Operand* o)

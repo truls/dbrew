@@ -31,6 +31,7 @@
 #include "engine.h"
 #include "instr.h"
 #include "printer.h"
+#include "expr.h"
 
 
 
@@ -57,6 +58,8 @@
 void initMetaState(MetaState* ms, CaptureState cs)
 {
     ms->cState = cs;
+    ms->range = 0;
+    ms->parDep = 0;
 }
 
 
@@ -387,11 +390,15 @@ void printEmuState(EmuState* es)
     printf("%s\n", (es->depth == 0) ? " (empty)":"");
 
     printf("  Registers:\n");
-    for(i=Reg_AX; i<Reg_8; i++) {
+    for(i=Reg_AX; i<Reg_15; i++) {
+        MetaState* ms = &(es->reg_state[i]);
         printf("    %%%-3s = 0x%016lx %c", regName(i, OT_Reg64),
-               es->reg[i], captureState2Char( es->reg_state[i].cState ));
-        printf("    %%%-3s = 0x%016lx %c\n", regName(i+8, OT_Reg64),
-               es->reg[i+8], captureState2Char( es->reg_state[i+8].cState ));
+               es->reg[i], captureState2Char( ms->cState ));
+        if (ms->range)
+            printf(", range %s", expr_toString(ms->range));
+        if (ms->parDep)
+            printf(", parDep %s", expr_toString(ms->parDep));
+        printf("\n");
     }
     printf("    %%%-3s = 0x%016lx %c\n", regName(Reg_IP, OT_Reg64),
            es->reg[Reg_IP], captureState2Char( es->reg_state[Reg_IP].cState ));

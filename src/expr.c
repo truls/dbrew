@@ -120,7 +120,7 @@ ExprNode* expr_newSum(ExprPool* p, ExprNode* left, ExprNode* right)
     return e;
 }
 
-
+static
 int appendExpr(char* b, ExprNode* e)
 {
     int off = 0;

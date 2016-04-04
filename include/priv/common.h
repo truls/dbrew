@@ -30,6 +30,8 @@
 
 typedef struct _CBB CBB;
 typedef struct _FunctionConfig FunctionConfig;
+typedef struct _Rewriter Rewriter;
+typedef struct _ExprPool ExprPool;
 
 // a decoded basic block
 struct _DBB {
@@ -88,6 +90,8 @@ typedef enum _CaptureState {
 // in registers or on (private) stack
 typedef struct _MetaState {
     CaptureState cState;
+    ExprNode* range;  // constrains for dynamic value
+    ExprNode* parDep; // analysis: dependency from input parameters
 } MetaState;
 
 void initMetaState(MetaState* ms, CaptureState cs);
@@ -108,7 +112,11 @@ struct _FunctionConfig
 
 typedef struct _CaptureConfig
 {
+    // specialise for some parameters to be constant?
     MetaState par_state[CC_MAXPARAM];
+    // for debug: allow parameters to be named
+    char* par_name[CC_MAXPARAM];
+
      // does function to rewrite return floating point?
     bool hasReturnFP;
     // avoid unrolling at call depths
@@ -196,6 +204,9 @@ struct _Rewriter {
     int capBBCount, capBBCapacity;
     CBB* capBB;
     CBB* currentCapBB;
+
+    // expressions for analysis
+    ExprPool * ePool;
 
     // function to capture
     uint64_t func;

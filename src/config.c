@@ -28,6 +28,8 @@ void cc_init(CaptureConfig* cc)
 {
     for(int i=0; i < CC_MAXPARAM; i++)
         initMetaState(&(cc->par_state[i]), CS_DYNAMIC);
+    for(int i=0; i < CC_MAXPARAM; i++)
+        cc->par_name[i] = 0;
     for(int i=0; i < CC_MAXCALLDEPTH; i++)
         cc->force_unknown[i] = false;
     cc->hasReturnFP = false;
@@ -40,6 +42,9 @@ static
 void cc_free(CaptureConfig* cc)
 {
     if (!cc) return;
+
+    for(int i=0; i < CC_MAXPARAM; i++)
+        free(cc->par_name[i]);
 
     FunctionConfig* fc = cc->function_configs;
     while(fc) {
@@ -140,6 +145,14 @@ void dbrew_config_staticpar(Rewriter* r, int staticParPos)
 
     assert((staticParPos >= 0) && (staticParPos < CC_MAXPARAM));
     initMetaState(&(cc->par_state[staticParPos]), CS_STATIC2);
+}
+
+void dbrew_config_par_setname(Rewriter* c, int par, char* name)
+{
+    CaptureConfig* cc = cc_get(c);
+
+    assert((par >= 0) && (par < CC_MAXPARAM));
+    cc->par_name[par] = strdup(name);
 }
 
 /**

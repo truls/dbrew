@@ -29,6 +29,7 @@
 #include "emulate.h"
 #include "decode.h"
 #include "generate.h"
+#include "expr.h"
 
 
 Rewriter* allocRewriter(void)
@@ -70,6 +71,8 @@ Rewriter* allocRewriter(void)
 
     r->cc = 0;
     r->es = 0;
+
+    r->ePool = 0;
 
     // optimization passes
     r->addInliningHints = true;
@@ -125,6 +128,9 @@ void initRewriter(Rewriter* r)
         r->generatedCodeAddr = 0;
         r->generatedCodeSize = 0;
     }
+
+    if (r->ePool == 0)
+        r->ePool = expr_allocPool(1000);
 }
 
 void freeRewriter(Rewriter* r)
@@ -141,6 +147,8 @@ void freeRewriter(Rewriter* r)
     if (r->cs)
         freeCodeStorage(r->cs);
     free(r);
+
+    expr_freePool(r->ePool);
 }
 
 
@@ -202,12 +210,15 @@ void vEmulateAndCapture(Rewriter* r, va_list args)
         r->cs->used = 0;
 
     for(i=0;i<5;i++) {
+        MetaState* ms = &(es->reg_state[parReg[i]]);
         es->reg[parReg[i]] = par[i];
         if (r->cc)
-            es->reg_state[parReg[i]] = r->cc->par_state[i];
+            *ms = r->cc->par_state[i];
         else
-            initMetaState(&(es->reg_state[parReg[i]]), CS_DYNAMIC);
+            initMetaState(ms, CS_DYNAMIC);
 
+        ms->parDep = expr_newPar(r->ePool, i,
+                                 r->cc ? r->cc->par_name[i] : 0);
     }
 
     es->reg[Reg_SP] = (uint64_t) (es->stackStart + es->stackSize);

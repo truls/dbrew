@@ -26,6 +26,8 @@
 
 #include <stdint.h>
 
+typedef struct _ExprNode ExprNode; // for annotations in Instr
+
 typedef enum _Reg {
     Reg_None = 0,
     // general purpose (order is important, aligned to x86 encoding)
@@ -144,6 +146,8 @@ typedef struct _Instr {
     OperandForm form;
     Operand dst, src; //  with binary op: dst = dst op src
     Operand src2; // with ternary op: dst = src op src2
+
+    ExprNode* info_memAddr; // annotate memory reference of instr
 } Instr;
 
 
