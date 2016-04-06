@@ -30,7 +30,8 @@ void initRewriter(Rewriter* r);
 void freeRewriter(Rewriter* r);
 
 // Rewrite engine
-uint64_t vEmulateAndCapture(Rewriter* c, va_list args);
-uint64_t dbrew_emulate_capture(Rewriter* r, ...);
+void vEmulateAndCapture(Rewriter* c, va_list args);
+void runOptsOnCaptured(Rewriter* r);
+void generateBinaryFromCaptured(Rewriter* r);
 
 #endif // ENGINE_H

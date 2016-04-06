@@ -64,6 +64,8 @@ Rewriter* allocRewriter()
 
     r->capCodeCapacity = 0;
     r->cs = 0;
+    r->generatedCodeAddr = 0;
+    r->generatedCodeSize = 0;
 
     r->cc = 0;
     r->es = 0;
@@ -116,8 +118,12 @@ void initRewriter(Rewriter* r)
         if (r->capCodeCapacity >0)
             r->cs = initCodeStorage(r->capCodeCapacity);
     }
-    if (r->cs)
+    if (r->cs) {
         r->cs->used = 0;
+        // any previously generated code is invalid
+        r->generatedCodeAddr = 0;
+        r->generatedCodeSize = 0;
+    }
 }
 
 void freeRewriter(Rewriter* r)
@@ -136,50 +142,25 @@ void freeRewriter(Rewriter* r)
     free(r);
 }
 
-//----------------------------------------------------------
-// optimization pass
-
-// test: simply copy instructions
-Instr* optPassCopy(Rewriter* r, CBB* cbb)
-{
-    Instr *first, *instr;
-    int i;
-
-    if (cbb->count == 0) return 0;
-
-    first = newCapInstr(r);
-    copyInstr(first, cbb->instr);
-    for(i = 1; i < cbb->count; i++) {
-        instr = newCapInstr(r);
-        copyInstr(instr, cbb->instr + i);
-    }
-    return first;
-}
-
-void optPass(Rewriter* r, CBB* cbb)
-{
-    Instr* newInstrs;
-
-    printf("OPT!!\n");
-
-    if (r->showOptSteps) {
-        printf("Run Optimization for CBB (%lx|%d)\n",
-               cbb->dec_addr, cbb->esID);
-    }
-
-    if (r->doCopyPass) {
-        newInstrs = optPassCopy(r, cbb);
-        if (newInstrs)
-            cbb->instr = newInstrs;
-    }
-}
-
 
 //----------------------------------------------------------
 // Rewrite engine
 
+/**
+ * Trace/emulate binary code of configured function and capture
+ * instructions which need to be kept in the rewritten version.
+ * This needs to keep track of the status of values stored in registers
+ * (including flags) and on the stack.
+ * Captured instructions are collected in multiple CBBs.
+ *
+ * See dbrew_emulate to see how to call this from a function
+ * which acts almost as drop-in replacement (only one additional par).
+ *
+ * The state can be accessed as c->es afterwards (e.g. for the return
+ * value of the emulated function)
+ */
 // FIXME: this always assumes 5 parameters
-uint64_t vEmulateAndCapture(Rewriter* c, va_list args)
+void vEmulateAndCapture(Rewriter* c, va_list args)
 {
     // calling convention x86-64: parameters are stored in registers
     static Reg parReg[5] = { Reg_DI, Reg_SI, Reg_DX, Reg_CX, Reg_8 };
@@ -227,7 +208,7 @@ uint64_t vEmulateAndCapture(Rewriter* c, va_list args)
     es->reg[Reg_SP] = (uint64_t) (es->stackStart + es->stackSize);
     es->reg_state[Reg_SP] = CS_STACKRELATIVE;
 
-    // Pass 1: traverse all paths and generate CBBs
+    // traverse all paths and generate CBBs
 
     // push new CBB for c->func (as request to decode and emulate/capture
     // starting at that address)
@@ -325,15 +306,68 @@ uint64_t vEmulateAndCapture(Rewriter* c, va_list args)
         }
         bb_addr = nextbb_addr;
     }
+}
 
-    // Pass 2: apply optimization passes to CBBs
+//----------------------------------------------------------
+// example optimization passes on captured instructions
+//
 
-    for(i = 0; i < c->capBBCount; i++) {
-        cbb = c->capBB + i;
-        optPass(c, cbb);
+// test: simply copy instructions
+Instr* optPassCopy(Rewriter* r, CBB* cbb)
+{
+    Instr *first, *instr;
+    int i;
+
+    if (cbb->count == 0) return 0;
+
+    first = newCapInstr(r);
+    copyInstr(first, cbb->instr);
+    for(i = 1; i < cbb->count; i++) {
+        instr = newCapInstr(r);
+        copyInstr(instr, cbb->instr + i);
+    }
+    return first;
+}
+
+void optPass(Rewriter* r, CBB* cbb)
+{
+    Instr* newInstrs;
+
+    printf("OPT!!\n");
+
+    if (r->showOptSteps) {
+        printf("Run Optimization for CBB (%lx|%d)\n",
+               cbb->dec_addr, cbb->esID);
     }
 
-    // Pass 3: generating code for BBs without linking them
+    if (r->doCopyPass) {
+        newInstrs = optPassCopy(r, cbb);
+        if (newInstrs)
+            cbb->instr = newInstrs;
+    }
+}
+
+
+// apply optimization passes to instructions captured in vEmulateAndCapture
+void runOptsOnCaptured(Rewriter* r)
+{
+    for(int i = 0; i < r->capBBCount; i++) {
+        CBB* cbb = r->capBB + i;
+        optPass(r, cbb);
+    }
+}
+
+
+//----------------------------------------------------------
+// generate x86 code from instructions captured in vEmulateAndCapture
+//
+
+// result in c->rewrittenFunc/rewrittenSize
+void generateBinaryFromCaptured(Rewriter* c)
+{
+    CBB* cbb;
+
+    // Pass 1: generating code for BBs without linking them
 
     assert(c->capStackTop == -1);
     // start with first CBB created
@@ -354,10 +388,10 @@ uint64_t vEmulateAndCapture(Rewriter* c, va_list args)
         }
     }
 
-    // Pass 4: determine trailing bytes needed for each BB
+    // Pass 2: determine trailing bytes needed for each BB
 
     c->genOrder[c->genOrderCount] = 0;
-    for(i=0; i < c->genOrderCount; i++) {
+    for(int i=0; i < c->genOrderCount; i++) {
         uint8_t* buf;
         int diff;
 
@@ -380,9 +414,9 @@ uint64_t vEmulateAndCapture(Rewriter* c, va_list args)
         }
     }
 
-    // Pass 5: fill trailing bytes with jump instructions
+    // Pass 3: fill trailing bytes with jump instructions
 
-    for(i=0; i < c->genOrderCount; i++) {
+    for(int i=0; i < c->genOrderCount; i++) {
         uint8_t* buf;
         uint64_t buf_addr;
         int diff;
@@ -434,18 +468,16 @@ uint64_t vEmulateAndCapture(Rewriter* c, va_list args)
         }
     }
 
-    // return value according to calling convention
-    return es->reg[Reg_AX];
-}
+    assert(c->cs != 0);
+    assert(c->cs->used > 0);
 
-uint64_t dbrew_emulate_capture(Rewriter* r, ...)
-{
-    uint64_t res;
-    va_list argptr;
-
-    va_start(argptr, r);
-    res = vEmulateAndCapture(r, argptr);
-    va_end(argptr);
-
-    return res;
+    if (c->genOrderCount > 0) {
+        int usedBefore = (c->genOrder[0]->addr2 - (uint64_t) c->cs->buf);
+        c->generatedCodeAddr = c->genOrder[0]->addr2;
+        c->generatedCodeSize = c->cs->used - usedBefore;
+    }
+    else {
+        c->generatedCodeAddr = 0;
+        c->generatedCodeSize = 0;
+    }
 }

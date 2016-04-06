@@ -196,9 +196,11 @@ struct _Rewriter {
     // function to capture
     uint64_t func;
 
-    // buffer for captured code
+    // buffer for generated binary code
     int capCodeCapacity;
     CodeStorage* cs;
+    uint64_t generatedCodeAddr;
+    int generatedCodeSize;
 
     // structs for emulator & capture config
     CaptureConfig* cc;

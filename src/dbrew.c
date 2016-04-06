@@ -143,26 +143,14 @@ void dbrew_optverbose(Rewriter* r, Bool v)
     r->showOptSteps = v;
 }
 
-uint64_t dbrew_generated_code(Rewriter* c)
+uint64_t dbrew_generated_code(Rewriter* r)
 {
-    if ((c->cs == 0) || (c->cs->used == 0))
-        return 0;
-
-    if (c->genOrderCount == 0) return 0;
-    return c->genOrder[0]->addr2;
-
-    //return (uint64_t) c->cs->buf;
+    return r->generatedCodeAddr;
 }
 
-int dbrew_generated_size(Rewriter* c)
+int dbrew_generated_size(Rewriter* r)
 {
-    if ((c->cs == 0) || (c->cs->used == 0))
-        return 0;
-
-    if (c->genOrderCount == 0) return 0;
-    return c->cs->used - (c->genOrder[0]->addr2 - (uint64_t) c->cs->buf);
-
-    //return c->cs->used;
+    return r->generatedCodeSize;
 }
 
 void freeCode(Rewriter* c)
@@ -197,18 +185,48 @@ void dbrew_def_verbose(Bool decode, Bool emuState, Bool emuSteps)
     dbrew_verbose(getDefaultRewriter(), decode, emuState, emuSteps);
 }
 
-uint64_t dbrew_rewrite(uint64_t func, ...)
+// Act as drop-in replacement assuming the function is returning an integer
+// This does not make use of captured code
+uint64_t dbrew_emulate(Rewriter* r, ...)
+{
+    va_list argptr;
+
+    va_start(argptr, r);
+    vEmulateAndCapture(r, argptr);
+    va_end(argptr);
+
+    // integer return value is in RAX according to calling convention
+    return r->es->reg[Reg_AX];
+}
+
+uint64_t dbrew_rewrite(Rewriter* r, ...)
+{
+    va_list argptr;
+
+    va_start(argptr, r);
+    vEmulateAndCapture(r, argptr);
+    va_end(argptr);
+
+    runOptsOnCaptured(r);
+    generateBinaryFromCaptured(r);
+
+    return r->generatedCodeAddr;
+}
+
+uint64_t dbrew_rewrite_func(uint64_t f, ...)
 {
     Rewriter* r;
     va_list argptr;
 
     r = getDefaultRewriter();
-    dbrew_set_function(r, func);
+    dbrew_set_function(r, f);
 
-    va_start(argptr, func);
-    // throw away result of emulation
+    va_start(argptr, f);
     vEmulateAndCapture(r, argptr);
     va_end(argptr);
 
-    return dbrew_generated_code(r);
+    runOptsOnCaptured(r);
+    generateBinaryFromCaptured(r);
+
+    return r->generatedCodeAddr;
 }

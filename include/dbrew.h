@@ -149,8 +149,8 @@ void dbrew_set_stacksize(Rewriter *c, int stacksize);
 uint64_t dbrew_emulate_capture(Rewriter* r, ...);
 
 // buffer with regenerated code, captured from emulation
-uint64_t dbrew_generated_code(Rewriter* c);
-int dbrew_generated_size(Rewriter* c);
+uint64_t dbrew_generated_code(Rewriter* r);
+int dbrew_generated_size(Rewriter* r);
 
 // configure rewriter
 void dbrew_config_reset(Rewriter* c);
@@ -165,7 +165,15 @@ void dbrew_config_function_setname(Rewriter* r, uint64_t f, const char* name);
 
 // convenience functions, using default rewriter
 void dbrew_def_verbose(Bool decode, Bool emuState, Bool emuSteps);
-uint64_t dbrew_rewrite(uint64_t func, ...);
+
+// Act as drop-in replacement assuming the function is returning an integer
+uint64_t dbrew_emulate(Rewriter* r, ...);
+
+// rewrite configured function, return pointer to rewritten code
+uint64_t dbrew_rewrite(Rewriter* r, ...);
+
+// rewrite <f> using default config, return pointer to rewritten code
+uint64_t dbrew_rewrite_func(uint64_t f, ...);
 
 
 #endif // DBREW_H

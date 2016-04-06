@@ -243,8 +243,7 @@ int main(int argc, char* argv[])
         dbrew_config_staticpar(r, 4); // stencil is constant
         if (!do4)
             dbrew_config_force_unknown(r, 0); // do not unroll in applyLoop
-        dbrew_emulate_capture(r, size, m1, m2, af, s);
-        al = (apply_loop) dbrew_generated_code(r);
+        al = (apply_loop) dbrew_rewrite(r, size, m1, m2, af, s);
     }
     else {
         printf(",%s rewriting.\n", (av<5) ? " no":"");
@@ -259,8 +258,7 @@ int main(int argc, char* argv[])
             dbrew_config_staticpar(r, 1); // size is constant
             dbrew_config_staticpar(r, 2); // stencil is constant
             dbrew_config_returnfp(r);
-            dbrew_emulate_capture(r, m1 + size + 1, size, s);
-            af = (apply_func) dbrew_generated_code(r);
+            af = (apply_func) dbrew_rewrite(r, m1 + size + 1, size, s);
         }
     }
 
