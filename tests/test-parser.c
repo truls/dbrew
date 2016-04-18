@@ -1,3 +1,4 @@
+//  COMPILE:cc -o %s %s test-parser.c ../libdbrew.a -I../include
 
 #include <stdio.h>
 #include <stdbool.h>
@@ -25,9 +26,8 @@ int main(int argc, char** argv)
     dbrew_verbose(r, True, debug ? True : False, True);
 
     dbrew_config_staticpar(r, 0);
-    dbrew_emulate_capture(r, parameter);
 
-    ff = (f1_t) dbrew_generated_code(r);
+    ff = (f1_t) dbrew_rewrite(r, parameter);
 
     // Decode the newly generated function.
     Rewriter* r2 = dbrew_new();
