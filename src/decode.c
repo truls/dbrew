@@ -118,7 +118,7 @@ Instr* addTernaryOp(Rewriter* r, uint64_t a, uint64_t a2,
 // Fills o1/o2/digit and returns number of bytes parsed
 static
 int parseModRM(uint8_t* p,
-               int rex, OpSegOverride o1Seg, Bool o1IsVec, Bool o2IsVec,
+               int rex, OpSegOverride o1Seg, bool o1IsVec, bool o2IsVec,
                Operand* o1, Operand* o2, int* digit)
 {
     int modrm, mod, rm, reg; // modRM byte
@@ -214,12 +214,12 @@ int parseModRM(uint8_t* p,
 // decode the basic block starting at f (automatically triggered by emulator)
 DBB* dbrew_decode(Rewriter* r, uint64_t f)
 {
-    Bool hasRex, hasF2, hasF3, has66;
+    bool hasRex, hasF2, hasF3, has66;
     OpSegOverride segOv;
     int rex;
     uint64_t a;
     int i, off, opc, opc2, digit, old_icount;
-    Bool exitLoop;
+    bool exitLoop;
     uint8_t* fp;
     Operand o1, o2, o3;
     Reg reg;
@@ -252,13 +252,13 @@ DBB* dbrew_decode(Rewriter* r, uint64_t f)
 
     fp = (uint8_t*) f;
     off = 0;
-    hasRex = False;
+    hasRex = false;
     rex = 0;
     segOv = OSO_None;
-    hasF2 = False;
-    hasF3 = False;
-    has66 = False;
-    exitLoop = False;
+    hasF2 = false;
+    hasF3 = false;
+    has66 = false;
+    exitLoop = false;
     while(!exitLoop) {
         a = (uint64_t)(fp + off);
 
@@ -266,22 +266,22 @@ DBB* dbrew_decode(Rewriter* r, uint64_t f)
         while(1) {
             if ((fp[off] >= 0x40) && (fp[off] <= 0x4F)) {
                 rex = fp[off] & 15;
-                hasRex = True;
+                hasRex = true;
                 off++;
                 continue;
             }
             if (fp[off] == 0xF2) {
-                hasF2 = True;
+                hasF2 = true;
                 off++;
                 continue;
             }
             if (fp[off] == 0xF3) {
-                hasF3 = True;
+                hasF3 = true;
                 off++;
                 continue;
             }
             if (fp[off] == 0x66) {
-                has66 = True;
+                has66 = true;
                 off++;
                 continue;
             }
@@ -505,7 +505,7 @@ DBB* dbrew_decode(Rewriter* r, uint64_t f)
                 else if (opc2 == 0x8F) it = IT_JG;
                 else assert(0);
                 addUnaryOp(r, a, (uint64_t)(fp + off), it, &o1);
-                exitLoop = True;
+                exitLoop = true;
                 break;
 
             case 0xB6:
@@ -755,7 +755,7 @@ DBB* dbrew_decode(Rewriter* r, uint64_t f)
             else if (opc == 0x7F) it = IT_JG;
             else assert(0);
             addUnaryOp(r, a, (uint64_t)(fp + off), it, &o1);
-            exitLoop = True;
+            exitLoop = true;
             break;
 
         case 0x80:
@@ -929,7 +929,7 @@ DBB* dbrew_decode(Rewriter* r, uint64_t f)
         case 0xC3:
             // ret
             addSimple(r, a, (uint64_t)(fp + off), IT_RET);
-            exitLoop = True;
+            exitLoop = true;
             break;
 
         case 0xC7:
@@ -961,7 +961,7 @@ DBB* dbrew_decode(Rewriter* r, uint64_t f)
             o1.val = (uint64_t) (fp + off + 4 + *(int32_t*)(fp + off));
             off += 4;
             addUnaryOp(r, a, (uint64_t)(fp + off), IT_CALL, &o1);
-            exitLoop = True;
+            exitLoop = true;
             break;
 
         case 0xE9:
@@ -970,7 +970,7 @@ DBB* dbrew_decode(Rewriter* r, uint64_t f)
             o1.val = (uint64_t) (fp + off + 4 + *(int32_t*)(fp + off));
             off += 4;
             addUnaryOp(r, a, (uint64_t)(fp + off), IT_JMP, &o1);
-            exitLoop = True;
+            exitLoop = true;
             break;
 
         case 0xEB:
@@ -979,7 +979,7 @@ DBB* dbrew_decode(Rewriter* r, uint64_t f)
             o1.val = (uint64_t) (fp + off + 1 + *(int8_t*)(fp + off));
             off += 1;
             addUnaryOp(r, a, (uint64_t)(fp + off), IT_JMP, &o1);
-            exitLoop = True;
+            exitLoop = true;
             break;
 
         case 0xF7:
@@ -1017,7 +1017,7 @@ DBB* dbrew_decode(Rewriter* r, uint64_t f)
             case 2:
                 // call r/m64
                 addUnaryOp(r, a, (uint64_t)(fp + off), IT_CALL, &o1);
-                exitLoop = True;
+                exitLoop = true;
                 break;
 
             case 4:
@@ -1025,7 +1025,7 @@ DBB* dbrew_decode(Rewriter* r, uint64_t f)
                 assert(rex == 0);
                 opOverwriteType(&o1, VT_64);
                 addUnaryOp(r, a, (uint64_t)(fp + off), IT_JMPI, &o1);
-                exitLoop = True;
+                exitLoop = true;
                 break;
 
             default:
@@ -1038,12 +1038,12 @@ DBB* dbrew_decode(Rewriter* r, uint64_t f)
             addSimple(r, a, (uint64_t)(fp + off), IT_Invalid);
             break;
         }
-        hasRex = False;
+        hasRex = false;
         rex = 0;
         segOv = OSO_None;
-        hasF2 = False;
-        hasF3 = False;
-        has66 = False;
+        hasF2 = false;
+        hasF3 = false;
+        has66 = false;
     }
 
     assert(dbb->addr == dbb->instr->addr);

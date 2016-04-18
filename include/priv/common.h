@@ -59,12 +59,12 @@ struct _CBB {
     // type of instruction ending this BB
     InstrType endType;
     // a hint for conditional branches whether branching is more likely
-    Bool preferBranch;
+    bool preferBranch;
 
     // for code generation/relocation
     int size;
     uint64_t addr1, addr2;
-    Bool genJcc8, genJump;
+    bool genJcc8, genJump;
 };
 
 char* cbb_prettyName(CBB* bb);
@@ -102,11 +102,11 @@ typedef struct _CaptureConfig
 {
     CaptureState par_state[CC_MAXPARAM];
      // does function to rewrite return floating point?
-    Bool hasReturnFP;
+    bool hasReturnFP;
     // avoid unrolling at call depths
-    Bool force_unknown[CC_MAXCALLDEPTH];
+    bool force_unknown[CC_MAXCALLDEPTH];
     // all branches forced known
-    Bool branches_known;
+    bool branches_known;
 
     // linked list of configurations per function
     FunctionConfig* function_configs;
@@ -153,7 +153,7 @@ struct _EmuState {
 
     // x86 flags: carry (CF), zero (ZF), sign (SF), overflow (OF), parity (PF)
     // TODO: auxiliary carry
-    Bool flag[FT_Max];
+    bool flag[FT_Max];
     CaptureState flag_state[FT_Max];
 
     // stack
@@ -217,11 +217,11 @@ struct _Rewriter {
     CBB* genOrder[GENORDER_MAX];
 
     // for optimization passes
-    Bool addInliningHints;
-    Bool doCopyPass; // test pass
+    bool addInliningHints;
+    bool doCopyPass; // test pass
 
     // debug output
-    Bool showDecoding, showEmuState, showEmuSteps, showOptSteps;
+    bool showDecoding, showEmuState, showEmuSteps, showOptSteps;
 };
 
 

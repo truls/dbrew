@@ -233,8 +233,8 @@ int main(int argc, char* argv[])
         printf(", rewriting with loops.\n");
         r = dbrew_new();
         if (verbose>1) {
-            dbrew_verbose(r, True, True, True);
-            dbrew_optverbose(r, True);
+            dbrew_verbose(r, true, true, true);
+            dbrew_optverbose(r, true);
             dbrew_config_function_setname(r, (uint64_t) al, "ApplyLoop");
         }
         dbrew_set_function(r, (uint64_t) al);
@@ -250,8 +250,8 @@ int main(int argc, char* argv[])
         if (av >= 5) {
             r = dbrew_new();
             if (verbose>1) {
-                dbrew_verbose(r, True, True, True);
-                dbrew_optverbose(r, True);
+                dbrew_verbose(r, true, true, true);
+                dbrew_optverbose(r, true);
                 dbrew_config_function_setname(r, (uint64_t) af, "apply");
             }
             dbrew_set_function(r, (uint64_t) af);

@@ -84,7 +84,7 @@ void runTest(char* fname, uint64_t f, int p1, int p2, int sp1)
     printf(">>> Testing with function %s\n\n", fname);
 
     c1 = dbrew_new();
-    dbrew_verbose(c1, True, True, True);
+    dbrew_verbose(c1, true, true, true);
     c2 = dbrew_new();
 
     i2_func ff = (i2_func) f;

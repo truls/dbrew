@@ -131,14 +131,14 @@ void dbrew_set_function(Rewriter* rewriter, uint64_t f)
 }
 
 void dbrew_verbose(Rewriter* rewriter,
-                  Bool decode, Bool emuState, Bool emuSteps)
+                  bool decode, bool emuState, bool emuSteps)
 {
     rewriter->showDecoding = decode;
     rewriter->showEmuState = emuState;
     rewriter->showEmuSteps = emuSteps;
 }
 
-void dbrew_optverbose(Rewriter* r, Bool v)
+void dbrew_optverbose(Rewriter* r, bool v)
 {
     r->showOptSteps = v;
 }
@@ -168,7 +168,7 @@ Rewriter* getDefaultRewriter(void)
     return defaultRewriter;
 }
 
-void dbrew_def_verbose(Bool decode, Bool emuState, Bool emuSteps)
+void dbrew_def_verbose(bool decode, bool emuState, bool emuSteps)
 {
     dbrew_verbose(getDefaultRewriter(), decode, emuState, emuSteps);
 }

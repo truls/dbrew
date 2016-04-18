@@ -58,7 +58,7 @@ int test4(int a, int* b)
 }
 
 // decode captured code from c1 into c2
-void emulateCaptureRun(char* t1, char* t2, Bool use_i2p,
+void emulateCaptureRun(char* t1, char* t2, bool use_i2p,
                        int p1, uint64_t p2, int sp1, uint64_t sp2,
                        Rewriter* r1, Rewriter* r2)
 {
@@ -70,9 +70,9 @@ void emulateCaptureRun(char* t1, char* t2, Bool use_i2p,
 
     printf("Rewritten code (size %d bytes):\n", dbrew_generated_size(r1));
     dbrew_set_function(r2, dbrew_generated_code(r1));
-    dbrew_verbose(r2, False, False, False);
+    dbrew_verbose(r2, false, false, false);
     dbrew_print_decoded( dbrew_decode(r2, dbrew_generated_code(r1)) );
-    dbrew_verbose(r2, True, True, True);
+    dbrew_verbose(r2, true, true, true);
 
     if (use_i2p) {
         i2p_func f = (i2p_func) dbrew_generated_code(r1);
@@ -91,7 +91,7 @@ void emulateCaptureRun(char* t1, char* t2, Bool use_i2p,
  * <f> must have signature i2_func (2 int parameters, returns int)
  * or i2p_func (int/pointer parameter, int return), given by <use_i2p>
 */
-void runTest(char* fname, uint64_t f, Bool use_i2p,
+void runTest(char* fname, uint64_t f, bool use_i2p,
              int p1, uint64_t p2, int sp1, uint64_t sp2,
              int runOrig, int runSpec1, int runSpec2)
 {
@@ -104,8 +104,8 @@ void runTest(char* fname, uint64_t f, Bool use_i2p,
     c2 = dbrew_new();
     c3 = dbrew_new();
 
-    dbrew_verbose(c1, True, True, True);
-    dbrew_verbose(c2, True, True, True);
+    dbrew_verbose(c1, true, true, true);
+    dbrew_verbose(c2, true, true, true);
 
     if (use_i2p) {
         i2p_func ff = (i2p_func) f;
@@ -160,12 +160,12 @@ void runTest(char* fname, uint64_t f, Bool use_i2p,
 
 int main()
 {
-    runTest("test1", (uint64_t) test1, False, 4,7, 1,2, 1,1,1);
-    runTest("test2", (uint64_t) test2, False, 4,7, 1,2, 1,1,1);
+    runTest("test1", (uint64_t) test1, false, 4,7, 1,2, 1,1,1);
+    runTest("test2", (uint64_t) test2, false, 4,7, 1,2, 1,1,1);
     // FIXME: test 3 has a loop depending on par1 and cannot be
     //        rewritten without fixing par1 for now
-    runTest("test3", (uint64_t) test3, False, 4,7, 3,5, 0,1,0);
-    runTest("test4", (uint64_t) test4, True,
+    runTest("test3", (uint64_t) test3, false, 4,7, 3,5, 0,1,0);
+    runTest("test4", (uint64_t) test4, true,
             1, (uint64_t) a4, 3, (uint64_t) b4, 1, 1, 1);
     return 0;
 }

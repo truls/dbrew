@@ -29,9 +29,9 @@ void cc_init(CaptureConfig* cc)
     for(int i=0; i < CC_MAXPARAM; i++)
         cc->par_state[i] = CS_DYNAMIC;
     for(int i=0; i < CC_MAXCALLDEPTH; i++)
-        cc->force_unknown[i] = False;
-    cc->hasReturnFP = False;
-    cc->branches_known = False;
+        cc->force_unknown[i] = false;
+    cc->hasReturnFP = false;
+    cc->branches_known = false;
     cc->function_configs = 0;
 
 }
@@ -151,16 +151,16 @@ void dbrew_config_force_unknown(Rewriter* r, int depth)
     CaptureConfig* cc = cc_get(r);
 
     assert((depth >= 0) && (depth < CC_MAXCALLDEPTH));
-    cc->force_unknown[depth] = True;
+    cc->force_unknown[depth] = true;
 }
 
 void dbrew_config_returnfp(Rewriter* r)
 {
     CaptureConfig* cc = cc_get(r);
-    cc->hasReturnFP = True;
+    cc->hasReturnFP = true;
 }
 
-void dbrew_config_branches_known(Rewriter* r, Bool b)
+void dbrew_config_branches_known(Rewriter* r, bool b)
 {
     CaptureConfig* cc = cc_get(r);
     cc->branches_known = b;

@@ -335,10 +335,10 @@ char* instr2string(Instr* instr, int align)
         off += sprintf(buf, "%s", n);
 
     // add value type if given
-    Bool appendVType = (instr->vtype != VT_None);
+    bool appendVType = (instr->vtype != VT_None);
     if ((instr->form == OF_2) &&
         (opIsGPReg(&(instr->dst)) ||
-         opIsGPReg(&(instr->src)))) appendVType = False;
+         opIsGPReg(&(instr->src)))) appendVType = false;
     if (appendVType) {
         char vt = ' ';
         switch(instr->vtype) {

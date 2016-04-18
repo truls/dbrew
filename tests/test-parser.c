@@ -23,7 +23,7 @@ int main(int argc, char** argv)
     // Only output DBB and new function but not intermediate steps as the stack
     // pointer is different on each run. However, for debugging we want this
     // information.
-    dbrew_verbose(r, True, debug ? True : False, True);
+    dbrew_verbose(r, true, debug ? true : false, true);
 
     dbrew_config_staticpar(r, 0);
 

@@ -72,13 +72,13 @@ Rewriter* allocRewriter(void)
     r->es = 0;
 
     // optimization passes
-    r->addInliningHints = True;
-    r->doCopyPass = True;
+    r->addInliningHints = true;
+    r->doCopyPass = true;
 
     // default: debug off
-    r->showDecoding = False;
-    r->showEmuState = False;
-    r->showEmuSteps = False;
+    r->showDecoding = false;
+    r->showEmuState = false;
+    r->showEmuSteps = false;
 
     return r;
 }
@@ -409,10 +409,10 @@ void generateBinaryFromCaptured(Rewriter* r)
 
         diff = cbb->nextBranch->addr1 - (cbb->addr1 + cbb->size);
         if ((diff > -120) && (diff < 120))
-            cbb->genJcc8 = True;
+            cbb->genJcc8 = true;
         useCodeStorage(r->cs, cbb->genJcc8 ? 2 : 6);
         if (cbb->nextFallThrough != r->genOrder[i+1]) {
-            cbb->genJump = True;
+            cbb->genJump = true;
             useCodeStorage(r->cs, 5);
         }
     }

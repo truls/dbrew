@@ -152,18 +152,18 @@ ValType opValType(Operand* o);
 
 int opTypeWidth(Operand* o);
 
-Bool opIsImm(Operand* o);
+bool opIsImm(Operand* o);
 
-Bool opIsReg(Operand* o);
+bool opIsReg(Operand* o);
 
-Bool opIsGPReg(Operand* o);
+bool opIsGPReg(Operand* o);
 
-Bool opIsVReg(Operand* o);
+bool opIsVReg(Operand* o);
 
 
-Bool opIsInd(Operand* o);
+bool opIsInd(Operand* o);
 
-Bool opIsEqual(Operand* o1, Operand* o2);
+bool opIsEqual(Operand* o1, Operand* o2);
 
 Operand* getRegOp(ValType t, Reg r);
 
@@ -174,7 +174,7 @@ void copyOperand(Operand* dst, Operand* src);
 
 void opOverwriteType(Operand* o, ValType vt);
 
-Bool instrIsJcc(InstrType it);
+bool instrIsJcc(InstrType it);
 
 void copyInstr(Instr* dst, Instr* src);
 

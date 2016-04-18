@@ -63,10 +63,10 @@ char captureState2Char(CaptureState s)
 }
 
 static
-Bool csIsStatic(CaptureState s)
+bool csIsStatic(CaptureState s)
 {
-    if ((s == CS_STATIC) || (s == CS_STATIC2)) return True;
-    return False;
+    if ((s == CS_STATIC) || (s == CS_STATIC2)) return true;
+    return false;
 }
 
 static
@@ -105,7 +105,7 @@ void resetEmuState(EmuState* es)
     }
 
     for(i=0; i<FT_Max; i++) {
-        es->flag[i] = False;
+        es->flag[i] = false;
         es->flag_state[i] = CS_DEAD;
     }
 
@@ -155,7 +155,7 @@ void freeEmuState(Rewriter* r)
 // this is required for compatibility of generated code points, and
 // compatibility is needed to be able to jump between such code points
 static
-Bool csIsEqual(EmuState* es1, CaptureState s1, uint64_t v1,
+bool csIsEqual(EmuState* es1, CaptureState s1, uint64_t v1,
                EmuState* es2, CaptureState s2, uint64_t v2)
 {
     // normalize meta states: CS_STATIC2 is equivalent to CS_STATIC
@@ -165,7 +165,7 @@ Bool csIsEqual(EmuState* es1, CaptureState s1, uint64_t v1,
     if (s1 == CS_DEAD) s1 = CS_DYNAMIC;
     if (s2 == CS_DEAD) s2 = CS_DYNAMIC;
 
-    if (s1 != s2) return False;
+    if (s1 != s2) return false;
 
     switch(s1) {
     case CS_STATIC:
@@ -175,18 +175,18 @@ Bool csIsEqual(EmuState* es1, CaptureState s1, uint64_t v1,
     case CS_STACKRELATIVE:
         // FIXME: in reality: same offset from a versioned anchor
         // for now: assume same anchor version (within same rewriting action)
-        if (es1->parent != es2->parent) return False;
+        if (es1->parent != es2->parent) return false;
         return (v1 == v2);
 
     default:
         break;
     }
-    return True;
+    return true;
 }
 
 // states are equal if metainformation is equal and static data is the same
 static
-Bool esIsEqual(EmuState* es1, EmuState* es2)
+bool esIsEqual(EmuState* es1, EmuState* es2)
 {
     int i;
 
@@ -194,18 +194,18 @@ Bool esIsEqual(EmuState* es1, EmuState* es2)
     for(i = Reg_AX; i <= Reg_15; i++) {
         if (!csIsEqual(es1, es1->reg_state[i], es1->reg[i],
                        es2, es2->reg_state[i], es2->reg[i]))
-            return False;
+            return false;
     }
 
     // same state for flag registers?
     for(i = 0; i < FT_Max; i++) {
         if (!csIsEqual(es1, es1->flag_state[i], es1->flag[i],
                        es2, es2->flag_state[i], es2->flag[i]))
-            return False;
+            return false;
     }
 
     // for equality, must be at same call depth
-    if (es1->depth != es2->depth) return False;
+    if (es1->depth != es2->depth) return false;
 
     // Stack
     // all known data has to be the same
@@ -214,13 +214,13 @@ Bool esIsEqual(EmuState* es1, EmuState* es2)
         // stack of es2 is larger: bottom should not be static
         for(i = 0; i < diff; i++) {
             if (csIsStatic(es2->stackState[i]))
-                return False;
+                return false;
         }
         // check for equal state at byte granularity
         for(i = 0; i < es1->stackSize; i++) {
             if (!csIsEqual(es1, es1->stackState[i], es1->stack[i],
                            es2, es2->stackState[i+diff], es2->stack[i+diff]))
-                return False;
+                return false;
         }
     }
     else {
@@ -229,17 +229,17 @@ Bool esIsEqual(EmuState* es1, EmuState* es2)
         // bottom of es1 should not be static
         for(i = 0; i < diff; i++) {
             if (csIsStatic(es1->stackState[i]))
-                return False;
+                return false;
         }
         // check for equal state at byte granularity
         for(i = 0; i < es2->stackSize; i++) {
             if (!csIsEqual(es1, es1->stackState[i+diff], es1->stack[i+diff],
                            es2, es2->stackState[i], es2->stack[i]))
-                return False;
+                return false;
         }
     }
 
-    return True;
+    return true;
 }
 
 static
@@ -478,7 +478,7 @@ void printStaticEmuState(EmuState* es, int esID)
 
 static
 char combineState(CaptureState s1, CaptureState s2,
-                  Bool isSameValue)
+                  bool isSameValue)
 {
     // dead/invalid: combining with something invalid makes result invalid
     if ((s1 == CS_DEAD) || (s2 == CS_DEAD)) return CS_DEAD;
@@ -575,13 +575,13 @@ CBB* getCaptureBB(Rewriter* r, uint64_t f, int esID)
     bb->nextBranch = 0;
     bb->nextFallThrough = 0;
     bb->endType = IT_None;
-    bb->preferBranch = False;
+    bb->preferBranch = false;
 
     bb->size = -1; // size of 0 could be valid
     bb->addr1 = 0;
     bb->addr2 = 0;
-    bb->genJcc8 = False;
-    bb->genJump = False;
+    bb->genJcc8 = false;
+    bb->genJump = false;
 
     return bb;
 }
@@ -766,7 +766,7 @@ void setFlagsAdd(EmuState* es, EmuValue* v1, EmuValue* v2)
 // for bitwise operations: And, Xor, Or
 static
 CaptureState setFlagsBit(EmuState* es, InstrType it,
-                         EmuValue* v1, EmuValue* v2, Bool sameOperands)
+                         EmuValue* v1, EmuValue* v2, bool sameOperands)
 {
     CaptureState s;
     uint64_t res;
@@ -819,15 +819,15 @@ CaptureState setFlagsBit(EmuState* es, InstrType it,
 //  otherwise return false
 // the returned offset is static only if address is stack-relative
 static
-Bool getStackOffset(EmuState* es, EmuValue* addr, EmuValue* off)
+bool getStackOffset(EmuState* es, EmuValue* addr, EmuValue* off)
 {
     if ((addr->val >= es->stackStart) && (addr->val < es->stackTop)) {
         off->type = VT_32;
         off->state = (addr->state == CS_STACKRELATIVE) ? CS_STATIC : CS_DYNAMIC;
         off->val = addr->val - es->stackStart;
-        return True;
+        return true;
     }
-    return False;
+    return false;
 }
 
 static
@@ -917,7 +917,7 @@ void getRegValue(EmuValue* v, EmuState* es, Reg r, ValType t)
 
 static
 void getMemValue(EmuValue* v, EmuValue* addr, EmuState* es, ValType t,
-                 Bool shouldBeStack)
+                 bool shouldBeStack)
 {
     EmuValue off;
     int isOnStack;
@@ -995,7 +995,7 @@ void setMemValue(EmuValue* v, EmuValue* addr, EmuState* es, ValType t,
     EmuValue off;
     uint32_t* a32;
     uint64_t* a64;
-    Bool isOnStack;
+    bool isOnStack;
 
     assert(v->type == t);
     isOnStack = getStackOffset(es, addr, &off);
@@ -1131,11 +1131,11 @@ void setOpValue(EmuValue* v, EmuState* es, Operand* o)
 // Returns false for memory locations not on stack or when stack offset
 //  is not static/known.
 static
-Bool keepsCaptureState(EmuState* es, Operand* o)
+bool keepsCaptureState(EmuState* es, Operand* o)
 {
     EmuValue addr;
     EmuValue off;
-    Bool isOnStack;
+    bool isOnStack;
 
     // never should be called with immediate ops (do not point to location)
     assert(!opIsImm(o));
@@ -1193,7 +1193,7 @@ void captureMov(Rewriter* r, Instr* orig, EmuState* es, EmuValue* res)
 
 static
 void captureCMov(Rewriter* r, Instr* orig, EmuState* es,
-                 EmuValue* res, CaptureState cState, Bool cond)
+                 EmuValue* res, CaptureState cState, bool cond)
 {
     Instr i;
 
@@ -1500,7 +1500,7 @@ void capturePassThrough(Rewriter* r, Instr* orig, EmuState* es)
 static
 void captureJcc(Rewriter* r, InstrType it,
                 uint64_t branchTarget, uint64_t fallthroughTarget,
-                Bool didBranch)
+                bool didBranch)
 {
     CBB *cbb, *cbbBR, *cbbFT;
     int esID;
@@ -1663,7 +1663,7 @@ uint64_t emulateInstr(Rewriter* r, EmuState* es, Instr* instr)
     case IT_CMOVS: case IT_CMOVNS:
     {
         FlagType ft;
-        Bool cond;
+        bool cond;
         switch(instr->type) {
         case IT_CMOVZ:  ft = FT_Zero;     cond =  es->flag[ft]; break;
         case IT_CMOVNZ: ft = FT_Zero;     cond = !es->flag[ft]; break;
@@ -1679,7 +1679,7 @@ uint64_t emulateInstr(Rewriter* r, EmuState* es, Instr* instr)
         getOpValue(&v1, es, &(instr->src));
         captureCMov(r, instr, es, &v1, es->flag_state[ft], cond);
         // FIXME? if cond state unknown, set destination state always to unknown
-        if (cond == True) setOpValue(&v1, es, &(instr->dst));
+        if (cond == true) setOpValue(&v1, es, &(instr->dst));
         break;
     }
 
@@ -1813,7 +1813,7 @@ uint64_t emulateInstr(Rewriter* r, EmuState* es, Instr* instr)
             captureJcc(r, IT_JE, instr->dst.val, instr->addr + instr->len,
                         es->flag[FT_Zero]);
         }
-        if (es->flag[FT_Zero] == True) return instr->dst.val;
+        if (es->flag[FT_Zero] == true) return instr->dst.val;
         return instr->addr + instr->len;
 
     case IT_JNE:
@@ -1821,7 +1821,7 @@ uint64_t emulateInstr(Rewriter* r, EmuState* es, Instr* instr)
             captureJcc(r, IT_JNE, instr->dst.val, instr->addr + instr->len,
                         !es->flag[FT_Zero]);
         }
-        if (es->flag[FT_Zero] == False) return instr->dst.val;
+        if (es->flag[FT_Zero] == false) return instr->dst.val;
         return instr->addr + instr->len;
 
     case IT_JLE:
@@ -1830,8 +1830,8 @@ uint64_t emulateInstr(Rewriter* r, EmuState* es, Instr* instr)
             captureJcc(r, IT_JLE, instr->dst.val, instr->addr + instr->len,
                         es->flag[FT_Zero] || es->flag[FT_Sign]);
         }
-        if ((es->flag[FT_Zero] == True) ||
-            (es->flag[FT_Sign] == True)) return instr->dst.val;
+        if ((es->flag[FT_Zero] == true) ||
+            (es->flag[FT_Sign] == true)) return instr->dst.val;
         return instr->addr + instr->len;
 
     case IT_JG:
@@ -1840,8 +1840,8 @@ uint64_t emulateInstr(Rewriter* r, EmuState* es, Instr* instr)
             captureJcc(r, IT_JG, instr->dst.val, instr->addr + instr->len,
                        !es->flag[FT_Zero] && !es->flag[FT_Sign]);
         }
-        if ((es->flag[FT_Zero] == False) &&
-            (es->flag[FT_Sign] == False)) return instr->dst.val;
+        if ((es->flag[FT_Zero] == false) &&
+            (es->flag[FT_Sign] == false)) return instr->dst.val;
         return instr->addr + instr->len;
 
     case IT_JL:
@@ -1867,7 +1867,7 @@ uint64_t emulateInstr(Rewriter* r, EmuState* es, Instr* instr)
             captureJcc(r, IT_JP, instr->dst.val, instr->addr + instr->len,
                        es->flag[FT_Parity]);
         }
-        if (es->flag[FT_Parity] == True) return instr->dst.val;
+        if (es->flag[FT_Parity] == true) return instr->dst.val;
         return instr->addr + instr->len;
 
     case IT_JMP:
@@ -2140,7 +2140,7 @@ uint64_t emulateInstr(Rewriter* r, EmuState* es, Instr* instr)
         getOpValue(&v2, es, &(instr->src));
 
         assert(v1.type == v2.type);
-        s = setFlagsBit(es, IT_AND, &v1, &v2, False);
+        s = setFlagsBit(es, IT_AND, &v1, &v2, false);
         captureTest(r, instr, es, s);
         break;
 

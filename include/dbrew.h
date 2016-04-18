@@ -96,9 +96,9 @@
 #define DBREW_H
 
 #include <stdint.h>
+#include <stdbool.h>
 
 typedef void (*void_func)(void);
-typedef enum { False, True } Bool;
 
 // function which can be used in code to be rewritten
 // mark a passed-through value as dynamic
@@ -129,8 +129,8 @@ void dbrew_set_function(Rewriter* rewriter, uint64_t f);
 
 // set rewriter activities to be verbose or quiet
 void dbrew_verbose(Rewriter* rewriter,
-                   Bool decode, Bool emuState, Bool emuSteps);
-void dbrew_optverbose(Rewriter* r, Bool v);
+                   bool decode, bool emuState, bool emuSteps);
+void dbrew_optverbose(Rewriter* r, bool v);
 
 // decode a piece of x86 binary code starting add address <f>
 DBB* dbrew_decode(Rewriter* r, uint64_t f);
@@ -159,12 +159,12 @@ void dbrew_config_returnfp(Rewriter* r);
 // assume all calculated results to be unknown at call depth lower <depth>
 void dbrew_config_force_unknown(Rewriter* r, int depth);
 // assume all branches to be fixed according to rewriter input parameters
-void dbrew_config_branches_known(Rewriter* r, Bool);
+void dbrew_config_branches_known(Rewriter* r, bool);
 // provide a name for a function (for debugging)
 void dbrew_config_function_setname(Rewriter* r, uint64_t f, const char* name);
 
 // convenience functions, using default rewriter
-void dbrew_def_verbose(Bool decode, Bool emuState, Bool emuSteps);
+void dbrew_def_verbose(bool decode, bool emuState, bool emuSteps);
 
 // Act as drop-in replacement assuming the function is returning an integer
 uint64_t dbrew_emulate(Rewriter* r, ...);

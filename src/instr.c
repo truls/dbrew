@@ -70,21 +70,21 @@ int opTypeWidth(Operand* o)
     return 0;
 }
 
-Bool opIsImm(Operand* o)
+bool opIsImm(Operand* o)
 {
     switch(o->type) {
     case OT_Imm8:
     case OT_Imm16:
     case OT_Imm32:
     case OT_Imm64:
-        return True;
+        return true;
     default:
         break;
     }
-    return False;
+    return false;
 }
 
-Bool opIsReg(Operand* o)
+bool opIsReg(Operand* o)
 {
     switch(o->type) {
     case OT_Reg8:
@@ -93,31 +93,31 @@ Bool opIsReg(Operand* o)
     case OT_Reg64:
     case OT_Reg128:
     case OT_Reg256:
-        return True;
+        return true;
     default:
         break;
     }
-    return False;
+    return false;
 }
 
-Bool opIsGPReg(Operand* o)
+bool opIsGPReg(Operand* o)
 {
-    if (!opIsReg(o)) return False;
+    if (!opIsReg(o)) return false;
     if ((o->reg >= Reg_AX) && (o->reg <= Reg_15))
-        return True;
-    return False;
+        return true;
+    return false;
 }
 
-Bool opIsVReg(Operand* o)
+bool opIsVReg(Operand* o)
 {
-    if (!opIsReg(o)) return False;
+    if (!opIsReg(o)) return false;
     if ((o->reg >= Reg_X0) && (o->reg <= Reg_X15))
-        return True;
-    return False;
+        return true;
+    return false;
 }
 
 
-Bool opIsInd(Operand* o)
+bool opIsInd(Operand* o)
 {
     switch(o->type) {
     case OT_Ind8:
@@ -126,30 +126,30 @@ Bool opIsInd(Operand* o)
     case OT_Ind64:
     case OT_Ind128:
     case OT_Ind256:
-        return True;
+        return true;
     default:
         break;
     }
-    return False;
+    return false;
 }
 
-Bool opIsEqual(Operand* o1, Operand* o2)
+bool opIsEqual(Operand* o1, Operand* o2)
 {
     if (o1->type != o2->type)
-        return False;
+        return false;
     if (opIsReg(o1))
         return (o1->reg == o2->reg);
     if (opIsImm(o1))
         return (o1->val == o2->val);
     // memory
     assert(opIsInd(o1));
-    if (o1->val != o2->val) return False;
-    if (o1->reg != o2->reg) return False;
-    if (o1->seg != o2->seg) return False;
+    if (o1->val != o2->val) return false;
+    if (o1->reg != o2->reg) return false;
+    if (o1->seg != o2->seg) return false;
 
-    if (o1->scale == 0) return True;
-    if ((o1->scale != o2->scale) || (o1->ireg != o2->ireg)) return False;
-    return True;
+    if (o1->scale == 0) return true;
+    if ((o1->scale != o2->scale) || (o1->ireg != o2->ireg)) return false;
+    return true;
 }
 
 Operand* getRegOp(ValType t, Reg r)
@@ -302,7 +302,7 @@ void opOverwriteType(Operand* o, ValType vt)
         assert(0);
 }
 
-Bool instrIsJcc(InstrType it)
+bool instrIsJcc(InstrType it)
 {
     switch(it) {
     case IT_JE:
@@ -312,11 +312,11 @@ Bool instrIsJcc(InstrType it)
     case IT_JG:
     case IT_JL:
     case IT_JGE:
-        return True;
+        return true;
     default:
         break;
     }
-    return False;
+    return false;
 }
 
 void copyInstr(Instr* dst, Instr* src)
