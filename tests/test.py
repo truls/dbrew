@@ -46,6 +46,9 @@ def store(testCase):
         f.writelines(runTestCase(testCase))
         print("==TEST Stored", testCase)
 
+def runAndPrint(testCase):
+    print("".join(runTestCase(testCase)))
+
 def test(testCase):
     with open(testCase + ".expect") as f:
         comparison = f.readlines()
@@ -58,6 +61,7 @@ def test(testCase):
 
 actions = [
     ("--test", test),
+    ("--run", runAndPrint),
     ("--store", store),
     ("--compile-only", compile)
 ]
