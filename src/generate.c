@@ -1275,16 +1275,18 @@ int genPassThrough(uint8_t* buf, Instr* instr)
 void generate(Rewriter* r, CBB* cbb)
 {
     uint8_t* buf;
+    uint64_t buf0;
     int used, i, usedTotal;
 
     if (cbb == 0) return;
     if (r->cs == 0) return;
 
     if (r->showEmuSteps)
-        printf("Generating code for BB (%s) (%d instructions)\n",
+        printf("Generating code for BB %s (%d instructions)\n",
                cbb_prettyName(cbb), cbb->count);
 
     usedTotal = 0;
+    buf0 = (uint64_t) reserveCodeStorage(r->cs, 0); // remember start address
     for(i = 0; i < cbb->count; i++) {
         Instr* instr = cbb->instr + i;
 
@@ -1380,7 +1382,9 @@ void generate(Rewriter* r, CBB* cbb)
 
         if (r->showEmuSteps) {
             printf("  I%2d : %-32s", i, instr2string(instr, 1));
-            printf(" %lx %s\n", instr->addr, bytes2string(instr, 0, used));
+            printf(" (%s)+%lx %s\n",
+                   cbb_prettyName(cbb), instr->addr - buf0,
+                   bytes2string(instr, 0, used));
         }
 
         useCodeStorage(r->cs, used);
