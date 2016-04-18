@@ -9,7 +9,14 @@ import difflib
 def compile(testCase):
     print("==TEST Compiling", testCase)
     outFile = testCase + ".out"
-    exitCode = call(["cc", "-o", outFile, testCase, "test-parser.c", "../libdbrew.a", "-I../include"])
+
+    args = ["cc", "-o", outFile, testCase, "test-parser.c", "../libdbrew.a", "-I../include"]
+    with open("test-parser.c", "r") as f:
+        argLine = f.readline()
+        if argLine[:12] == "//  COMPILE:":
+            args = (argLine[12:] % (outFile, testCase)).split()
+
+    exitCode = call(args)
     if exitCode != 0:
         print("==TEST ERROR while compiling, skipping")
         raise Exception("Cannot compile")
@@ -37,6 +44,7 @@ def runTestCase(testCase):
 def store(testCase):
     with open(testCase + ".expect", "w") as f:
         f.writelines(runTestCase(testCase))
+        print("==TEST Stored", testCase)
 
 def test(testCase):
     with open(testCase + ".expect") as f:

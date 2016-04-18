@@ -1,3 +1,4 @@
+//  COMPILE:cc -o %s %s test-parser.c ../libdbrew.a -I../include
 
 #include <stdio.h>
 #include <stdbool.h>
