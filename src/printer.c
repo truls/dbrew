@@ -346,6 +346,7 @@ char* instr2string(Instr* instr, int align)
         case VT_16: vt = 'w'; break;
         case VT_32: vt = 'l'; break;
         case VT_64: vt = 'q'; break;
+        case VT_Implicit: break;
         default: assert(0);
         }
         if (vt != ' ') {
