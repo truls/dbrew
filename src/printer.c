@@ -440,13 +440,13 @@ void dbrew_print_decoded(DBB* bb)
     }
 }
 
-void printDecodedBBs(Rewriter* c)
+void printDecodedBBs(Rewriter* r)
 {
     int i;
-    for(i=0; i< c->decBBCount; i++) {
+    for(i=0; i< r->decBBCount; i++) {
         printf("BB %s (%d instructions):\n",
-               prettyAddress(c->decBB[i].addr, c->decBB[i].fc),
-               c->decBB[i].count);
-        dbrew_print_decoded(c->decBB + i);
+               prettyAddress(r->decBB[i].addr, r->decBB[i].fc),
+               r->decBB[i].count);
+        dbrew_print_decoded(r->decBB + i);
     }
 }

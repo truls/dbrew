@@ -60,15 +60,15 @@ void printEmuState(EmuState* es);
 void printStaticEmuState(EmuState* es, int esID);
 
 void resetCapturing(Rewriter* r);
-CBB* getCaptureBB(Rewriter* c, uint64_t f, int esID);
+CBB* getCaptureBB(Rewriter* r, uint64_t f, int esID);
 int pushCaptureBB(Rewriter* r, CBB* bb);
 CBB* popCaptureBB(Rewriter* r);
 Instr* newCapInstr(Rewriter* r);
 void capture(Rewriter* r, Instr* instr);
-void captureRet(Rewriter* c, Instr* orig, EmuState* es);
+void captureRet(Rewriter* r, Instr* orig, EmuState* es);
 
 // emulate <instr> by changing <es> and capture it if not static.
 // return 0 to fall through to next instruction, or return address to jump to
-uint64_t emulateInstr(Rewriter* c, EmuState* es, Instr* instr);
+uint64_t emulateInstr(Rewriter* r, EmuState* es, Instr* instr);
 
 #endif // EMULATE_H

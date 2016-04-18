@@ -130,9 +130,9 @@ void dbrew_config_reset(Rewriter* r)
     r->cc = cc_new();
 }
 
-void dbrew_config_staticpar(Rewriter* c, int staticParPos)
+void dbrew_config_staticpar(Rewriter* r, int staticParPos)
 {
-    CaptureConfig* cc = cc_get(c);
+    CaptureConfig* cc = cc_get(r);
 
     assert((staticParPos >= 0) && (staticParPos < CC_MAXPARAM));
     cc->par_state[staticParPos] = CS_STATIC2;

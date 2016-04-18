@@ -1237,15 +1237,15 @@ static int genPassThrough(uint8_t* buf, Instr* instr)
 
 
 // generate code for a captured BB
-void generate(Rewriter* c, CBB* cbb)
+void generate(Rewriter* r, CBB* cbb)
 {
     uint8_t* buf;
     int used, i, usedTotal;
 
     if (cbb == 0) return;
-    if (c->cs == 0) return;
+    if (r->cs == 0) return;
 
-    if (c->showEmuSteps)
+    if (r->showEmuSteps)
         printf("Generating code for BB (%s) (%d instructions)\n",
                cbb_prettyName(cbb), cbb->count);
 
@@ -1253,7 +1253,7 @@ void generate(Rewriter* c, CBB* cbb)
     for(i = 0; i < cbb->count; i++) {
         Instr* instr = cbb->instr + i;
 
-        buf = reserveCodeStorage(c->cs, 15);
+        buf = reserveCodeStorage(r->cs, 15);
 
         if (instr->ptLen > 0) {
             used = genPassThrough(buf, instr);
@@ -1343,15 +1343,15 @@ void generate(Rewriter* c, CBB* cbb)
         instr->len = used;
         usedTotal += used;
 
-        if (c->showEmuSteps) {
+        if (r->showEmuSteps) {
             printf("  I%2d : %-32s", i, instr2string(instr, 1));
             printf(" %lx %s\n", instr->addr, bytes2string(instr, 0, used));
         }
 
-        useCodeStorage(c->cs, used);
+        useCodeStorage(r->cs, used);
     }
 
-    if (c->showEmuSteps) {
+    if (r->showEmuSteps) {
         if (instrIsJcc(cbb->endType)) {
             assert(cbb->nextBranch != 0);
             assert(cbb->nextFallThrough != 0);
@@ -1364,7 +1364,7 @@ void generate(Rewriter* c, CBB* cbb)
     }
 
     // add padding space after generated code for jump instruction
-    buf = useCodeStorage(c->cs, 10);
+    buf = useCodeStorage(r->cs, 10);
 
     cbb->size = usedTotal;
     // start address of generated code.

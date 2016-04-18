@@ -133,10 +133,10 @@ void dbrew_verbose(Rewriter* rewriter,
 void dbrew_optverbose(Rewriter* r, Bool v);
 
 // decode a piece of x86 binary code starting add address <f>
-DBB* dbrew_decode(Rewriter* c, uint64_t f);
+DBB* dbrew_decode(Rewriter* r, uint64_t f);
 
 // decode and print <count> instructions starting add address <f>
-void dbrew_decode_print(Rewriter* c, uint64_t f, int count);
+void dbrew_decode_print(Rewriter* r, uint64_t f, int count);
 
 // print instructions from a decoded basic block
 void dbrew_print_decoded(DBB* bb);
@@ -153,9 +153,9 @@ uint64_t dbrew_generated_code(Rewriter* r);
 int dbrew_generated_size(Rewriter* r);
 
 // configure rewriter
-void dbrew_config_reset(Rewriter* c);
-void dbrew_config_staticpar(Rewriter* c, int staticParPos);
-void dbrew_config_returnfp(Rewriter* c);
+void dbrew_config_reset(Rewriter* r);
+void dbrew_config_staticpar(Rewriter* r, int staticParPos);
+void dbrew_config_returnfp(Rewriter* r);
 // assume all calculated results to be unknown at call depth lower <depth>
 void dbrew_config_force_unknown(Rewriter* r, int depth);
 // assume all branches to be fixed according to rewriter input parameters

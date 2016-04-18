@@ -28,6 +28,6 @@ const char* instrName(InstrType it, int* pOpCount);
 char* instr2string(Instr* instr, int align);
 char* bytes2string(Instr* instr, int start, int count);
 char* prettyAddress(uint64_t a, FunctionConfig* fc);
-void printDecodedBBs(Rewriter* c);
+void printDecodedBBs(Rewriter* r);
 
 #endif // PRINTER_H

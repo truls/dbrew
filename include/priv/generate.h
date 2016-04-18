@@ -23,6 +23,6 @@
 #include <common.h>
 
 // generate code for a captured BB
-void generate(Rewriter* c, CBB* cbb);
+void generate(Rewriter* r, CBB* cbb);
 
 #endif // GENERATE_H

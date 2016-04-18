@@ -60,26 +60,26 @@ int test4(int a, int* b)
 // decode captured code from c1 into c2
 void emulateCaptureRun(char* t1, char* t2, Bool use_i2p,
                        int p1, uint64_t p2, int sp1, uint64_t sp2,
-                       Rewriter* c1, Rewriter* c2)
+                       Rewriter* r1, Rewriter* r2)
 {
     int res;
 
     printf("Tracing emulation of %s(%d,%ld) %s:\n", t1, sp1, sp2, t2);
-    res = (int)dbrew_emulate_capture(c1, sp1, sp2);
+    res = (int)dbrew_emulate_capture(r1, sp1, sp2);
     printf("Result from emulation: %d\n", res);
 
-    printf("Rewritten code (size %d bytes):\n", dbrew_generated_size(c1));
-    dbrew_set_function(c2, dbrew_generated_code(c1));
-    dbrew_verbose(c2, False, False, False);
-    dbrew_print_decoded( dbrew_decode(c2, dbrew_generated_code(c1)) );
-    dbrew_verbose(c2, True, True, True);
+    printf("Rewritten code (size %d bytes):\n", dbrew_generated_size(r1));
+    dbrew_set_function(r2, dbrew_generated_code(r1));
+    dbrew_verbose(r2, False, False, False);
+    dbrew_print_decoded( dbrew_decode(r2, dbrew_generated_code(r1)) );
+    dbrew_verbose(r2, True, True, True);
 
     if (use_i2p) {
-        i2p_func f = (i2p_func) dbrew_generated_code(c1);
+        i2p_func f = (i2p_func) dbrew_generated_code(r1);
         res = f(p1, (int*) p2);
     }
     else {
-        i2_func f = (i2_func) dbrew_generated_code(c1);
+        i2_func f = (i2_func) dbrew_generated_code(r1);
         res = f(p1, p2);
     }
     printf("Run rewritten code %s(%d,%ld) = %d\n", t1, p1, p2, res);

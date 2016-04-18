@@ -24,16 +24,16 @@
 
 #include <stdint.h>
 
-Instr* nextInstr(Rewriter* c, uint64_t a, int len);
-Instr* addSimple(Rewriter* c, uint64_t a, uint64_t a2, InstrType it);
-Instr* addSimpleVType(Rewriter* c, uint64_t a, uint64_t a2, InstrType it, ValType vt);
-Instr* addUnaryOp(Rewriter* c, uint64_t a, uint64_t a2,
+Instr* nextInstr(Rewriter* r, uint64_t a, int len);
+Instr* addSimple(Rewriter* r, uint64_t a, uint64_t a2, InstrType it);
+Instr* addSimpleVType(Rewriter* r, uint64_t a, uint64_t a2, InstrType it, ValType vt);
+Instr* addUnaryOp(Rewriter* r, uint64_t a, uint64_t a2,
                   InstrType it, Operand* o);
 
-Instr* addBinaryOp(Rewriter* c, uint64_t a, uint64_t a2,
+Instr* addBinaryOp(Rewriter* r, uint64_t a, uint64_t a2,
                    InstrType it, ValType vt, Operand* o1, Operand* o2);
 
-Instr* addTernaryOp(Rewriter* c, uint64_t a, uint64_t a2,
+Instr* addTernaryOp(Rewriter* r, uint64_t a, uint64_t a2,
                     InstrType it, Operand* o1, Operand* o2, Operand* o3);
 
 #endif // DECODE_H

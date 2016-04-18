@@ -30,7 +30,7 @@ void initRewriter(Rewriter* r);
 void freeRewriter(Rewriter* r);
 
 // Rewrite engine
-void vEmulateAndCapture(Rewriter* c, va_list args);
+void vEmulateAndCapture(Rewriter* r, va_list args);
 void runOptsOnCaptured(Rewriter* r);
 void generateBinaryFromCaptured(Rewriter* r);
 

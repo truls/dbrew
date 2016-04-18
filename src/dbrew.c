@@ -74,17 +74,17 @@ void dbrew_free(Rewriter* r)
  */
 
 
-void dbrew_decode_print(Rewriter* c, uint64_t f, int count)
+void dbrew_decode_print(Rewriter* r, uint64_t f, int count)
 {
     DBB* dbb;
     int decoded = 0;
 
-    c->decBBCount = 0;
+    r->decBBCount = 0;
     while(decoded < count) {
-        dbb = dbrew_decode(c, f + decoded);
+        dbb = dbrew_decode(r, f + decoded);
         decoded += dbb->size;
     }
-    printDecodedBBs(c);
+    printDecodedBBs(r);
 }
 
 
