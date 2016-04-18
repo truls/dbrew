@@ -25,7 +25,7 @@ int main(int argc, char** argv)
     dbrew_verbose(r, True, debug ? True : False, True);
 
     dbrew_config_staticpar(r, 0);
-    dbrew_emulate_capture(r, parameter);
+    dbrew_emulate(r, parameter);
 
     ff = (f1_t) dbrew_generated_code(r);
 
