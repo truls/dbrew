@@ -111,10 +111,10 @@ typedef struct _Rewriter Rewriter;
 typedef struct _DBB DBB;
 
 // allocate space for a given number of decoded instructions
-Rewriter* brew_new(void);
+Rewriter* dbrew_new(void);
 
 // free rewriter resources
-void brew_free(Rewriter*);
+void dbrew_free(Rewriter*);
 
 // configure size of internal buffer space of a rewriter
 void dbrew_set_decoding_capacity(Rewriter* r,

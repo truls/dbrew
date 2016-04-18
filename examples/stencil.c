@@ -231,7 +231,7 @@ int main(int argc, char* argv[])
 
     if (rewriteApplyLoop) {
         printf(", rewriting with loops.\n");
-        r = brew_new();
+        r = dbrew_new();
         if (verbose>1) {
             dbrew_verbose(r, True, True, True);
             dbrew_optverbose(r, True);
@@ -248,7 +248,7 @@ int main(int argc, char* argv[])
     else {
         printf(",%s rewriting.\n", (av<5) ? " no":"");
         if (av >= 5) {
-            r = brew_new();
+            r = dbrew_new();
             if (verbose>1) {
                 dbrew_verbose(r, True, True, True);
                 dbrew_optverbose(r, True);
@@ -264,11 +264,11 @@ int main(int argc, char* argv[])
 
     if (r && (verbose>0)) {
         // use another rewriter to show generated code
-        Rewriter* r2 = brew_new();
+        Rewriter* r2 = dbrew_new();
         uint64_t genfunc = dbrew_generated_code(r);
         dbrew_config_function_setname(r2, genfunc, "gen");
         dbrew_decode_print(r2, genfunc, dbrew_generated_size(r));
-        brew_free(r2);
+        dbrew_free(r2);
     }
 
     printf("Width %d, matrix size %d, %d iterations, apply V %d\n",
@@ -323,5 +323,5 @@ int main(int argc, char* argv[])
 
     free(m1);
     free(m2);
-    if (r) brew_free(r);
+    if (r) dbrew_free(r);
 }

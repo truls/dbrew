@@ -58,12 +58,12 @@ uint64_t makeStatic(uint64_t v)
  * DBrew API functions
  */
 
-Rewriter* brew_new()
+Rewriter* dbrew_new()
 {
     return allocRewriter();
 }
 
-void brew_free(Rewriter* r)
+void dbrew_free(Rewriter* r)
 {
     freeRewriter(r);
 }
@@ -175,7 +175,7 @@ Rewriter* defaultRewriter = 0;
 Rewriter* getDefaultRewriter()
 {
     if (!defaultRewriter)
-        defaultRewriter = brew_new();
+        defaultRewriter = dbrew_new();
 
     return defaultRewriter;
 }

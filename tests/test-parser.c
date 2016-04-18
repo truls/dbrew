@@ -15,7 +15,7 @@ int main(int argc, char** argv)
     int parameter = 1;
     bool debug = argc >= 2 && strcmp(argv[1], "--debug") == 0;
 
-    Rewriter* r = brew_new();
+    Rewriter* r = dbrew_new();
     dbrew_set_function(r, (uint64_t) f1);
     dbrew_config_function_setname(r, (uint64_t) f1, "test");
 
@@ -30,7 +30,7 @@ int main(int argc, char** argv)
     ff = (f1_t) dbrew_generated_code(r);
 
     // Decode the newly generated function.
-    Rewriter* r2 = brew_new();
+    Rewriter* r2 = dbrew_new();
     dbrew_config_function_setname(r2, (uint64_t) ff, "gen");
     DBB* dbb = dbrew_decode(r2, (uint64_t) ff);
     dbrew_print_decoded(dbb);

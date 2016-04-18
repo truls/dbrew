@@ -83,9 +83,9 @@ void runTest(char* fname, uint64_t f, int p1, int p2, int sp1)
 
     printf(">>> Testing with function %s\n\n", fname);
 
-    c1 = brew_new();
+    c1 = dbrew_new();
     dbrew_verbose(c1, True, True, True);
-    c2 = brew_new();
+    c2 = dbrew_new();
 
     i2_func ff = (i2_func) f;
     res = ff(p1, p2);
@@ -99,8 +99,8 @@ void runTest(char* fname, uint64_t f, int p1, int p2, int sp1)
     dbrew_config_staticpar(c1, 0);
     emulateCaptureRun(fname, "p1 fix", p1, p2, sp1, p2, c1, c2);
 
-    brew_free(c1);
-    brew_free(c2);
+    dbrew_free(c1);
+    dbrew_free(c2);
 }
 
 

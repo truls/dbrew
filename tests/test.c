@@ -100,9 +100,9 @@ void runTest(char* fname, uint64_t f, Bool use_i2p,
 
     printf(">>> Testing with function %s\n\n", fname);
 
-    c1 = brew_new();
-    c2 = brew_new();
-    c3 = brew_new();
+    c1 = dbrew_new();
+    c2 = dbrew_new();
+    c3 = dbrew_new();
 
     dbrew_verbose(c1, True, True, True);
     dbrew_verbose(c2, True, True, True);
@@ -152,9 +152,9 @@ void runTest(char* fname, uint64_t f, Bool use_i2p,
     dbrew_config_staticpar(c1, 1);
     emulateCaptureRun(fname, "p1+p2 fix", use_i2p, p1,p2,sp1,sp2, c1, c2);
 
-    brew_free(c1);
-    brew_free(c2);
-    brew_free(c3);
+    dbrew_free(c1);
+    dbrew_free(c2);
+    dbrew_free(c3);
 }
 
 
