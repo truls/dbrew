@@ -895,13 +895,6 @@ static void getRegValue(EmuValue* v, EmuState* es, Reg r, ValType t)
     v->state = es->reg_state[r];
 }
 
-static void setRegValue(EmuValue* v, EmuState* es, Reg r, ValType t)
-{
-    assert(v->type == t);
-    es->reg[r] = v->val;
-    es->reg_state[r] = v->state;
-}
-
 static void getMemValue(EmuValue* v, EmuValue* addr, EmuState* es, ValType t,
                  Bool shouldBeStack)
 {
