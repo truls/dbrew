@@ -343,8 +343,9 @@ static const char* flagName(int f)
     case FT_Sign:     return "SF";
     case FT_Overflow: return "OF";
     case FT_Parity:   return "PF";
+    default: assert(0);
     }
-    assert(0);
+    return "(unknown)";
 }
 
 void printEmuState(EmuState* es)
@@ -531,6 +532,7 @@ void resetCapturing(Rewriter* r)
 }
 
 // return 0 if not found
+static
 CBB *findCaptureBB(Rewriter* r, uint64_t f, int esID)
 {
     int i;

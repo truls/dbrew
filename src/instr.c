@@ -78,6 +78,8 @@ Bool opIsImm(Operand* o)
     case OT_Imm32:
     case OT_Imm64:
         return True;
+    default:
+        break;
     }
     return False;
 }
@@ -92,6 +94,8 @@ Bool opIsReg(Operand* o)
     case OT_Reg128:
     case OT_Reg256:
         return True;
+    default:
+        break;
     }
     return False;
 }
@@ -123,6 +127,8 @@ Bool opIsInd(Operand* o)
     case OT_Ind128:
     case OT_Ind256:
         return True;
+    default:
+        break;
     }
     return False;
 }
@@ -307,6 +313,8 @@ Bool instrIsJcc(InstrType it)
     case IT_JL:
     case IT_JGE:
         return True;
+    default:
+        break;
     }
     return False;
 }

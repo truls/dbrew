@@ -50,6 +50,7 @@ const char* regName(Reg r, OpType t)
         case Reg_14: return "r14";
         case Reg_15: return "r15";
         case Reg_IP: return "eip";
+        default: assert(0);
         }
         break;
 
@@ -72,7 +73,6 @@ const char* regName(Reg r, OpType t)
         case Reg_14: return "r14";
         case Reg_15: return "r15";
         case Reg_IP: return "rip";
-
         case Reg_X0:  return "mm0";
         case Reg_X1:  return "mm1";
         case Reg_X2:  return "mm2";
@@ -89,6 +89,7 @@ const char* regName(Reg r, OpType t)
         case Reg_X13: return "mm13";
         case Reg_X14: return "mm14";
         case Reg_X15: return "mm15";
+        default: assert(0);
         }
         break;
 
@@ -110,6 +111,7 @@ const char* regName(Reg r, OpType t)
         case Reg_X13: return "xmm13";
         case Reg_X14: return "xmm14";
         case Reg_X15: return "xmm15";
+        default: assert(0);
         }
         break;
 
@@ -131,11 +133,12 @@ const char* regName(Reg r, OpType t)
         case Reg_X13: return "ymm13";
         case Reg_X14: return "ymm14";
         case Reg_X15: return "ymm15";
+        default: assert(0);
         }
         break;
-
+    default: assert(0);
     }
-    assert(0);
+    return "(unknown)";
 }
 
 char* op2string(Operand* o, ValType t)
@@ -217,6 +220,7 @@ char* op2string(Operand* o, ValType t)
         case OSO_None: break;
         case OSO_UseFS: off += sprintf(buf+off, "fs:"); break;
         case OSO_UseGS: off += sprintf(buf+off, "gs:"); break;
+        default: assert(0);
         }
         if (o->val != 0) {
             if (o->val & (1l<<63))
@@ -342,6 +346,7 @@ char* instr2string(Instr* instr, int align)
         case VT_16: vt = 'w'; break;
         case VT_32: vt = 'l'; break;
         case VT_64: vt = 'q'; break;
+        default: assert(0);
         }
         if (vt != ' ') {
             int nlen = strlen(n);
