@@ -214,7 +214,6 @@ static int parseModRM(uint8_t* p,
 DBB* dbrew_decode(Rewriter* c, uint64_t f)
 {
     Bool hasRex, hasF2, hasF3, has66;
-    Bool has2E; // cs-segment override or branch not taken hint (Jcc)
     OpSegOverride segOv;
     int rex;
     uint64_t a;
@@ -258,7 +257,6 @@ DBB* dbrew_decode(Rewriter* c, uint64_t f)
     hasF2 = False;
     hasF3 = False;
     has66 = False;
-    has2E = False;
     exitLoop = False;
     while(!exitLoop) {
         a = (uint64_t)(fp + off);
@@ -297,7 +295,9 @@ DBB* dbrew_decode(Rewriter* c, uint64_t f)
                 continue;
             }
             if (fp[off] == 0x2E) {
-                has2E = True;
+                // cs-segment override or branch not taken hint (Jcc)
+                // ignore
+                // has2E = True;
                 off++;
                 continue;
             }
@@ -1043,7 +1043,6 @@ DBB* dbrew_decode(Rewriter* c, uint64_t f)
         hasF2 = False;
         hasF3 = False;
         has66 = False;
-        has2E = False;
     }
 
     assert(dbb->addr == dbb->instr->addr);
