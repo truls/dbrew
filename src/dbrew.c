@@ -159,7 +159,8 @@ int dbrew_generated_size(Rewriter* r)
 
 Rewriter* defaultRewriter = 0;
 
-static Rewriter* getDefaultRewriter(void)
+static
+Rewriter* getDefaultRewriter(void)
 {
     if (!defaultRewriter)
         defaultRewriter = dbrew_new();

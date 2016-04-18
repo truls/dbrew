@@ -314,7 +314,8 @@ void vEmulateAndCapture(Rewriter* r, va_list args)
 //
 
 // test: simply copy instructions
-static Instr* optPassCopy(Rewriter* r, CBB* cbb)
+static
+Instr* optPassCopy(Rewriter* r, CBB* cbb)
 {
     Instr *first, *instr;
     int i;
@@ -330,7 +331,8 @@ static Instr* optPassCopy(Rewriter* r, CBB* cbb)
     return first;
 }
 
-static void optPass(Rewriter* r, CBB* cbb)
+static
+void optPass(Rewriter* r, CBB* cbb)
 {
     Instr* newInstrs;
 

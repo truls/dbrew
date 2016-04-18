@@ -35,21 +35,24 @@
 // helpers for operand encodings
 
 // return 0 - 15 for RAX - R15
-static int GPRegEncoding(Reg r)
+static
+int GPRegEncoding(Reg r)
 {
     assert((r >= Reg_AX) && (r <= Reg_15));
     return r - Reg_AX;
 }
 
 // return 0 - 15 for XMM0 - XMM15
-static int VRegEncoding(Reg r)
+static
+int VRegEncoding(Reg r)
 {
     assert((r >= Reg_X0) && (r <= Reg_X15));
     return r - Reg_X0;
 }
 
 // returns static buffer with requested operand encoding
-static uint8_t* calcModRMDigit(Operand* o1, int digit,
+static
+uint8_t* calcModRMDigit(Operand* o1, int digit,
                         int* prex, OpSegOverride* pso, int* plen)
 {
     static uint8_t buf[10];
@@ -192,7 +195,8 @@ static uint8_t* calcModRMDigit(Operand* o1, int digit,
     return buf;
 }
 
-static uint8_t* calcModRM(Operand* o1, Operand* o2,
+static
+uint8_t* calcModRM(Operand* o1, Operand* o2,
                    int* prex, OpSegOverride* pso, int* plen)
 {
     int r2; // register offset encoding for operand 2
@@ -213,7 +217,8 @@ static uint8_t* calcModRM(Operand* o1, Operand* o2,
     return calcModRMDigit(o1, r2 & 7, prex, pso, plen);
 }
 
-static int genPrefix(uint8_t* buf, int rex, OpSegOverride so)
+static
+int genPrefix(uint8_t* buf, int rex, OpSegOverride so)
 {
     int o = 0;
     if (so == OSO_UseFS) buf[o++] = 0x64;
@@ -228,7 +233,8 @@ static int genPrefix(uint8_t* buf, int rex, OpSegOverride so)
 // If result type (vt) is explicitly specified as "VT_Implicit", do not
 // automatically generate REX prefix depending on operand types.
 // Returns byte length of generated instruction.
-static int genModRM(uint8_t* buf, int opc, int opc2,
+static
+int genModRM(uint8_t* buf, int opc, int opc2,
              Operand* o1, Operand* o2, ValType vt)
 {
     OpSegOverride so = OSO_None;
@@ -250,7 +256,8 @@ static int genModRM(uint8_t* buf, int opc, int opc2,
 }
 
 // Operand o1: r/m
-static int genDigitRM(uint8_t* buf, int opc, int digit, Operand* o1)
+static
+int genDigitRM(uint8_t* buf, int opc, int digit, Operand* o1)
 {
     OpSegOverride so = OSO_None;
     int rex = 0, len = 0;
@@ -268,7 +275,8 @@ static int genDigitRM(uint8_t* buf, int opc, int digit, Operand* o1)
 }
 
 // Operand o1: r/m, o2: r, o3: imm
-static int genModRMI(uint8_t* buf, int opc, int opc2,
+static
+int genModRMI(uint8_t* buf, int opc, int opc2,
               Operand* o1, Operand* o2, Operand* o3)
 {
     OpSegOverride so = OSO_None;
@@ -301,7 +309,8 @@ static int genModRMI(uint8_t* buf, int opc, int opc2,
 }
 
 // Operand o1: r/m, o2: imm
-static int genDigitMI(uint8_t* buf, int opc, int digit, Operand* o1, Operand* o2)
+static
+int genDigitMI(uint8_t* buf, int opc, int digit, Operand* o1, Operand* o2)
 {
     OpSegOverride so = OSO_None;
     int rex = 0, len = 0;
@@ -336,7 +345,8 @@ static int genDigitMI(uint8_t* buf, int opc, int digit, Operand* o1, Operand* o2
 }
 
 // Operand o1: r (gets part of opcode), o2: imm
-static int genOI(uint8_t* buf, int opc, Operand* o1, Operand* o2)
+static
+int genOI(uint8_t* buf, int opc, Operand* o1, Operand* o2)
 {
     int rex = 0;
     int o = 0, r;
@@ -377,7 +387,8 @@ static int genOI(uint8_t* buf, int opc, Operand* o1, Operand* o2)
 
 // if imm64 and value fitting into imm32, return imm32 version
 // otherwise, or if operand is not imm, just return the original
-static Operand* reduceImm64to32(Operand* o)
+static
+Operand* reduceImm64to32(Operand* o)
 {
     static Operand newOp;
 
@@ -393,7 +404,8 @@ static Operand* reduceImm64to32(Operand* o)
     return o;
 }
 
-static Operand* reduceImm32to8(Operand* o)
+static
+Operand* reduceImm32to8(Operand* o)
 {
     static Operand newOp;
 
@@ -415,13 +427,15 @@ static Operand* reduceImm32to8(Operand* o)
 // 1st par is buffer to write to, with at least 15 bytes space.
 // Return number of bytes written
 
-static int genRet(uint8_t* buf)
+static
+int genRet(uint8_t* buf)
 {
     buf[0] = 0xc3;
     return 1;
 }
 
-static int genPush(uint8_t* buf, Operand* o)
+static
+int genPush(uint8_t* buf, Operand* o)
 {
     assert(o->type == OT_Reg64);
     if ((o->reg >= Reg_AX) && (o->reg <= Reg_DI)) {
@@ -436,7 +450,8 @@ static int genPush(uint8_t* buf, Operand* o)
     assert(0);
 }
 
-static int genPop(uint8_t* buf, Operand* o)
+static
+int genPop(uint8_t* buf, Operand* o)
 {
     assert(o->type == OT_Reg64);
     if ((o->reg >= Reg_AX) && (o->reg <= Reg_DI)) {
@@ -451,7 +466,8 @@ static int genPop(uint8_t* buf, Operand* o)
     assert(0);
 }
 
-static int genDec(uint8_t* buf, Operand* dst)
+static
+int genDec(uint8_t* buf, Operand* dst)
 {
     switch(dst->type) {
     case OT_Ind32:
@@ -466,7 +482,8 @@ static int genDec(uint8_t* buf, Operand* dst)
     return 0;
 }
 
-static int genInc(uint8_t* buf, Operand* dst)
+static
+int genInc(uint8_t* buf, Operand* dst)
 {
     switch(dst->type) {
     case OT_Ind32:
@@ -481,7 +498,8 @@ static int genInc(uint8_t* buf, Operand* dst)
     return 0;
 }
 
-static int genMov(uint8_t* buf, Operand* src, Operand* dst)
+static
+int genMov(uint8_t* buf, Operand* src, Operand* dst)
 {
     src = reduceImm64to32(src);
 
@@ -550,7 +568,8 @@ static int genMov(uint8_t* buf, Operand* src, Operand* dst)
     return 0;
 }
 
-static int genCMov(uint8_t* buf, InstrType it, Operand* src, Operand* dst)
+static
+int genCMov(uint8_t* buf, InstrType it, Operand* src, Operand* dst)
 {
     int opc;
 
@@ -588,7 +607,8 @@ static int genCMov(uint8_t* buf, InstrType it, Operand* src, Operand* dst)
     return 0;
 }
 
-static int genAdd(uint8_t* buf, Operand* src, Operand* dst)
+static
+int genAdd(uint8_t* buf, Operand* src, Operand* dst)
 {
     // if src is imm, try to reduce width
     src = reduceImm64to32(src);
@@ -656,7 +676,8 @@ static int genAdd(uint8_t* buf, Operand* src, Operand* dst)
     return 0;
 }
 
-static int genSub(uint8_t* buf, Operand* src, Operand* dst)
+static
+int genSub(uint8_t* buf, Operand* src, Operand* dst)
 {
     // if src is imm, try to reduce width
     src = reduceImm64to32(src);
@@ -725,7 +746,8 @@ static int genSub(uint8_t* buf, Operand* src, Operand* dst)
     return 0;
 }
 
-static int genTest(uint8_t* buf, Operand* src, Operand* dst)
+static
+int genTest(uint8_t* buf, Operand* src, Operand* dst)
 {
     switch(src->type) {
     case OT_Reg32:
@@ -763,7 +785,8 @@ static int genTest(uint8_t* buf, Operand* src, Operand* dst)
     return 0;
 }
 
-static int genIMul(uint8_t* buf, Operand* src, Operand* dst)
+static
+int genIMul(uint8_t* buf, Operand* src, Operand* dst)
 {
     // if src is imm, try to reduce width
     src = reduceImm32to8(src);
@@ -812,7 +835,8 @@ static int genIMul(uint8_t* buf, Operand* src, Operand* dst)
     return 0;
 }
 
-static int genIDiv1(uint8_t* buf, Operand* src)
+static
+int genIDiv1(uint8_t* buf, Operand* src)
 {
     switch(src->type) {
     case OT_Reg32:
@@ -828,7 +852,8 @@ static int genIDiv1(uint8_t* buf, Operand* src)
 }
 
 
-static int genXor(uint8_t* buf, Operand* src, Operand* dst)
+static
+int genXor(uint8_t* buf, Operand* src, Operand* dst)
 {
     switch(src->type) {
     // src reg
@@ -894,7 +919,8 @@ static int genXor(uint8_t* buf, Operand* src, Operand* dst)
     return 0;
 }
 
-static int genOr(uint8_t* buf, Operand* src, Operand* dst)
+static
+int genOr(uint8_t* buf, Operand* src, Operand* dst)
 {
     switch(src->type) {
     // src reg
@@ -960,7 +986,8 @@ static int genOr(uint8_t* buf, Operand* src, Operand* dst)
     return 0;
 }
 
-static int genAnd(uint8_t* buf, Operand* src, Operand* dst)
+static
+int genAnd(uint8_t* buf, Operand* src, Operand* dst)
 {
     switch(src->type) {
     // src reg
@@ -1027,7 +1054,8 @@ static int genAnd(uint8_t* buf, Operand* src, Operand* dst)
 }
 
 
-static int genShl(uint8_t* buf, Operand* src, Operand* dst)
+static
+int genShl(uint8_t* buf, Operand* src, Operand* dst)
 {
     switch(src->type) {
     // src reg
@@ -1049,7 +1077,8 @@ static int genShl(uint8_t* buf, Operand* src, Operand* dst)
     return 0;
 }
 
-static int genShr(uint8_t* buf, Operand* src, Operand* dst)
+static
+int genShr(uint8_t* buf, Operand* src, Operand* dst)
 {
     switch(src->type) {
     // src reg
@@ -1071,7 +1100,8 @@ static int genShr(uint8_t* buf, Operand* src, Operand* dst)
     return 0;
 }
 
-static int genSar(uint8_t* buf, Operand* src, Operand* dst)
+static
+int genSar(uint8_t* buf, Operand* src, Operand* dst)
 {
     switch(src->type) {
     // src reg
@@ -1094,7 +1124,8 @@ static int genSar(uint8_t* buf, Operand* src, Operand* dst)
 }
 
 
-static int genLea(uint8_t* buf, Operand* src, Operand* dst)
+static
+int genLea(uint8_t* buf, Operand* src, Operand* dst)
 {
     assert(opIsInd(src));
     assert(opIsGPReg(dst));
@@ -1109,7 +1140,8 @@ static int genLea(uint8_t* buf, Operand* src, Operand* dst)
     return 0;
 }
 
-static int genCltq(uint8_t* buf, ValType vt)
+static
+int genCltq(uint8_t* buf, ValType vt)
 {
     switch(vt) {
     case VT_32: buf[0] = 0x98; return 1;
@@ -1119,7 +1151,8 @@ static int genCltq(uint8_t* buf, ValType vt)
     return 0;
 }
 
-static int genCqto(uint8_t* buf, ValType vt)
+static
+int genCqto(uint8_t* buf, ValType vt)
 {
     switch(vt) {
     case VT_64: buf[0] = 0x99; return 1;
@@ -1130,7 +1163,8 @@ static int genCqto(uint8_t* buf, ValType vt)
 }
 
 
-static int genCmp(uint8_t* buf, Operand* src, Operand* dst)
+static
+int genCmp(uint8_t* buf, Operand* src, Operand* dst)
 {
     // if src is imm, try to reduce width
     src = reduceImm64to32(src);
@@ -1202,7 +1236,8 @@ static int genCmp(uint8_t* buf, Operand* src, Operand* dst)
 
 
 // Pass-through: parser forwarding opcodes, provides encoding
-static int genPassThrough(uint8_t* buf, Instr* instr)
+static
+int genPassThrough(uint8_t* buf, Instr* instr)
 {
     int o = 0;
 
