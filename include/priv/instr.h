@@ -22,11 +22,9 @@
 #ifndef INSTR_H
 #define INSTR_H
 
-#include <stdint.h>
+#include "dbrew.h"
 
-#ifndef DBREW_H
-typedef enum { False, True } Bool;
-#endif
+#include <stdint.h>
 
 typedef enum _Reg {
     Reg_None = 0,
