@@ -41,14 +41,14 @@ const char* regName(Reg r, OpType t)
         case Reg_SI: return "esi";
         case Reg_BP: return "ebp";
         case Reg_SP: return "esp";
-        case Reg_8:  return "r8";
-        case Reg_9:  return "r9";
-        case Reg_10: return "r10";
-        case Reg_11: return "r11";
-        case Reg_12: return "r12";
-        case Reg_13: return "r13";
-        case Reg_14: return "r14";
-        case Reg_15: return "r15";
+        case Reg_8:  return "r8d";
+        case Reg_9:  return "r9d";
+        case Reg_10: return "r10d";
+        case Reg_11: return "r11d";
+        case Reg_12: return "r12d";
+        case Reg_13: return "r13d";
+        case Reg_14: return "r14d";
+        case Reg_15: return "r15d";
         case Reg_IP: return "eip";
         default: assert(0);
         }
