@@ -172,10 +172,11 @@ void freeRewriter(Rewriter* r)
 void vEmulateAndCapture(Rewriter* r, va_list args)
 {
     // calling convention x86-64: parameters are stored in registers
-    static Reg parReg[5] = { Reg_DI, Reg_SI, Reg_DX, Reg_CX, Reg_8 };
+    // see https://en.wikipedia.org/wiki/X86_calling_conventions
+    static Reg parReg[6] = { Reg_DI, Reg_SI, Reg_DX, Reg_CX, Reg_8, Reg_9 };
 
     int i, esID;
-    uint64_t par[5];
+    uint64_t par[6];
     EmuState* es;
     DBB *dbb;
     CBB *cbb;
@@ -187,18 +188,7 @@ void vEmulateAndCapture(Rewriter* r, va_list args)
     par[2] = va_arg(args, uint64_t);
     par[3] = va_arg(args, uint64_t);
     par[4] = va_arg(args, uint64_t);
-
-#if 0
-    // with rewrite(Rewriter *r, ...)
-    //
-    // setup int parameters for virtual CPU according to x86_64 calling conv.
-    // see https://en.wikipedia.org/wiki/X86_calling_conventions
-    asm("mov %%rsi, %0;" : "=r" (par[0]) : );
-    asm("mov %%rdx, %0;" : "=r" (par[1]) : );
-    asm("mov %%rcx, %0;" : "=r" (par[2]) : );
-    asm("mov %%r8, %0;"  : "=r" (par[3]) : );
-    asm("mov %%r9, %0;"  : "=r" (par[4]) : );
-#endif
+    par[5] = va_arg(args, uint64_t);
 
     if (!r->es)
         r->es = allocEmuState(1024);
@@ -209,10 +199,10 @@ void vEmulateAndCapture(Rewriter* r, va_list args)
     if (r->cs)
         r->cs->used = 0;
 
-    for(i=0;i<5;i++) {
+    for(i=0;i<6;i++) {
         MetaState* ms = &(es->reg_state[parReg[i]]);
         es->reg[parReg[i]] = par[i];
-        if (r->cc)
+        if (r->cc && (i<CC_MAXPARAM))
             *ms = r->cc->par_state[i];
         else
             initMetaState(ms, CS_DYNAMIC);

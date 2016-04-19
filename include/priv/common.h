@@ -73,7 +73,7 @@ char* cbb_prettyName(CBB* bb);
 
 
 
-#define CC_MAXPARAM     5
+#define CC_MAXPARAM     6
 #define CC_MAXCALLDEPTH 5
 
 // emulator capture states
