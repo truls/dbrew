@@ -61,7 +61,7 @@ typedef enum _InstrType {
     IT_BSF,
     // SSE
     IT_PXOR, IT_MOVSD, IT_MULSD, IT_ADDSD, IT_SUBSD, IT_UCOMISD,
-    IT_MOVDQU, IT_PCMPEQB, IT_PMINUB, IT_PMOVMSKB,
+    IT_MOVDQU, IT_PCMPEQB, IT_PMINUB, IT_PMOVMSKB, IT_XORPS,
     //
     IT_Max
 } InstrType;

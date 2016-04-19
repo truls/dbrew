@@ -296,6 +296,7 @@ const char* instrName(InstrType it, int* pOpCount)
     case IT_TEST:    n = "test";    opCount = 2; break;
     case IT_BSF:     n = "bsf";     opCount = 2; break;
     case IT_PXOR:    n = "pxor";    opCount = 2; break;
+    case IT_XORPS:   n = "xorps";   opCount = 2; break;
     case IT_MOVSD:   n = "movsd";   opCount = 2; break;
     case IT_UCOMISD: n = "ucomisd"; opCount = 2; break;
     case IT_MULSD:   n = "mulsd";   opCount = 2; break;

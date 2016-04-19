@@ -418,6 +418,16 @@ DBB* dbrew_decode(Rewriter* r, uint64_t f)
                 addBinaryOp(r, a, (uint64_t)(fp + off), it, vt, &o1, &o2);
                 break;
 
+            case 0x57:
+                // xorps xmm1,xmm2/m64 (RM)
+                off += parseModRM(fp+off, rex, segOv, 1, 1, &o2, &o1, 0);
+                opOverwriteType(&o1, VT_128);
+                opOverwriteType(&o2, VT_128);
+                ii = addBinaryOp(r, a, (uint64_t)(fp + off),
+                                 IT_XORPS, VT_Implicit, &o1, &o2);
+                attachPassthrough(ii, 0, OE_RM, SC_None, 0x0F, 0x57, -1);
+                break;
+
             case 0x58:
                 assert(hasF2);
                 // addsd xmm1,xmm2/m64 (RM)
