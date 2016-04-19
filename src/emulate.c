@@ -54,23 +54,43 @@
  * Saving copies the complete EmuState, inheriting the individual states.
  */
 
-static
-char captureState2Char(CaptureState s)
+void initMetaState(MetaState* ms, CaptureState cs)
 {
-    assert((s >= 0) && (s < CS_Max));
+    ms->cState = cs;
+}
+
+
+static
+char captureState2Char(CaptureState cs)
+{
+    assert((cs >= 0) && (cs < CS_Max));
     assert(CS_Max == 5);
-    return "-DSR2"[s];
+    return "-DSR2"[cs];
 }
 
 static
-bool csIsStatic(CaptureState s)
+bool csIsStatic(CaptureState cs)
 {
-    if ((s == CS_STATIC) || (s == CS_STATIC2)) return true;
+    if ((cs == CS_STATIC) || (cs == CS_STATIC2)) return true;
     return false;
 }
 
 static
-EmuValue emuValue(uint64_t v, ValType t, CaptureState s)
+bool msIsStatic(MetaState ms)
+{
+    if ((ms.cState == CS_STATIC) || (ms.cState == CS_STATIC2)) return true;
+    return false;
+}
+
+static
+bool msIsDynamic(MetaState ms)
+{
+    if (ms.cState == CS_DYNAMIC) return true;
+    return false;
+}
+
+static
+EmuValue emuValue(uint64_t v, ValType t, MetaState s)
 {
     EmuValue ev;
     ev.val = v;
@@ -86,7 +106,7 @@ EmuValue staticEmuValue(uint64_t v, ValType t)
     EmuValue ev;
     ev.val = v;
     ev.type = t;
-    ev.state = CS_STATIC;
+    initMetaState(&(ev.state), CS_STATIC);
 
     return ev;
 }
@@ -101,18 +121,18 @@ void resetEmuState(EmuState* es)
 
     for(i=0; i<Reg_Max; i++) {
         es->reg[i] = 0;
-        es->reg_state[i] = CS_DEAD;
+        initMetaState(&(es->reg_state[i]), CS_DEAD);
     }
 
     for(i=0; i<FT_Max; i++) {
         es->flag[i] = false;
-        es->flag_state[i] = CS_DEAD;
+        initMetaState(&(es->flag_state[i]), CS_DEAD);
     }
 
     for(i=0; i< es->stackSize; i++)
         es->stack[i] = 0;
     for(i=0; i< es->stackSize; i++)
-        es->stackState[i] = CS_DEAD;
+        initMetaState(&(es->stackState[i]), CS_DEAD);
 
     // use real addresses for now
     es->stackStart = (uint64_t) es->stack;
@@ -122,9 +142,9 @@ void resetEmuState(EmuState* es)
     // calling convention:
     //  rbp, rbx, r12-r15 have to be preserved by callee
     for(i=0; calleeSave[i] != Reg_None; i++)
-        es->reg_state[calleeSave[i]] = CS_DYNAMIC;
+        initMetaState(&(es->reg_state[calleeSave[i]]), CS_DYNAMIC);
     // RIP always known
-    es->reg_state[Reg_IP] = CS_STATIC;
+    initMetaState(&(es->reg_state[Reg_IP]), CS_STATIC);
 
     es->depth = 0;
 }
@@ -136,7 +156,7 @@ EmuState* allocEmuState(int size)
     es = (EmuState*) malloc(sizeof(EmuState));
     es->stackSize = size;
     es->stack = (uint8_t*) malloc(size);
-    es->stackState = (CaptureState*) malloc(sizeof(CaptureState) * size);
+    es->stackState = (MetaState*) malloc(sizeof(MetaState) * size);
 
     return es;
 }
@@ -192,15 +212,15 @@ bool esIsEqual(EmuState* es1, EmuState* es2)
 
     // same state for registers?
     for(i = Reg_AX; i <= Reg_15; i++) {
-        if (!csIsEqual(es1, es1->reg_state[i], es1->reg[i],
-                       es2, es2->reg_state[i], es2->reg[i]))
+        if (!csIsEqual(es1, es1->reg_state[i].cState, es1->reg[i],
+                       es2, es2->reg_state[i].cState, es2->reg[i]))
             return false;
     }
 
     // same state for flag registers?
     for(i = 0; i < FT_Max; i++) {
-        if (!csIsEqual(es1, es1->flag_state[i], es1->flag[i],
-                       es2, es2->flag_state[i], es2->flag[i]))
+        if (!csIsEqual(es1, es1->flag_state[i].cState, es1->flag[i],
+                       es2, es2->flag_state[i].cState, es2->flag[i]))
             return false;
     }
 
@@ -213,13 +233,13 @@ bool esIsEqual(EmuState* es1, EmuState* es2)
         int diff = es2->stackSize - es1->stackSize;
         // stack of es2 is larger: bottom should not be static
         for(i = 0; i < diff; i++) {
-            if (csIsStatic(es2->stackState[i]))
+            if (msIsStatic(es2->stackState[i]))
                 return false;
         }
         // check for equal state at byte granularity
         for(i = 0; i < es1->stackSize; i++) {
-            if (!csIsEqual(es1, es1->stackState[i], es1->stack[i],
-                           es2, es2->stackState[i+diff], es2->stack[i+diff]))
+            if (!csIsEqual(es1, es1->stackState[i].cState, es1->stack[i],
+                           es2, es2->stackState[i+diff].cState, es2->stack[i+diff]))
                 return false;
         }
     }
@@ -228,13 +248,13 @@ bool esIsEqual(EmuState* es1, EmuState* es2)
         int diff = es1->stackSize - es2->stackSize;
         // bottom of es1 should not be static
         for(i = 0; i < diff; i++) {
-            if (csIsStatic(es1->stackState[i]))
+            if (msIsStatic(es1->stackState[i]))
                 return false;
         }
         // check for equal state at byte granularity
         for(i = 0; i < es2->stackSize; i++) {
-            if (!csIsEqual(es1, es1->stackState[i+diff], es1->stack[i+diff],
-                           es2, es2->stackState[i], es2->stack[i]))
+            if (!csIsEqual(es1, es1->stackState[i+diff].cState, es1->stack[i+diff],
+                           es2, es2->stackState[i].cState, es2->stack[i]))
                 return false;
         }
     }
@@ -268,7 +288,7 @@ void copyEmuState(EmuState* dst, EmuState* src)
 
         dst->stackStart = src->stackStart - diff;
         for(i = 0; i < diff; i++) {
-            dst->stackState[i] = CS_DEAD;
+            initMetaState(&(dst->stackState[i]), CS_DEAD);
             dst->stack[i] = 0;
         }
         for(i = 0; i < src->stackSize; i++) {
@@ -369,18 +389,18 @@ void printEmuState(EmuState* es)
     printf("  Registers:\n");
     for(i=Reg_AX; i<Reg_8; i++) {
         printf("    %%%-3s = 0x%016lx %c", regName(i, OT_Reg64),
-               es->reg[i], captureState2Char( es->reg_state[i] ));
+               es->reg[i], captureState2Char( es->reg_state[i].cState ));
         printf("    %%%-3s = 0x%016lx %c\n", regName(i+8, OT_Reg64),
-               es->reg[i+8], captureState2Char( es->reg_state[i+8] ));
+               es->reg[i+8], captureState2Char( es->reg_state[i+8].cState ));
     }
     printf("    %%%-3s = 0x%016lx %c\n", regName(Reg_IP, OT_Reg64),
-           es->reg[Reg_IP], captureState2Char( es->reg_state[Reg_IP] ));
+           es->reg[Reg_IP], captureState2Char( es->reg_state[Reg_IP].cState ));
 
     printf("  Flags: ");
     for(i = 0; i < FT_Max; i++) {
         if (i>0) printf("  ");
         printf("%s %d %c", flagName(i), es->flag[i],
-               captureState2Char(es->flag_state[i]));
+               captureState2Char(es->flag_state[i].cState));
     }
     printf("\n");
 
@@ -399,7 +419,7 @@ void printEmuState(EmuState* es)
             printf("   %016lx ", (uint64_t) (es->stackStart + o));
             for(oo = o; oo < o+8 && oo <= spMax; oo++) {
                 printf(" %s%02x %c", (oo == spOff) ? "*" : " ", es->stack[oo],
-                       captureState2Char(es->stackState[oo]));
+                       captureState2Char(es->stackState[oo].cState));
             }
             printf("\n");
         }
@@ -419,11 +439,11 @@ void printStaticEmuState(EmuState* es, int esID)
     printf("  Registers: ");
     c = 0;
     for(i=Reg_AX; i<=Reg_15; i++) {
-        if (es->reg_state[i] == CS_DEAD) continue;
-        if (es->reg_state[i] == CS_DYNAMIC) continue;
+        if (es->reg_state[i].cState == CS_DEAD) continue;
+        if (es->reg_state[i].cState == CS_DYNAMIC) continue;
 
         if (c>0) printf(", ");
-        switch(es->reg_state[i]) {
+        switch(es->reg_state[i].cState) {
         case CS_STATIC:
         case CS_STATIC2:
             printf("%%%s (0x%lx)", regName(i, OT_Reg64), es->reg[i]);
@@ -444,7 +464,7 @@ void printStaticEmuState(EmuState* es, int esID)
     printf("  Flags: ");
     c = 0;
     for(i = 0; i < FT_Max; i++) {
-        if (!csIsStatic(es->flag_state[i])) continue;
+        if (!msIsStatic(es->flag_state[i])) continue;
         if (c>0) printf(", ");
         printf("%s (%d)", flagName(i), es->flag[i]);
         c++;
@@ -458,7 +478,7 @@ void printStaticEmuState(EmuState* es, int esID)
     cc = 0;
     c = 0;
     for(i = 0; i < es->stackSize; i++) {
-        if (!csIsStatic(es->stackState[i])) {
+        if (!msIsStatic(es->stackState[i])) {
             c = 0;
             continue;
         }
@@ -477,8 +497,8 @@ void printStaticEmuState(EmuState* es, int esID)
 }
 
 static
-char combineState(CaptureState s1, CaptureState s2,
-                  bool isSameValue)
+CaptureState combineState(CaptureState s1, CaptureState s2,
+                          bool isSameValue)
 {
     // dead/invalid: combining with something invalid makes result invalid
     if ((s1 == CS_DEAD) || (s2 == CS_DEAD)) return CS_DEAD;
@@ -508,7 +528,7 @@ char combineState(CaptureState s1, CaptureState s2,
 }
 
 static
-char combineState4Flags(CaptureState s1, CaptureState s2)
+CaptureState combineState4Flags(CaptureState s1, CaptureState s2)
 {
     CaptureState s;
 
@@ -680,12 +700,12 @@ CaptureState setFlagsSub(EmuState* es, EmuValue* v1, EmuValue* v2)
     CaptureState st;
     uint64_t r, bc, d, s;
 
-    st = combineState4Flags(v1->state, v2->state);
-    es->flag_state[FT_Carry]    = st;
-    es->flag_state[FT_Zero]     = st;
-    es->flag_state[FT_Sign]     = st;
-    es->flag_state[FT_Overflow] = st;
-    es->flag_state[FT_Parity]   = st;
+    st = combineState4Flags(v1->state.cState, v2->state.cState);
+    initMetaState(&(es->flag_state[FT_Carry]   ), st);
+    initMetaState(&(es->flag_state[FT_Zero]    ), st);
+    initMetaState(&(es->flag_state[FT_Sign]    ), st);
+    initMetaState(&(es->flag_state[FT_Overflow]), st);
+    initMetaState(&(es->flag_state[FT_Parity]  ), st);
 
     assert(v1->type == v2->type);
 
@@ -725,12 +745,12 @@ void setFlagsAdd(EmuState* es, EmuValue* v1, EmuValue* v2)
     CaptureState st;
     uint64_t r, cc, d, s;
 
-    st = combineState4Flags(v1->state, v2->state);
-    es->flag_state[FT_Carry]    = st;
-    es->flag_state[FT_Zero]     = st;
-    es->flag_state[FT_Sign]     = st;
-    es->flag_state[FT_Overflow] = st;
-    es->flag_state[FT_Parity]   = st;
+    st = combineState4Flags(v1->state.cState, v2->state.cState);
+    initMetaState(&(es->flag_state[FT_Carry]   ), st);
+    initMetaState(&(es->flag_state[FT_Zero]    ), st);
+    initMetaState(&(es->flag_state[FT_Sign]    ), st);
+    initMetaState(&(es->flag_state[FT_Overflow]), st);
+    initMetaState(&(es->flag_state[FT_Parity]  ), st);
 
     assert(v1->type == v2->type);
 
@@ -768,24 +788,25 @@ static
 CaptureState setFlagsBit(EmuState* es, InstrType it,
                          EmuValue* v1, EmuValue* v2, bool sameOperands)
 {
+
     CaptureState s;
     uint64_t res;
 
     assert(v1->type == v2->type);
 
-    s = combineState4Flags(v1->state, v2->state);
+    s = combineState4Flags(v1->state.cState, v2->state.cState);
     // xor op,op results in known zero
     if ((it == IT_XOR) && sameOperands) s = CS_STATIC;
 
     // carry/overflow always cleared
     es->flag[FT_Carry] = 0;
     es->flag[FT_Overflow] = 0;
-    es->flag_state[FT_Carry] = CS_STATIC;
-    es->flag_state[FT_Overflow] = CS_STATIC;
+    initMetaState(&(es->flag_state[FT_Carry]), CS_STATIC);
+    initMetaState(&(es->flag_state[FT_Overflow]), CS_STATIC);
 
-    es->flag_state[FT_Zero] = s;
-    es->flag_state[FT_Sign] = s;
-    es->flag_state[FT_Parity] = s;
+    initMetaState(&(es->flag_state[FT_Zero]), s);
+    initMetaState(&(es->flag_state[FT_Sign]), s);
+    initMetaState(&(es->flag_state[FT_Parity]), s);
 
     switch(it) {
     case IT_AND: res = v1->val & v2->val; break;
@@ -822,9 +843,12 @@ static
 bool getStackOffset(EmuState* es, EmuValue* addr, EmuValue* off)
 {
     if ((addr->val >= es->stackStart) && (addr->val < es->stackTop)) {
+        CaptureState s;
+
         off->type = VT_32;
-        off->state = (addr->state == CS_STACKRELATIVE) ? CS_STATIC : CS_DYNAMIC;
         off->val = addr->val - es->stackStart;
+        s = (addr->state.cState == CS_STACKRELATIVE) ? CS_STATIC : CS_DYNAMIC;
+        initMetaState(&(off->state), s);
         return true;
     }
     return false;
@@ -833,12 +857,16 @@ bool getStackOffset(EmuState* es, EmuValue* addr, EmuValue* off)
 static
 CaptureState getStackState(EmuState* es, EmuValue* off)
 {
-    if (off->state == CS_STATIC) {
-        if (off->val >= (uint64_t) es->stackSize) return CS_DEAD;
-        if (off->val < es->stackAccessed - es->stackStart) return CS_DEAD;
-        return es->stackState[off->val];
+    CaptureState cs;
+
+    cs = CS_DYNAMIC;
+    if (off->state.cState == CS_STATIC) {
+        if (off->val >= (uint64_t) es->stackSize) cs = CS_DEAD;
+        if (off->val < es->stackAccessed - es->stackStart) cs = CS_DEAD;
+        else
+            return es->stackState[off->val].cState;
     }
-    return CS_DYNAMIC;
+    return cs;
 }
 
 static
@@ -863,15 +891,15 @@ void getStackValue(EmuState* es, EmuValue* v, EmuValue* off)
     default: assert(0);
     }
 
-    if (off->state == CS_STATIC) {
+    if (off->state.cState == CS_STATIC) {
         state = getStackState(es, off);
         for(i=1; i<count; i++)
-            state = combineState(state, es->stackState[off->val + i], 1);
+            state = combineState(state, es->stackState[off->val + i].cState, 1);
     }
     else
         state = CS_DYNAMIC;
 
-    v->state = state;
+    initMetaState(&(v->state), state);
 }
 
 
@@ -898,7 +926,7 @@ void setStackValue(EmuState* es, EmuValue* v, EmuValue* off)
     default: assert(0);
     }
 
-    if (off->state == CS_STATIC) {
+    if (off->state.cState == CS_STATIC) {
         for(i=0; i<count; i++)
             es->stackState[off->val + i] = v->state;
     }
@@ -930,9 +958,9 @@ void getMemValue(EmuValue* v, EmuValue* addr, EmuState* es, ValType t,
     }
 
     assert(!shouldBeStack);
-    v->state = CS_DYNAMIC;
+    initMetaState(&(v->state), CS_DYNAMIC);
     // explicit request to make memory access result static
-    if (addr->state == CS_STATIC2) v->state = CS_STATIC2;
+    if (addr->state.cState == CS_STATIC2) v->state.cState = CS_STATIC2;
 
     v->type = t;
     switch(t) {
@@ -952,7 +980,7 @@ void getSegMemValue(EmuValue* v, EmuValue* addr, ValType t, OpSegOverride s)
     uint8_t v8;
 
     // memory accessed via fs/gs always is dynamic
-    v->state = CS_DYNAMIC;
+    initMetaState(&(v->state), CS_DYNAMIC);
     v->type = t;
     switch(t) {
     case VT_8:
@@ -1027,7 +1055,8 @@ void addRegToValue(EmuValue* v, EmuState* es, Reg r, int scale)
 {
     if (r == Reg_None) return;
 
-    v->state = combineState(v->state, es->reg_state[r], 0);
+    v->state.cState = combineState(v->state.cState,
+                                   es->reg_state[r].cState, 0);
     v->val += scale * es->reg[r];
 }
 
@@ -1041,7 +1070,7 @@ void getOpAddr(EmuValue* v, EmuState* es, Operand* o)
 
     v->type = VT_64;
     v->val = o->val;
-    v->state = CS_STATIC;
+    initMetaState(&(v->state), CS_STATIC);
 
     if (o->reg != Reg_None)
         addRegToValue(v, es, o->reg, 1);
@@ -1144,7 +1173,7 @@ bool keepsCaptureState(EmuState* es, Operand* o)
     getOpAddr(&addr, es, o);
     isOnStack = getStackOffset(es, &addr, &off);
     if (!isOnStack) return 0;
-    return csIsStatic(off.state);
+    return msIsStatic(off.state);
 }
 
 // apply known state to memory operand (this modifies the operand in-place)
@@ -1153,11 +1182,11 @@ void applyStaticToInd(Operand* o, EmuState* es)
 {
     if (!opIsInd(o)) return;
 
-    if ((o->reg != Reg_None) && csIsStatic(es->reg_state[o->reg])) {
+    if ((o->reg != Reg_None) && msIsStatic(es->reg_state[o->reg])) {
         o->val += es->reg[o->reg];
         o->reg = Reg_None;
     }
-    if ((o->scale > 0) && csIsStatic(es->reg_state[o->ireg])) {
+    if ((o->scale > 0) && msIsStatic(es->reg_state[o->ireg])) {
         o->val += o->scale * es->reg[o->ireg];
         o->scale = 0;
     }
@@ -1175,10 +1204,10 @@ void captureMov(Rewriter* r, Instr* orig, EmuState* es, EmuValue* res)
 
     // data movement from orig->src to orig->dst, value is res
 
-    if (res->state == CS_DEAD) return;
+    if (res->state.cState == CS_DEAD) return;
 
     o = &(orig->src);
-    if (csIsStatic(res->state)) {
+    if (msIsStatic(res->state)) {
         // no need to update data if capture state is maintained
         if (keepsCaptureState(es, &(orig->dst))) return;
 
@@ -1193,7 +1222,7 @@ void captureMov(Rewriter* r, Instr* orig, EmuState* es, EmuValue* res)
 
 static
 void captureCMov(Rewriter* r, Instr* orig, EmuState* es,
-                 EmuValue* res, CaptureState cState, bool cond)
+                 EmuValue* res, MetaState cState, bool cond)
 {
     Instr i;
 
@@ -1203,15 +1232,15 @@ void captureCMov(Rewriter* r, Instr* orig, EmuState* es,
     // cmov always has a register as destination
     assert(opIsReg(&(orig->dst)));
 
-    if (csIsStatic(cState)) {
+    if (msIsStatic(cState)) {
         if (cond) captureMov(r, orig, es, res);
         return;
     }
     // condition state is unknown
 
-    if (res->state == CS_DEAD) return;
+    if (res->state.cState == CS_DEAD) return;
 
-    if (csIsStatic(res->state)) {
+    if (msIsStatic(res->state)) {
         // we need to be prepared that there may be a move happening
         // need to update source with known value as it may be moved
         initBinaryInstr(&i, IT_MOV, res->type,
@@ -1220,7 +1249,7 @@ void captureCMov(Rewriter* r, Instr* orig, EmuState* es,
         capture(r, &i);
 
         // resulting value becomes unknown, even if source was static
-        res->state = CS_DYNAMIC;
+        initMetaState(&(res->state), CS_DYNAMIC);
     }
     initBinaryInstr(&i, orig->type, orig->vtype, &(orig->dst), &(orig->src));
     applyStaticToInd(&(i.src), es);
@@ -1228,17 +1257,17 @@ void captureCMov(Rewriter* r, Instr* orig, EmuState* es,
 }
 
 static
-void captureIDiv(Rewriter* r, Instr* orig, CaptureState resState, EmuState* es)
+void captureIDiv(Rewriter* r, Instr* orig, CaptureState resCState, EmuState* es)
 {
     Instr i;
     EmuValue v;
 
     // capture if not static
-    if (csIsStatic(resState)) return;
+    if (csIsStatic(resCState)) return;
 
 
     getOpValue(&v, es, &(orig->dst));
-    if (csIsStatic(v.state)) {
+    if (msIsStatic(v.state)) {
         // divide by 1 can be skipped
         if (v.val == 1) return;
 
@@ -1249,13 +1278,13 @@ void captureIDiv(Rewriter* r, Instr* orig, CaptureState resState, EmuState* es)
     }
 
     // update ax/dx with known values, use type from idiv operand
-    if (csIsStatic(es->reg_state[Reg_AX])) {
+    if (msIsStatic(es->reg_state[Reg_AX])) {
         initBinaryInstr(&i, IT_MOV, v.type,
                         getRegOp(v.type, Reg_AX),
                         getImmOp(v.type, es->reg[Reg_AX]));
         capture(r, &i);
     }
-    if (csIsStatic(es->reg_state[Reg_DX])) {
+    if (msIsStatic(es->reg_state[Reg_DX])) {
         initBinaryInstr(&i, IT_MOV, v.type,
                         getRegOp(v.type, Reg_DX),
                         getImmOp(v.type, es->reg[Reg_DX]));
@@ -1275,12 +1304,12 @@ void captureBinaryOp(Rewriter* r, Instr* orig, EmuState* es, EmuValue* res)
     Instr i;
     Operand *o;
 
-    if (res->state == CS_DEAD) return;
+    if (res->state.cState == CS_DEAD) return;
 
-    if (csIsStatic(res->state)) {
+    if (msIsStatic(res->state)) {
         // force results to become unknown?
         if (r->cc->force_unknown[es->depth]) {
-            res->state = CS_DYNAMIC;
+            initMetaState(&(res->state), CS_DYNAMIC);
         }
         else {
             // no need to update data if capture state is maintained
@@ -1297,7 +1326,7 @@ void captureBinaryOp(Rewriter* r, Instr* orig, EmuState* es, EmuValue* res)
     // if dst (= 2.op) known/constant and a reg/stack, we need to update it
     // example: %eax += %ebx with %eax known to be 5  =>  %eax=5, %eax+=%ebx
     getOpValue(&opval, es, &(orig->dst));
-    if (keepsCaptureState(es, &(orig->dst)) && csIsStatic(opval.state)) {
+    if (keepsCaptureState(es, &(orig->dst)) && msIsStatic(opval.state)) {
 
         // - instead of adding src to 0, we can move the src to dst
         // - instead of multiply src with 1, move
@@ -1319,7 +1348,7 @@ void captureBinaryOp(Rewriter* r, Instr* orig, EmuState* es, EmuValue* res)
 
     o = &(orig->src);
     getOpValue(&opval, es, &(orig->src));
-    if (csIsStatic(opval.state)) {
+    if (msIsStatic(opval.state)) {
         // if 1st source (=src) is known/constant and a reg, make it immediate
 
         if (((orig->type == IT_ADD) && (opval.val == 0)) ||
@@ -1344,7 +1373,7 @@ void captureUnaryOp(Rewriter* r, Instr* orig, EmuState* es, EmuValue* res)
 {
     Instr i;
 
-    if (csIsStatic(res->state)) return;
+    if (msIsStatic(res->state)) return;
 
     initUnaryInstr(&i, orig->type, &(orig->dst));
     applyStaticToInd(&(i.dst), es);
@@ -1357,11 +1386,11 @@ void captureLea(Rewriter* r, Instr* orig, EmuState* es, EmuValue* res)
     Instr i;
 
     assert(opIsReg(&(orig->dst)));
-    if (csIsStatic(res->state)) {
+    if (msIsStatic(res->state)) {
         if (r->cc->force_unknown[es->depth]) {
             // force results to become unknown => load value into dest
 
-            res->state = CS_DYNAMIC;
+            initMetaState(&(res->state), CS_DYNAMIC);
             initBinaryInstr(&i, IT_MOV, res->type,
                             &(orig->dst), getImmOp(res->type, res->val));
             capture(r, &i);
@@ -1374,16 +1403,16 @@ void captureLea(Rewriter* r, Instr* orig, EmuState* es, EmuValue* res)
 }
 
 static
-void captureCmp(Rewriter* r, Instr* orig, EmuState* es, CaptureState s)
+void captureCmp(Rewriter* r, Instr* orig, EmuState* es, CaptureState cs)
 {
     EmuValue opval;
     Instr i;
     Operand *o;
 
-    if (csIsStatic(s)) return;
+    if (csIsStatic(cs)) return;
 
     getOpValue(&opval, es, &(orig->dst));
-    if (csIsStatic(opval.state)) {
+    if (msIsStatic(opval.state)) {
         // cannot replace dst with imm: no such encoding => update dst
         initBinaryInstr(&i, IT_MOV, opval.type,
                         &(orig->dst), getImmOp(opval.type, opval.val));
@@ -1392,7 +1421,7 @@ void captureCmp(Rewriter* r, Instr* orig, EmuState* es, CaptureState s)
 
     o = &(orig->src);
     getOpValue(&opval, es, &(orig->src));
-    if (csIsStatic(opval.state))
+    if (msIsStatic(opval.state))
         o = getImmOp(opval.type, opval.val);
 
     initBinaryInstr(&i, IT_CMP, orig->vtype, &(orig->dst), o);
@@ -1402,11 +1431,11 @@ void captureCmp(Rewriter* r, Instr* orig, EmuState* es, CaptureState s)
 }
 
 static
-void captureTest(Rewriter* r, Instr* orig, EmuState* es, CaptureState s)
+void captureTest(Rewriter* r, Instr* orig, EmuState* es, CaptureState cs)
 {
     Instr i;
 
-    if (csIsStatic(s)) return;
+    if (csIsStatic(cs)) return;
 
     initBinaryInstr(&i, IT_TEST, orig->vtype, &(orig->dst), &(orig->src));
     applyStaticToInd(&(i.dst), es);
@@ -1422,7 +1451,7 @@ void captureRet(Rewriter* r, Instr* orig, EmuState* es)
     // when returning an integer: if AX state is static, load constant
     if (!r->cc->hasReturnFP) {
         getRegValue(&v, es, Reg_AX, VT_64);
-        if (csIsStatic(v.state)) {
+        if (msIsStatic(v.state)) {
             initBinaryInstr(&i, IT_MOV, VT_64,
                             getRegOp(VT_64, Reg_AX), getImmOp(v.type, v.val));
             capture(r, &i);
@@ -1443,7 +1472,7 @@ void processPassThrough(Instr* i, EmuState* es)
     case OT_Reg32:
     case OT_Reg64:
         if (opIsGPReg(&(i->dst)))
-            es->reg_state[i->dst.reg] = CS_DYNAMIC;
+            initMetaState(&(es->reg_state[i->dst.reg]), CS_DYNAMIC);
         break;
 
         // memory locations not handled yet
@@ -1543,7 +1572,7 @@ void captureJcc(Rewriter* r, InstrType it,
 uint64_t emulateInstr(Rewriter* r, EmuState* es, Instr* instr)
 {
     EmuValue vres, v1, v2, addr;
-    CaptureState s;
+    CaptureState cs;
     ValType vt;
 
     if (instr->ptLen > 0) {
@@ -1581,7 +1610,8 @@ uint64_t emulateInstr(Rewriter* r, EmuState* es, Instr* instr)
         default:assert(0);
         }
 
-        v1.state = combineState(v1.state, v2.state, 0);
+        cs = combineState(v1.state.cState, v2.state.cState, 0);
+        initMetaState(&(v1.state), cs);
         // for capture we need state of original dst, do it before setting dst
         captureBinaryOp(r, instr, es, &v1);
         setOpValue(&v1, es, &(instr->dst));
@@ -1591,12 +1621,12 @@ uint64_t emulateInstr(Rewriter* r, EmuState* es, Instr* instr)
         // TODO: keep call. For now, we always inline
         getOpValue(&v1, es, &(instr->dst));
         assert(es->depth < MAX_CALLDEPTH);
-        assert(csIsStatic(v1.state)); // call target must be known
+        assert(msIsStatic(v1.state)); // call target must be known
 
         // push address of instruction after CALL onto stack
         es->reg[Reg_SP] -= 8;
         addr = emuValue(es->reg[Reg_SP], VT_64, es->reg_state[Reg_SP]);
-        v2.state = CS_DYNAMIC;
+        initMetaState(&(v2.state), CS_DYNAMIC);
         v2.type = VT_64;
         v2.val = instr->addr + instr->len;
         setMemValue(&v2, &addr, es, VT_64, 1);
@@ -1611,17 +1641,17 @@ uint64_t emulateInstr(Rewriter* r, EmuState* es, Instr* instr)
 
         // special handling for known functions
         if ((v1.val == (uint64_t) makeDynamic) &&
-            csIsStatic(es->reg_state[Reg_DI])) {
+            msIsStatic(es->reg_state[Reg_DI])) {
             // update register value to static value
             Instr i;
             initBinaryInstr(&i, IT_MOV, VT_64,
                             getRegOp(VT_64, Reg_DI),
                             getImmOp(VT_64, es->reg[Reg_DI]));
             capture(r, &i);
-            es->reg_state[Reg_DI] = CS_DYNAMIC;
+            initMetaState(&(es->reg_state[Reg_DI]), CS_DYNAMIC);
         }
         if (v1.val == (uint64_t) makeStatic)
-            es->reg_state[Reg_DI] = CS_STATIC2;
+            initMetaState(&(es->reg_state[Reg_DI]), CS_STATIC2);
 
         // address to jump to
         return v1.val;
@@ -1636,7 +1666,7 @@ uint64_t emulateInstr(Rewriter* r, EmuState* es, Instr* instr)
             break;
         default: assert(0);
         }
-        if (!csIsStatic(es->reg_state[Reg_AX]))
+        if (!msIsStatic(es->reg_state[Reg_AX]))
             capture(r, instr);
         break;
 
@@ -1653,7 +1683,7 @@ uint64_t emulateInstr(Rewriter* r, EmuState* es, Instr* instr)
         default: assert(0);
         }
         es->reg_state[Reg_DX] = es->reg_state[Reg_AX];
-        if (!csIsStatic(es->reg_state[Reg_AX]))
+        if (!msIsStatic(es->reg_state[Reg_AX]))
             capture(r, instr);
         break;
 
@@ -1694,8 +1724,8 @@ uint64_t emulateInstr(Rewriter* r, EmuState* es, Instr* instr)
             v2.val = (int64_t) (int8_t) v2.val;
             v2.type = vt;
         }
-        s = setFlagsSub(es, &v1, &v2);
-        captureCmp(r, instr, es, s);
+        cs = setFlagsSub(es, &v1, &v2);
+        captureCmp(r, instr, es, cs);
         break;
 
     case IT_DEC:
@@ -1739,12 +1769,13 @@ uint64_t emulateInstr(Rewriter* r, EmuState* es, Instr* instr)
         default:assert(0);
         }
 
-        // optimization: muliply with static 0 results in static 0
-        if ((csIsStatic(v1.state) && (v1.val == 0)) ||
-            (csIsStatic(v2.state) && (v2.val == 0)))
-            vres.state = CS_STATIC;
+        // optimization: multiply with static 0 results in static 0
+        if ((msIsStatic(v1.state) && (v1.val == 0)) ||
+            (msIsStatic(v2.state) && (v2.val == 0)))
+            cs = CS_STATIC;
         else
-            vres.state = combineState(v1.state, v2.state, 0);
+            cs = combineState(v1.state.cState, v2.state.cState, 0);
+        initMetaState(&(vres.state), cs);
 
         // for capture we need state of dst, do before setting dst
         captureBinaryOp(r, instr, es, &vres);
@@ -1758,8 +1789,9 @@ uint64_t emulateInstr(Rewriter* r, EmuState* es, Instr* instr)
         getOpValue(&v1, es, &(instr->dst));
         // TODO: raise "division by 0" exception
         assert(v1.val != 0);
-        s = combineState(es->reg_state[Reg_DX], es->reg_state[Reg_AX], 1);
-        s = combineState(s, v1.state, 0);
+        cs = combineState(es->reg_state[Reg_DX].cState,
+                          es->reg_state[Reg_AX].cState, 1);
+        cs = combineState(cs, v1.state.cState, 0);
 
         switch(instr->dst.type) {
         case OT_Reg32:
@@ -1781,12 +1813,12 @@ uint64_t emulateInstr(Rewriter* r, EmuState* es, Instr* instr)
         default:assert(0);
         }
 
-        captureIDiv(r, instr, s, es);
+        captureIDiv(r, instr, cs, es);
 
         es->reg[Reg_AX] = quRes;
         es->reg[Reg_DX] = modRes;
-        es->reg_state[Reg_DX] = s;
-        es->reg_state[Reg_AX] = s;
+        initMetaState(&(es->reg_state[Reg_DX]), cs);
+        initMetaState(&(es->reg_state[Reg_AX]), cs);
         break;
     }
     case IT_INC:
@@ -1809,15 +1841,15 @@ uint64_t emulateInstr(Rewriter* r, EmuState* es, Instr* instr)
         break;
 
     case IT_JE:
-        if (es->flag_state[FT_Zero] != CS_STATIC) {
+        if (msIsDynamic(es->flag_state[FT_Zero])) {
             captureJcc(r, IT_JE, instr->dst.val, instr->addr + instr->len,
-                        es->flag[FT_Zero]);
+                       es->flag[FT_Zero]);
         }
         if (es->flag[FT_Zero] == true) return instr->dst.val;
         return instr->addr + instr->len;
 
     case IT_JNE:
-        if (es->flag_state[FT_Zero] != CS_STATIC) {
+        if (msIsDynamic(es->flag_state[FT_Zero])) {
             captureJcc(r, IT_JNE, instr->dst.val, instr->addr + instr->len,
                         !es->flag[FT_Zero]);
         }
@@ -1825,8 +1857,8 @@ uint64_t emulateInstr(Rewriter* r, EmuState* es, Instr* instr)
         return instr->addr + instr->len;
 
     case IT_JLE:
-        if ((es->flag_state[FT_Zero] != CS_STATIC) ||
-            (es->flag_state[FT_Sign] != CS_STATIC)) {
+        if (msIsDynamic(es->flag_state[FT_Zero]) ||
+            msIsDynamic(es->flag_state[FT_Sign])) {
             captureJcc(r, IT_JLE, instr->dst.val, instr->addr + instr->len,
                         es->flag[FT_Zero] || es->flag[FT_Sign]);
         }
@@ -1835,8 +1867,8 @@ uint64_t emulateInstr(Rewriter* r, EmuState* es, Instr* instr)
         return instr->addr + instr->len;
 
     case IT_JG:
-        if ((es->flag_state[FT_Zero] != CS_STATIC) ||
-            (es->flag_state[FT_Sign] != CS_STATIC)) {
+        if (msIsDynamic(es->flag_state[FT_Zero]) ||
+            msIsDynamic(es->flag_state[FT_Sign])) {
             captureJcc(r, IT_JG, instr->dst.val, instr->addr + instr->len,
                        !es->flag[FT_Zero] && !es->flag[FT_Sign]);
         }
@@ -1845,8 +1877,8 @@ uint64_t emulateInstr(Rewriter* r, EmuState* es, Instr* instr)
         return instr->addr + instr->len;
 
     case IT_JL:
-        if ((es->flag_state[FT_Sign] != CS_STATIC) ||
-            (es->flag_state[FT_Overflow] != CS_STATIC)) {
+        if (msIsDynamic(es->flag_state[FT_Sign]) ||
+            msIsDynamic(es->flag_state[FT_Overflow])) {
             captureJcc(r, IT_JL, instr->dst.val, instr->addr + instr->len,
                        es->flag[FT_Sign] != es->flag[FT_Overflow]);
         }
@@ -1854,8 +1886,8 @@ uint64_t emulateInstr(Rewriter* r, EmuState* es, Instr* instr)
         return instr->addr + instr->len;
 
     case IT_JGE:
-        if ((es->flag_state[FT_Sign] != CS_STATIC) ||
-            (es->flag_state[FT_Overflow] != CS_STATIC)) {
+        if (msIsDynamic(es->flag_state[FT_Sign]) ||
+            msIsDynamic(es->flag_state[FT_Overflow])) {
             captureJcc(r, IT_JGE, instr->dst.val, instr->addr + instr->len,
                        es->flag[FT_Sign] == es->flag[FT_Overflow]);
         }
@@ -1863,7 +1895,7 @@ uint64_t emulateInstr(Rewriter* r, EmuState* es, Instr* instr)
         return instr->addr + instr->len;
 
     case IT_JP:
-        if (es->flag_state[FT_Parity] != CS_STATIC) {
+        if (msIsDynamic(es->flag_state[FT_Parity])) {
             captureJcc(r, IT_JP, instr->dst.val, instr->addr + instr->len,
                        es->flag[FT_Parity]);
         }
@@ -1883,16 +1915,16 @@ uint64_t emulateInstr(Rewriter* r, EmuState* es, Instr* instr)
         case OT_Reg64: break;
         case OT_Ind64:
             getOpAddr(&v2, es, &(instr->dst));
-            if (csIsStatic(v2.state)) {
+            if (msIsStatic(v2.state)) {
                 // Assume indirect jump with target at constant address
                 // in memory to be constant: follow resolved PLT entries
-                v1.state = CS_STATIC;
+                v1.state.cState = CS_STATIC;
             }
             break;
         default: assert(0);
         }
 
-        assert(csIsStatic(v1.state));
+        assert(msIsStatic(v1.state));
         return v1.val; // address to jump to
 
     case IT_LEA:
@@ -1931,7 +1963,7 @@ uint64_t emulateInstr(Rewriter* r, EmuState* es, Instr* instr)
         getMemValue(&v1, &addr, es, VT_64, 1);
         setOpValue(&v1, es, &(i.dst));
         es->reg[Reg_SP] += 8;
-        if (!csIsStatic(v1.state))
+        if (!msIsStatic(v1.state))
             capture(r, &i);
         break;
     }
@@ -2002,7 +2034,7 @@ uint64_t emulateInstr(Rewriter* r, EmuState* es, Instr* instr)
             getMemValue(&v1, &addr, es, VT_32, 1);
             setOpValue(&v1, es, &(instr->dst));
             es->reg[Reg_SP] += 4;
-            if (!csIsStatic(v1.state))
+            if (!msIsStatic(v1.state))
                 capture(r, instr);
             break;
 
@@ -2011,7 +2043,7 @@ uint64_t emulateInstr(Rewriter* r, EmuState* es, Instr* instr)
             getMemValue(&v1, &addr, es, VT_64, 1);
             setOpValue(&v1, es, &(instr->dst));
             es->reg[Reg_SP] += 8;
-            if (!csIsStatic(v1.state))
+            if (!msIsStatic(v1.state))
                 capture(r, instr);
             break;
 
@@ -2027,7 +2059,7 @@ uint64_t emulateInstr(Rewriter* r, EmuState* es, Instr* instr)
             addr = emuValue(es->reg[Reg_SP], VT_64, es->reg_state[Reg_SP]);
             getOpValue(&v1, es, &(instr->dst));
             setMemValue(&v1, &addr, es, VT_32, 1);
-            if (!csIsStatic(v1.state))
+            if (!msIsStatic(v1.state))
                 capture(r, instr);
             break;
 
@@ -2036,7 +2068,7 @@ uint64_t emulateInstr(Rewriter* r, EmuState* es, Instr* instr)
             addr = emuValue(es->reg[Reg_SP], VT_64, es->reg_state[Reg_SP]);
             getOpValue(&v1, es, &(instr->dst));
             setMemValue(&v1, &addr, es, VT_64, 1);
-            if (!csIsStatic(v1.state))
+            if (!msIsStatic(v1.state))
                 capture(r, instr);
             break;
 
@@ -2092,7 +2124,7 @@ uint64_t emulateInstr(Rewriter* r, EmuState* es, Instr* instr)
 
         default: assert(0);
         }
-        v1.state = combineState(v1.state, v2.state, 0);
+        v1.state.cState = combineState(v1.state.cState, v2.state.cState, 0);
         captureBinaryOp(r, instr, es, &v1);
         setOpValue(&v1, es, &(instr->dst));
         break;
@@ -2129,7 +2161,7 @@ uint64_t emulateInstr(Rewriter* r, EmuState* es, Instr* instr)
         default: assert(0);
         }
 
-        v1.state = combineState(v1.state, v2.state, 0);
+        v1.state.cState = combineState(v1.state.cState, v2.state.cState, 0);
         // for capturing we need state of original dst, do before setting dst
         captureBinaryOp(r, instr, es, &v1);
         setOpValue(&v1, es, &(instr->dst));
@@ -2140,8 +2172,8 @@ uint64_t emulateInstr(Rewriter* r, EmuState* es, Instr* instr)
         getOpValue(&v2, es, &(instr->src));
 
         assert(v1.type == v2.type);
-        s = setFlagsBit(es, IT_AND, &v1, &v2, false);
-        captureTest(r, instr, es, s);
+        cs = setFlagsBit(es, IT_AND, &v1, &v2, false);
+        captureTest(r, instr, es, cs);
         break;
 
     case IT_XOR:
@@ -2151,8 +2183,8 @@ uint64_t emulateInstr(Rewriter* r, EmuState* es, Instr* instr)
         getOpValue(&v2, es, &(instr->src));
 
         assert(v1.type == v2.type);
-        v1.state = setFlagsBit(es, instr->type, &v1, &v2,
-                               opIsEqual(&(instr->dst), &(instr->src)));
+        v1.state.cState = setFlagsBit(es, instr->type, &v1, &v2,
+                                      opIsEqual(&(instr->dst), &(instr->src)));
         switch(instr->type) {
         case IT_AND: v1.val = v1.val & v2.val; break;
         case IT_XOR: v1.val = v1.val ^ v2.val; break;

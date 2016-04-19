@@ -27,7 +27,7 @@ static
 void cc_init(CaptureConfig* cc)
 {
     for(int i=0; i < CC_MAXPARAM; i++)
-        cc->par_state[i] = CS_DYNAMIC;
+        initMetaState(&(cc->par_state[i]), CS_DYNAMIC);
     for(int i=0; i < CC_MAXCALLDEPTH; i++)
         cc->force_unknown[i] = false;
     cc->hasReturnFP = false;
@@ -135,7 +135,7 @@ void dbrew_config_staticpar(Rewriter* r, int staticParPos)
     CaptureConfig* cc = cc_get(r);
 
     assert((staticParPos >= 0) && (staticParPos < CC_MAXPARAM));
-    cc->par_state[staticParPos] = CS_STATIC2;
+    initMetaState(&(cc->par_state[staticParPos]), CS_STATIC2);
 }
 
 /**

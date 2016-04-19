@@ -203,11 +203,15 @@ void vEmulateAndCapture(Rewriter* r, va_list args)
 
     for(i=0;i<5;i++) {
         es->reg[parReg[i]] = par[i];
-        es->reg_state[parReg[i]] = r->cc ? r->cc->par_state[i] : CS_DYNAMIC;
+        if (r->cc)
+            es->reg_state[parReg[i]] = r->cc->par_state[i];
+        else
+            initMetaState(&(es->reg_state[parReg[i]]), CS_DYNAMIC);
+
     }
 
     es->reg[Reg_SP] = (uint64_t) (es->stackStart + es->stackSize);
-    es->reg_state[Reg_SP] = CS_STACKRELATIVE;
+    initMetaState(&(es->reg_state[Reg_SP]), CS_STACKRELATIVE);
 
     // traverse all paths and generate CBBs
 

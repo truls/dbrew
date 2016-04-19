@@ -84,6 +84,13 @@ typedef enum _CaptureState {
     CS_Max
 } CaptureState;
 
+// includes capture state and analysis information for values stored
+// in registers or on (private) stack
+typedef struct _MetaState {
+    CaptureState cState;
+} MetaState;
+
+void initMetaState(MetaState* ms, CaptureState cs);
 
 
 //
@@ -100,7 +107,7 @@ struct _FunctionConfig
 
 typedef struct _CaptureConfig
 {
-    CaptureState par_state[CC_MAXPARAM];
+    MetaState par_state[CC_MAXPARAM];
      // does function to rewrite return floating point?
     bool hasReturnFP;
     // avoid unrolling at call depths
@@ -131,7 +138,7 @@ typedef enum _FlagType {
 typedef struct _EmuValue {
     uint64_t val;
     ValType type;
-    CaptureState state;
+    MetaState state;
 } EmuValue;
 
 
@@ -149,19 +156,19 @@ struct _EmuState {
 
     // general registers: Reg_AX .. Reg_R15
     uint64_t reg[Reg_Max];
-    CaptureState reg_state[Reg_Max];
+    MetaState reg_state[Reg_Max];
 
     // x86 flags: carry (CF), zero (ZF), sign (SF), overflow (OF), parity (PF)
     // TODO: auxiliary carry
     bool flag[FT_Max];
-    CaptureState flag_state[FT_Max];
+    MetaState flag_state[FT_Max];
 
     // stack
     int stackSize;
     uint8_t* stack; // real memory backing
     uint64_t stackStart, stackAccessed, stackTop; // virtual stack boundaries
     // capture state of stack
-    CaptureState *stackState;
+    MetaState *stackState;
 
     // own return stack
     uint64_t ret_stack[MAX_CALLDEPTH];
