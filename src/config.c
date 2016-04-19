@@ -72,7 +72,7 @@ CaptureConfig* cc_get(Rewriter* r)
 }
 
 static
-FunctionConfig* fc_new(uint64_t func, char* name,
+FunctionConfig* fc_new(uint64_t func, char* name, int size,
                        FunctionConfig* next)
 {
     FunctionConfig* fc;
@@ -80,6 +80,7 @@ FunctionConfig* fc_new(uint64_t func, char* name,
     fc = (FunctionConfig*) malloc(sizeof(FunctionConfig));
     fc->name = (name == 0) ? 0 : strdup(name);
     fc->func = func;
+    fc->size = size;
     fc->next = next;
 
     return fc;
@@ -90,7 +91,10 @@ FunctionConfig* fc_find(CaptureConfig* cc, uint64_t func)
 {
     FunctionConfig* fc = cc->function_configs;
     while(fc) {
-        if (fc->func == func) return fc;
+        // on exact match, size does not matter
+        if (func == fc->func) return fc;
+        // check if we fall into address range
+        if ((func > fc->func) && (func < fc->func+fc->size)) return fc;
         fc = fc->next;
     }
     return 0;
@@ -103,7 +107,7 @@ FunctionConfig* fc_get(CaptureConfig* cc, uint64_t func)
 
     fc = fc_find(cc, func);
     if (!fc) {
-        fc = fc_new(func, 0, cc->function_configs);
+        fc = fc_new(func, 0, 0, cc->function_configs);
         cc->function_configs = fc;
     }
 
@@ -171,4 +175,11 @@ void dbrew_config_function_setname(Rewriter* r, uint64_t f, const char* name)
     CaptureConfig* cc = cc_get(r);
     FunctionConfig* fc = fc_get(cc, f);
     fc->name = strdup(name);
+}
+
+void dbrew_config_function_setsize(Rewriter* r, uint64_t f, int size)
+{
+    CaptureConfig* cc = cc_get(r);
+    FunctionConfig* fc = fc_get(cc, f);
+    fc->size = size;
 }

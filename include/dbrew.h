@@ -162,6 +162,8 @@ void dbrew_config_force_unknown(Rewriter* r, int depth);
 void dbrew_config_branches_known(Rewriter* r, bool);
 // provide a name for a function (for debugging)
 void dbrew_config_function_setname(Rewriter* r, uint64_t f, const char* name);
+// provide a code length in bytes for a function (for debugging)
+void dbrew_config_function_setsize(Rewriter* r, uint64_t f, int len);
 
 // convenience functions, using default rewriter
 void dbrew_def_verbose(bool decode, bool emuState, bool emuSteps);

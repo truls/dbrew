@@ -267,8 +267,10 @@ int main(int argc, char* argv[])
         // use another rewriter to show generated code
         Rewriter* r2 = dbrew_new();
         uint64_t genfunc = dbrew_generated_code(r);
+        int gensize = dbrew_generated_size(r);
         dbrew_config_function_setname(r2, genfunc, "gen");
-        dbrew_decode_print(r2, genfunc, dbrew_generated_size(r));
+        dbrew_config_function_setsize(r2, genfunc, gensize);
+        dbrew_decode_print(r2, genfunc, gensize);
         dbrew_free(r2);
     }
 

@@ -416,12 +416,12 @@ char* prettyAddress(uint64_t a, FunctionConfig* fc)
 {
     static char buf[100];
 
-    if ((fc == 0) || (fc->func > a))
+    if ((fc == 0) || (fc->name == 0) || (fc->func > a))
         sprintf(buf, "0x%lx", a);
     else if (a == fc->func)
         sprintf(buf, "%s", fc->name);
     else
-        sprintf(buf, "%s+%lx", fc->name, a - fc->func);
+        sprintf(buf, "%s+%ld", fc->name, a - fc->func);
 
     return buf;
 }

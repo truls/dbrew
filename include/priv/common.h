@@ -100,6 +100,7 @@ void initMetaState(MetaState* ms, CaptureState cs);
 struct _FunctionConfig
 {
     uint64_t func;
+    int size;
     char* name;
 
     FunctionConfig* next; // chain
