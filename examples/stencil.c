@@ -157,6 +157,7 @@ int main(int argc, char* argv[])
 
     while ((argc > arg) && (argv[arg][0] == '-')) {
         if (argv[arg][1] == 'v') verbose++;
+        if (argv[arg][2] == 'v') verbose++;
         arg++;
     }
     if (argc > arg) { av   = atoi(argv[arg]); arg++; }
