@@ -3,5 +3,3 @@
 *.out
 test
 branchtest
-stencil
-strcmp

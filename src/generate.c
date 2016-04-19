@@ -789,6 +789,7 @@ static
 int genIMul(uint8_t* buf, Operand* src, Operand* dst)
 {
     // if src is imm, try to reduce width
+    src = reduceImm64to32(src);
     src = reduceImm32to8(src);
 
     switch(src->type) {

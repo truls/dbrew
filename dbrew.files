@@ -31,7 +31,9 @@ tests/Makefile
 
 examples/stencil.c
 examples/strcmp.c
+examples/matrix.c
 examples/Makefile
+examples/.gitignore
 
 docs/BUGS
 docs/CONCEPTS
