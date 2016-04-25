@@ -1847,6 +1847,38 @@ uint64_t emulateInstr(Rewriter* r, EmuState* es, Instr* instr)
         setOpValue(&v1, es, &(instr->dst));
         break;
 
+    case IT_JO:
+        if (msIsDynamic(es->flag_state[FT_Overflow])) {
+            captureJcc(r, IT_JO, instr->dst.val, instr->addr + instr->len,
+                       es->flag[FT_Overflow]);
+        }
+        if (es->flag[FT_Overflow] == true) return instr->dst.val;
+        return instr->addr + instr->len;
+
+    case IT_JNO:
+        if (msIsDynamic(es->flag_state[FT_Overflow])) {
+            captureJcc(r, IT_JNO, instr->dst.val, instr->addr + instr->len,
+                        !es->flag[FT_Overflow]);
+        }
+        if (es->flag[FT_Overflow] == false) return instr->dst.val;
+        return instr->addr + instr->len;
+
+    case IT_JC:
+        if (msIsDynamic(es->flag_state[FT_Carry])) {
+            captureJcc(r, IT_JC, instr->dst.val, instr->addr + instr->len,
+                       es->flag[FT_Carry]);
+        }
+        if (es->flag[FT_Carry] == true) return instr->dst.val;
+        return instr->addr + instr->len;
+
+    case IT_JNC:
+        if (msIsDynamic(es->flag_state[FT_Carry])) {
+            captureJcc(r, IT_JNC, instr->dst.val, instr->addr + instr->len,
+                        !es->flag[FT_Carry]);
+        }
+        if (es->flag[FT_Carry] == false) return instr->dst.val;
+        return instr->addr + instr->len;
+
     case IT_JZ:
         if (msIsDynamic(es->flag_state[FT_Zero])) {
             captureJcc(r, IT_JZ, instr->dst.val, instr->addr + instr->len,
@@ -1861,6 +1893,58 @@ uint64_t emulateInstr(Rewriter* r, EmuState* es, Instr* instr)
                         !es->flag[FT_Zero]);
         }
         if (es->flag[FT_Zero] == false) return instr->dst.val;
+        return instr->addr + instr->len;
+
+    case IT_JBE:
+        if (msIsDynamic(es->flag_state[FT_Carry]) ||
+            msIsDynamic(es->flag_state[FT_Zero])) {
+            captureJcc(r, IT_JLE, instr->dst.val, instr->addr + instr->len,
+                        es->flag[FT_Carry] || es->flag[FT_Zero]);
+        }
+        if ((es->flag[FT_Carry] == true) ||
+            (es->flag[FT_Zero] == true)) return instr->dst.val;
+        return instr->addr + instr->len;
+
+    case IT_JA:
+        if (msIsDynamic(es->flag_state[FT_Carry]) ||
+            msIsDynamic(es->flag_state[FT_Zero])) {
+            captureJcc(r, IT_JG, instr->dst.val, instr->addr + instr->len,
+                       !es->flag[FT_Carry] && !es->flag[FT_Zero]);
+        }
+        if ((es->flag[FT_Carry] == false) &&
+            (es->flag[FT_Zero] == false)) return instr->dst.val;
+        return instr->addr + instr->len;
+
+    case IT_JS:
+        if (msIsDynamic(es->flag_state[FT_Sign])) {
+            captureJcc(r, IT_JS, instr->dst.val, instr->addr + instr->len,
+                       es->flag[FT_Sign]);
+        }
+        if (es->flag[FT_Sign] == true) return instr->dst.val;
+        return instr->addr + instr->len;
+
+    case IT_JNS:
+        if (msIsDynamic(es->flag_state[FT_Sign])) {
+            captureJcc(r, IT_JNS, instr->dst.val, instr->addr + instr->len,
+                        !es->flag[FT_Sign]);
+        }
+        if (es->flag[FT_Sign] == false) return instr->dst.val;
+        return instr->addr + instr->len;
+
+    case IT_JP:
+        if (msIsDynamic(es->flag_state[FT_Parity])) {
+            captureJcc(r, IT_JP, instr->dst.val, instr->addr + instr->len,
+                       es->flag[FT_Parity]);
+        }
+        if (es->flag[FT_Parity] == true) return instr->dst.val;
+        return instr->addr + instr->len;
+
+    case IT_JNP:
+        if (msIsDynamic(es->flag_state[FT_Parity])) {
+            captureJcc(r, IT_JNP, instr->dst.val, instr->addr + instr->len,
+                        !es->flag[FT_Parity]);
+        }
+        if (es->flag[FT_Parity] == false) return instr->dst.val;
         return instr->addr + instr->len;
 
     case IT_JLE:
@@ -1899,14 +1983,6 @@ uint64_t emulateInstr(Rewriter* r, EmuState* es, Instr* instr)
                        es->flag[FT_Sign] == es->flag[FT_Overflow]);
         }
         if (es->flag[FT_Sign] == es->flag[FT_Overflow]) return instr->dst.val;
-        return instr->addr + instr->len;
-
-    case IT_JP:
-        if (msIsDynamic(es->flag_state[FT_Parity])) {
-            captureJcc(r, IT_JP, instr->dst.val, instr->addr + instr->len,
-                       es->flag[FT_Parity]);
-        }
-        if (es->flag[FT_Parity] == true) return instr->dst.val;
         return instr->addr + instr->len;
 
     case IT_JMP:
