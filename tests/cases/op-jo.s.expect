@@ -1,3 +1,4 @@
+>>> Testcase known par = 1.
 Saving current emulator state: new with esID 0
 Capture 'H-call' (into test|0 + 0)
 Processing BB (test|0)
@@ -9,24 +10,24 @@ Decoding BB test ...
                 test:  48 b8 ff ff ff ff ff  mov     $0x7fffffffffffffff,%rax
               test+7:  ff ff 7f            
              test+10:  48 01 f8              add     %rdi,%rax
-             test+13:  70 03                 jo      $0x400a38
+             test+13:  70 03                 jo      $test+18
 Emulate 'test: mov $0x7fffffffffffffff,%rax'
 Emulate 'test+10: add %rdi,%rax'
-Emulate 'test+13: jo $0x400a38'
-Decoding BB 0x400a38 ...
-            0x400a38:  b8 01 00 00 00        mov     $0x1,%eax
-            0x400a3d:  c3                    ret    
-Emulate '0x400a38: mov $0x1,%eax'
-Emulate '0x400a3d: ret'
+Emulate 'test+13: jo $test+18'
+Decoding BB test+18 ...
+             test+18:  b8 01 00 00 00        mov     $0x1,%eax
+             test+23:  c3                    ret    
+Emulate 'test+18: mov $0x1,%eax'
+Emulate 'test+23: ret'
 Capture 'H-ret' (into test|0 + 1)
 Capture 'mov $0x1,%rax' (into test|0 + 2)
 Capture 'ret' (into test|0 + 3)
 OPT!!
-Run Optimization for CBB (400a26|0)
 Generating code for BB test|0 (4 instructions)
   I 0 : H-call                           (test|0)+0 
   I 1 : H-ret                            (test|0)+0 
   I 2 : mov     $0x1,%rax                (test|0)+0  48 c7 c0 01 00 00 00
   I 3 : ret                              (test|0)+7  c3
+BB gen (2 instructions):
                  gen:  48 c7 c0 01 00 00 00  mov     $0x1,%rax
                gen+7:  c3                    ret    

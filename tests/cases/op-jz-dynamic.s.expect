@@ -1,0 +1,65 @@
+>>> Testcase known par = 1.
+Saving current emulator state: new with esID 0
+Capture 'H-call' (into test|0 + 0)
+Processing BB (test|0)
+Emulation Static State (esID 0, call depth 0):
+  Registers: %rsp (R 0), %rdi (0x1)
+  Flags: (none)
+  Stack: (none)
+Decoding BB test ...
+                test:  31 c0                 xor     %eax,%eax
+              test+2:  85 f6                 test    %esi,%esi
+              test+4:  74 01                 jz      $test+7
+Emulate 'test: xor %eax,%eax'
+Emulate 'test+2: test %esi,%esi'
+Capture 'test %esi,%esi' (into test|0 + 1)
+Emulate 'test+4: jz $test+7'
+Saving current emulator state: new with esID 1
+Processing BB (test+6|1), 1 BBs in queue
+Emulation Static State (esID 1, call depth 0):
+  Registers: %rax (0x0), %rsp (R 0), %rdi (0x1)
+  Flags: CF (0), OF (0)
+  Stack: (none)
+Decoding BB test+6 ...
+              test+6:  c3                    ret    
+Emulate 'test+6: ret'
+Capture 'H-ret' (into test+6|1 + 0)
+Capture 'mov $0x0,%rax' (into test+6|1 + 1)
+Capture 'ret' (into test+6|1 + 2)
+Processing BB (test+7|1), 0 BBs in queue
+Emulation Static State (esID 1, call depth 0):
+  Registers: %rax (0x0), %rsp (R 0), %rdi (0x1)
+  Flags: CF (0), OF (0)
+  Stack: (none)
+Decoding BB test+7 ...
+              test+7:  ff c0                 inc     %eax
+              test+9:  c3                    ret    
+Emulate 'test+7: inc %eax'
+Emulate 'test+9: ret'
+Capture 'H-ret' (into test+7|1 + 0)
+Capture 'mov $0x1,%rax' (into test+7|1 + 1)
+Capture 'ret' (into test+7|1 + 2)
+OPT!!
+OPT!!
+OPT!!
+Generating code for BB test|0 (2 instructions)
+  I 0 : H-call                           (test|0)+0 
+  I 1 : test    %esi,%esi                (test|0)+0  85 f6
+  I 2 : jz (test+7|1), fall-through to (test+6|1)
+Generating code for BB test+6|1 (3 instructions)
+  I 0 : H-ret                            (test+6|1)+0 
+  I 1 : mov     $0x0,%rax                (test+6|1)+0  48 31 c0
+  I 2 : ret                              (test+6|1)+3  c3
+Generating code for BB test+7|1 (3 instructions)
+  I 0 : H-ret                            (test+7|1)+0 
+  I 1 : mov     $0x1,%rax                (test+7|1)+0  48 c7 c0 01 00 00 00
+  I 2 : ret                              (test+7|1)+7  c3
+BB gen (2 instructions):
+                 gen:  85 f6                 test    %esi,%esi
+               gen+2:  74 04                 jz      $gen+8
+BB gen+4 (2 instructions):
+               gen+4:  48 31 c0              xor     %rax,%rax
+               gen+7:  c3                    ret    
+BB gen+8 (2 instructions):
+               gen+8:  48 c7 c0 01 00 00 00  mov     $0x1,%rax
+              gen+15:  c3                    ret    

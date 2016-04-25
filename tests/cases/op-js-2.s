@@ -3,8 +3,9 @@
     .globl  f1
     .type   f1, @function
 f1:
-    add rdi, 2
-    jp 1f
+    mov rax, 0xffffffffff123231
+    add rax, rdi
+    js 1f
     xor eax, eax
     ret
 1:

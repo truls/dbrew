@@ -7,15 +7,17 @@ Emulation Static State (esID 0, call depth 0):
   Flags: (none)
   Stack: (none)
 Decoding BB test ...
-                test:  48 83 c7 02           add     $0x2,%rdi
-              test+4:  7a 03                 jp      $test+9
-Emulate 'test: add $0x2,%rdi'
-Emulate 'test+4: jp $test+9'
-Decoding BB test+9 ...
-              test+9:  b8 01 00 00 00        mov     $0x1,%eax
-             test+14:  c3                    ret    
-Emulate 'test+9: mov $0x1,%eax'
-Emulate 'test+14: ret'
+                test:  48 c7 c0 31 32 12 ff  mov     $0xffffffffff123231,%rax
+              test+7:  48 01 f8              add     %rdi,%rax
+             test+10:  78 03                 js      $test+15
+Emulate 'test: mov $0xffffffffff123231,%rax'
+Emulate 'test+7: add %rdi,%rax'
+Emulate 'test+10: js $test+15'
+Decoding BB test+15 ...
+             test+15:  b8 01 00 00 00        mov     $0x1,%eax
+             test+20:  c3                    ret    
+Emulate 'test+15: mov $0x1,%eax'
+Emulate 'test+20: ret'
 Capture 'H-ret' (into test|0 + 1)
 Capture 'mov $0x1,%rax' (into test|0 + 2)
 Capture 'ret' (into test|0 + 3)
