@@ -1,0 +1,18 @@
+language: cpp
+dist: trusty
+
+compiler:
+    - clang
+    - gcc
+
+os:
+    - linux
+
+# install python3 used in the test script
+before_install:
+    - sudo apt-get install python3
+
+# build and test
+script:
+    - make
+    - make test
