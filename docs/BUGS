@@ -1,6 +1,0 @@
-* idiv: bei /1 wird rdx nicht auf konstant 0 gesetzt
-* cmov: nicht korrekt bei Konstanten als Eingabe und unbekannter Bedingung
-
-MAYBE FIX:
-
-* RIP-relative addressing of data may need constant pool
