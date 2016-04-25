@@ -1847,17 +1847,17 @@ uint64_t emulateInstr(Rewriter* r, EmuState* es, Instr* instr)
         setOpValue(&v1, es, &(instr->dst));
         break;
 
-    case IT_JE:
+    case IT_JZ:
         if (msIsDynamic(es->flag_state[FT_Zero])) {
-            captureJcc(r, IT_JE, instr->dst.val, instr->addr + instr->len,
+            captureJcc(r, IT_JZ, instr->dst.val, instr->addr + instr->len,
                        es->flag[FT_Zero]);
         }
         if (es->flag[FT_Zero] == true) return instr->dst.val;
         return instr->addr + instr->len;
 
-    case IT_JNE:
+    case IT_JNZ:
         if (msIsDynamic(es->flag_state[FT_Zero])) {
-            captureJcc(r, IT_JNE, instr->dst.val, instr->addr + instr->len,
+            captureJcc(r, IT_JNZ, instr->dst.val, instr->addr + instr->len,
                         !es->flag[FT_Zero]);
         }
         if (es->flag[FT_Zero] == false) return instr->dst.val;

@@ -438,10 +438,19 @@ void generateBinaryFromCaptured(Rewriter* r)
             diff = cbb->nextBranch->addr2 - (buf_addr + 2);
             assert((diff > -128) && (diff < 127));
 
-            switch(cbb->endType) {
-            case IT_JE:  buf[0] = 0x74; break;
-            case IT_JNE: buf[0] = 0x75; break;
+            switch (cbb->endType) {
+            case IT_JO:  buf[0] = 0x70; break;
+            case IT_JNO: buf[0] = 0x71; break;
+            case IT_JC:  buf[0] = 0x72; break;
+            case IT_JNC: buf[0] = 0x73; break;
+            case IT_JZ:  buf[0] = 0x74; break;
+            case IT_JNZ: buf[0] = 0x75; break;
+            case IT_JBE: buf[0] = 0x76; break;
+            case IT_JA:  buf[0] = 0x77; break;
+            case IT_JS:  buf[0] = 0x78; break;
+            case IT_JNS: buf[0] = 0x79; break;
             case IT_JP:  buf[0] = 0x7A; break;
+            case IT_JNP: buf[0] = 0x7B; break;
             case IT_JL:  buf[0] = 0x7C; break;
             case IT_JGE: buf[0] = 0x7D; break;
             case IT_JLE: buf[0] = 0x7E; break;
@@ -454,10 +463,19 @@ void generateBinaryFromCaptured(Rewriter* r)
         else {
             diff = cbb->nextBranch->addr2 - (buf_addr + 6);
             buf[0] = 0x0F;
-            switch(cbb->endType) {
-            case IT_JE:  buf[1] = 0x84; break;
-            case IT_JNE: buf[1] = 0x85; break;
+            switch (cbb->endType) {
+            case IT_JO:  buf[1] = 0x80; break;
+            case IT_JNO: buf[1] = 0x81; break;
+            case IT_JC:  buf[1] = 0x82; break;
+            case IT_JNC: buf[1] = 0x83; break;
+            case IT_JZ:  buf[1] = 0x84; break;
+            case IT_JNZ: buf[1] = 0x85; break;
+            case IT_JBE: buf[1] = 0x86; break;
+            case IT_JA:  buf[1] = 0x87; break;
+            case IT_JS:  buf[1] = 0x88; break;
+            case IT_JNS: buf[1] = 0x89; break;
             case IT_JP:  buf[1] = 0x8A; break;
+            case IT_JNP: buf[1] = 0x8B; break;
             case IT_JL:  buf[1] = 0x8C; break;
             case IT_JGE: buf[1] = 0x8D; break;
             case IT_JLE: buf[1] = 0x8E; break;

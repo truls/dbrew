@@ -400,17 +400,33 @@ DBB* dbrew_decode(Rewriter* r, uint64_t f)
             case 0x43: // cmovnc  r,r/m 32/64
             case 0x44: // cmovz   r,r/m 32/64
             case 0x45: // cmovnz  r,r/m 32/64
+            case 0x46: // cmovbe  r,r/m 32/64
+            case 0x47: // cmova   r,r/m 32/64
             case 0x48: // cmovs   r,r/m 32/64
             case 0x49: // cmovns  r,r/m 32/64
-                switch(opc2) {
+            case 0x4A: // cmovp   r,r/m 32/64
+            case 0x4B: // cmovnp  r,r/m 32/64
+            case 0x4C: // cmovl   r,r/m 32/64
+            case 0x4D: // cmovge  r,r/m 32/64
+            case 0x4E: // cmovle  r,r/m 32/64
+            case 0x4F: // cmovg   r,r/m 32/64
+                switch (opc2) {
                 case 0x40: it = IT_CMOVO; break;
                 case 0x41: it = IT_CMOVNO; break;
                 case 0x42: it = IT_CMOVC; break;
                 case 0x43: it = IT_CMOVNC; break;
                 case 0x44: it = IT_CMOVZ; break;
                 case 0x45: it = IT_CMOVNZ; break;
+                case 0x46: it = IT_CMOVBE; break;
+                case 0x47: it = IT_CMOVA; break;
                 case 0x48: it = IT_CMOVS; break;
                 case 0x49: it = IT_CMOVNS; break;
+                case 0x4A: it = IT_CMOVP; break;
+                case 0x4B: it = IT_CMOVNP; break;
+                case 0x4C: it = IT_CMOVL; break;
+                case 0x4D: it = IT_CMOVGE; break;
+                case 0x4E: it = IT_CMOVLE; break;
+                case 0x4F: it = IT_CMOVG; break;
                 default: assert(0);
                 }
                 vt = (rex & REX_MASK_W) ? VT_64 : VT_32;
@@ -496,24 +512,45 @@ DBB* dbrew_decode(Rewriter* r, uint64_t f)
                 attachPassthrough(ii, PS_66, OE_RM, SC_dstDyn, 0x0F, 0x7E, -1);
                 break;
 
-            case 0x84: // JE/JZ rel32
-            case 0x85: // JNE/JNZ rel32
-            case 0x8A: // JP rel32
-            case 0x8C: // JL/JNGE rel32
-            case 0x8D: // JGE/JNL rel32
-            case 0x8E: // JLE/JNG rel32
-            case 0x8F: // JG/JNLE rel32
+            case 0x80: // jo rel32
+            case 0x81: // jno rel32
+            case 0x82: // jc/jb/jnae rel32
+            case 0x83: // jnc/jnb/jae rel32
+            case 0x84: // jz/je rel32
+            case 0x85: // jnz/jne rel32
+            case 0x86: // jbe/jna rel32
+            case 0x87: // ja/jnbe rel32
+            case 0x88: // js rel32
+            case 0x89: // jns rel32
+            case 0x8A: // jp/jpe rel32
+            case 0x8B: // jnp/jpo rel32
+            case 0x8C: // jl/jnge rel32
+            case 0x8D: // jge/jnl rel32
+            case 0x8E: // jle/jng rel32
+            case 0x8F: // jg/jnle rel32
                 o1.type = OT_Imm64;
                 o1.val = (uint64_t) (fp + off + 4 + *(int32_t*)(fp + off));
                 off += 4;
-                if      (opc2 == 0x84) it = IT_JE;
-                else if (opc2 == 0x85) it = IT_JNE;
-                else if (opc2 == 0x8A) it = IT_JP;
-                else if (opc2 == 0x8C) it = IT_JL;
-                else if (opc2 == 0x8D) it = IT_JGE;
-                else if (opc2 == 0x8E) it = IT_JLE;
-                else if (opc2 == 0x8F) it = IT_JG;
-                else assert(0);
+                switch (opc2) {
+                case 0x80: it = IT_JO; break;
+                case 0x81: it = IT_JNO; break;
+                case 0x82: it = IT_JC; break;
+                case 0x83: it = IT_JNC; break;
+                case 0x84: it = IT_JZ; break;
+                case 0x85: it = IT_JNZ; break;
+                case 0x86: it = IT_JBE; break;
+                case 0x87: it = IT_JA; break;
+                case 0x88: it = IT_JS; break;
+                case 0x89: it = IT_JNS; break;
+                case 0x8A: it = IT_JP; break;
+                case 0x8B: it = IT_JNP; break;
+                case 0x8C: it = IT_JL; break;
+                case 0x8D: it = IT_JGE; break;
+                case 0x8E: it = IT_JLE; break;
+                case 0x8F: it = IT_JG; break;
+                default: assert(0);
+                }
+                it = IT_JO + (opc2 & 0xf);
                 addUnaryOp(r, a, (uint64_t)(fp + off), it, &o1);
                 exitLoop = true;
                 break;
@@ -745,25 +782,44 @@ DBB* dbrew_decode(Rewriter* r, uint64_t f)
             addTernaryOp(r, a, (uint64_t)(fp + off), IT_IMUL, &o1, &o2, &o3);
             break;
 
-
-        case 0x74: // JE/JZ rel8
-        case 0x75: // JNE/JNZ rel8
-        case 0x7A: // JP rel8
-        case 0x7C: // JL/JNGE rel8
-        case 0x7D: // JGE/JNL rel8
-        case 0x7E: // JLE/JNG rel8
-        case 0x7F: // JG/JNLE rel8
+        case 0x70: // jo rel8
+        case 0x71: // jno rel8
+        case 0x72: // jc/jb/jnae rel8
+        case 0x73: // jnc/jnb/jae rel8
+        case 0x74: // jz/je rel8
+        case 0x75: // jnz/jne rel8
+        case 0x76: // jbe/jna rel8
+        case 0x77: // ja/jnbe rel8
+        case 0x78: // js rel8
+        case 0x79: // jns rel8
+        case 0x7A: // jp/jpe rel8
+        case 0x7B: // jnp/jpo rel8
+        case 0x7C: // jl/jnge rel8
+        case 0x7D: // jge/jnl rel8
+        case 0x7E: // jle/jng rel8
+        case 0x7F: // jg/jnle rel8
             o1.type = OT_Imm64;
             o1.val = (uint64_t) (fp + off + 1 + *(int8_t*)(fp + off));
             off += 1;
-            if      (opc == 0x74) it = IT_JE;
-            else if (opc == 0x75) it = IT_JNE;
-            else if (opc == 0x7A) it = IT_JP;
-            else if (opc == 0x7C) it = IT_JL;
-            else if (opc == 0x7D) it = IT_JGE;
-            else if (opc == 0x7E) it = IT_JLE;
-            else if (opc == 0x7F) it = IT_JG;
-            else assert(0);
+            switch (opc) {
+            case 0x70: it = IT_JO; break;
+            case 0x71: it = IT_JNO; break;
+            case 0x72: it = IT_JC; break;
+            case 0x73: it = IT_JNC; break;
+            case 0x74: it = IT_JZ; break;
+            case 0x75: it = IT_JNZ; break;
+            case 0x76: it = IT_JBE; break;
+            case 0x77: it = IT_JA; break;
+            case 0x78: it = IT_JS; break;
+            case 0x79: it = IT_JNS; break;
+            case 0x7A: it = IT_JP; break;
+            case 0x7B: it = IT_JNP; break;
+            case 0x7C: it = IT_JL; break;
+            case 0x7D: it = IT_JGE; break;
+            case 0x7E: it = IT_JLE; break;
+            case 0x7F: it = IT_JG; break;
+            default: assert(0);
+            }
             addUnaryOp(r, a, (uint64_t)(fp + off), it, &o1);
             exitLoop = true;
             break;

@@ -305,13 +305,22 @@ void opOverwriteType(Operand* o, ValType vt)
 bool instrIsJcc(InstrType it)
 {
     switch(it) {
-    case IT_JE:
-    case IT_JNE:
+    case IT_JO:
+    case IT_JNO:
+    case IT_JC:
+    case IT_JNC:
+    case IT_JZ:
+    case IT_JNZ:
+    case IT_JBE:
+    case IT_JA:
+    case IT_JS:
+    case IT_JNS:
     case IT_JP:
-    case IT_JLE:
-    case IT_JG:
+    case IT_JNP:
     case IT_JL:
     case IT_JGE:
+    case IT_JLE:
+    case IT_JG:
         return true;
     default:
         break;

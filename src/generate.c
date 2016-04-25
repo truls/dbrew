@@ -584,14 +584,22 @@ int genCMov(uint8_t* buf, InstrType it, Operand* src, Operand* dst)
         case OT_Reg64:
             assert(opValType(src) == opValType(dst));
             switch(it) {
-            case IT_CMOVZ:  opc = 0x44; break; // cmovz  r,r/m 32/64
-            case IT_CMOVNZ: opc = 0x45; break; // cmovnz r,r/m 32/64
-            case IT_CMOVC:  opc = 0x42; break; // cmovc  r,r/m 32/64
-            case IT_CMOVNC: opc = 0x43; break; // cmovnc r,r/m 32/64
             case IT_CMOVO:  opc = 0x40; break; // cmovo  r,r/m 32/64
             case IT_CMOVNO: opc = 0x41; break; // cmovno r,r/m 32/64
+            case IT_CMOVC:  opc = 0x42; break; // cmovc  r,r/m 32/64
+            case IT_CMOVNC: opc = 0x43; break; // cmovnc r,r/m 32/64
+            case IT_CMOVZ:  opc = 0x44; break; // cmovz  r,r/m 32/64
+            case IT_CMOVNZ: opc = 0x45; break; // cmovnz r,r/m 32/64
+            case IT_CMOVBE: opc = 0x46; break; // cmovbe r,r/m 32/64
+            case IT_CMOVA:  opc = 0x47; break; // cmova  r,r/m 32/64
             case IT_CMOVS:  opc = 0x48; break; // cmovs  r,r/m 32/64
             case IT_CMOVNS: opc = 0x49; break; // cmovns r,r/m 32/64
+            case IT_CMOVP:  opc = 0x4A; break; // cmovp  r,r/m 32/64
+            case IT_CMOVNP: opc = 0x4B; break; // cmovnp r,r/m 32/64
+            case IT_CMOVL:  opc = 0x4C; break; // cmovl  r,r/m 32/64
+            case IT_CMOVGE: opc = 0x4D; break; // cmovge r,r/m 32/64
+            case IT_CMOVLE: opc = 0x4E; break; // cmovle r,r/m 32/64
+            case IT_CMOVG:  opc = 0x4F; break; // cmovg  r,r/m 32/64
             default: assert(0);
             }
             // use 'cmov r,r/m 32/64' (opc RM)
@@ -1347,10 +1355,22 @@ void generate(Rewriter* r, CBB* cbb)
             case IT_MOVSX: // converting move
                 used = genMov(buf, &(instr->src), &(instr->dst));
                 break;
-            case IT_CMOVZ: case IT_CMOVNZ:
-            case IT_CMOVC: case IT_CMOVNC:
-            case IT_CMOVO: case IT_CMOVNO:
-            case IT_CMOVS: case IT_CMOVNS:
+            case IT_CMOVO:
+            case IT_CMOVNO:
+            case IT_CMOVC:
+            case IT_CMOVNC:
+            case IT_CMOVZ:
+            case IT_CMOVNZ:
+            case IT_CMOVBE:
+            case IT_CMOVA:
+            case IT_CMOVS:
+            case IT_CMOVNS:
+            case IT_CMOVP:
+            case IT_CMOVNP:
+            case IT_CMOVL:
+            case IT_CMOVGE:
+            case IT_CMOVLE:
+            case IT_CMOVG:
                 used = genCMov(buf, instr->type, &(instr->src), &(instr->dst));
                 break;
             case IT_POP:

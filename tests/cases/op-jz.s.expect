@@ -1,0 +1,29 @@
+Saving current emulator state: new with esID 0
+Capture 'H-call' (into test|0 + 0)
+Processing BB (test|0)
+Emulation Static State (esID 0, call depth 0):
+  Registers: %rsp (R 0), %rdi (0x1)
+  Flags: (none)
+  Stack: (none)
+Decoding BB test ...
+                test:  31 c0                 xor     %eax,%eax
+              test+2:  85 ff                 test    %edi,%edi
+              test+4:  74 01                 jz      $0x400a2d
+Emulate 'test: xor %eax,%eax'
+Emulate 'test+2: test %edi,%edi'
+Emulate 'test+4: jz $0x400a2d'
+Decoding BB 0x400a2c ...
+            0x400a2c:  c3                    ret    
+Emulate '0x400a2c: ret'
+Capture 'H-ret' (into test|0 + 1)
+Capture 'mov $0x0,%rax' (into test|0 + 2)
+Capture 'ret' (into test|0 + 3)
+OPT!!
+Run Optimization for CBB (400a26|0)
+Generating code for BB test|0 (4 instructions)
+  I 0 : H-call                           (test|0)+0 
+  I 1 : H-ret                            (test|0)+0 
+  I 2 : mov     $0x0,%rax                (test|0)+0  48 31 c0
+  I 3 : ret                              (test|0)+3  c3
+                 gen:  48 31 c0              xor     %rax,%rax
+               gen+3:  c3                    ret    
