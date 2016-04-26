@@ -10,8 +10,8 @@ def compile(testCase):
     print("==TEST Compiling", testCase)
     outFile = testCase + ".out"
 
-    args = ["cc", "-o", outFile, testCase, "test-parser.c", "../libdbrew.a", "-I../include"]
-    with open("test-parser.c", "r") as f:
+    args = ["cc", "-o", outFile, testCase, "test-driver.c", "../libdbrew.a", "-I../include"]
+    with open("test-driver.c", "r") as f:
         argLine = f.readline()
         if argLine[:12] == "//  COMPILE:":
             args = (argLine[12:] % (outFile, testCase)).split()

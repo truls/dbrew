@@ -1,3 +1,4 @@
+>>> Testcase known par = 1.
 Saving current emulator state: new with esID 0
 Capture 'H-call' (into test|0 + 0)
 Processing BB (test|0)
