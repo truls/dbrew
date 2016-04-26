@@ -662,7 +662,7 @@ void capture(Rewriter* r, Instr* instr)
 
     if (r->showEmuSteps)
         printf("Capture '%s' (into %s + %d)\n",
-               instr2string(instr, 0), cbb_prettyName(cbb), cbb->count);
+               instr2string(instr, 0, 0), cbb_prettyName(cbb), cbb->count);
 
     newInstr = newCapInstr(r);
     if (cbb->instr == 0) {

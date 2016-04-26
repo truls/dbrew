@@ -23,9 +23,9 @@
 #include "common.h"
 
 const char* regName(Reg r, OpType t);
-char* op2string(Operand* o, ValType t);
+char* op2string(Operand* o, ValType t, FunctionConfig *fc);
 const char* instrName(InstrType it, int* pOpCount);
-char* instr2string(Instr* instr, int align);
+char* instr2string(Instr* instr, int align, FunctionConfig *fc);
 char* bytes2string(Instr* instr, int start, int count);
 char* prettyAddress(uint64_t a, FunctionConfig* fc);
 void printDecodedBBs(Rewriter* r);

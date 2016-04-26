@@ -141,7 +141,26 @@ const char* regName(Reg r, OpType t)
     return "(unknown)";
 }
 
-char* op2string(Operand* o, ValType t)
+char* prettyAddress(uint64_t a, FunctionConfig* fc)
+{
+    static char buf[100];
+
+    if (fc && fc->name) {
+        if (a == fc->func) {
+            sprintf(buf, "%s", fc->name);
+            return buf;
+        }
+        else if ((a > fc->func) && (a < fc->func + fc->size)) {
+            sprintf(buf, "%s+%ld", fc->name, a - fc->func);
+            return buf;
+        }
+    }
+    sprintf(buf, "0x%lx", a);
+    return buf;
+}
+
+// if <fc> is not-null, use it to print immediates/displacement
+char* op2string(Operand* o, ValType t, FunctionConfig* fc)
 {
     static char buf[30];
     int off = 0;
@@ -202,11 +221,11 @@ char* op2string(Operand* o, ValType t)
             break;
         default: assert(0);
         }
-        sprintf(buf, "$0x%lx", val);
+        sprintf(buf, "$%s", prettyAddress(val, fc));
         break;
 
     case OT_Imm64:
-        sprintf(buf, "$0x%lx", o->val);
+        sprintf(buf, "$%s", prettyAddress(o->val, fc));
         break;
 
     case OT_Ind8:
@@ -226,7 +245,7 @@ char* op2string(Operand* o, ValType t)
             if (o->val & (1l<<63))
                 off += sprintf(buf+off, "-0x%lx", (~ o->val)+1);
             else
-                off += sprintf(buf+off, "0x%lx", o->val);
+                off += sprintf(buf+off, "%s", prettyAddress(o->val, fc));
         }
         if ((o->scale == 0) || (o->ireg == Reg_None)) {
             if (o->reg != Reg_None)
@@ -322,7 +341,7 @@ const char* instrName(InstrType it, int* pOpCount)
     return n;
 }
 
-char* instr2string(Instr* instr, int align)
+char* instr2string(Instr* instr, int align, FunctionConfig* fc)
 {
     static char buf[100];
     const char* n;
@@ -372,24 +391,30 @@ char* instr2string(Instr* instr, int align)
         assert(instr->dst.type != OT_None);
         assert(instr->src.type == OT_None);
         assert(instr->src2.type == OT_None);
-        off += sprintf(buf+off, " %s", op2string(&(instr->dst), instr->vtype));
+        off += sprintf(buf+off, " %s",
+                       op2string(&(instr->dst), instr->vtype, fc));
         break;
 
     case OF_2:
         assert(instr->dst.type != OT_None);
         assert(instr->src.type != OT_None);
         assert(instr->src2.type == OT_None);
-        off += sprintf(buf+off, " %s", op2string(&(instr->src), instr->vtype));
-        off += sprintf(buf+off, ",%s", op2string(&(instr->dst), instr->vtype));
+        off += sprintf(buf+off, " %s",
+                       op2string(&(instr->src), instr->vtype, fc));
+        off += sprintf(buf+off, ",%s",
+                       op2string(&(instr->dst), instr->vtype, fc));
         break;
 
     case OF_3:
         assert(instr->dst.type != OT_None);
         assert(instr->src.type != OT_None);
         assert(instr->src2.type != OT_None);
-        off += sprintf(buf+off, " %s", op2string(&(instr->src2), instr->vtype));
-        off += sprintf(buf+off, ",%s", op2string(&(instr->src), instr->vtype));
-        off += sprintf(buf+off, ",%s", op2string(&(instr->dst), instr->vtype));
+        off += sprintf(buf+off, " %s",
+                       op2string(&(instr->src2), instr->vtype, fc));
+        off += sprintf(buf+off, ",%s",
+                       op2string(&(instr->src), instr->vtype, fc));
+        off += sprintf(buf+off, ",%s",
+                       op2string(&(instr->dst), instr->vtype, fc));
         break;
 
     default: assert(0);
@@ -412,27 +437,13 @@ char* bytes2string(Instr* instr, int start, int count)
     return buf;
 }
 
-char* prettyAddress(uint64_t a, FunctionConfig* fc)
-{
-    static char buf[100];
-
-    if ((fc == 0) || (fc->name == 0) || (fc->func > a))
-        sprintf(buf, "0x%lx", a);
-    else if (a == fc->func)
-        sprintf(buf, "%s", fc->name);
-    else
-        sprintf(buf, "%s+%ld", fc->name, a - fc->func);
-
-    return buf;
-}
-
 void dbrew_print_decoded(DBB* bb)
 {
     int i;
     for(i = 0; i < bb->count; i++) {
         Instr* instr = bb->instr + i;
         printf("  %18s: %s  %s\n", prettyAddress(instr->addr, bb->fc),
-               bytes2string(instr, 0, 7), instr2string(instr, 1));
+               bytes2string(instr, 0, 7), instr2string(instr, 1, bb->fc));
         if (instr->len > 7)
             printf("  %18s: %s\n", prettyAddress(instr->addr + 7, bb->fc),
                    bytes2string(instr, 7, 7));

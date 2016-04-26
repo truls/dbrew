@@ -8,14 +8,14 @@ Emulation Static State (esID 0, call depth 0):
   Stack: (none)
 Decoding BB test ...
                 test:  48 85 ff              test    %rdi,%rdi
-              test+3:  74 03                 je      $0x400ace
+              test+3:  74 03                 je      $test+8
 Emulate 'test: test %rdi,%rdi'
-Emulate 'test+3: je $0x400ace'
-Decoding BB 0x400acb ...
-            0x400acb:  31 c0                 xor     %eax,%eax
-            0x400acd:  c3                    ret    
-Emulate '0x400acb: xor %eax,%eax'
-Emulate '0x400acd: ret'
+Emulate 'test+3: je $test+8'
+Decoding BB test+5 ...
+              test+5:  31 c0                 xor     %eax,%eax
+              test+7:  c3                    ret    
+Emulate 'test+5: xor %eax,%eax'
+Emulate 'test+7: ret'
 Capture 'H-ret' (into test|0 + 1)
 Capture 'mov $0x0,%rax' (into test|0 + 2)
 Capture 'ret' (into test|0 + 3)

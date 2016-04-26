@@ -281,7 +281,7 @@ void vEmulateAndCapture(Rewriter* r, va_list args)
             if (r->showEmuSteps)
                 printf("Emulate '%s: %s'\n",
                        prettyAddress(instr->addr, dbb->fc),
-                       instr2string(instr, 0));
+                       instr2string(instr, 0, dbb->fc));
 
             // for RIP-relative accesses
             es->reg[Reg_IP] = instr->addr + instr->len;

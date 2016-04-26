@@ -1381,7 +1381,7 @@ void generate(Rewriter* r, CBB* cbb)
         usedTotal += used;
 
         if (r->showEmuSteps) {
-            printf("  I%2d : %-32s", i, instr2string(instr, 1));
+            printf("  I%2d : %-32s", i, instr2string(instr, 1, 0));
             printf(" (%s)+%lx %s\n",
                    cbb_prettyName(cbb), instr->addr - buf0,
                    bytes2string(instr, 0, used));

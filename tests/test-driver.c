@@ -20,14 +20,18 @@ int runtest(Rewriter*r, int parameter, bool doRun)
         printf(">>> Testcase unknown par.\n");
 
     dbrew_set_function(r, (uint64_t) f1);
+    // to get rid of changing addresses, assume f1 code to be 100 bytes max
     dbrew_config_function_setname(r, (uint64_t) f1, "test");
+    dbrew_config_function_setsize(r, (uint64_t) f1, 100);
     if (parameter >= 0)
         dbrew_config_staticpar(r, 0);
     ff = (f1_t) dbrew_rewrite(r, parameter);
 
     // Decode the newly generated function.
     Rewriter* r2 = dbrew_new();
+    // to get rid of changing addresses, assume gen code to be 200 bytes max
     dbrew_config_function_setname(r2, (uint64_t) ff, "gen");
+    dbrew_config_function_setsize(r2, (uint64_t) ff, 200);
     DBB* dbb = dbrew_decode(r2, (uint64_t) ff);
     dbrew_print_decoded(dbb);
 
@@ -65,15 +69,14 @@ int main(int argc, char** argv)
     if (var)
         res += runtest(r, -1, run);
 
-    // cycle through test cases: implicit first/default is parameter "1"
-    parameter = 1;
-    while(1) {
-        res += runtest(r, parameter, run);
-
-        if (arg<argc)
-            parameter = atoi(argv[arg++]);
-        else
-            break;
+    if (arg < argc) {
+        // take parameter values for rewriting from command line
+        for(; arg < argc; arg++)
+            res += runtest(r, atoi(argv[arg]), run);
+    }
+    else {
+        // default parameter "1"
+        res += runtest(r, 1, run);
     }
 
     return res;
