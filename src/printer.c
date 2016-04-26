@@ -442,7 +442,8 @@ void dbrew_print_decoded(DBB* bb)
     int i;
     for(i = 0; i < bb->count; i++) {
         Instr* instr = bb->instr + i;
-        printf("  %18s: %s  %s\n", prettyAddress(instr->addr, bb->fc),
+        printf("  %18s: ", prettyAddress(instr->addr, bb->fc));
+        printf("%s  %s\n",
                bytes2string(instr, 0, 7), instr2string(instr, 1, bb->fc));
         if (instr->len > 7)
             printf("  %18s: %s\n", prettyAddress(instr->addr + 7, bb->fc),
