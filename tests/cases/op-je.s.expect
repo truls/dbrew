@@ -1,3 +1,98 @@
+>>> Testcase unknown par.
+Saving current emulator state: new with esID 0
+Capture 'H-call' (into test|0 + 0)
+Processing BB (test|0)
+Emulation Static State (esID 0, call depth 0):
+  Registers: %rsp (R 0)
+  Flags: (none)
+  Stack: (none)
+Decoding BB test ...
+                test:  48 85 ff              test    %rdi,%rdi
+              test+3:  74 03                 je      $test+8
+Emulate 'test: test %rdi,%rdi'
+Capture 'test %rdi,%rdi' (into test|0 + 1)
+Emulate 'test+3: je $test+8'
+Saving current emulator state: new with esID 1
+Processing BB (test+5|1), 1 BBs in queue
+Emulation Static State (esID 1, call depth 0):
+  Registers: %rsp (R 0)
+  Flags: CF (0), OF (0)
+  Stack: (none)
+Decoding BB test+5 ...
+              test+5:  31 c0                 xor     %eax,%eax
+              test+7:  c3                    ret    
+Emulate 'test+5: xor %eax,%eax'
+Emulate 'test+7: ret'
+Capture 'H-ret' (into test+5|1 + 0)
+Capture 'mov $0x0,%rax' (into test+5|1 + 1)
+Capture 'ret' (into test+5|1 + 2)
+Processing BB (test+8|1), 0 BBs in queue
+Emulation Static State (esID 1, call depth 0):
+  Registers: %rsp (R 0)
+  Flags: CF (0), OF (0)
+  Stack: (none)
+Decoding BB test+8 ...
+              test+8:  b8 01 00 00 00        mov     $0x1,%eax
+             test+13:  c3                    ret    
+Emulate 'test+8: mov $0x1,%eax'
+Emulate 'test+13: ret'
+Capture 'H-ret' (into test+8|1 + 0)
+Capture 'mov $0x1,%rax' (into test+8|1 + 1)
+Capture 'ret' (into test+8|1 + 2)
+OPT!!
+OPT!!
+OPT!!
+Generating code for BB test|0 (2 instructions)
+  I 0 : H-call                           (test|0)+0 
+  I 1 : test    %rdi,%rdi                (test|0)+0  48 85 ff
+  I 2 : je (test+8|1), fall-through to (test+5|1)
+Generating code for BB test+5|1 (3 instructions)
+  I 0 : H-ret                            (test+5|1)+0 
+  I 1 : mov     $0x0,%rax                (test+5|1)+0  48 31 c0
+  I 2 : ret                              (test+5|1)+3  c3
+Generating code for BB test+8|1 (3 instructions)
+  I 0 : H-ret                            (test+8|1)+0 
+  I 1 : mov     $0x1,%rax                (test+8|1)+0  48 c7 c0 01 00 00 00
+  I 2 : ret                              (test+8|1)+7  c3
+BB gen (2 instructions):
+                 gen:  48 85 ff              test    %rdi,%rdi
+               gen+3:  74 04                 je      $gen+9
+BB gen+5 (2 instructions):
+               gen+5:  48 31 c0              xor     %rax,%rax
+               gen+8:  c3                    ret    
+BB gen+9 (2 instructions):
+               gen+9:  48 c7 c0 01 00 00 00  mov     $0x1,%rax
+              gen+16:  c3                    ret    
+>>> Testcase known par = 0.
+Saving current emulator state: new with esID 0
+Capture 'H-call' (into test|0 + 0)
+Processing BB (test|0)
+Emulation Static State (esID 0, call depth 0):
+  Registers: %rsp (R 0), %rdi (0x0)
+  Flags: (none)
+  Stack: (none)
+Decoding BB test ...
+                test:  48 85 ff              test    %rdi,%rdi
+              test+3:  74 03                 je      $test+8
+Emulate 'test: test %rdi,%rdi'
+Emulate 'test+3: je $test+8'
+Decoding BB test+8 ...
+              test+8:  b8 01 00 00 00        mov     $0x1,%eax
+             test+13:  c3                    ret    
+Emulate 'test+8: mov $0x1,%eax'
+Emulate 'test+13: ret'
+Capture 'H-ret' (into test|0 + 1)
+Capture 'mov $0x1,%rax' (into test|0 + 2)
+Capture 'ret' (into test|0 + 3)
+OPT!!
+Generating code for BB test|0 (4 instructions)
+  I 0 : H-call                           (test|0)+0 
+  I 1 : H-ret                            (test|0)+0 
+  I 2 : mov     $0x1,%rax                (test|0)+0  48 c7 c0 01 00 00 00
+  I 3 : ret                              (test|0)+7  c3
+BB gen (2 instructions):
+                 gen:  48 c7 c0 01 00 00 00  mov     $0x1,%rax
+               gen+7:  c3                    ret    
 >>> Testcase known par = 1.
 Saving current emulator state: new with esID 0
 Capture 'H-call' (into test|0 + 0)
@@ -25,5 +120,6 @@ Generating code for BB test|0 (4 instructions)
   I 1 : H-ret                            (test|0)+0 
   I 2 : mov     $0x0,%rax                (test|0)+0  48 31 c0
   I 3 : ret                              (test|0)+3  c3
+BB gen (2 instructions):
                  gen:  48 31 c0              xor     %rax,%rax
                gen+3:  c3                    ret    

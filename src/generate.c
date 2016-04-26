@@ -1395,10 +1395,11 @@ void generate(Rewriter* r, CBB* cbb)
             assert(cbb->nextBranch != 0);
             assert(cbb->nextFallThrough != 0);
 
-        printf("  I%2d : %s (%lx|%d), fall-through to (%lx|%d)\n",
+        printf("  I%2d : %s (%s),",
                i, instrName(cbb->endType, 0),
-               cbb->nextBranch->dec_addr, cbb->nextBranch->esID,
-               cbb->nextFallThrough->dec_addr, cbb->nextFallThrough->esID);
+               cbb_prettyName(cbb->nextBranch));
+        printf(" fall-through to (%s)\n",
+               cbb_prettyName(cbb->nextFallThrough));
         }
     }
 

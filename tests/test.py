@@ -13,6 +13,13 @@ def fetchCompilerArgs(file, outFile, testCase):
             return (argLine[12:] % (outFile, testCase)).split()
     return None
 
+def fetchRunArgs(file, outFile):
+    with open(file, "r") as f:
+        argLine = f.readline()
+        if argLine[:7] == "// RUN:":
+            return (argLine[7:] % (outFile)).split()
+    return None
+
 def compile(testCase):
     print("==TEST Compiling", testCase)
     outFile = testCase + ".out"
@@ -30,7 +37,11 @@ def compile(testCase):
 def runTestCase(testCase):
     outFile = compile(testCase)
     print("==TEST Running", testCase)
-    proc = Popen("./" + outFile, stdout=PIPE, stderr=PIPE)
+
+    args = fetchRunArgs(testCase, outFile)
+    if not args: args = [outFile];
+
+    proc = Popen(args, stdout=PIPE, stderr=PIPE)
     testResult = []
 
     # This iterates through stdout and stderr in this order.

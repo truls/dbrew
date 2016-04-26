@@ -32,8 +32,7 @@ int runtest(Rewriter*r, int parameter, bool doRun)
     // to get rid of changing addresses, assume gen code to be 200 bytes max
     dbrew_config_function_setname(r2, (uint64_t) ff, "gen");
     dbrew_config_function_setsize(r2, (uint64_t) ff, 200);
-    DBB* dbb = dbrew_decode(r2, (uint64_t) ff);
-    dbrew_print_decoded(dbb);
+    dbrew_decode_print(r2, (uint64_t) ff, dbrew_generated_size(r));
 
     if (!doRun) return 0;
 
