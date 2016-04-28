@@ -64,6 +64,7 @@ int main(int argc, char** argv)
     // pointer is different on each run. However, for debugging we want this
     // information.
     dbrew_verbose(r, true, debug ? true : false, true);
+    dbrew_optverbose(r, false);
 
     if (var)
         res += runtest(r, -1, run);
