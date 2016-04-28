@@ -287,10 +287,10 @@ const char* instrName(InstrType it, int* pOpCount)
     case IT_JMPI:    n = "jmp*";    opCount = 1; break;
     case IT_JO:      n = "jo";      opCount = 1; break;
     case IT_JNO:     n = "jno";     opCount = 1; break;
-    case IT_JC:      n = "jc";      opCount = 1; break;
-    case IT_JNC:     n = "jnc";     opCount = 1; break;
-    case IT_JZ:      n = "jz";      opCount = 1; break;
-    case IT_JNZ:     n = "jnz";     opCount = 1; break;
+    case IT_JC:      n = "jb";      opCount = 1; break;
+    case IT_JNC:     n = "jae";     opCount = 1; break;
+    case IT_JZ:      n = "je";      opCount = 1; break;
+    case IT_JNZ:     n = "jne";     opCount = 1; break;
     case IT_JBE:     n = "jbe";     opCount = 1; break;
     case IT_JA:      n = "ja";      opCount = 1; break;
     case IT_JS:      n = "js";      opCount = 1; break;

@@ -9,10 +9,10 @@ Emulation Static State (esID 0, call depth 0):
 Decoding BB test ...
                 test:  31 c0                 xor     %eax,%eax
               test+2:  85 ff                 test    %edi,%edi
-              test+4:  74 01                 jz      $test+7
+              test+4:  74 01                 je      $test+7
 Emulate 'test: xor %eax,%eax'
 Emulate 'test+2: test %edi,%edi'
-Emulate 'test+4: jz $test+7'
+Emulate 'test+4: je $test+7'
 Decoding BB test+6 ...
               test+6:  c3                    ret    
 Emulate 'test+6: ret'

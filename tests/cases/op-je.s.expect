@@ -8,10 +8,10 @@ Emulation Static State (esID 0, call depth 0):
   Stack: (none)
 Decoding BB test ...
                 test:  48 85 ff              test    %rdi,%rdi
-              test+3:  74 03                 jz      $test+8
+              test+3:  74 03                 je      $test+8
 Emulate 'test: test %rdi,%rdi'
 Capture 'test %rdi,%rdi' (into test|0 + 1)
-Emulate 'test+3: jz $test+8'
+Emulate 'test+3: je $test+8'
 Saving current emulator state: new with esID 1
 Processing BB (test+5|1), 1 BBs in queue
 Emulation Static State (esID 1, call depth 0):
@@ -45,7 +45,7 @@ OPT!!
 Generating code for BB test|0 (2 instructions)
   I 0 : H-call                           (test|0)+0 
   I 1 : test    %rdi,%rdi                (test|0)+0  48 85 ff
-  I 2 : jz (test+8|1), fall-through to (test+5|1)
+  I 2 : je (test+8|1), fall-through to (test+5|1)
 Generating code for BB test+5|1 (3 instructions)
   I 0 : H-ret                            (test+5|1)+0 
   I 1 : mov     $0x0,%rax                (test+5|1)+0  48 31 c0
@@ -56,7 +56,7 @@ Generating code for BB test+8|1 (3 instructions)
   I 2 : ret                              (test+8|1)+7  c3
 BB gen (2 instructions):
                  gen:  48 85 ff              test    %rdi,%rdi
-               gen+3:  74 04                 jz      $gen+9
+               gen+3:  74 04                 je      $gen+9
 BB gen+5 (2 instructions):
                gen+5:  48 31 c0              xor     %rax,%rax
                gen+8:  c3                    ret    
@@ -73,9 +73,9 @@ Emulation Static State (esID 0, call depth 0):
   Stack: (none)
 Decoding BB test ...
                 test:  48 85 ff              test    %rdi,%rdi
-              test+3:  74 03                 jz      $test+8
+              test+3:  74 03                 je      $test+8
 Emulate 'test: test %rdi,%rdi'
-Emulate 'test+3: jz $test+8'
+Emulate 'test+3: je $test+8'
 Decoding BB test+8 ...
               test+8:  b8 01 00 00 00        mov     $0x1,%eax
              test+13:  c3                    ret    
@@ -103,9 +103,9 @@ Emulation Static State (esID 0, call depth 0):
   Stack: (none)
 Decoding BB test ...
                 test:  48 85 ff              test    %rdi,%rdi
-              test+3:  74 03                 jz      $test+8
+              test+3:  74 03                 je      $test+8
 Emulate 'test: test %rdi,%rdi'
-Emulate 'test+3: jz $test+8'
+Emulate 'test+3: je $test+8'
 Decoding BB test+5 ...
               test+5:  31 c0                 xor     %eax,%eax
               test+7:  c3                    ret    
