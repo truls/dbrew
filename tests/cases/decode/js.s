@@ -5,4 +5,3 @@
     .type   f1, @function
 f1:
     js f2
-.att_syntax noprefix
