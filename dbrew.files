@@ -20,14 +20,15 @@ src/printer.c
 src/engine.c
 src/config.c
 
-tests/cases/op-inc.s
-tests/cases/op-je.s
-tests/op-tls.c
+# test cases and expected files left out
+tests/Makefile
 tests/test-driver.c
+tests/test-driver-decode.c
+tests/test-driver-generate.c
+tests/op-tls.c
 tests/branchtest.c
 tests/test.c
 tests/test.py
-tests/Makefile
 
 examples/stencil.c
 examples/strcmp.c
