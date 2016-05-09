@@ -1,6 +1,6 @@
 BB f1 (5 instructions):
-                  f1:  66 48 0f 7e c0        mov     %xmm0,%rax
-                f1+5:  66 48 0f 7e c8        mov     %xmm1,%rax
-               f1+10:  66 48 0f 7e c1        mov     %xmm0,%rcx
-               f1+15:  66 48 0f 7e c9        mov     %xmm1,%rcx
+                  f1:  66 48 0f 7e c0        movq    %xmm0,%rax
+                f1+5:  66 48 0f 7e c8        movq    %xmm1,%rax
+               f1+10:  66 48 0f 7e c1        movq    %xmm0,%rcx
+               f1+15:  66 48 0f 7e c9        movq    %xmm1,%rcx
                f1+20:  c3                    ret    

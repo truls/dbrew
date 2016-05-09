@@ -609,13 +609,15 @@ DBB* dbrew_decode(Rewriter* r, uint64_t f)
                 if (ps == PS_66) {
                     // movd/q xmm,r/m 32/64 (RM)
                     vt = (rex & REX_MASK_W) ? VT_64 : VT_32;
-                    off += parseModRM(fp+off, rex, segOv, 1, 0, &o2, &o1, 0);
+                    it = (rex & REX_MASK_W) ? IT_MOVQ : IT_MOVD;
+                    off += parseModRM(fp+off, rex, segOv, 0, 1, &o2, &o1, 0);
                 } else {
                     assert(0);
                 }
                 opOverwriteType(&o1, vt);
                 opOverwriteType(&o2, vt);
-                ii = addBinaryOp(r, a, (uint64_t)(fp + off), IT_MOV, VT_Implicit, &o1, &o2);
+                ii = addBinaryOp(r, a, (uint64_t)(fp + off),
+                                 it, VT_Implicit, &o1, &o2);
                 attachPassthrough(ii, ps, OE_RM, SC_dstDyn, 0x0F, 0x6E, -1);
                 break;
 
@@ -629,9 +631,9 @@ DBB* dbrew_decode(Rewriter* r, uint64_t f)
                     vt = VT_128;
                     it = IT_MOVDQA;
                 } else if (ps == PS_None) {
-                    // movdqu mm1,mm2/m64 (RM): Move quadword from mm/m64 to mm.
+                    // movq mm1,mm2/m64 (RM): Move quadword from mm/m64 to mm.
                     vt = VT_64;
-                    it = IT_MOV;
+                    it = IT_MOVQ;
                 } else {
                     assert(0);
                 }
@@ -666,11 +668,13 @@ DBB* dbrew_decode(Rewriter* r, uint64_t f)
                     // movd/q r/m 32/64,xmm (MR)
                     oe = OE_MR;
                     vt = (rex & REX_MASK_W) ? VT_64 : VT_32;
+                    it = (rex & REX_MASK_W) ? IT_MOVQ : IT_MOVD;
                     off += parseModRM(fp+off, rex, segOv, 0, 1, &o1, &o2, 0);
                 } else if (ps == PS_F3) {
                     // movq xmm1, xmm2/m64 (RM) - move from xmm2/m64 to xmm1
                     oe = OE_RM;
                     vt = VT_64;
+                    it = IT_MOVQ;
                     off += parseModRM(fp+off, rex, segOv, 1, 1, &o2, &o1, 0);
                 } else {
                     assert(0);
@@ -678,7 +682,7 @@ DBB* dbrew_decode(Rewriter* r, uint64_t f)
                 opOverwriteType(&o1, vt);
                 opOverwriteType(&o2, vt);
                 ii = addBinaryOp(r, a, (uint64_t)(fp + off),
-                                 IT_MOV, VT_Implicit, &o1, &o2);
+                                 it, VT_Implicit, &o1, &o2);
                 attachPassthrough(ii, ps, oe, SC_dstDyn, 0x0F, 0x7E, -1);
                 break;
 
@@ -743,7 +747,8 @@ DBB* dbrew_decode(Rewriter* r, uint64_t f)
                 default: assert(0);
                 }
                 it = IT_JO + (opc2 & 0xf);
-                addUnaryOp(r, a, (uint64_t)(fp + off), it, &o1);
+                ii = addUnaryOp(r, a, (uint64_t)(fp + off), it, &o1);
+                ii->vtype = VT_Implicit; // jump address size is implicit
                 exitLoop = true;
                 break;
 
@@ -1030,7 +1035,8 @@ DBB* dbrew_decode(Rewriter* r, uint64_t f)
             case 0x7F: it = IT_JG; break;
             default: assert(0);
             }
-            addUnaryOp(r, a, (uint64_t)(fp + off), it, &o1);
+            ii = addUnaryOp(r, a, (uint64_t)(fp + off), it, &o1);
+            ii->vtype = VT_Implicit; // jump address size is implicit
             exitLoop = true;
             break;
 

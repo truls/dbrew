@@ -28,6 +28,33 @@
 #include "common.h"
 
 
+// if shown register name makes type visible, set *markVisible to true
+static
+bool regTypeVisible(Reg r, OpType t)
+{
+    if ((t == OT_Reg32) || (t == OT_Reg64) || (t == OT_Reg128)) {
+        if ((r >= Reg_X0) && (r <= Reg_X15))
+            return false; // xmm register names can have 32/64/128 bit
+    }
+    return true;
+}
+
+static
+bool opTypeVisible(Operand* o)
+{
+    switch(o->type) {
+    case OT_Reg16:
+    case OT_Reg32:
+    case OT_Reg64:
+    case OT_Reg128:
+    case OT_Reg256:
+        return regTypeVisible(o->reg, o->type);
+    default: break;
+    }
+    return false;
+}
+
+
 const char* regName(Reg r, OpType t)
 {
     switch(t) {
@@ -345,6 +372,8 @@ const char* instrName(InstrType it, int* pOpCount)
     case IT_JG:      n = "jg";      opCount = 1; break;
     case IT_MOV:     n = "mov";     opCount = 2; break;
     case IT_MOVSX:   n = "movsx";   opCount = 2; break;
+    case IT_MOVD:    n = "movd";    opCount = 2; break;
+    case IT_MOVQ:    n = "movq";    opCount = 2; break;
     case IT_MOVZBL:  n = "movzbl";  opCount = 2; break;
     case IT_NEG:     n = "neg";     opCount = 1; break;
     case IT_NOT:     n = "not";     opCount = 1; break;
@@ -432,26 +461,53 @@ char* instr2string(Instr* instr, int align, FunctionConfig* fc)
     else
         off += sprintf(buf, "%s", n);
 
-    // add value type if given
-    bool appendVType = (instr->vtype != VT_None);
-    if ((instr->form == OF_2) &&
-        (opIsGPReg(&(instr->dst)) ||
-         opIsGPReg(&(instr->src)))) appendVType = false;
-    if (appendVType) {
-        char vt = ' ';
-        switch(instr->vtype) {
-        case VT_8:  vt = 'b'; break;
-        case VT_16: vt = 'w'; break;
-        case VT_32: vt = 'l'; break;
-        case VT_64: vt = 'q'; break;
+    // print value type if needed
+    bool typeVisible = false;
+    // do operands show type?
+    if (instr->form == OF_1) {
+        if (opTypeVisible(&(instr->dst)))
+            typeVisible = true;
+    }
+    if (instr->form == OF_2) {
+        if (opTypeVisible(&(instr->dst)))
+            typeVisible = true;
+        if (opTypeVisible(&(instr->src)))
+            typeVisible = true;
+    }
+    if (instr->form == OF_3) {
+        if (opTypeVisible(&(instr->dst)))
+            typeVisible = true;
+        if (opTypeVisible(&(instr->src)))
+            typeVisible = true;
+        if (opTypeVisible(&(instr->src2)))
+            typeVisible = true;
+    }
+    // is type implicitly known via instruction name?
+    if (instr->vtype == VT_Implicit)
+        typeVisible = true;
+
+    ValType vt = instr->vtype;
+    if (vt == VT_None) {
+        if ((instr->form >= OF_1) && (instr->form <= OF_3))
+            vt = opValType(&(instr->dst));
+    }
+    if (typeVisible) vt = VT_None; // suppress type as already shown
+
+    if (vt != VT_None) {
+        char vtc = ' ';
+        switch(vt) {
+        case VT_8:  vtc = 'b'; break;
+        case VT_16: vtc = 'w'; break;
+        case VT_32: vtc = 'l'; break;
+        case VT_64: vtc = 'q'; break;
         case VT_Implicit: break;
         default: assert(0);
         }
-        if (vt != ' ') {
+        if (vtc != ' ') {
             int nlen = strlen(n);
-            if (buf[nlen] == ' ') buf[nlen] = vt;
+            if (buf[nlen] == ' ') buf[nlen] = vtc;
             else {
-                buf[nlen] = vt;
+                buf[nlen] = vtc;
                 buf[nlen+1] = 0;
                 off++;
             }

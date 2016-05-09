@@ -49,7 +49,7 @@ typedef enum _InstrType {
     IT_NOP,
     IT_CLTQ, IT_CQTO,
     IT_PUSH, IT_POP, IT_LEAVE,
-    IT_MOV, IT_MOVSX, IT_LEA, IT_MOVZBL,
+    IT_MOV, IT_MOVD, IT_MOVQ, IT_MOVSX, IT_LEA, IT_MOVZBL,
     IT_NEG, IT_NOT, IT_INC, IT_DEC,
     IT_ADD, IT_ADC, IT_SUB, IT_SBB, IT_IMUL, IT_IDIV1, IT_MUL, IT_DIV,
     IT_XOR, IT_AND, IT_OR,
@@ -128,7 +128,7 @@ typedef enum _PrefixSet {
 typedef enum _OperandForm {
     OF_None = 0,
     OF_0, // no operand or implicit
-    OF_1, // 1 operand: push/pop/...
+    OF_1, // 1 operand: push/pop/... dst
     OF_2, // 2 operands: dst = dst op src
     OF_3, // 3 operands: dst = src op src2
     OF_Max

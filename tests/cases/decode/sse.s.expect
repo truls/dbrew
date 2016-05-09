@@ -1,0 +1,47 @@
+BB f1 (46 instructions):
+                  f1:  f3 0f 10 07           movss   (%rdi),%xmm0
+                f1+4:  f2 0f 10 07           movsd   (%rdi),%xmm0
+                f1+8:  0f 10 07              movups  (%rdi),%xmm0
+               f1+11:  66 0f 10 07           movupd  (%rdi),%xmm0
+               f1+15:  0f 28 07              movaps  (%rdi),%xmm0
+               f1+18:  66 0f 28 07           movapd  (%rdi),%xmm0
+               f1+22:  f3 0f 11 07           movss   %xmm0,(%rdi)
+               f1+26:  f2 0f 11 07           movsd   %xmm0,(%rdi)
+               f1+30:  0f 11 07              movups  %xmm0,(%rdi)
+               f1+33:  66 0f 11 07           movupd  %xmm0,(%rdi)
+               f1+37:  0f 29 07              movaps  %xmm0,(%rdi)
+               f1+40:  66 0f 29 07           movapd  %xmm0,(%rdi)
+               f1+44:  f3 0f 7e c1           movq    %xmm1,%xmm0
+               f1+48:  f3 0f 6f 02           movdqu  (%rdx),%xmm0
+               f1+52:  f3 0f 7f 02           movdqu  %xmm0,(%rdx)
+               f1+56:  66 0f 6f 02           movdqa  (%rdx),%xmm0
+               f1+60:  66 0f 7f 02           movdqa  %xmm0,(%rdx)
+               f1+64:  66 0f 6e 02           movd    (%rdx),%xmm0
+               f1+68:  66 0f 7e 02           movd    %xmm0,(%rdx)
+               f1+72:  f3 0f 58 c1           addss   %xmm1,%xmm0
+               f1+76:  f2 0f 58 c1           addsd   %xmm1,%xmm0
+               f1+80:  0f 58 c1              addps   %xmm1,%xmm0
+               f1+83:  66 0f 58 c1           addpd   %xmm1,%xmm0
+               f1+87:  f3 0f 58 00           addss   (%rax),%xmm0
+               f1+91:  f2 0f 58 00           addsd   (%rax),%xmm0
+               f1+95:  0f 58 00              addps   (%rax),%xmm0
+               f1+98:  66 0f 58 00           addpd   (%rax),%xmm0
+              f1+102:  f3 0f 5c c1           subss   %xmm1,%xmm0
+              f1+106:  f2 0f 5c c1           subsd   %xmm1,%xmm0
+              f1+110:  0f 5c c1              subps   %xmm1,%xmm0
+              f1+113:  66 0f 5c c1           subpd   %xmm1,%xmm0
+              f1+117:  f3 0f 5c 00           subss   (%rax),%xmm0
+              f1+121:  f2 0f 5c 00           subsd   (%rax),%xmm0
+              f1+125:  0f 5c 00              subps   (%rax),%xmm0
+              f1+128:  66 0f 5c 00           subpd   (%rax),%xmm0
+              f1+132:  f3 0f 59 c1           mulss   %xmm1,%xmm0
+              f1+136:  f2 0f 59 c1           mulsd   %xmm1,%xmm0
+              f1+140:  0f 59 c1              mulps   %xmm1,%xmm0
+              f1+143:  66 0f 59 c1           mulpd   %xmm1,%xmm0
+              f1+147:  f3 0f 59 00           mulss   (%rax),%xmm0
+              f1+151:  f2 0f 59 00           mulsd   (%rax),%xmm0
+              f1+155:  0f 59 00              mulps   (%rax),%xmm0
+              f1+158:  66 0f 59 00           mulpd   (%rax),%xmm0
+              f1+162:  66 0f d4 c1           paddq   %xmm1,%xmm0
+              f1+166:  66 0f d4 00           paddq   (%rax),%xmm0
+              f1+170:  c3                    ret    
