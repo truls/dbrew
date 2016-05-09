@@ -3,7 +3,7 @@
     .globl  f1
     .type   f1, @function
 f1:
-    mov rax, 0x7fffffffffffffff
+    movabs rax, 0x7fffffffffffffff
     add rax, rdi
     jo 1f
     xor eax, eax

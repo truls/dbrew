@@ -50,11 +50,13 @@ class TestCase:
     FAILED = 5
     IGNORED = 6
 
-    def __init__(self, testCase):
+    def __init__(self, testCase, verbose):
         self.expectFile = testCase + ".expect"
         self.sourceFile = testCase
+        self.objFile = testCase + ".o"
         self.outFile = testCase + ".out"
         self.testResult = None
+        self.verbose = verbose
         self.status = TestCase.WAITING
 
         self.properties = Utils.fetchProperties(self.sourceFile)
@@ -70,21 +72,25 @@ class TestCase:
     def compile(self):
         if self.status != TestCase.WAITING: return
 
-        compileArgs = self.getProperty("compile", "{cc} {ccflags} -o {outfile} {infile} {driver}").format(**{
-            # At the time of writing (May 2016), Clang refuses to emit near
-            # jumps as GNU AS does. Therefore, the CC env variable is not
-            # respected currently. Once these issues have been resolved, we can
-            # also use Clang.
-            "cc": "cc",
-            # "cc": os.environ["CC"] if "CC" in os.environ else "cc",
-            "ccflags": self.getProperty("ccflags", ""),
+        # compiler taken from environment CC unless overwritten by explicit property
+        ccomp = self.getProperty("cc", "")
+        if not ccomp:
+            ccomp = os.environ["CC"] if "CC" in os.environ else "cc"
+
+        substs = {
+            "cc": ccomp,
+            "ccflags": self.getProperty("ccflags", "-std=c99 -g"),
             "outfile": self.outFile,
             "infile": self.sourceFile,
+            "ofile": self.objFile,
             "driver": self.driver
-        })
+        }
+
+        compileArgs = self.getProperty("compile", "{cc} {ccflags} -o {outfile} {infile} {driver}").format(**substs)
+        if self.verbose >0:
+            print("\nCompiling:\n " + compileArgs)
 
         returnCode, output = Utils.execBuffered(compileArgs)
-
         if returnCode != 0:
             print("FAIL (Compile)")
             print("".join(output))
@@ -131,7 +137,7 @@ class TestCase:
 
         if self.testResult != comparison:
             print("FAIL (Output)")
-            for line in difflib.context_diff(comparison, self.testResult): sys.stdout.write(line)
+            for line in difflib.unified_diff(comparison, self.testResult): sys.stdout.write(line)
             self.status = TestCase.FAILED
             raise TestFailException()
         else:
@@ -161,6 +167,7 @@ class TestCase:
 
 if __name__ == "__main__":
     argparser = argparse.ArgumentParser(description='Test Script.')
+    argparser.add_argument('--verbose', '-v', help="Be verbose about actions executing", action='count', default=0)
     argparser.add_argument("--test", help="Run tests and compare output (default)", dest="action", action="store_const", const=TestCase.test, default=TestCase.test)
     argparser.add_argument("--run", help="Run tests and print ouput", dest="action", action="store_const", const=TestCase.printResult)
     argparser.add_argument("--store", help="Run tests and store ouput", dest="action", action="store_const", const=TestCase.store)
@@ -176,7 +183,7 @@ if __name__ == "__main__":
                 expectFiles.append(os.path.join(root, filename))
 
     # Remove .expect extension for the real filename
-    testCases = [TestCase(file) for file in expectFiles]
+    testCases = [TestCase(file, args.verbose) for file in expectFiles]
 
     failed = []
     ignored = []
