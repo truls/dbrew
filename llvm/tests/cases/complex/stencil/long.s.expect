@@ -1,0 +1,90 @@
+Decoded BB at ?+0:
+                   ?:  31 c0                 xor     %eax,%eax
+                 ?+2:  4c 8b 1f              mov     (%rdi),%r11
+                 ?+5:  4d 85 db              test    %r11,%r11
+                 ?+8:  74 3a                 je      $?+68
+Decoded BB at ?+44:
+                ?+68:  b8 00 00 00 00        mov     $0x0,%eax
+                ?+73:  c3                    ret    
+Decoded BB at ?+a:
+                ?+10:  48 83 c7 08           add     $0x8,%rdi
+                ?+14:  41 b9 00 00 00 00     mov     $0x0,%r9d
+                ?+20:  b8 00 00 00 00        mov     $0x0,%eax
+                ?+25:  49 89 c8              mov     %rcx,%r8
+                ?+28:  4c 03 47 08           add     0x8(%rdi),%r8
+                ?+32:  49 89 d2              mov     %rdx,%r10
+                ?+35:  4c 03 17              add     (%rdi),%r10
+                ?+38:  4e 8b 04 c6           mov     (%rsi,%r8,8),%r8
+                ?+42:  4f 8b 04 d0           mov     (%r8,%r10,8),%r8
+                ?+46:  4c 0f af 47 10        imul    0x10(%rdi),%r8
+                ?+51:  4c 01 c0              add     %r8,%rax
+                ?+54:  49 83 c1 01           add     $0x1,%r9
+                ?+58:  48 83 c7 18           add     $0x18,%rdi
+                ?+62:  4d 39 d9              cmp     %r11,%r9
+                ?+65:  75 d6                 jne     $?+25
+Decoded BB at ?+43:
+                ?+67:  c3                    ret    
+; ModuleID = '<llengine>'
+target triple = "x86_64-redhat-linux-gnu"
+
+; Function Attrs: nounwind readnone
+declare i8 @llvm.ctpop.i8(i8) #0
+
+; Function Attrs: nounwind readnone
+declare void @llvm.donothing() #0
+
+; Function Attrs: readonly
+define i64 @test(i8* noalias, i8* noalias nocapture readonly, i8*, i8*, i8* nocapture readnone, i8* nocapture readnone) #1 {
+  %7 = bitcast i8* %0 to i64*
+  %8 = load i64, i64* %7, align 8, !asm.reg.r11 !0
+  %9 = icmp eq i64 %8, 0, !asm.flag.zf !0
+  br i1 %9, label %.loopexit, label %10
+
+.loopexit.loopexit:                               ; preds = %16
+  %.lcssa = phi i64 [ %34, %16 ]
+  br label %.loopexit
+
+.loopexit:                                        ; preds = %.loopexit.loopexit, %6
+  %merge = phi i64 [ 0, %6 ], [ %.lcssa, %.loopexit.loopexit ]
+  ret i64 %merge
+
+; <label>:10                                      ; preds = %6
+  %11 = ptrtoint i8* %0 to i64
+  %12 = ptrtoint i8* %2 to i64
+  %13 = ptrtoint i8* %3 to i64
+  %14 = add i64 %11, 8, !asm.reg.rdi !0
+  %15 = bitcast i8* %1 to i64*
+  br label %16
+
+; <label>:16                                      ; preds = %16, %10
+  %17 = phi i64 [ 0, %10 ], [ %34, %16 ]
+  %18 = phi i64 [ %14, %10 ], [ %36, %16 ]
+  %19 = phi i64 [ 0, %10 ], [ %35, %16 ]
+  %20 = inttoptr i64 %18 to i64*
+  %21 = getelementptr i64, i64* %20, i64 1
+  %22 = load i64, i64* %21, align 8
+  %23 = add i64 %22, %13, !asm.reg.r8 !0
+  %24 = load i64, i64* %20, align 8
+  %25 = add i64 %24, %12, !asm.reg.r10 !0
+  %26 = getelementptr i64, i64* %15, i64 %23
+  %27 = bitcast i64* %26 to i64**
+  %28 = load i64*, i64** %27, align 8
+  %29 = getelementptr i64, i64* %28, i64 %25
+  %30 = load i64, i64* %29, align 8, !asm.reg.r8 !0
+  %31 = getelementptr i64, i64* %20, i64 2
+  %32 = load i64, i64* %31, align 8
+  %33 = mul i64 %32, %30, !asm.reg.r8 !0
+  %34 = add i64 %33, %17, !asm.reg.rax !0
+  %35 = add i64 %19, 1, !asm.reg.r9 !0
+  %36 = add i64 %18, 24, !asm.reg.rdi !0
+  %37 = icmp eq i64 %35, %8
+  br i1 %37, label %.loopexit.loopexit, label %16
+}
+
+attributes #0 = { nounwind readnone }
+attributes #1 = { readonly }
+
+!0 = !{}
+
+Result: 4
+Result: 4

@@ -1,0 +1,48 @@
+Decoded BB at ?+0:
+                   ?:  55                    push    %rbp
+                 ?+1:  48 89 e5              mov     %rsp,%rbp
+                 ?+4:  66 0f ef c0           pxor    %xmm0,%xmm0
+                 ?+8:  66 0f ef c9           pxor    %xmm1,%xmm1
+                ?+12:  f2 0f 10 07           movsd   (%rdi),%xmm0
+                ?+16:  f2 0f 10 0e           movsd   (%rsi),%xmm1
+                ?+20:  f2 0f 59 c1           mulsd   %xmm1,%xmm0
+                ?+24:  f2 0f 11 07           movsd   %xmm0,(%rdi)
+                ?+28:  31 c0                 xor     %eax,%eax
+                ?+30:  f2 0f 10 47 08        movsd   0x8(%rdi),%xmm0
+                ?+35:  f2 0f 10 4e 08        movsd   0x8(%rsi),%xmm1
+                ?+40:  f2 0f 59 c1           mulsd   %xmm1,%xmm0
+                ?+44:  f2 0f 11 47 08        movsd   %xmm0,0x8(%rdi)
+                ?+49:  f2 0f 10 47 10        movsd   0x10(%rdi),%xmm0
+                ?+54:  f2 0f 10 4e 10        movsd   0x10(%rsi),%xmm1
+                ?+59:  f2 0f 59 c1           mulsd   %xmm1,%xmm0
+                ?+63:  f2 0f 11 47 10        movsd   %xmm0,0x10(%rdi)
+                ?+68:  f2 0f 10 47 18        movsd   0x18(%rdi),%xmm0
+                ?+73:  f2 0f 10 4e 18        movsd   0x18(%rsi),%xmm1
+                ?+78:  f2 0f 59 c1           mulsd   %xmm1,%xmm0
+                ?+82:  f2 0f 11 47 18        movsd   %xmm0,0x18(%rdi)
+                ?+87:  48 89 ec              mov     %rbp,%rsp
+                ?+90:  5d                    pop     %rbp
+                ?+91:  c3                    ret    
+; ModuleID = '<llengine>'
+target triple = "x86_64-redhat-linux-gnu"
+
+; Function Attrs: nounwind readnone
+declare i8 @llvm.ctpop.i8(i8) #0
+
+; Function Attrs: nounwind readnone
+declare void @llvm.donothing() #0
+
+define i64 @test(i8* nocapture, i8* noalias nocapture readonly, i8* nocapture readnone, i8* nocapture readnone, i8* nocapture readnone, i8* nocapture readnone) {
+  %7 = bitcast i8* %0 to <4 x double>*
+  %8 = bitcast i8* %1 to <4 x double>*
+  %9 = load <4 x double>, <4 x double>* %7, align 8
+  %10 = load <4 x double>, <4 x double>* %8, align 8
+  %11 = fmul <4 x double> %9, %10
+  store <4 x double> %11, <4 x double>* %7, align 8
+  ret i64 0
+}
+
+attributes #0 = { nounwind readnone }
+
+Result: 0 2.000000 2.000000 9.000000 9.000000
+Result: 0 2.000000 2.000000 9.000000 9.000000

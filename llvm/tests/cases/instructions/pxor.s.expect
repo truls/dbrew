@@ -1,0 +1,23 @@
+Decoded BB at ?+0:
+                   ?:  66 0f ef c0           pxor    %xmm0,%xmm0
+                 ?+4:  66 48 0f 7e c0        movq    %xmm0,%rax
+                 ?+9:  c3                    ret    
+; ModuleID = '<llengine>'
+target triple = "x86_64-redhat-linux-gnu"
+
+; Function Attrs: nounwind readnone
+declare i8 @llvm.ctpop.i8(i8) #0
+
+; Function Attrs: nounwind readnone
+declare void @llvm.donothing() #0
+
+; Function Attrs: readnone
+define i64 @test(i8* nocapture readnone, i8* nocapture readnone, i8* nocapture readnone, i8* nocapture readnone, i8* nocapture readnone, i8* nocapture readnone) #1 {
+  ret i64 trunc (i256 bitcast (<2 x i128> <i128 0, i128 undef> to i256) to i64)
+}
+
+attributes #0 = { nounwind readnone }
+attributes #1 = { readnone }
+
+Result: 0 1 2 3 4 5 6 7 8
+Result: 0 1 2 3 4 5 6 7 8

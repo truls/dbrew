@@ -1,0 +1,46 @@
+Decoded BB at ?+0:
+                   ?:  55                    push    %rbp
+                 ?+1:  48 89 e5              mov     %rsp,%rbp
+                 ?+4:  f2 0f 10 07           movsd   (%rdi),%xmm0
+                 ?+8:  f2 0f 10 0e           movsd   (%rsi),%xmm1
+                ?+12:  f2 0f 58 c1           addsd   %xmm1,%xmm0
+                ?+16:  f2 0f 11 07           movsd   %xmm0,(%rdi)
+                ?+20:  31 c0                 xor     %eax,%eax
+                ?+22:  f2 0f 10 47 08        movsd   0x8(%rdi),%xmm0
+                ?+27:  f2 0f 10 4e 08        movsd   0x8(%rsi),%xmm1
+                ?+32:  f2 0f 58 c1           addsd   %xmm1,%xmm0
+                ?+36:  f2 0f 11 47 08        movsd   %xmm0,0x8(%rdi)
+                ?+41:  f2 0f 10 47 10        movsd   0x10(%rdi),%xmm0
+                ?+46:  f2 0f 10 4e 10        movsd   0x10(%rsi),%xmm1
+                ?+51:  f2 0f 58 c1           addsd   %xmm1,%xmm0
+                ?+55:  f2 0f 11 47 10        movsd   %xmm0,0x10(%rdi)
+                ?+60:  f2 0f 10 47 18        movsd   0x18(%rdi),%xmm0
+                ?+65:  f2 0f 10 4e 18        movsd   0x18(%rsi),%xmm1
+                ?+70:  f2 0f 58 c1           addsd   %xmm1,%xmm0
+                ?+74:  f2 0f 11 47 18        movsd   %xmm0,0x18(%rdi)
+                ?+79:  48 89 ec              mov     %rbp,%rsp
+                ?+82:  5d                    pop     %rbp
+                ?+83:  c3                    ret    
+; ModuleID = '<llengine>'
+target triple = "x86_64-redhat-linux-gnu"
+
+; Function Attrs: nounwind readnone
+declare i8 @llvm.ctpop.i8(i8) #0
+
+; Function Attrs: nounwind readnone
+declare void @llvm.donothing() #0
+
+define i64 @test(i8* nocapture, i8* noalias nocapture readonly, i8* nocapture readnone, i8* nocapture readnone, i8* nocapture readnone, i8* nocapture readnone) {
+  %7 = bitcast i8* %0 to <4 x double>*
+  %8 = bitcast i8* %1 to <4 x double>*
+  %9 = load <4 x double>, <4 x double>* %7, align 8
+  %10 = load <4 x double>, <4 x double>* %8, align 8
+  %11 = fadd <4 x double> %9, %10
+  store <4 x double> %11, <4 x double>* %7, align 8
+  ret i64 0
+}
+
+attributes #0 = { nounwind readnone }
+
+Result: 0 3.000000 3.000000 6.000000 6.000000
+Result: 0 3.000000 3.000000 6.000000 6.000000

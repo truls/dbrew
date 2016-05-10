@@ -1,0 +1,39 @@
+Decoded BB at ?+0:
+                   ?:  55                    push    %rbp
+                 ?+1:  48 89 e5              mov     %rsp,%rbp
+                 ?+4:  48 8b 07              mov     (%rdi),%rax
+                 ?+7:  48 89 44 24 f8        mov     %rax,-0x8(%rsp)
+                ?+12:  48 83 07 0a           addq    $0xa,(%rdi)
+                ?+16:  48 83 47 08 0a        addq    $0xa,0x8(%rdi)
+                ?+21:  48 83 47 10 0a        addq    $0xa,0x10(%rdi)
+                ?+26:  48 83 47 18 0a        addq    $0xa,0x18(%rdi)
+                ?+31:  48 83 47 20 0a        addq    $0xa,0x20(%rdi)
+                ?+36:  48 83 47 28 0a        addq    $0xa,0x28(%rdi)
+                ?+41:  48 83 47 30 0a        addq    $0xa,0x30(%rdi)
+                ?+46:  48 83 47 38 0a        addq    $0xa,0x38(%rdi)
+                ?+51:  48 8b 44 24 f8        mov     -0x8(%rsp),%rax
+                ?+56:  48 89 ec              mov     %rbp,%rsp
+                ?+59:  5d                    pop     %rbp
+                ?+60:  c3                    ret    
+; ModuleID = '<llengine>'
+target triple = "x86_64-redhat-linux-gnu"
+
+; Function Attrs: nounwind readnone
+declare i8 @llvm.ctpop.i8(i8) #0
+
+; Function Attrs: nounwind readnone
+declare void @llvm.donothing() #0
+
+define i64 @test(i8* nocapture, i8* nocapture readnone, i8* nocapture readnone, i8* nocapture readnone, i8* nocapture readnone, i8* nocapture readnone) {
+  %7 = bitcast i8* %0 to <8 x i64>*
+  %8 = load <8 x i64>, <8 x i64>* %7, align 8
+  %9 = extractelement <8 x i64> %8, i32 0
+  %10 = add <8 x i64> %8, <i64 10, i64 10, i64 10, i64 10, i64 10, i64 10, i64 10, i64 10>
+  store <8 x i64> %10, <8 x i64>* %7, align 8
+  ret i64 %9
+}
+
+attributes #0 = { nounwind readnone }
+
+Result: 1 11 12 13 14 15 16 17 18
+Result: 1 11 12 13 14 15 16 17 18
