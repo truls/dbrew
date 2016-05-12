@@ -1,0 +1,9 @@
+BB f1 (8 instructions):
+                  f1:  44 84 c8              test    %r9b,%al
+                f1+3:  41 84 da              test    %bl,%r10b
+                f1+6:  84 d1                 test    %dl,%cl
+                f1+8:  44 85 c8              test    %r9d,%eax
+               f1+11:  41 85 da              test    %ebx,%r10d
+               f1+14:  4c 85 c8              test    %r9,%rax
+               f1+17:  49 85 da              test    %rbx,%r10
+               f1+20:  c3                    ret    

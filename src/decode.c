@@ -1103,6 +1103,15 @@ DBB* dbrew_decode(Rewriter* r, uint64_t f)
             addBinaryOp(r, a, (uint64_t)(fp + off), it, vt, &o1, &o2);
             break;
 
+        case 0x84:
+            // test r/m,r 8 (MR) - AND r8 with r/m8; set SF, ZF, PF
+            // FIXME: We do not assert on use of AH/BH/CH/DH (not supported)
+            off += parseModRM(fp+off, rex, segOv, 0, 0, &o1, &o2, 0);
+            opOverwriteType(&o1, VT_8);
+            opOverwriteType(&o2, VT_8);
+            addBinaryOp(r, a, (uint64_t)(fp + off), IT_TEST, VT_None, &o1, &o2);
+            break;
+
         case 0x85:
             // test r/m,r 32/64 (dst: r/m, src: r)
             vt = (rex & REX_MASK_W) ? VT_64 : VT_32;

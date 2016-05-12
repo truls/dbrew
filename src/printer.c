@@ -43,6 +43,7 @@ static
 bool opTypeVisible(Operand* o)
 {
     switch(o->type) {
+    case OT_Reg8:
     case OT_Reg16:
     case OT_Reg32:
     case OT_Reg64:
@@ -58,6 +59,29 @@ bool opTypeVisible(Operand* o)
 const char* regName(Reg r, OpType t)
 {
     switch(t) {
+    // TODO: legacy x86 8-bit register set (with AH,...)
+    case OT_Reg8:
+        switch(r) {
+        case Reg_AX: return "al";
+        case Reg_BX: return "bl";
+        case Reg_CX: return "cl";
+        case Reg_DX: return "dl";
+        case Reg_DI: return "dil";
+        case Reg_SI: return "sil";
+        case Reg_BP: return "bpl";
+        case Reg_SP: return "spl";
+        case Reg_8:  return "r8b";
+        case Reg_9:  return "r9b";
+        case Reg_10: return "r10b";
+        case Reg_11: return "r11b";
+        case Reg_12: return "r12b";
+        case Reg_13: return "r13b";
+        case Reg_14: return "r14b";
+        case Reg_15: return "r15b";
+        default: assert(0);
+        }
+        break;
+
     case OT_Reg16:
         switch(r) {
         case Reg_AX: return "ax";
@@ -235,6 +259,7 @@ char* op2string(Operand* o, ValType t, FunctionConfig* fc)
     uint64_t val;
 
     switch(o->type) {
+    case OT_Reg8:
     case OT_Reg16:
     case OT_Reg32:
     case OT_Reg64:

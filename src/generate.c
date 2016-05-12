@@ -758,6 +758,7 @@ static
 int genTest(uint8_t* buf, Operand* src, Operand* dst)
 {
     switch(src->type) {
+    case OT_Reg8:
     case OT_Reg32:
     case OT_Reg64:
         assert(opValType(src) == opValType(dst));
@@ -769,6 +770,13 @@ int genTest(uint8_t* buf, Operand* src, Operand* dst)
         case OT_Ind64:
             // use 'test r/m,r 32/64' (0x85 MR)
             return genModRM(buf, 0x85, -1, dst, src, VT_None);
+
+        case OT_Reg8:
+        case OT_Ind8:
+            // use 'test r/m,r 8' (0x84 MR)
+            // FIXME: this does not generate VEX prefix for spl/bpl/sil/dil
+            return genModRM(buf, 0x84, -1, dst, src, VT_None);
+
 
         default: assert(0);
         }

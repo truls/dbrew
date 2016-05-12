@@ -822,16 +822,18 @@ CaptureState setFlagsBit(EmuState* es, InstrType it,
     default: assert(0);
     }
 
-    es->flag[FT_Zero]  = (res == 0);
     es->flag[FT_Parity] = PARITY(res & 0xff);
     switch(v1->type) {
     case VT_8:
+        es->flag[FT_Zero] = ((res & ((1<<8)-1)) == 0);
         es->flag[FT_Sign] = ((res & (1l<<7)) != 0);
         break;
     case VT_32:
+        es->flag[FT_Zero] = ((res & ((1l<<32)-1)) == 0);
         es->flag[FT_Sign] = ((res & (1l<<31)) != 0);
         break;
     case VT_64:
+        es->flag[FT_Zero] = (res == 0);
         es->flag[FT_Sign] = ((res & (1l<<63)) != 0);
         break;
     default: assert(0);
@@ -1098,6 +1100,12 @@ void getOpValue(EmuValue* v, EmuState* es, Operand* o)
     case OT_Imm32:
     case OT_Imm64:
         *v = staticEmuValue(o->val, opValType(o));
+        return;
+
+    case OT_Reg8:
+        v->type = VT_8;
+        v->val = (uint8_t) es->reg[o->reg];
+        v->state = es->reg_state[o->reg];
         return;
 
     case OT_Reg32:
