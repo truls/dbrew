@@ -536,9 +536,11 @@ int genMov(uint8_t* buf, Operand* src, Operand* dst)
             }
             else if ((opValType(src) == VT_32) &&
                      (opValType(dst) == VT_64)) {
-                src->type = (src->type == OT_Reg32) ? OT_Reg64 : OT_Ind64;
+                Operand eSrc; // extend to 64 bit for genModRM not to fail
+                copyOperand(&eSrc, src);
+                eSrc.type = (src->type == OT_Reg32) ? OT_Reg64 : OT_Ind64;
                 // use 'movsx r64 ,r/m 32' (0x63)
-                return genModRM(buf, 0x63, -1, src, dst, VT_None);
+                return genModRM(buf, 0x63, -1, &eSrc, dst, VT_None);
             }
             break;
 
