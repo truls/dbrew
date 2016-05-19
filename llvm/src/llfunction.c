@@ -131,12 +131,18 @@ ll_function_add_basic_block(LLFunction* function, LLBasicBlock* bb)
         function->bbs = malloc(sizeof(LLBasicBlock*) * 100);
         function->bbsAllocated = 100;
 
+        if (function->bbs == NULL)
+            warn_if_reached();
+
         ll_basic_block_add_predecessor(bb, function->initialBB);
     }
-    else if (function->bbsAllocated == function->bbCount - 1)
+    else if (function->bbsAllocated == function->bbCount)
     {
         function->bbs = realloc(function->bbs, sizeof(LLBasicBlock*) * function->bbsAllocated * 2);
         function->bbsAllocated *= 2;
+
+        if (function->bbs == NULL)
+            warn_if_reached();
     }
 
     function->bbs[function->bbCount] = bb;

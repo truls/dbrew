@@ -76,11 +76,17 @@ ll_basic_block_add_predecessor(LLBasicBlock* bb, LLBasicBlock* pred)
     {
         bb->preds = malloc(sizeof(LLBasicBlock*) * 10);
         bb->predsAllocated = 10;
+
+        if (bb->preds == NULL)
+            warn_if_reached();
     }
-    else if (bb->predsAllocated == bb->predCount - 1)
+    else if (bb->predsAllocated == bb->predCount)
     {
         bb->preds = realloc(bb->preds, sizeof(LLBasicBlock*) * bb->predsAllocated * 2);
         bb->predsAllocated *= 2;
+
+        if (bb->preds == NULL)
+            warn_if_reached();
     }
 
     bb->preds[bb->predCount] = pred;
