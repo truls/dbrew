@@ -74,6 +74,10 @@ SortedStencil s5s = {1, {{0.25,4,&(s5.p[0])}}};
 #define BENCHMARK_STENCIL_INTERLINES 32
 // #define makeDynamic(x) (x)
 
+#define STENCIL_N ((BENCHMARK_STENCIL_INTERLINES) * 8 + 8)
+#define STENCIL_INDEX(x,y) ((y) * ((STENCIL_N) + 1) + (x))
+#define STENCIL_OFFSET(base,x,y) ((base) + (y) * ((STENCIL_N) + 1) + (x))
+
 static void
 stencil_inner_native(Stencil* restrict a, double* restrict b, double* restrict c, uint64_t index)
 {
@@ -97,20 +101,19 @@ stencil_inner_struct(Stencil* restrict s, double* restrict b, double* restrict c
     // c[index+1] = result2;
 }
 
-static void
+static inline void
 stencil_inner_sorted_struct(SortedStencil* restrict s, double* restrict b, double* restrict c, uint64_t index)
 {
-    uint64_t N = BENCHMARK_STENCIL_INTERLINES * 8 + 8;
     double result1 = 0, sum1 = 0;
     for (uint64_t i = 0; i < s->factors; i++)
     {
         StencilFactor* sf = s->f + i;
         StencilPoint* p = sf->p;
-        sum1 = b[index + p->xdiff + p->ydiff * (N+1)];
+        sum1 = b[STENCIL_OFFSET(index, p->xdiff, p->ydiff)];
         for (uint64_t j = 1; j < sf->points; j++)
         {
             p = sf->p + j;
-            sum1 += b[index + p->xdiff + p->ydiff * (N+1)];
+            sum1 += b[STENCIL_OFFSET(index, p->xdiff, p->ydiff)];
         }
         result1 += sf->factor * sum1;
     }
@@ -120,14 +123,13 @@ stencil_inner_sorted_struct(SortedStencil* restrict s, double* restrict b, doubl
 static void
 stencil_inner_sorted_struct2(SortedStencil* restrict s, double* restrict b, double* restrict c, uint64_t index)
 {
+    stencil_inner_sorted_struct(s, b, c, index-1);
     stencil_inner_sorted_struct(s, b, c, index);
-    stencil_inner_sorted_struct(s, b, c, index+1);
 }
 
 static void
 benchmark_function_stencil(Stencil* restrict a, StencilFunction fn, double* restrict b, double* restrict c)
 {
-    uint64_t N = BENCHMARK_STENCIL_INTERLINES * 8 + 8;
     uint64_t i, j;
     for (uint64_t iter = 0; iter < 4096; iter = makeDynamic(iter) + 1)
     {
@@ -135,14 +137,12 @@ benchmark_function_stencil(Stencil* restrict a, StencilFunction fn, double* rest
         c = b;
         b = temp;
 
-        for (i = 1; i < N; i = makeDynamic(i) + 1)
+        for (i = 1; i < STENCIL_N; i = makeDynamic(i) + 1)
         {
-            for (j = 1; j < N; j = makeDynamic(j) + 2)
-            {
-                uint64_t index = i * (N + 1) + j;
+            for (j = 1; j < STENCIL_N; j = makeDynamic(j) + 2)
+                fn(a, b, c, STENCIL_INDEX(j, i));
 
-                fn(a, b, c, index);
-            }
+            c[STENCIL_INDEX(0, i)] = 1.0 - (i * 1.0 / STENCIL_N);
         }
     }
 }
@@ -150,35 +150,24 @@ benchmark_function_stencil(Stencil* restrict a, StencilFunction fn, double* rest
 static void
 benchmark_parameters_stencil(void** arg0, void** arg1, void** arg2)
 {
-    int N = BENCHMARK_STENCIL_INTERLINES * 8 + 8;
-    double* b = malloc(sizeof(double) * (N + 1) * (N + 1));
-    for (int i = 0; i <= N; i++) {
-        for (int j = 0; j <= N; j++) {
-            int index = i * (N + 1) + j;
+    double* b = malloc(sizeof(double) * (STENCIL_N + 1) * (STENCIL_N + 1));
+    for (int i = 0; i <= STENCIL_N; i++) {
+        for (int j = 0; j <= STENCIL_N; j++) {
+            int index = STENCIL_INDEX(j, i);
             if (i == 0) // First Row
-            {
-                b[index] = 1.0 - (j * 1.0 / N);
-            }
-            else if (i == N) // Last Row
-            {
-                b[index] = j * 1.0 / N;
-            }
+                b[index] = 1.0 - (j * 1.0 / STENCIL_N);
+            else if (i == STENCIL_N) // Last Row
+                b[index] = j * 1.0 / STENCIL_N;
             else if (j == 0) // First Column
-            {
-                b[index] = 1.0 - (i * 1.0 / N);
-            }
-            else if (j == N) // Last Column
-            {
-                b[index] = i * 1.0 / N;
-            }
+                b[index] = 1.0 - (i * 1.0 / STENCIL_N);
+            else if (j == STENCIL_N) // Last Column
+                b[index] = i * 1.0 / STENCIL_N;
             else
-            {
                 b[index] = 0;
-            }
         }
     }
-    *arg2 = malloc(sizeof(double) * (N + 1) * (N + 1));
-    memcpy(*arg2, b, sizeof(double) * (N + 1) * (N + 1));
+    *arg2 = malloc(sizeof(double) * (STENCIL_N + 1) * (STENCIL_N + 1));
+    memcpy(*arg2, b, sizeof(double) * (STENCIL_N + 1) * (STENCIL_N + 1));
 
     *arg0 = &s5s;
     *arg1 = b;
@@ -187,16 +176,16 @@ benchmark_parameters_stencil(void** arg0, void** arg1, void** arg2)
 static void
 print_matrix(double* b)
 {
-    int N = BENCHMARK_STENCIL_INTERLINES * 8 + 8;
     printf("Matrix:\n");
 
     for (int y = 0; y < 9; y++)
     {
         for (int x = 0; x < 9; x++)
         {
-            printf ("%7.4f", b[y * (N+1) * (BENCHMARK_STENCIL_INTERLINES + 1) + x * (BENCHMARK_STENCIL_INTERLINES + 1)]);
+            int index = STENCIL_INDEX(x * (BENCHMARK_STENCIL_INTERLINES + 1), y * (BENCHMARK_STENCIL_INTERLINES + 1));
+            printf("%7.4f", b[index]);
         }
-        printf ("\n");
+        printf("\n");
     }
 }
 
