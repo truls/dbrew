@@ -15,9 +15,9 @@ int main()
 {
     // Decode the function.
     Rewriter* r = dbrew_new();
-    // to get rid of changing addresses, assume gen code to be 200 bytes max
+    // to get rid of changing addresses, assume gen code to be 800 bytes max
     dbrew_config_function_setname(r, (uintptr_t) f1, "f1");
-    dbrew_config_function_setsize(r, (uintptr_t) f1, 200);
+    dbrew_config_function_setsize(r, (uintptr_t) f1, 800);
     dbrew_decode_print(r, (uintptr_t) f1, 1);
 
     return 0;
