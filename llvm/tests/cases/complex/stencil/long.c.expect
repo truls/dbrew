@@ -2,9 +2,6 @@ Decoded BB at ?+0:
                    ?:  4c 8b 1f              mov     (%rdi),%r11
                  ?+3:  4d 85 db              test    %r11,%r11
                  ?+6:  74 3b                 je      $?+67
-Decoded BB at ?+43:
-                ?+67:  b8 00 00 00 00        mov     $0x0,%eax
-                ?+72:  c3                    ret    
 Decoded BB at ?+8:
                  ?+8:  48 83 c7 08           add     $0x8,%rdi
                 ?+12:  41 b9 00 00 00 00     mov     $0x0,%r9d
@@ -23,6 +20,9 @@ Decoded BB at ?+8:
                 ?+63:  75 d6                 jne     $?+23
 Decoded BB at ?+41:
                 ?+65:  f3 c3                 ret    
+Decoded BB at ?+43:
+                ?+67:  b8 00 00 00 00        mov     $0x0,%eax
+                ?+72:  c3                    ret    
 ; ModuleID = '<llengine>'
 target triple = "x86_64-redhat-linux-gnu"
 
@@ -39,14 +39,6 @@ define i64 @test(i8* noalias, i8* noalias nocapture readonly, i8*, i8*, i8* noca
   %9 = icmp eq i64 %8, 0, !asm.flag.zf !0
   br i1 %9, label %.loopexit, label %10
 
-.loopexit.loopexit:                               ; preds = %16
-  %.lcssa = phi i64 [ %34, %16 ]
-  br label %.loopexit
-
-.loopexit:                                        ; preds = %.loopexit.loopexit, %6
-  %merge = phi i64 [ 0, %6 ], [ %.lcssa, %.loopexit.loopexit ]
-  ret i64 %merge
-
 ; <label>:10                                      ; preds = %6
   %11 = ptrtoint i8* %0 to i64
   %12 = ptrtoint i8* %2 to i64
@@ -54,6 +46,14 @@ define i64 @test(i8* noalias, i8* noalias nocapture readonly, i8*, i8*, i8* noca
   %14 = add i64 %11, 8, !asm.reg.rdi !0
   %15 = bitcast i8* %1 to i64*
   br label %16
+
+.loopexit.loopexit:                               ; preds = %16
+  %.lcssa4 = phi i64 [ %34, %16 ]
+  br label %.loopexit
+
+.loopexit:                                        ; preds = %.loopexit.loopexit, %6
+  %.lcssa = phi i64 [ 0, %6 ], [ %.lcssa4, %.loopexit.loopexit ]
+  ret i64 %.lcssa
 
 ; <label>:16                                      ; preds = %16, %10
   %17 = phi i64 [ 0, %10 ], [ %34, %16 ]

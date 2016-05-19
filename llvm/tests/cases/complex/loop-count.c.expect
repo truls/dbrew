@@ -2,9 +2,6 @@ Decoded BB at ?+0:
                    ?:  48 89 f8              mov     %rdi,%rax
                  ?+3:  48 85 ff              test    %rdi,%rdi
                  ?+6:  7e 10                 jle     $?+24
-Decoded BB at ?+18:
-                ?+24:  b8 00 00 00 00        mov     $0x0,%eax
-                ?+29:  c3                    ret    
 Decoded BB at ?+8:
                  ?+8:  ba 00 00 00 00        mov     $0x0,%edx
                 ?+13:  48 83 c2 01           add     $0x1,%rdx
@@ -12,6 +9,9 @@ Decoded BB at ?+8:
                 ?+20:  75 f7                 jne     $?+13
 Decoded BB at ?+16:
                 ?+22:  f3 c3                 ret    
+Decoded BB at ?+18:
+                ?+24:  b8 00 00 00 00        mov     $0x0,%eax
+                ?+29:  c3                    ret    
 ; ModuleID = '<llengine>'
 target triple = "x86_64-redhat-linux-gnu"
 

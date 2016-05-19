@@ -2,14 +2,11 @@ Decoded BB at ?+0:
                    ?:  4c 8b 17              mov     (%rdi),%r10
                  ?+3:  4d 85 d2              test    %r10,%r10
                  ?+6:  74 43                 je      $?+75
-Decoded BB at ?+4b:
-                ?+75:  31 c0                 xor     %eax,%eax
-                ?+77:  c3                    ret    
 Decoded BB at ?+8:
                  ?+8:  66 0f ef c9           pxor    %xmm1,%xmm1
                 ?+12:  48 83 c7 08           add     $0x8,%rdi
                 ?+16:  31 c0                 xor     %eax,%eax
-                ?+18:  66 0f 1f 44 00 00     nopw    (%rax,%rax,1)
+                ?+18:  66 0f 1f 44 00 00     nopl    (%rax,%rax,1)
                 ?+24:  49 89 c8              mov     %rcx,%r8
                 ?+27:  4c 03 47 08           add     0x8(%rdi),%r8
                 ?+31:  49 89 d1              mov     %rdx,%r9
@@ -25,6 +22,9 @@ Decoded BB at ?+8:
 Decoded BB at ?+45:
                 ?+69:  66 48 0f 7e c8        movq    %xmm1,%rax
                 ?+74:  c3                    ret    
+Decoded BB at ?+4b:
+                ?+75:  31 c0                 xor     %eax,%eax
+                ?+77:  c3                    ret    
 ; ModuleID = '<llengine>'
 target triple = "x86_64-redhat-linux-gnu"
 
@@ -39,53 +39,53 @@ define i64 @test(i8* noalias, i8* noalias nocapture readonly, i8*, i8*, i8* noca
   %7 = bitcast i8* %0 to i64*
   %8 = load i64, i64* %7, align 8, !asm.reg.r10 !0
   %9 = icmp eq i64 %8, 0, !asm.flag.zf !0
-  br i1 %9, label %10, label %11
+  br i1 %9, label %46, label %10
 
 ; <label>:10                                      ; preds = %6
+  %11 = ptrtoint i8* %0 to i64
+  %12 = ptrtoint i8* %2 to i64
+  %13 = ptrtoint i8* %3 to i64
+  %14 = add i64 %11, 8, !asm.reg.rdi !0
+  %15 = bitcast i8* %1 to i64*
+  br label %18
+
+; <label>:16                                      ; preds = %18
+  %.lcssa = phi i256 [ %44, %18 ]
+  %17 = trunc i256 %.lcssa to i64, !asm.reg.rax !0
+  ret i64 %17
+
+; <label>:18                                      ; preds = %18, %10
+  %19 = phi i64 [ 0, %10 ], [ %28, %18 ]
+  %20 = phi i64 [ %14, %10 ], [ %29, %18 ]
+  %21 = phi i256 [ bitcast (<2 x i128> <i128 0, i128 undef> to i256), %10 ], [ %44, %18 ]
+  %22 = inttoptr i64 %20 to i64*
+  %23 = getelementptr i64, i64* %22, i64 1
+  %24 = load i64, i64* %23, align 8
+  %25 = add i64 %24, %13, !asm.reg.r8 !0
+  %26 = load i64, i64* %22, align 8
+  %27 = add i64 %26, %12, !asm.reg.r9 !0
+  %28 = add i64 %19, 1, !asm.reg.rax !0
+  %29 = add i64 %20, 24, !asm.reg.rdi !0
+  %30 = getelementptr i64, i64* %15, i64 %25
+  %31 = bitcast i64* %30 to double**
+  %32 = load double*, double** %31, align 8
+  %33 = getelementptr double, double* %32, i64 %27
+  %34 = load double, double* %33, align 8
+  %35 = inttoptr i64 %29 to double*
+  %36 = getelementptr double, double* %35, i64 -1
+  %37 = load double, double* %36, align 8
+  %38 = fmul double %34, %37
+  %39 = trunc i256 %21 to i64
+  %40 = bitcast i64 %39 to double
+  %41 = fadd double %40, %38
+  %42 = bitcast i256 %21 to <4 x double>
+  %43 = insertelement <4 x double> %42, double %41, i64 0
+  %44 = bitcast <4 x double> %43 to i256, !asm.reg.xmm1 !0
+  %45 = icmp eq i64 %28, %8
+  br i1 %45, label %16, label %18
+
+; <label>:46                                      ; preds = %6
   ret i64 0
-
-; <label>:11                                      ; preds = %6
-  %12 = ptrtoint i8* %0 to i64
-  %13 = ptrtoint i8* %2 to i64
-  %14 = ptrtoint i8* %3 to i64
-  %15 = add i64 %12, 8, !asm.reg.rdi !0
-  %16 = bitcast i8* %1 to i64*
-  br label %17
-
-; <label>:17                                      ; preds = %17, %11
-  %18 = phi i64 [ 0, %11 ], [ %27, %17 ]
-  %19 = phi i64 [ %15, %11 ], [ %28, %17 ]
-  %20 = phi i256 [ bitcast (<2 x i128> <i128 0, i128 undef> to i256), %11 ], [ %43, %17 ]
-  %21 = inttoptr i64 %19 to i64*
-  %22 = getelementptr i64, i64* %21, i64 1
-  %23 = load i64, i64* %22, align 8
-  %24 = add i64 %23, %14, !asm.reg.r8 !0
-  %25 = load i64, i64* %21, align 8
-  %26 = add i64 %25, %13, !asm.reg.r9 !0
-  %27 = add i64 %18, 1, !asm.reg.rax !0
-  %28 = add i64 %19, 24, !asm.reg.rdi !0
-  %29 = getelementptr i64, i64* %16, i64 %24
-  %30 = bitcast i64* %29 to double**
-  %31 = load double*, double** %30, align 8
-  %32 = getelementptr double, double* %31, i64 %26
-  %33 = load double, double* %32, align 8
-  %34 = inttoptr i64 %28 to double*
-  %35 = getelementptr double, double* %34, i64 -1
-  %36 = load double, double* %35, align 8
-  %37 = fmul double %33, %36
-  %38 = trunc i256 %20 to i64
-  %39 = bitcast i64 %38 to double
-  %40 = fadd double %39, %37
-  %41 = bitcast i256 %20 to <4 x double>
-  %42 = insertelement <4 x double> %41, double %40, i64 0
-  %43 = bitcast <4 x double> %42 to i256, !asm.reg.xmm1 !0
-  %44 = icmp eq i64 %27, %8
-  br i1 %44, label %45, label %17
-
-; <label>:45                                      ; preds = %17
-  %.lcssa = phi i256 [ %43, %17 ]
-  %46 = trunc i256 %.lcssa to i64, !asm.reg.rax !0
-  ret i64 %46
 }
 
 attributes #0 = { nounwind readnone }

@@ -6,13 +6,13 @@ Decoded BB at ?+0:
 Decoded BB at ?+c:
                 ?+12:  48 39 f8              cmp     %rdi,%rax
                 ?+15:  7c f7                 jl      $?+8
+Decoded BB at ?+11:
+                ?+17:  5d                    pop     %rbp
+                ?+18:  c3                    ret    
 Decoded BB at ?+8:
                  ?+8:  48 83 c0 01           add     $0x1,%rax
                 ?+12:  48 39 f8              cmp     %rdi,%rax
                 ?+15:  7c f7                 jl      $?+8
-Decoded BB at ?+11:
-                ?+17:  5d                    pop     %rbp
-                ?+18:  c3                    ret    
 ; ModuleID = '<llengine>'
 target triple = "x86_64-redhat-linux-gnu"
 

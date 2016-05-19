@@ -109,14 +109,14 @@ ll_decode_basic_block(Rewriter* dbrewDecoder, uintptr_t address, LLState* state)
     LLBasicBlock* next = NULL;
     LLBasicBlock* fallThrough = NULL;
 
-    if (type == IT_JMP || instrIsJcc(type))
-    {
-        next = ll_decode_basic_block(dbrewDecoder, lastInstr->dst.val, state);
-    }
-
     if (instrIsJcc(type) || type == IT_CALL)
     {
         fallThrough = ll_decode_basic_block(dbrewDecoder, lastInstr->addr + lastInstr->len, state);
+    }
+
+    if (type == IT_JMP || instrIsJcc(type))
+    {
+        next = ll_decode_basic_block(dbrewDecoder, lastInstr->dst.val, state);
     }
 
     // It may happen that bb has been split in the meantime.

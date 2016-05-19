@@ -9,9 +9,6 @@ Decoded BB at ?+0:
                 ?+26:  ff ff 7f            
                 ?+29:  48 01 d1              add     %rdx,%rcx
                 ?+32:  71 03                 jno     $?+37
-Decoded BB at ?+25:
-                ?+37:  c9                    leave  
-                ?+38:  c3                    ret    
 Decoded BB at ?+22:
                 ?+34:  48 ff c0              inc     %rax
                 ?+37:  c9                    leave  
