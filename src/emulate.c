@@ -1248,7 +1248,12 @@ void captureCMov(Rewriter* r, Instr* orig, EmuState* es,
     assert(opIsReg(&(orig->dst)));
 
     if (msIsStatic(cState)) {
-        if (cond) captureMov(r, orig, es, res);
+        if (cond) {
+            // use IT_MOV instead of IT_CMOVcc as orig instruction
+            initBinaryInstr(&i, IT_MOV, orig->vtype,
+                            &(orig->dst), &(orig->src));
+            captureMov(r, &i, es, res);
+        }
         return;
     }
     // condition state is unknown

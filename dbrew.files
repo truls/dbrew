@@ -31,6 +31,7 @@ tests/test.c
 tests/test.py
 
 examples/stencil.c
+examples/simple.c
 examples/strcmp.c
 examples/matrix.c
 examples/Makefile
