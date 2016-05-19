@@ -1,3 +1,7 @@
+
+# Can (and should) be specified via the command line.
+SUBDIRS=examples llvm
+
 WFLAGS_BASE=-Wall -Wextra -Wmissing-field-initializers -Wunused-parameter \
             -Wold-style-definition -Wmissing-declarations -Wmissing-prototypes \
             -Wredundant-decls -Wmissing-noreturn -Wshadow -Wpointer-arith \
@@ -51,27 +55,52 @@ DEPS = $(SRCS:.c=.d)
 # instruct GCC to produce dependency files
 CFLAGS += -MMD -MP
 
-SUBDIRS=tests examples
-.PHONY: $(SUBDIRS)
 
-all: libdbrew.a $(SUBDIRS)
+# Build targets
 
-libdbrew.a: $(OBJS)
+SUBDIRS_BUILD=$(addprefix build_, $(SUBDIRS))
+.PHONY: $(SUBDIRS_BUILD)
+
+all: libdbrew.a $(SUBDIRS_BUILD)
+
+libdbrew.a: $(OBJS) $(HEADERS)
 	ar rcs libdbrew.a $(OBJS)
 
-test: libdbrew.a
-	$(MAKE) test -C tests CC=$(CC)
+$(SUBDIRS_BUILD): build_%: libdbrew.a
+	make -C $*
 
 src/snippets.o: src/snippets.c
 	$(CC) $(CFLAGS) $(SNIPPETSFLAGS) -c $< -o $@
 
-examples: libdbrew.a
-	cd examples && $(MAKE) OPTS='$(OPTFLAGS)' CC=$(CC)
 
-clean:
+## Clean targets
+
+SUBDIRS_CLEAN=$(addprefix clean_, $(SUBDIRS))
+.PHONY: $(SUBDIRS_CLEAN)
+
+clean: clean_dbrew $(SUBDIRS_CLEAN)
+
+clean_dbrew:
 	rm -f *~ *.o $(OBJS) $(DEPS) libdbrew.a
 	$(MAKE) clean -C tests
-	cd examples && make clean
+
+$(SUBDIRS_CLEAN): clean_%:
+	make -C $* clean
+
+
+## Test targets
+
+SUBDIRS_TEST=$(addprefix test_, $(SUBDIRS))
+.PHONY: $(SUBDIRS_TEST)
+
+test: libdbrew.a test_dbrew $(SUBDIRS_TEST)
+
+test_dbrew: libdbrew.a
+	cd tests && ./test.py
+
+$(SUBDIRS_TEST): test_%:
+	make -C $* test
+
 
 # include previously generated dependency rules if existing
 -include $(DEPS)
@@ -81,5 +110,3 @@ tidy: compile_commands.json
 
 compile_commands.json:
 	bear make
-
-

@@ -35,5 +35,7 @@ simple: simple.o ../libdbrew.a
 
 vector: vector.o ../libdbrew.a
 
+test:
+
 clean:
 	rm -f *.o *~ $(EXAMPLES)

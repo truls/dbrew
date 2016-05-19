@@ -20,11 +20,11 @@ SRCS = $(wildcard src/*.c)
 OBJS = $(SRCS:.c=.o)
 HEADERS = $(wildcard include/*.h)
 
-.PHONY: all clean test testrun
+.PHONY: all clean test
 
 all: libdbrew-llvm.a
 
-libdbrew-llvm.a: $(OBJS)
+libdbrew-llvm.a: $(OBJS) $(HEADERS)
 	ar rcs $@ $^
 
 clean:
@@ -32,6 +32,3 @@ clean:
 
 test: libdbrew-llvm.a
 	cd tests && ./test.py
-
-testrun: libdbrew-llvm.a
-	cd tests && ./test.py --run
