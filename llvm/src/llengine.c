@@ -271,11 +271,30 @@ dbrew_llvm_backend(Rewriter* rewriter)
         LLBasicBlock* bb = ll_basic_block_new(cbb->dec_addr);
         bb->instrs = cbb->instr;
         bb->instrCount = cbb->count;
+        bb->dbrewBB = cbb;
+
+        cbb->generatorData = bb;
 
         ll_function_add_basic_block(function, bb);
     }
-    // TODO: Add next and fallthrough branch. needs lookup of index.
-    // Do this in a second loop. Additionally, handle end-of-block instrs correctly.
+
+    for (int i = 0; i < rewriter->capBBCount; i++)
+    {
+        CBB* cbb = rewriter->capBB + i;
+        LLBasicBlock* bb = cbb->generatorData;
+
+        if (cbb->nextBranch != NULL)
+        {
+            bb->nextBranch = cbb->nextBranch->generatorData;
+            ll_basic_block_add_predecessor(bb->nextBranch, bb);
+        }
+
+        if (cbb->nextFallThrough != NULL)
+        {
+            bb->nextFallThrough = cbb->nextFallThrough->generatorData;
+            ll_basic_block_add_predecessor(bb->nextFallThrough, bb);
+        }
+    }
 
     if (ll_function_build_ir(function, state))
     {

@@ -32,6 +32,7 @@
 
 #include <llcommon.h>
 #include <llcommon-internal.h>
+#include <llflags-internal.h>
 #include <llinstruction-internal.h>
 #include <llfunction-internal.h>
 
@@ -52,6 +53,7 @@ ll_basic_block_new(uintptr_t address)
     bb->instrCount = 0;
     bb->address = address;
     bb->llvmBB = NULL;
+    bb->dbrewBB = NULL;
     bb->nextBranch = NULL;
     bb->nextFallThrough = NULL;
     bb->predCount = 0;
@@ -166,6 +168,19 @@ ll_basic_block_build_ir(LLBasicBlock* bb, LLState* state)
     for (size_t i = 0; i < bb->instrCount; i++)
     {
         ll_generate_instruction(bb->instrs + i, state);
+    }
+
+    if (bb->dbrewBB != NULL)
+    {
+        if (instrIsJcc(bb->dbrewBB->endType))
+        {
+            LLVMValueRef cond = ll_flags_condition(bb->dbrewBB->endType, IT_JO, state);
+            LLVMBuildCondBr(state->builder, cond, bb->nextBranch->llvmBB, bb->nextFallThrough->llvmBB);
+        }
+        else if (bb->dbrewBB->endType == IT_None)
+            LLVMBuildBr(state->builder, bb->nextFallThrough->llvmBB);
+
+        return;
     }
 
     if (bb->instrCount == 0)

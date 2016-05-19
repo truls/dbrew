@@ -84,15 +84,45 @@ static TestRoutine testRoutines[] = {
     [TEST_DRIVER_FLOAT_ARRAY] = runTestFloatArray,
 };
 
+static
+int
+test_dbrew_binding(bool debug)
+{
+    Rewriter* dbrew = dbrew_new();
 
-int main(int argc, char** argv)
+    if (testCase.routineIndex != -1)
+        return 1;
+
+    dbrew_verbose(dbrew, false, false, false);
+    dbrew_set_decoding_capacity(dbrew, 100000, 100);
+    dbrew_set_capture_capacity(dbrew, 100000, 100, 10000);
+    dbrew_set_function(dbrew, (uintptr_t) testCase.function);
+    // dbrew_config_staticpar(dbrew, 0);
+
+
+    uintptr_t fn = dbrew_llvm_rewrite(dbrew, 10);
+
+    if (debug)
+    {
+        LLConfig config = {
+            .name = "test",
+            .stackSize = 128,
+            .noaliasParams = 7,
+            .fixFirstParam = false
+        };
+
+        LLState* state = ll_engine_init();
+        ll_decode_function(dbrew, fn, &config, state);
+    }
+
+    return 0;
+}
+
+static
+int
+test_llvm_generation(bool debug)
 {
     Rewriter* dbrewDecoder = dbrew_new();
-
-    bool debug = false;
-
-    if (argc >= 2)
-        debug = strcmp(argv[1], "--debug") == 0;
 
     TestRoutine testRoutine = testRoutines[(int) testCase.routineIndex];
 
@@ -153,4 +183,18 @@ int main(int argc, char** argv)
 
         return 1;
     }
+}
+
+
+int main(int argc, char** argv)
+{
+    bool debug = false;
+
+    if (argc >= 2)
+        debug = strcmp(argv[1], "--debug") == 0;
+
+    if (testCase.routineIndex >= 0)
+        return test_llvm_generation(debug);
+    else
+        return test_dbrew_binding(debug);
 }

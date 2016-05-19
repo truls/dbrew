@@ -30,6 +30,7 @@
 #include <stdlib.h>
 #include <llvm-c/Core.h>
 
+#include <common.h>
 #include <instr.h>
 
 #include <llcommon.h>
@@ -75,6 +76,11 @@ struct LLBasicBlock {
      * \brief The LLVM basic block
      **/
     LLVMBasicBlockRef llvmBB;
+
+    /**
+     * \brief The DBrew CBB. NULL if the basic block is not derived from DBrew.
+     **/
+    CBB* dbrewBB;
 
     /**
      * \brief The LLVM values of the architectural general purpose registers

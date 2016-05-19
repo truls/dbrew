@@ -631,6 +631,7 @@ CBB* getCaptureBB(RContext* c, uint64_t f, int esID)
     bb->addr2 = 0;
     bb->genJcc8 = false;
     bb->genJump = false;
+    bb->generatorData = NULL;
 
     bb->generatorData = 0;
 

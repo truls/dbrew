@@ -20,6 +20,8 @@ typedef struct TestCase TestCase;
 #endif
 // #error
 
+#define TEST_DBREW_INT -1
+
 #define TEST_DRIVER_INT_ARRAY 0
 #define TEST_DRIVER_DOUBLE_ARRAY 1
 #define TEST_DRIVER_INT 2
