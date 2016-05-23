@@ -41,31 +41,31 @@ define i64 @test(i8* noalias, i8* noalias nocapture readonly, i8*, i8*, i8* noca
   br i1 %9, label %.loopexit, label %10
 
 ; <label>:10                                      ; preds = %6
-  %11 = ptrtoint i8* %0 to i64
-  %12 = ptrtoint i8* %2 to i64
-  %13 = ptrtoint i8* %3 to i64
-  %14 = add i64 %11, 8, !asm.reg.rdi !0
+  %11 = ptrtoint i8* %2 to i64
+  %12 = ptrtoint i8* %3 to i64
+  %13 = getelementptr i8, i8* %0, i64 8
+  %14 = ptrtoint i8* %13 to i64
   %15 = bitcast i8* %1 to i64*
   br label %16
 
 .loopexit.loopexit:                               ; preds = %16
-  %.lcssa4 = phi i64 [ %34, %16 ]
+  %.lcssa5 = phi i64 [ %34, %16 ]
   br label %.loopexit
 
 .loopexit:                                        ; preds = %.loopexit.loopexit, %6
-  %.lcssa = phi i64 [ 0, %6 ], [ %.lcssa4, %.loopexit.loopexit ]
+  %.lcssa = phi i64 [ 0, %6 ], [ %.lcssa5, %.loopexit.loopexit ]
   ret i64 %.lcssa
 
 ; <label>:16                                      ; preds = %16, %10
   %17 = phi i64 [ 0, %10 ], [ %34, %16 ]
-  %18 = phi i64 [ %14, %10 ], [ %36, %16 ]
+  %18 = phi i64 [ %14, %10 ], [ %37, %16 ]
   %19 = phi i64 [ 0, %10 ], [ %35, %16 ]
   %20 = inttoptr i64 %18 to i64*
   %21 = getelementptr i64, i64* %20, i64 1
   %22 = load i64, i64* %21, align 8
-  %23 = add i64 %22, %13, !asm.reg.r8 !0
+  %23 = add i64 %22, %12, !asm.reg.r8 !0
   %24 = load i64, i64* %20, align 8
-  %25 = add i64 %24, %12, !asm.reg.r10 !0
+  %25 = add i64 %24, %11, !asm.reg.r10 !0
   %26 = getelementptr i64, i64* %15, i64 %23
   %27 = bitcast i64* %26 to i64**
   %28 = load i64*, i64** %27, align 8
@@ -76,9 +76,10 @@ define i64 @test(i8* noalias, i8* noalias nocapture readonly, i8*, i8*, i8* noca
   %33 = mul i64 %32, %30, !asm.reg.r8 !0
   %34 = add i64 %33, %17, !asm.reg.rax !0
   %35 = add i64 %19, 1, !asm.reg.r9 !0
-  %36 = add i64 %18, 24, !asm.reg.rdi !0
-  %37 = icmp eq i64 %35, %8
-  br i1 %37, label %.loopexit.loopexit, label %16
+  %36 = getelementptr i64, i64* %20, i64 3
+  %37 = ptrtoint i64* %36 to i64, !asm.reg.rdi !0
+  %38 = icmp eq i64 %35, %8
+  br i1 %38, label %.loopexit.loopexit, label %16
 }
 
 attributes #0 = { nounwind readnone }

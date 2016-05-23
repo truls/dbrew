@@ -238,6 +238,46 @@ ll_cast_from_int(LLVMValueRef value, OperandDataType dataType, int bits, LLState
 // {
 //     return LLVMBuildBitCast(state->builder, value, LLVMIntTypeInContext(state->context, bits), "");
 // }
+/**
+ * Try to estimate whether a value is a pointer. When doing memory operations,
+ * knowing that a value is actually a pointer permits us to do pointer
+ * arithmetics, which leads to better code, but breaks vectorization and scalar
+ * optimizations.
+ *
+ * \private
+ **/
+static bool
+ll_value_is_pointer(LLVMValueRef value, LLState* state)
+{
+    // LLVMDumpValue(value);
+    // printf("!!! %d\n", LLVMIsConstant(value));
+    if (LLVMIsAConstantInt(value))
+        return false;
+    // else if (LLVMIsAConstantExpr(value))
+    // {
+    //     // printf("!!!!! C %d\n", LLVMGetConstOpcode(value));
+    // }
+    else if (LLVMIsConstant(value))
+    {
+        // How do we react here??
+    }
+    else if (LLVMIsAInstruction(value))
+    {
+        if (LLVMGetInstructionOpcode(value) == LLVMLoad)
+            return false;
+        // Other candidates?
+    }
+
+    // TODO: Implement better heuristics here.
+
+    // The problem is: we don't know much about the value, except that its an
+    // integer. The value is likely a PHI node. What do we do? In case of doubt,
+    // call it a pointer and hope that LLVM will understand our intention.
+
+    (void) state;
+
+    return true;
+}
 
 /**
  * Get a pointer to the a known global constant
@@ -730,7 +770,8 @@ ll_generate_instruction(Instr* instr, LLState* state)
     LLVMValueRef result;
 
     LLVMTypeRef i8 = LLVMInt8TypeInContext(state->context);
-    // LLVMTypeRef i32 = LLVMInt32TypeInContext(state->context);
+    LLVMTypeRef i64 = LLVMInt64TypeInContext(state->context);
+    LLVMTypeRef pi64 = LLVMPointerType(i64, 0);
 
     // Set new instruction pointer register
     uintptr_t rip = instr->addr + instr->len;
@@ -801,7 +842,7 @@ ll_generate_instruction(Instr* instr, LLState* state)
             // TODO: Test this!!
             // DBrew currently cannot decode SETcc.
             cond = ll_flags_condition(instr->type, IT_SETO, state);
-            result = LLVMBuildSExtOrBitCast(state->builder, cond, i8, "");
+            result = LLVMBuildZExtOrBitCast(state->builder, cond, i8, "");
             ll_operand_store(OP_SI, &instr->dst, REG_DEFAULT, result, state);
             break;
 
@@ -892,7 +933,23 @@ ll_generate_instruction(Instr* instr, LLState* state)
             operand2 = ll_operand_load(OP_SI, &instr->src, state);
             operand2 = LLVMBuildSExtOrBitCast(state->builder, operand2, LLVMTypeOf(operand1), "");
 
-            result = LLVMBuildAdd(state->builder, operand1, operand2, "");
+            if (ll_value_is_pointer(operand1, state) && LLVMIsConstant(operand2))
+            {
+                int64_t value = LLVMConstIntGetSExtValue(operand2);
+
+                if ((value % 8) == 0)
+                {
+                    LLVMValueRef ptr = LLVMBuildIntToPtr(state->builder, operand1, pi64, "");
+                    LLVMValueRef offset = LLVMConstInt(i64, value / 8, true);
+                    LLVMValueRef add = LLVMBuildGEP(state->builder, ptr, &offset, 1, "");
+                    result = LLVMBuildPtrToInt(state->builder, add, LLVMTypeOf(operand1), "");
+                }
+                else
+                    result = LLVMBuildAdd(state->builder, operand1, operand2, "");
+            }
+            else
+                result = LLVMBuildAdd(state->builder, operand1, operand2, "");
+
             ll_flags_set_add(result, operand1, operand2, state);
             ll_operand_store(OP_SI, &instr->dst, REG_DEFAULT, result, state);
             break;

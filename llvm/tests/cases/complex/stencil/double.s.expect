@@ -40,10 +40,10 @@ define i64 @test(i8* noalias, i8* noalias nocapture readonly, i8*, i8*, i8* noca
   br i1 %9, label %46, label %10
 
 ; <label>:10                                      ; preds = %6
-  %11 = ptrtoint i8* %0 to i64
-  %12 = ptrtoint i8* %2 to i64
-  %13 = ptrtoint i8* %3 to i64
-  %14 = add i64 %11, 8, !asm.reg.rdi !0
+  %11 = ptrtoint i8* %2 to i64
+  %12 = ptrtoint i8* %3 to i64
+  %13 = getelementptr i8, i8* %0, i64 8
+  %14 = ptrtoint i8* %13 to i64
   %15 = bitcast i8* %1 to i64*
   br label %18
 
@@ -59,9 +59,9 @@ define i64 @test(i8* noalias, i8* noalias nocapture readonly, i8*, i8*, i8* noca
   %22 = inttoptr i64 %20 to i64*
   %23 = getelementptr i64, i64* %22, i64 1
   %24 = load i64, i64* %23, align 8
-  %25 = add i64 %24, %13, !asm.reg.r8 !0
+  %25 = add i64 %24, %12, !asm.reg.r8 !0
   %26 = load i64, i64* %22, align 8
-  %27 = add i64 %26, %12, !asm.reg.r9 !0
+  %27 = add i64 %26, %11, !asm.reg.r9 !0
   %28 = getelementptr i64, i64* %15, i64 %25
   %29 = bitcast i64* %28 to double**
   %30 = load double*, double** %29, align 8
