@@ -333,9 +333,9 @@ benchmark_run2(const BenchmarkArgs* args, const BenchmarkStencilConfig* config)
         .name = "test",
         .stackSize = 128,
         .noaliasParams = 7,
-        .fixFirstParam = false,
-        .firstParam = (uintptr_t) 0,
-        .firstParamLength = 0,
+        .fixFirstParam = true,
+        .firstParam = 0,
+        .firstParamLength = 0x100,
     };
 
     LLState* state = NULL;
@@ -348,6 +348,8 @@ benchmark_run2(const BenchmarkArgs* args, const BenchmarkStencilConfig* config)
     for (size_t i = 0; i < args->iterationCount; i++)
     {
         params(&arg0, &arg1, &arg2);
+
+        llconfig.firstParam = (uintptr_t) arg0;
 
         JTimerCont(&timerTotal);
         JTimerCont(&timerCompile);

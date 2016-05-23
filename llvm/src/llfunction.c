@@ -105,7 +105,25 @@ ll_function_new(LLFunctionDecl* declParam, LLConfig* config, LLState* state)
 
     if (config->fixFirstParam)
     {
-        initialBB->registers[Reg_DI - Reg_AX] = LLVMConstInt(i64, config->firstParam, false);
+        // Last check is for sanity.
+        if (config->firstParamLength != 0 && config->firstParamLength < 0x200)
+        {
+            LLVMTypeRef arrayType = LLVMArrayType(i64, config->firstParamLength / 8);
+            LLVMValueRef qwords[config->firstParamLength / 8];
+
+            uint64_t* data = (uint64_t*) config->firstParam;
+            for (size_t i = 0; i < config->firstParamLength / 8; i++)
+                qwords[i] = LLVMConstInt(i64, data[i], false);
+
+            LLVMValueRef global = LLVMAddGlobal(state->module, arrayType, "globalParam0");
+            LLVMSetGlobalConstant(global, true);
+            LLVMSetLinkage(global, LLVMPrivateLinkage);
+            LLVMSetInitializer(global, LLVMConstArray(arrayType, qwords, config->firstParamLength / 8));
+
+            initialBB->registers[Reg_DI - Reg_AX] = LLVMBuildPtrToInt(state->builder, global, i64, "");
+        }
+        else
+            initialBB->registers[Reg_DI - Reg_AX] = LLVMConstInt(i64, config->firstParam, false);
     }
 
     // Setup virtual stack
