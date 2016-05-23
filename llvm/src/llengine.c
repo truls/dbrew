@@ -103,6 +103,17 @@ ll_engine_init(void)
     return state;
 }
 
+void
+ll_engine_dispose(LLState* state)
+{
+    // LLVMDisposeModule(state->module);
+    LLVMDisposeBuilder(state->builder);
+    LLVMDisposeExecutionEngine(state->engine);
+    LLVMContextDispose(state->context);
+
+    free(state);
+}
+
 // bool
 // ll_engine_handle_function(LLState* state, LLFunction* function)
 // {

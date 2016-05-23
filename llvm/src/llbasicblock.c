@@ -63,6 +63,15 @@ ll_basic_block_new(uintptr_t address)
 }
 
 void
+ll_basic_block_dispose(LLBasicBlock* bb)
+{
+    if (bb->predsAllocated != 0)
+        free(bb->preds);
+
+    free(bb);
+}
+
+void
 ll_basic_block_declare(LLBasicBlock* bb, LLState* state)
 {
     if (bb->llvmBB != NULL)

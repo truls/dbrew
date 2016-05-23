@@ -99,6 +99,7 @@ struct LLBasicBlock {
 };
 
 LLBasicBlock* ll_basic_block_new(uintptr_t);
+void ll_basic_block_dispose(LLBasicBlock*);
 void ll_basic_block_declare(LLBasicBlock*, LLState*);
 void ll_basic_block_add_predecessor(LLBasicBlock*, LLBasicBlock*);
 LLBasicBlock* ll_basic_block_split(LLBasicBlock*, size_t, LLState*);

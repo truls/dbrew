@@ -49,7 +49,7 @@ ll_function_new(LLFunctionDecl* declParam, LLConfig* config, LLState* state)
     function = malloc(sizeof(LLFunction));
     function->decl = *declParam;
     function->bbCount = 0;
-    function->bbs = 0;
+    function->bbs = NULL;
     function->bbsAllocated = 0;
     function->stackSize = config->stackSize;
     function->decl.noaliasParams = config->noaliasParams;
@@ -121,6 +121,20 @@ ll_function_new(LLFunctionDecl* declParam, LLConfig* config, LLState* state)
     function->initialBB = initialBB;
 
     return function;
+}
+
+void
+ll_function_dispose(LLFunction* function)
+{
+    if (function->bbsAllocated != 0)
+    {
+        for (size_t i = 0; i < function->bbCount; i++)
+            ll_basic_block_dispose(function->bbs[i]);
+
+        free(function->bbs);
+    }
+
+    free(function);
 }
 
 void
