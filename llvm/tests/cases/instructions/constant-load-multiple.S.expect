@@ -1,0 +1,42 @@
+Decoded BB at ?+0:
+                   ?:  55                    push    %rbp
+                 ?+1:  48 89 e5              mov     %rsp,%rbp
+                 ?+4:  48 8b 0d 2d 00 00 00  mov     0x2d(%rip),%rcx
+                ?+11:  48 01 0f              add     %rcx,(%rdi)
+                ?+14:  48 8b 0d 2b 00 00 00  mov     0x2b(%rip),%rcx
+                ?+21:  48 01 4f 08           add     %rcx,0x8(%rdi)
+                ?+25:  31 c0                 xor     %eax,%eax
+                ?+27:  c9                    leave  
+                ?+28:  c3                    ret    
+; ModuleID = '<llengine>'
+target triple = "x86_64-pc-linux-gnu"
+
+@__ll_global_base__ = external global i8
+
+; Function Attrs: nounwind readnone
+declare i8 @llvm.ctpop.i8(i8) #0
+
+; Function Attrs: nounwind readnone
+declare void @llvm.donothing() #0
+
+define i64 @test(i8* nocapture, i8* nocapture readnone, i8* nocapture readnone, i8* nocapture readnone, i8* nocapture readnone, i8* nocapture readnone) {
+  %7 = load i64, i64* bitcast (i8* @__ll_global_base__ to i64*), align 8, !asm.reg.rcx !0
+  %8 = bitcast i8* %0 to i64*
+  %9 = load i64, i64* %8, align 8
+  %10 = add i64 %9, %7
+  store i64 %10, i64* %8, align 8
+  %11 = load i64, i64* bitcast (i8* getelementptr (i8, i8* @__ll_global_base__, i64 8) to i64*), align 8, !asm.reg.rcx !0
+  %12 = getelementptr i8, i8* %0, i64 8
+  %13 = bitcast i8* %12 to i64*
+  %14 = load i64, i64* %13, align 8
+  %15 = add i64 %14, %11
+  store i64 %15, i64* %13, align 8
+  ret i64 0
+}
+
+attributes #0 = { nounwind readnone }
+
+!0 = !{}
+
+Result: 0 11 22 3 4 5 6 7 8
+Result: 0 11 22 3 4 5 6 7 8

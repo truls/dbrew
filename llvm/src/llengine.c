@@ -99,6 +99,7 @@ ll_engine_init(void)
     state->intrinsicCtpop8 = LLVMAddFunction(state->module, "llvm.ctpop.i8", ctpop8Type);
     state->intrinsicDoNothing = LLVMAddFunction(state->module, "llvm.donothing", donothingType);
     state->emptyMD = LLVMMDNodeInContext(state->context, NULL, 0); //LLVMMDStringInContext(state->context, "", 0);
+    state->globalOffsetBase = 0;
 
     return state;
 }

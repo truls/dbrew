@@ -83,6 +83,9 @@ struct LLState {
      * \brief The current basic block
      **/
     LLBasicBlock* currentBB;
+
+    uintptr_t globalOffsetBase;
+    LLVMValueRef globalBase;
 };
 
 #endif
