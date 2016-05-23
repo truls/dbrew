@@ -28,15 +28,15 @@ define i64 @test(i8* nocapture, i8* noalias nocapture readonly, i8* nocapture re
   %13 = extractelement <2 x double> %11, i32 0
   %14 = fadd double %12, %13
   %15 = insertelement <4 x double> %9, double %14, i64 0
-  %.bc = bitcast <4 x double> %15 to <2 x i128>
-  %.extract = extractelement <2 x i128> %.bc, i32 0
-  %16 = shufflevector <4 x double> %15, <4 x double> undef, <2 x i32> <i32 0, i32 1>
-  store <2 x double> %16, <2 x double>* %7, align 8
-  %17 = bitcast i8* %0 to double*
-  %trunc = trunc i128 %.extract to i64
-  %bitcast = bitcast i64 %trunc to double
-  %18 = fadd double %13, %bitcast
-  store double %18, double* %17, align 8
+  %16 = bitcast <4 x double> %15 to <2 x i128>
+  %17 = extractelement <2 x i128> %16, i32 0
+  %18 = shufflevector <4 x double> %15, <4 x double> undef, <2 x i32> <i32 0, i32 1>
+  store <2 x double> %18, <2 x double>* %7, align 8
+  %19 = bitcast i8* %0 to double*
+  %20 = trunc i128 %17 to i64
+  %21 = bitcast i64 %20 to double
+  %22 = fadd double %13, %21
+  store double %22, double* %19, align 8
   ret i64 0
 }
 

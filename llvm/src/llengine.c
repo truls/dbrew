@@ -229,6 +229,11 @@ ll_engine_optimize(LLState* state, int level)
 
     LLVMDisposePassManager(pm);
 
+    pm = LLVMCreatePassManager();
+    LLVMAddStripSymbolsPass(pm);
+    LLVMRunPassManager(pm, state->module);
+    LLVMDisposePassManager(pm);
+
     ll_engine_dump(state);
 }
 

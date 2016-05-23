@@ -27,9 +27,9 @@ define i64 @test(i8*, i8* nocapture readnone, i8* nocapture readnone, i8* nocapt
   %7 = ptrtoint i8* %0 to i64
   %8 = icmp sgt i8* %0, null
   %9 = icmp sgt i64 %7, 1
-  %smax = select i1 %9, i64 %7, i64 1
-  %10 = select i1 %8, i64 %smax, i64 0
-  ret i64 %10
+  %10 = select i1 %9, i64 %7, i64 1
+  %11 = select i1 %8, i64 %10, i64 0
+  ret i64 %11
 }
 
 attributes #0 = { nounwind readnone }
