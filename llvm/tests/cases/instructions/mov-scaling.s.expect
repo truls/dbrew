@@ -1,8 +1,7 @@
 Decoded BB at ?+0:
-                   ?:  48 8b 0c 25 30 39 40  mov     ?+40,%rcx
-                 ?+7:  00                  
-                 ?+8:  48 8b 04 cf           mov     (%rdi,%rcx,8),%rax
-                ?+12:  c3                    ret    
+                   ?:  48 8b 0d 21 00 00 00  mov     0x21(%rip),%rcx
+                 ?+7:  48 8b 04 cf           mov     (%rdi,%rcx,8),%rax
+                ?+11:  c3                    ret    
 ; ModuleID = '<llengine>'
 target triple = "x86_64-pc-linux-gnu"
 

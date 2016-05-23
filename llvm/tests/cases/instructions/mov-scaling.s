@@ -3,7 +3,7 @@
     .globl  test
     .type   test, @function
 test:
-    mov rcx, [index]
+    mov rcx, [rip + index]
     mov rax, [rdi + 8 * rcx]
     ret
 
