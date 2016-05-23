@@ -2,8 +2,6 @@
 #ifndef TIMER
 #define TIMER
 
-#define _POSIX_C_SOURCE 200809L
-
 #include <time.h>
 
 struct JTimer {
