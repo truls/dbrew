@@ -698,7 +698,7 @@ ll_generate_instruction(Instr* instr, LLState* state)
     LLVMValueRef result;
 
     LLVMTypeRef i8 = LLVMInt8TypeInContext(state->context);
-    LLVMTypeRef i32 = LLVMInt32TypeInContext(state->context);
+    // LLVMTypeRef i32 = LLVMInt32TypeInContext(state->context);
 
     // Set new instruction pointer register
     uintptr_t rip = instr->addr + instr->len;
@@ -706,9 +706,9 @@ ll_generate_instruction(Instr* instr, LLState* state)
     state->currentBB->registers[Reg_IP - Reg_AX] = ripValue;
 
     // Add Metadata for debugging.
-    char* instrName = instr2string(instr, 0, NULL);
+    char* instructionName = instr2string(instr, 0, NULL);
     LLVMValueRef mdCall = LLVMBuildCall(state->builder, state->intrinsicDoNothing, NULL, 0, "");
-    LLVMValueRef mdNode = LLVMMDStringInContext(state->context, instrName, strlen(instrName));
+    LLVMValueRef mdNode = LLVMMDStringInContext(state->context, instructionName, strlen(instructionName));
     LLVMSetMetadata(mdCall, LLVMGetMDKindIDInContext(state->context, "asm.instr", 9), mdNode);
     // TODO: Flags!
 

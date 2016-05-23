@@ -87,7 +87,7 @@ ll_decode_basic_block(Rewriter* dbrewDecoder, uintptr_t address, LLState* state)
     FunctionConfig fc = {
         .func = state->currentFunction->decl.address,
         .size = 0x1000,
-        .name = "?",
+        .name = (char*) "?",
         .next = NULL
     };
     DBB* dbb = dbrew_decode(dbrewDecoder, address);

@@ -164,7 +164,7 @@ ll_engine_optimize(LLState* state, int level)
         LLVMAddTypeBasedAliasAnalysisPass(pm);
 
         LLVMAddDeadStoreEliminationPass(pm);
-        LLVMAddMergedLoadStoreMotionPass(pm);
+        // LLVMAddMergedLoadStoreMotionPass(pm);
 
         // LLVMAddConstantMergePass(pm);
         // LLVMAddArgumentPromotionPass(pm);
@@ -194,7 +194,7 @@ ll_engine_optimize(LLState* state, int level)
         // LLVMAddScalarizerPass(pm);
 
         LLVMAddReassociatePass(pm);
-        LLVMAddAlignmentFromAssumptionsPass(pm);
+        // LLVMAddAlignmentFromAssumptionsPass(pm);
     }
 
     if (level >= 3)
