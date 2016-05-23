@@ -48,14 +48,14 @@ define i64 @test(i8* noalias, i8* noalias nocapture readonly, i8*, i8*, i8* noca
   br label %18
 
 ; <label>:16                                      ; preds = %18
-  %.lcssa = phi i256 [ %42, %18 ]
+  %.lcssa = phi i256 [ %41, %18 ]
   %17 = trunc i256 %.lcssa to i64, !asm.reg.rax !0
   ret i64 %17
 
 ; <label>:18                                      ; preds = %18, %10
   %19 = phi i64 [ 0, %10 ], [ %44, %18 ]
   %20 = phi i64 [ %14, %10 ], [ %43, %18 ]
-  %21 = phi i256 [ bitcast (<2 x i128> <i128 0, i128 undef> to i256), %10 ], [ %42, %18 ]
+  %21 = phi i256 [ bitcast (<2 x i128> <i128 0, i128 undef> to i256), %10 ], [ %41, %18 ]
   %22 = inttoptr i64 %20 to i64*
   %23 = getelementptr i64, i64* %22, i64 1
   %24 = load i64, i64* %23, align 8
@@ -71,13 +71,13 @@ define i64 @test(i8* noalias, i8* noalias nocapture readonly, i8*, i8*, i8* noca
   %34 = getelementptr double, double* %33, i64 2
   %35 = load double, double* %34, align 8
   %36 = fmul double %32, %35
-  %37 = trunc i256 %21 to i64
-  %38 = bitcast i64 %37 to double
+  %37 = bitcast i256 %21 to <4 x double>
+  %38 = extractelement <4 x double> %37, i32 0
   %39 = fadd double %38, %36
-  %40 = bitcast i256 %21 to <4 x double>
-  %41 = insertelement <4 x double> %40, double %39, i64 0
-  %42 = bitcast <4 x double> %41 to i256, !asm.reg.xmm0 !0
-  %43 = add i64 %20, 24, !asm.reg.rdi !0
+  %40 = insertelement <4 x double> %37, double %39, i64 0
+  %41 = bitcast <4 x double> %40 to i256, !asm.reg.xmm0 !0
+  %42 = getelementptr i64, i64* %22, i64 3
+  %43 = ptrtoint i64* %42 to i64, !asm.reg.rdi !0
   %44 = add i64 %19, 1, !asm.reg.rax !0
   %45 = icmp eq i64 %44, %8
   br i1 %45, label %16, label %18

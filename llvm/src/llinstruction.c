@@ -150,6 +150,7 @@ ll_cast_from_int(LLVMValueRef value, OperandDataType dataType, int bits, LLState
     LLVMValueRef result;
     LLVMTypeRef target = ll_get_operand_type(dataType, bits, state);
     LLVMTypeKind targetKind = LLVMGetTypeKind(target);
+    LLVMTypeRef i32 = LLVMInt32TypeInContext(state->context);
 
     int valueLength = LLVMGetIntTypeWidth(LLVMTypeOf(value));
 
@@ -163,7 +164,7 @@ ll_cast_from_int(LLVMValueRef value, OperandDataType dataType, int bits, LLState
 
         for (int i = 0; i < targetSize; i++)
         {
-            shuffleScalars[i] = LLVMConstInt(LLVMInt32TypeInContext(state->context), i, false);
+            shuffleScalars[i] = LLVMConstInt(i32, i, false);
         }
 
         int totalCount = targetSize * valueLength / bits;
@@ -187,13 +188,19 @@ ll_cast_from_int(LLVMValueRef value, OperandDataType dataType, int bits, LLState
 
         int targetLength;
 
+        // This is specific to x86-64: All floating-point registers we use are
+        // vector registers.
+        bool useVector = false;
+
         if (targetKind == LLVMFloatTypeKind)
         {
             targetLength = 32;
+            useVector = true;
         }
         else if (targetKind == LLVMDoubleTypeKind)
         {
             targetLength = 64;
+            useVector = true;
         }
         else if (targetKind == LLVMIntegerTypeKind)
         {
@@ -205,21 +212,21 @@ ll_cast_from_int(LLVMValueRef value, OperandDataType dataType, int bits, LLState
             warn_if_reached();
         }
 
-        targetIntType = LLVMIntTypeInContext(state->context, targetLength);
-
-        if (valueLength < targetLength)
+        if (useVector)
         {
-            result = LLVMBuildSExtOrBitCast(state->builder, value, targetIntType, "");
+            LLVMTypeRef vectorType = LLVMVectorType(target, valueLength / bits);
+            LLVMValueRef vector = LLVMBuildBitCast(state->builder, value, vectorType, "");
+
+            result = LLVMBuildExtractElement(state->builder, vector, LLVMConstInt(i32, 0, false), "");
         }
         else
         {
-            result = LLVMBuildTruncOrBitCast(state->builder, value, targetIntType, "");
-        }
+            targetIntType = LLVMIntTypeInContext(state->context, targetLength);
 
-        // Cast to floating-point if necessary.
-        if (LLVMTypeOf(result) != target)
-        {
-            result = LLVMBuildBitCast(state->builder, result, target, "");
+            if (valueLength < targetLength)
+                result = LLVMBuildSExtOrBitCast(state->builder, value, targetIntType, "");
+            else
+                result = LLVMBuildTruncOrBitCast(state->builder, value, targetIntType, "");
         }
     }
 
