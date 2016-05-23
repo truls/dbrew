@@ -87,8 +87,8 @@ class TestCase:
 
         substs = {
             "cc": self.getProperty("cc", os.environ["CC"] if "CC" in os.environ else "cc"),
-            "ldflags": os.environ["LDFLAGS"] if "LDFLAGS" in os.environ else "",
-            "ldlibs": os.environ["LDLIBS"] if "LDLIBS" in os.environ else "",
+            "ldflags": os.environ["LDFLAGS"] if "LDFLAGS" in os.environ else "-g -L/usr/lib64/llvm",
+            "ldlibs": os.environ["LDLIBS"] if "LDLIBS" in os.environ else "-lLLVM-3.7",
             "ccflags": self.getProperty("ccflags", "-std=c99 -g"),
             "dbrew": "-I../include ../libdbrew.a",
             "outfile": self.outFile,
