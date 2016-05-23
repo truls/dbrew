@@ -73,7 +73,7 @@ ll_engine_init(void)
     state->module = LLVMModuleCreateWithNameInContext("<llengine>", state->context);
     state->builder = LLVMCreateBuilderInContext(state->context);
 
-    LLVMSetTarget(state->module, LLVMGetDefaultTargetTriple());
+    LLVMSetTarget(state->module, "x86_64-pc-linux-gnu"); // LLVMGetDefaultTargetTriple()
     LLVMLinkInMCJIT();
     LLVMInitializeNativeAsmPrinter();
     LLVMInitializeNativeTarget();

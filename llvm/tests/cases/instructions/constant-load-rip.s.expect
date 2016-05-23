@@ -9,7 +9,7 @@ Decoded BB at ?+0:
                 ?+22:  c9                    leave  
                 ?+23:  c3                    ret    
 ; ModuleID = '<llengine>'
-target triple = "x86_64-redhat-linux-gnu"
+target triple = "x86_64-pc-linux-gnu"
 
 ; Function Attrs: nounwind readnone
 declare i8 @llvm.ctpop.i8(i8) #0
@@ -20,7 +20,7 @@ declare void @llvm.donothing() #0
 define i64 @test(i8* nocapture, i8* nocapture readnone, i8* nocapture readnone, i8* nocapture readnone, i8* nocapture readnone, i8* nocapture readnone) {
   %7 = bitcast i8* %0 to i64*
   %8 = load i64, i64* %7, align 8, !asm.reg.rax !0
-  %9 = load i64, i64* inttoptr (i64 4207464 to i64*), align 8, !asm.reg.rcx !0
+  %9 = load i64, i64* inttoptr (i64 4207176 to i64*), align 8, !asm.reg.rcx !0
   %10 = add i64 %9, %8, !asm.reg.rax !0
   store i64 %10, i64* %7, align 8
   ret i64 0

@@ -14,7 +14,7 @@ Decoded BB at ?+8:
                 ?+12:  48 39 f8              cmp     %rdi,%rax
                 ?+15:  7c f7                 jl      $?+8
 ; ModuleID = '<llengine>'
-target triple = "x86_64-redhat-linux-gnu"
+target triple = "x86_64-pc-linux-gnu"
 
 ; Function Attrs: nounwind readnone
 declare i8 @llvm.ctpop.i8(i8) #0
