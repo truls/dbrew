@@ -146,12 +146,7 @@ ll_flags_set_zf(LLVMValueRef result, LLState* state)
 static void
 ll_flags_set_sf(LLVMValueRef result, LLState* state)
 {
-    int width = LLVMGetIntTypeWidth(LLVMTypeOf(result));
-    LLVMTypeRef intType = LLVMTypeOf(result);
-    LLVMTypeRef i1 = LLVMInt1TypeInContext(state->context);
-
-    LLVMValueRef msb = LLVMBuildLShr(state->builder, result, LLVMConstInt(intType, width - 1, false), "");
-    state->currentBB->registers[RFLAG_SF] = LLVMBuildTrunc(state->builder, msb, i1, "");
+    state->currentBB->registers[RFLAG_SF] = LLVMBuildICmp(state->builder, LLVMIntSLT, result, LLVMConstInt(LLVMTypeOf(result), 0, false), "");
 
     LLVMSetMetadata(state->currentBB->registers[RFLAG_SF], LLVMGetMDKindIDInContext(state->context, "asm.flag.sf", 11), state->emptyMD);
 }
