@@ -94,8 +94,28 @@ ll_engine_init(void)
 
     state->emptyMD = LLVMMDNodeInContext(state->context, NULL, 0); //LLVMMDStringInContext(state->context, "", 0);
     state->globalOffsetBase = 0;
+    state->unsafePointerOptimizations = false;
 
     return state;
+}
+
+/**
+ * Enable unsafe pointer optimizations for arithmetic operations. This leads to
+ * further optimizations when handling pointers. However, for integer operations
+ * less optimization gets applied. Furthermore, if the program relies on the
+ * behavior of integers, this must be turned off, as pointer arithmetics have
+ * an undefined overflow behavior. As a consequence, these optimizations are
+ * disabled by default.
+ *
+ * This function must be called before the IR of the function is built.
+ *
+ * \param state The module state
+ * \param enable Whether unsafe pointer optimizations can be performed.
+ **/
+void
+ll_engine_enable_unsafe_pointer_optimizations(LLState* state, bool enable)
+{
+    state->unsafePointerOptimizations = enable;
 }
 
 void

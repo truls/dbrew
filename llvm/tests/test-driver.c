@@ -130,12 +130,14 @@ test_llvm_generation(bool debug)
         .name = "test",
         .stackSize = testCase.length >= 4 ? testCase.stackSize : 128,
         .noaliasParams = testCase.length >= 5 ? testCase.noaliasParams : 0,
-        .fixFirstParam = testCase.length >= 7 ? testCase.fixFirstParam : false,
-        .firstParam = testCase.length >= 8 ? testCase.fixedParamData : 0,
-        .firstParamLength = testCase.length >= 9 ? testCase.fixedParamLength : 0,
+        .fixFirstParam = false,
     };
 
     LLState* state = ll_engine_init();
+
+    if (testCase.length >= 7 && testCase.enableUnsafePointerOptimizations)
+        ll_engine_enable_unsafe_pointer_optimizations(state, true);
+
     LLFunction* function = ll_decode_function(dbrewDecoder, (uintptr_t) testCase.function, &config, state);
 
     if (function != NULL)
@@ -168,12 +170,13 @@ test_llvm_generation(bool debug)
         void* fn = ll_function_get_pointer(function, state);
 
         if (debug)
+        {
+            // DBrew cannot decode the vectorized LLVM generated code :/
+            ll_engine_disassemble(state);
             ll_decode_function(dbrewDecoder, (uintptr_t) fn, &config, state);
+        }
 
         testRoutine(fn);
-
-        // DBrew cannot decode the vectorized LLVM generated code :/
-        // ll_engine_disassemble(state);
 
         return 0;
     }

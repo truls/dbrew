@@ -31,13 +31,13 @@ define i64 @test(i8* noalias, i8* noalias nocapture readonly, i8*, i8*, i8* noca
   %7 = bitcast i8* %0 to i64*
   %8 = load i64, i64* %7, align 8, !asm.reg.r10 !0
   %9 = icmp eq i64 %8, 0, !asm.flag.zf !0
-  br i1 %9, label %47, label %10
+  br i1 %9, label %46, label %10
 
 ; <label>:10                                      ; preds = %6
-  %11 = ptrtoint i8* %2 to i64
-  %12 = ptrtoint i8* %3 to i64
-  %13 = getelementptr i8, i8* %0, i64 8
-  %14 = ptrtoint i8* %13 to i64
+  %11 = ptrtoint i8* %0 to i64
+  %12 = ptrtoint i8* %2 to i64
+  %13 = ptrtoint i8* %3 to i64
+  %14 = add i64 %11, 8, !asm.reg.rdi !0
   %15 = bitcast i8* %1 to i64*
   br label %19
 
@@ -47,15 +47,15 @@ define i64 @test(i8* noalias, i8* noalias nocapture readonly, i8*, i8*, i8* noca
   ret i64 %18
 
 ; <label>:19                                      ; preds = %19, %10
-  %20 = phi i64 [ 0, %10 ], [ %45, %19 ]
-  %21 = phi i64 [ %14, %10 ], [ %44, %19 ]
+  %20 = phi i64 [ 0, %10 ], [ %44, %19 ]
+  %21 = phi i64 [ %14, %10 ], [ %43, %19 ]
   %22 = phi i256 [ bitcast (<2 x i128> <i128 0, i128 undef> to i256), %10 ], [ %42, %19 ]
   %23 = inttoptr i64 %21 to i64*
   %24 = getelementptr i64, i64* %23, i64 1
   %25 = load i64, i64* %24, align 8
-  %26 = add i64 %25, %12, !asm.reg.r8 !0
+  %26 = add i64 %25, %13, !asm.reg.r8 !0
   %27 = load i64, i64* %23, align 8
-  %28 = add i64 %27, %11, !asm.reg.r9 !0
+  %28 = add i64 %27, %12, !asm.reg.r9 !0
   %29 = getelementptr i64, i64* %15, i64 %26
   %30 = bitcast i64* %29 to double**
   %31 = load double*, double** %30, align 8
@@ -70,13 +70,12 @@ define i64 @test(i8* noalias, i8* noalias nocapture readonly, i8*, i8*, i8* noca
   %40 = fadd double %39, %37
   %41 = insertelement <4 x double> %38, double %40, i64 0
   %42 = bitcast <4 x double> %41 to i256, !asm.reg.xmm0 !0
-  %43 = getelementptr i64, i64* %23, i64 3
-  %44 = ptrtoint i64* %43 to i64, !asm.reg.rdi !0
-  %45 = add i64 %20, 1, !asm.reg.rax !0
-  %46 = icmp eq i64 %45, %8
-  br i1 %46, label %16, label %19
+  %43 = add i64 %21, 24, !asm.reg.rdi !0
+  %44 = add i64 %20, 1, !asm.reg.rax !0
+  %45 = icmp eq i64 %44, %8
+  br i1 %45, label %16, label %19
 
-; <label>:47                                      ; preds = %6
+; <label>:46                                      ; preds = %6
   ret i64 0
 }
 

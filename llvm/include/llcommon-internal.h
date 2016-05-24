@@ -78,6 +78,8 @@ struct LLState {
 
     uintptr_t globalOffsetBase;
     LLVMValueRef globalBase;
+
+    bool unsafePointerOptimizations;
 };
 
 #endif

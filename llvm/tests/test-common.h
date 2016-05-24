@@ -10,9 +10,7 @@ struct TestCase {
     long stackSize;
     long noaliasParams;
     void* data;
-    long fixFirstParam;
-    long fixedParamData;
-    long fixedParamLength;
+    bool enableUnsafePointerOptimizations;
 } __attribute__((packed));
 
 typedef struct TestCase TestCase;

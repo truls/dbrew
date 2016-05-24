@@ -35,10 +35,10 @@ define i64 @test(i8* noalias, i8* noalias nocapture readonly, i8*, i8*, i8* noca
   br i1 %9, label %18, label %10
 
 ; <label>:10                                      ; preds = %6
-  %11 = ptrtoint i8* %2 to i64
-  %12 = ptrtoint i8* %3 to i64
-  %13 = getelementptr i8, i8* %0, i64 8
-  %14 = ptrtoint i8* %13 to i64
+  %11 = ptrtoint i8* %0 to i64
+  %12 = ptrtoint i8* %2 to i64
+  %13 = ptrtoint i8* %3 to i64
+  %14 = add i64 %11, 8, !asm.reg.rdi !0
   %15 = bitcast i8* %1 to i64*
   br label %20
 
@@ -52,14 +52,14 @@ define i64 @test(i8* noalias, i8* noalias nocapture readonly, i8*, i8*, i8* noca
 
 ; <label>:20                                      ; preds = %20, %10
   %21 = phi i64 [ 0, %10 ], [ %38, %20 ]
-  %22 = phi i64 [ %14, %10 ], [ %41, %20 ]
+  %22 = phi i64 [ %14, %10 ], [ %40, %20 ]
   %23 = phi i64 [ 0, %10 ], [ %39, %20 ]
   %24 = inttoptr i64 %22 to i64*
   %25 = getelementptr i64, i64* %24, i64 1
   %26 = load i64, i64* %25, align 8
-  %27 = add i64 %26, %12, !asm.reg.r8 !0
+  %27 = add i64 %26, %13, !asm.reg.r8 !0
   %28 = load i64, i64* %24, align 8
-  %29 = add i64 %28, %11, !asm.reg.r10 !0
+  %29 = add i64 %28, %12, !asm.reg.r10 !0
   %30 = getelementptr i64, i64* %15, i64 %27
   %31 = bitcast i64* %30 to i64**
   %32 = load i64*, i64** %31, align 8
@@ -70,10 +70,9 @@ define i64 @test(i8* noalias, i8* noalias nocapture readonly, i8*, i8*, i8* noca
   %37 = mul i64 %36, %34, !asm.reg.r8 !0
   %38 = add i64 %37, %21, !asm.reg.rax !0
   %39 = add i64 %23, 1, !asm.reg.r9 !0
-  %40 = getelementptr i64, i64* %24, i64 3
-  %41 = ptrtoint i64* %40 to i64, !asm.reg.rdi !0
-  %42 = icmp eq i64 %39, %8
-  br i1 %42, label %16, label %20
+  %40 = add i64 %22, 24, !asm.reg.rdi !0
+  %41 = icmp eq i64 %39, %8
+  br i1 %41, label %16, label %20
 }
 
 ; Function Attrs: nounwind readnone

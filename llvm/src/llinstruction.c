@@ -245,7 +245,13 @@ ll_cast_from_int(LLVMValueRef value, OperandDataType dataType, int bits, LLState
  * arithmetics, which leads to better code, but breaks vectorization and scalar
  * optimizations.
  *
+ * This function is rather aggressive in marking values as pointer, as pointer
+ * arithmetic for arithmetic operations is disabled by default. It can be
+ * enabled via #ll_engine_enable_unsafe_pointer_optimizations.
+ *
  * \private
+ *
+ * \param value The value to check
  **/
 static bool
 ll_value_is_pointer(LLVMValueRef value, LLState* state)
@@ -935,7 +941,8 @@ ll_generate_instruction(Instr* instr, LLState* state)
             operand2 = ll_operand_load(OP_SI, &instr->src, state);
             operand2 = LLVMBuildSExtOrBitCast(state->builder, operand2, LLVMTypeOf(operand1), "");
 
-            if (ll_value_is_pointer(operand1, state) && LLVMIsConstant(operand2))
+            if (state->unsafePointerOptimizations &&
+                ll_value_is_pointer(operand1, state) && LLVMIsConstant(operand2))
             {
                 int64_t value = LLVMConstIntGetSExtValue(operand2);
 
@@ -972,7 +979,25 @@ ll_generate_instruction(Instr* instr, LLState* state)
             operand1 = ll_operand_load(OP_SI, &instr->dst, state);
             operand2 = ll_operand_load(OP_SI, &instr->src, state);
             operand2 = LLVMBuildSExtOrBitCast(state->builder, operand2, LLVMTypeOf(operand1), "");
-            result = LLVMBuildSub(state->builder, operand1, operand2, "");
+
+            if (state->unsafePointerOptimizations &&
+                ll_value_is_pointer(operand1, state) && LLVMIsConstant(operand2))
+            {
+                int64_t value = LLVMConstIntGetSExtValue(operand2);
+
+                if ((value % 8) == 0)
+                {
+                    LLVMValueRef ptr = LLVMBuildIntToPtr(state->builder, operand1, pi64, "");
+                    LLVMValueRef offset = LLVMConstInt(i64, -value / 8, true);
+                    LLVMValueRef add = LLVMBuildGEP(state->builder, ptr, &offset, 1, "");
+                    result = LLVMBuildPtrToInt(state->builder, add, LLVMTypeOf(operand1), "");
+                }
+                else
+                    result = LLVMBuildSub(state->builder, operand1, operand2, "");
+            }
+            else
+                result = LLVMBuildSub(state->builder, operand1, operand2, "");
+
             ll_flags_set_sub(result, operand1, operand2, state);
             ll_operand_store(OP_SI, &instr->dst, REG_DEFAULT, result, state);
             break;

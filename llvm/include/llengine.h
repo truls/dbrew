@@ -35,6 +35,9 @@
 
 LLState* ll_engine_init(void);
 void ll_engine_dispose(LLState*);
+
+void ll_engine_enable_unsafe_pointer_optimizations(LLState*, bool);
+
 // bool ll_engine_handle_function(LLState*, LLFunction*);
 void ll_engine_optimize(LLState*, int);
 void ll_engine_dump(LLState*);
