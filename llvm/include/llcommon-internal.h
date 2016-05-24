@@ -63,14 +63,6 @@ struct LLState {
     LLVMExecutionEngineRef engine;
 
     /**
-     * \brief The llvm.ctpop.i8 intrinsic
-     **/
-    LLVMValueRef intrinsicCtpop8;
-    /**
-     * \brief The llvm.donothing intrinsic
-     **/
-    LLVMValueRef intrinsicDoNothing;
-    /**
      * \brief The empty metadata node
      **/
     LLVMValueRef emptyMD;

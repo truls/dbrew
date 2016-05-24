@@ -92,12 +92,6 @@ ll_engine_init(void)
         return NULL;
     }
 
-    LLVMTypeRef i8 = LLVMInt8TypeInContext(state->context);
-    LLVMTypeRef ctpop8Type = LLVMFunctionType(i8, &i8, 1, false);
-    LLVMTypeRef donothingType = LLVMFunctionType(LLVMVoidTypeInContext(state->context), NULL, 0, false);
-
-    state->intrinsicCtpop8 = LLVMAddFunction(state->module, "llvm.ctpop.i8", ctpop8Type);
-    state->intrinsicDoNothing = LLVMAddFunction(state->module, "llvm.donothing", donothingType);
     state->emptyMD = LLVMMDNodeInContext(state->context, NULL, 0); //LLVMMDStringInContext(state->context, "", 0);
     state->globalOffsetBase = 0;
 

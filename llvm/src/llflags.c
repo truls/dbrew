@@ -35,6 +35,7 @@
 #include <llcommon.h>
 #include <llcommon-internal.h>
 #include <llfunction-internal.h>
+#include <llsupport.h>
 
 /**
  * \ingroup LLFlags
@@ -211,8 +212,10 @@ ll_flags_set_pf(LLVMValueRef result, LLState* state)
     LLVMTypeRef i1 = LLVMInt1TypeInContext(state->context);
     LLVMTypeRef i8 = LLVMInt8TypeInContext(state->context);
 
+    LLVMValueRef intrinsicCtpop8 = ll_support_get_intrinsic(state->module, LL_INTRINSIC_CTPOP, &i8, 1);
+
     LLVMValueRef arg = LLVMBuildTruncOrBitCast(state->builder, result, i8, "");
-    LLVMValueRef count = LLVMBuildCall(state->builder, state->intrinsicCtpop8, &arg, 1, "");
+    LLVMValueRef count = LLVMBuildCall(state->builder, intrinsicCtpop8, &arg, 1, "");
     LLVMValueRef bit = LLVMBuildTruncOrBitCast(state->builder, count, i1, "");
     state->currentBB->registers[RFLAG_PF] = LLVMBuildNot(state->builder, bit, "");
 

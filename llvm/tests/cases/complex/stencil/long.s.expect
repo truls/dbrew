@@ -27,14 +27,8 @@ Decoded BB at ?+44:
 ; ModuleID = '<llengine>'
 target triple = "x86_64-pc-linux-gnu"
 
-; Function Attrs: nounwind readnone
-declare i8 @llvm.ctpop.i8(i8) #0
-
-; Function Attrs: nounwind readnone
-declare void @llvm.donothing() #0
-
 ; Function Attrs: readonly
-define i64 @test(i8* noalias, i8* noalias nocapture readonly, i8*, i8*, i8* nocapture readnone, i8* nocapture readnone) #1 {
+define i64 @test(i8* noalias, i8* noalias nocapture readonly, i8*, i8*, i8* nocapture readnone, i8* nocapture readnone) #0 {
   %7 = bitcast i8* %0 to i64*
   %8 = load i64, i64* %7, align 8, !asm.reg.r11 !0
   %9 = icmp eq i64 %8, 0, !asm.flag.zf !0
@@ -82,8 +76,14 @@ define i64 @test(i8* noalias, i8* noalias nocapture readonly, i8*, i8*, i8* noca
   br i1 %42, label %16, label %20
 }
 
-attributes #0 = { nounwind readnone }
-attributes #1 = { readonly }
+; Function Attrs: nounwind readnone
+declare void @llvm.donothing() #1
+
+; Function Attrs: nounwind readnone
+declare i8 @llvm.ctpop.i8(i8) #1
+
+attributes #0 = { readonly }
+attributes #1 = { nounwind readnone }
 
 !0 = !{}
 

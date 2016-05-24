@@ -13,12 +13,6 @@ target triple = "x86_64-pc-linux-gnu"
 
 @__ll_global_base__ = external global i8
 
-; Function Attrs: nounwind readnone
-declare i8 @llvm.ctpop.i8(i8) #0
-
-; Function Attrs: nounwind readnone
-declare void @llvm.donothing() #0
-
 define i64 @test(i8* nocapture, i8* nocapture readnone, i8* nocapture readnone, i8* nocapture readnone, i8* nocapture readnone, i8* nocapture readnone) {
   %7 = bitcast i8* %0 to i64*
   %8 = load i64, i64* %7, align 8, !asm.reg.rax !0
@@ -27,6 +21,12 @@ define i64 @test(i8* nocapture, i8* nocapture readnone, i8* nocapture readnone, 
   store i64 %10, i64* %7, align 8
   ret i64 0
 }
+
+; Function Attrs: nounwind readnone
+declare void @llvm.donothing() #0
+
+; Function Attrs: nounwind readnone
+declare i8 @llvm.ctpop.i8(i8) #0
 
 attributes #0 = { nounwind readnone }
 

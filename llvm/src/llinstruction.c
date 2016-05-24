@@ -37,6 +37,7 @@
 #include <llcommon-internal.h>
 #include <llflags-internal.h>
 #include <llfunction-internal.h>
+#include <llsupport.h>
 
 /**
  * \ingroup LLInstruction
@@ -779,8 +780,9 @@ ll_generate_instruction(Instr* instr, LLState* state)
     state->currentBB->registers[Reg_IP - Reg_AX] = ripValue;
 
     // Add Metadata for debugging.
+    LLVMValueRef intrinsicDoNothing = ll_support_get_intrinsic(state->module, LL_INTRINSIC_DO_NOTHING, NULL, 0);
     char* instructionName = instr2string(instr, 0, NULL);
-    LLVMValueRef mdCall = LLVMBuildCall(state->builder, state->intrinsicDoNothing, NULL, 0, "");
+    LLVMValueRef mdCall = LLVMBuildCall(state->builder, intrinsicDoNothing, NULL, 0, "");
     LLVMValueRef mdNode = LLVMMDStringInContext(state->context, instructionName, strlen(instructionName));
     LLVMSetMetadata(mdCall, LLVMGetMDKindIDInContext(state->context, "asm.instr", 9), mdNode);
     // TODO: Flags!
