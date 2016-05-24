@@ -260,18 +260,27 @@ ll_value_is_pointer(LLVMValueRef value, LLState* state)
     // printf("!!! %d\n", LLVMIsConstant(value));
     if (LLVMIsAConstantInt(value))
         return false;
-    // else if (LLVMIsAConstantExpr(value))
-    // {
-    //     // printf("!!!!! C %d\n", LLVMGetConstOpcode(value));
-    // }
+    else if (LLVMIsAConstantExpr(value))
+    {
+        if (LLVMGetConstOpcode(value) == LLVMPtrToInt)
+            return true;
+        return false;
+    }
     else if (LLVMIsConstant(value))
     {
-        // How do we react here??
+        return false;
     }
     else if (LLVMIsAInstruction(value))
     {
         if (LLVMGetInstructionOpcode(value) == LLVMLoad)
             return false;
+        if (LLVMGetInstructionOpcode(value) == LLVMFPToSI)
+            return false;
+        if (LLVMGetInstructionOpcode(value) == LLVMFPToUI)
+            return false;
+        if (LLVMGetInstructionOpcode(value) == LLVMPtrToInt)
+            return true;
+
         // Other candidates?
     }
 
