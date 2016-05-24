@@ -1,6 +1,8 @@
-dist: trusty
 language: cpp
-sudo: true
+sudo: false
+
+os:
+  - linux
 
 # package required for every entry in the compiler matrix
 addons:
