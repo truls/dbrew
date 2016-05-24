@@ -1,0 +1,35 @@
+Decoded BB at ?+0:
+                   ?:  48 83 ec 08           sub     $0x8,%rsp
+                 ?+4:  48 89 3c 24           mov     %rdi,(%rsp)
+                 ?+8:  48 8b 04 24           mov     (%rsp),%rax
+                ?+12:  57                    push    %rdi
+                ?+13:  57                    push    %rdi
+                ?+14:  57                    push    %rdi
+                ?+15:  56                    push    %rsi
+                ?+16:  48 89 3c 24           mov     %rdi,(%rsp)
+                ?+20:  58                    pop     %rax
+                ?+21:  59                    pop     %rcx
+                ?+22:  59                    pop     %rcx
+                ?+23:  59                    pop     %rcx
+                ?+24:  48 83 c4 08           add     $0x8,%rsp
+                ?+28:  c3                    ret    
+; ModuleID = '<llengine>'
+target triple = "x86_64-pc-linux-gnu"
+
+; Function Attrs: readnone
+define i64 @test(i8*, i8* nocapture readnone, i8* nocapture readnone, i8* nocapture readnone, i8* nocapture readnone, i8* nocapture readnone) #0 {
+  %7 = ptrtoint i8* %0 to i64
+  ret i64 %7
+}
+
+; Function Attrs: nounwind readnone
+declare void @llvm.donothing() #1
+
+; Function Attrs: nounwind readnone
+declare i8 @llvm.ctpop.i8(i8) #1
+
+attributes #0 = { readnone }
+attributes #1 = { nounwind readnone }
+
+Result: 10
+Result: 10

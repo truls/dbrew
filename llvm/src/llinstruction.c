@@ -45,6 +45,7 @@
  *
  * @{
  **/
+#define STACK_POINTER_CAST
 #define SHUFFLE_VECTOR
 
 enum OperandDataType {
@@ -703,27 +704,31 @@ ll_generate_push(Instr* instr, LLState* state)
     LLVMValueRef value = ll_operand_load(OP_SI, &instr->dst, state);
     value = LLVMBuildSExtOrBitCast(state->builder, value, i64, "");
 
-    LLVMValueRef constSub = LLVMConstInt(i64, 8, false);
-    LLVMValueRef newSpInt = LLVMBuildSub(state->builder, state->currentBB->registers[Reg_SP - Reg_AX], constSub, "");
-    LLVMValueRef spOffset = LLVMBuildSub(state->builder, newSpInt, state->currentFunction->spInt, "");
-    LLVMValueRef newSp = LLVMBuildGEP(state->builder, state->currentFunction->sp, &spOffset, 1, "");
+    // Get pointer to current top of stack
+    LLVMValueRef spReg = state->currentBB->registers[Reg_SP - Reg_AX];
 
-    // Optimization: Make new ptrtoint to allow a better alias analysis, as the
-    // optimizer will see inttoptr(ptrtoint sp). This leads to huge
-    // improvements, because the LLVM optimizer handles geps explicitly.
-    // Sometimes, the conservative stack is better, though.
-#ifndef CONSERVATIVE_STACK
-    newSpInt = LLVMBuildPtrToInt(state->builder, newSp, i64, "");
+#ifdef STACK_POINTER_CAST
+    LLVMTypeRef i8 = LLVMInt8TypeInContext(state->context);
+    LLVMValueRef sp = LLVMBuildIntToPtr(state->builder, spReg, LLVMPointerType(i8, 0), "");
+#else
+    LLVMValueRef spOffset = LLVMBuildSub(state->builder, spReg, state->currentFunction->spInt, "");
+    LLVMValueRef sp = LLVMBuildGEP(state->builder, state->currentFunction->sp, &spOffset, 1, "");
 #endif
 
-    newSp = LLVMBuildBitCast(state->builder, newSp, LLVMPointerType(i64, 0), "");
+    // Decrement Stack Pointer via a GEP instruction
+    LLVMValueRef constSub = LLVMConstInt(i64, -8, false);
+    LLVMValueRef newSp = LLVMBuildGEP(state->builder, sp, &constSub, 1, "");
 
-    LLVMValueRef store = LLVMBuildStore(state->builder, value, newSp);
+    // Store the new value
+    LLVMValueRef castedPtr = LLVMBuildBitCast(state->builder, newSp, LLVMPointerType(i64, 0), "");
+    LLVMValueRef store = LLVMBuildStore(state->builder, value, castedPtr);
     LLVMSetAlignment(store, 8);
 
-    state->currentBB->registers[Reg_SP - Reg_AX] = newSpInt;
+    // Cast back to int for register store
+    LLVMValueRef newSpReg = LLVMBuildPtrToInt(state->builder, newSp, i64, "");
+    LLVMSetMetadata(newSpReg, LLVMGetMDKindIDInContext(state->context, "asm.reg.rsp", 11), state->emptyMD);
 
-    LLVMSetMetadata(newSpInt, LLVMGetMDKindIDInContext(state->context, "asm.reg.rsp", 11), state->emptyMD);
+    state->currentBB->registers[Reg_SP - Reg_AX] = newSpReg;
 }
 
 /**
@@ -743,28 +748,31 @@ ll_generate_pop(Operand* operand, LLState* state)
 {
     LLVMTypeRef i64 = LLVMInt64TypeInContext(state->context);
 
-    LLVMValueRef spInt = state->currentBB->registers[Reg_SP - Reg_AX];
+    LLVMValueRef spReg = state->currentBB->registers[Reg_SP - Reg_AX];
 
-    LLVMValueRef constAdd = LLVMConstInt(i64, 8, false);
-    LLVMValueRef spOffset = LLVMBuildSub(state->builder, spInt, state->currentFunction->spInt, "");
+#ifdef STACK_POINTER_CAST
+    LLVMTypeRef i8 = LLVMInt8TypeInContext(state->context);
+    LLVMValueRef sp = LLVMBuildIntToPtr(state->builder, spReg, LLVMPointerType(i8, 0), "");
+#else
+    LLVMValueRef spOffset = LLVMBuildSub(state->builder, spReg, state->currentFunction->spInt, "");
     LLVMValueRef sp = LLVMBuildGEP(state->builder, state->currentFunction->sp, &spOffset, 1, "");
-    sp = LLVMBuildBitCast(state->builder, sp, LLVMPointerType(i64, 0), "");
+#endif
 
-    LLVMValueRef value = LLVMBuildLoad(state->builder, sp, "");
+    LLVMValueRef castedPtr = LLVMBuildBitCast(state->builder, sp, LLVMPointerType(i64, 0), "");
+    LLVMValueRef value = LLVMBuildLoad(state->builder, castedPtr, "");
     LLVMSetAlignment(value, 8);
 
     ll_operand_store(OP_SI, operand, true, value, state);
 
-    // Optimization: Make gep instruction to allow alias analysis
-    // Sometimes, the conservative stack is better, though.
-#ifndef CONSERVATIVE_STACK
-    LLVMValueRef newSpPtr = LLVMBuildGEP(state->builder, sp, &constAdd, 1, "");
-    state->currentBB->registers[Reg_SP - Reg_AX] = LLVMBuildPtrToInt(state->builder, newSpPtr, i64, "");
-#else
-    state->currentBB->registers[Reg_SP - Reg_AX] = LLVMBuildAdd(state->builder, spInt, constAdd, "");
-#endif
+    // Advance Stack pointer via a GEP
+    LLVMValueRef constAdd = LLVMConstInt(i64, 8, false);
+    LLVMValueRef newSp = LLVMBuildGEP(state->builder, sp, &constAdd, 1, "");
 
-    LLVMSetMetadata(state->currentBB->registers[Reg_SP - Reg_AX], LLVMGetMDKindIDInContext(state->context, "asm.reg.rsp", 11), state->emptyMD);
+    // Cast back to int for register store
+    LLVMValueRef newSpReg = LLVMBuildPtrToInt(state->builder, newSp, i64, "");
+    LLVMSetMetadata(newSpReg, LLVMGetMDKindIDInContext(state->context, "asm.reg.rsp", 11), state->emptyMD);
+
+    state->currentBB->registers[Reg_SP - Reg_AX] = newSpReg;
 }
 
 /**
@@ -1241,6 +1249,10 @@ ll_generate_instruction(Instr* instr, LLState* state)
             // TODO: Figure out whether these are equivalent.
             if (opIsEqual(&instr->dst, &instr->src))
             {
+                // int count = opTypeWidth(&instr->dst) / 64;
+
+                // LLVMTypeRef vectorType = LLVMVectorType(i64, count);
+                // result = LLVMConstNull(vectorType);
                 result = LLVMConstInt(LLVMIntTypeInContext(state->context, opTypeWidth(&instr->dst)), 0, false);
             }
             else
