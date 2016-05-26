@@ -21,7 +21,7 @@ define i64 @test(i8* nocapture, i8* noalias nocapture readonly, i8* nocapture re
   %12 = extractelement <2 x double> %10, i32 0
   %13 = fadd double %11, %12
   %14 = insertelement <2 x double> %8, double %13, i64 0
-  store <2 x double> %14, <2 x double>* %7, align 8
+  store <2 x double> %14, <2 x double>* %7, align 16
   %15 = bitcast i8* %0 to double*
   %16 = fadd double %12, %13
   store double %16, double* %15, align 8

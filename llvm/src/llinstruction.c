@@ -59,6 +59,16 @@ enum OperandDataType {
 
 typedef enum OperandDataType OperandDataType;
 
+enum Alignment {
+    ALIGN_MAXIMUM = 0,
+    ALIGN_1 = 1,
+    ALIGN_2 = 2,
+    ALIGN_4 = 4,
+    ALIGN_8 = 8,
+};
+
+typedef enum Alignment Alignment;
+
 enum PartialRegisterHandling {
     /**
      * \brief Default handling for general purpose registers
@@ -463,7 +473,7 @@ ll_get_operand_address(OperandDataType dataType, Operand* operand, LLState* stat
  * \returns The value which corresponds to the operand
  **/
 static LLVMValueRef
-ll_operand_load(OperandDataType dataType, Operand* operand, LLState* state)
+ll_operand_load(OperandDataType dataType, Alignment alignment, Operand* operand, LLState* state)
 {
     LLVMValueRef result = NULL;
     LLVMValueRef address;
@@ -497,15 +507,10 @@ ll_operand_load(OperandDataType dataType, Operand* operand, LLState* state)
         case OT_Ind256:
             address = ll_get_operand_address(dataType, operand, state);
             result = LLVMBuildLoad(state->builder, address, "");
-            // TODO: Require alignment "hints" (?) to go higher.
-            if (opTypeWidth(operand) <= 64)
-            {
+            if (alignment == ALIGN_MAXIMUM)
                 LLVMSetAlignment(result, opTypeWidth(operand) / 8);
-            }
             else
-            {
-                LLVMSetAlignment(result, 8);
-            }
+                LLVMSetAlignment(result, alignment);
             break;
         case OT_MAX:
         case OT_None:
@@ -533,7 +538,7 @@ ll_operand_load(OperandDataType dataType, Operand* operand, LLState* state)
  * \param state The module state
  **/
 static void
-ll_operand_store(OperandDataType dataType, Operand* operand, PartialRegisterHandling zeroHandling, LLVMValueRef value, LLState* state)
+ll_operand_store(OperandDataType dataType, Alignment alignment, Operand* operand, PartialRegisterHandling zeroHandling, LLVMValueRef value, LLState* state)
 {
     LLVMValueRef address;
     LLVMValueRef result;
@@ -654,26 +659,12 @@ ll_operand_store(OperandDataType dataType, Operand* operand, PartialRegisterHand
         case OT_Ind128:
         case OT_Ind256:
             address = ll_get_operand_address(dataType, operand, state);
-            // printf("%d %d\n", LLVMGetIntTypeWidth(LLVMTypeOf(value)), operandWidth);
-            // result = LLVMBuildSExtOrBitCast(state->builder, value, operandIntType, "");
-            // if (LLVMGetIntTypeWidth(LLVMTypeOf(value)) < operandWidth)
-            // {
-            //     result = LLVMBuildTruncOrBitCast(state->builder, result, operandIntType, "");
-            // }
-            // else
-            // {
-            //     result = LLVMBuildSExtOrBitCast(state->builder, result, operandIntType, "");
-            // }
             result = LLVMBuildBitCast(state->builder, value, LLVMGetElementType(LLVMTypeOf(address)), "");
             result = LLVMBuildStore(state->builder, result, address);
-            if (opTypeWidth(operand) <= 64)
-            {
+            if (alignment == ALIGN_MAXIMUM)
                 LLVMSetAlignment(result, opTypeWidth(operand) / 8);
-            }
             else
-            {
-                LLVMSetAlignment(result, 8);
-            }
+                LLVMSetAlignment(result, alignment);
             break;
         case OT_Imm8:
         case OT_Imm16:
@@ -704,7 +695,7 @@ ll_generate_push(Instr* instr, LLState* state)
 {
     LLVMTypeRef i64 = LLVMInt64TypeInContext(state->context);
 
-    LLVMValueRef value = ll_operand_load(OP_SI, &instr->dst, state);
+    LLVMValueRef value = ll_operand_load(OP_SI, ALIGN_MAXIMUM, &instr->dst, state);
     value = LLVMBuildSExtOrBitCast(state->builder, value, i64, "");
 
     // Get pointer to current top of stack
@@ -765,7 +756,7 @@ ll_generate_pop(Operand* operand, LLState* state)
     LLVMValueRef value = LLVMBuildLoad(state->builder, castedPtr, "");
     LLVMSetAlignment(value, 8);
 
-    ll_operand_store(OP_SI, operand, true, value, state);
+    ll_operand_store(OP_SI, ALIGN_MAXIMUM, operand, true, value, state);
 
     // Advance Stack pointer via a GEP
     LLVMValueRef constAdd = LLVMConstInt(i64, 8, false);
@@ -826,8 +817,8 @@ ll_generate_instruction(Instr* instr, LLState* state)
         case IT_MOVD:
         case IT_MOVQ:
         case IT_MOVSX:
-            operand1 = ll_operand_load(OP_SI, &instr->src, state);
-            ll_operand_store(OP_SI, &instr->dst, REG_DEFAULT, operand1, state);
+            operand1 = ll_operand_load(OP_SI, ALIGN_MAXIMUM, &instr->src, state);
+            ll_operand_store(OP_SI, ALIGN_MAXIMUM, &instr->dst, REG_DEFAULT, operand1, state);
             break;
         case IT_CMOVO:
         case IT_CMOVNO:
@@ -846,10 +837,10 @@ ll_generate_instruction(Instr* instr, LLState* state)
         case IT_CMOVLE:
         case IT_CMOVG:
             cond = ll_flags_condition(instr->type, IT_CMOVO, state);
-            operand1 = ll_operand_load(OP_SI, &instr->src, state);
-            operand2 = ll_operand_load(OP_SI, &instr->dst, state);
+            operand1 = ll_operand_load(OP_SI, ALIGN_MAXIMUM, &instr->src, state);
+            operand2 = ll_operand_load(OP_SI, ALIGN_MAXIMUM, &instr->dst, state);
             result = LLVMBuildSelect(state->builder, cond, operand1, operand2, "");
-            ll_operand_store(OP_SI, &instr->dst, REG_DEFAULT, result, state);
+            ll_operand_store(OP_SI, ALIGN_MAXIMUM, &instr->dst, REG_DEFAULT, result, state);
             break;
         case IT_SETO:
         case IT_SETNO:
@@ -871,7 +862,7 @@ ll_generate_instruction(Instr* instr, LLState* state)
             // DBrew currently cannot decode SETcc.
             cond = ll_flags_condition(instr->type, IT_SETO, state);
             result = LLVMBuildZExtOrBitCast(state->builder, cond, i8, "");
-            ll_operand_store(OP_SI, &instr->dst, REG_DEFAULT, result, state);
+            ll_operand_store(OP_SI, ALIGN_MAXIMUM, &instr->dst, REG_DEFAULT, result, state);
             break;
 
         ////////////////////////////////////////////////////////////////////////
@@ -911,8 +902,8 @@ ll_generate_instruction(Instr* instr, LLState* state)
         ////////////////////////////////////////////////////////////////////////
 
         case IT_LEAVE:
-            operand1 = ll_operand_load(OP_SI, getRegOp(VT_64, Reg_BP), state);
-            ll_operand_store(OP_SI, getRegOp(VT_64, Reg_SP), REG_DEFAULT, operand1, state);
+            operand1 = ll_operand_load(OP_SI, ALIGN_MAXIMUM, getRegOp(VT_64, Reg_BP), state);
+            ll_operand_store(OP_SI, ALIGN_MAXIMUM, getRegOp(VT_64, Reg_SP), REG_DEFAULT, operand1, state);
             ll_generate_pop(getRegOp(VT_64, Reg_BP), state);
             break;
         case IT_PUSH:
@@ -927,38 +918,38 @@ ll_generate_instruction(Instr* instr, LLState* state)
         ////////////////////////////////////////////////////////////////////////
 
         case IT_NOT:
-            operand1 = ll_operand_load(OP_SI, &instr->dst, state);
+            operand1 = ll_operand_load(OP_SI, ALIGN_MAXIMUM, &instr->dst, state);
             result = LLVMBuildNot(state->builder, operand1, "");
             ll_flags_invalidate(state);
             // ll_flags_set_not(result, operand1, state);
-            ll_operand_store(OP_SI, &instr->dst, REG_DEFAULT, result, state);
+            ll_operand_store(OP_SI, ALIGN_MAXIMUM, &instr->dst, REG_DEFAULT, result, state);
             break;
         case IT_NEG:
-            operand1 = ll_operand_load(OP_SI, &instr->dst, state);
+            operand1 = ll_operand_load(OP_SI, ALIGN_MAXIMUM, &instr->dst, state);
             result = LLVMBuildNeg(state->builder, operand1, "");
             ll_flags_invalidate(state);
             // ll_flags_set_neg(result, operand1, state);
-            ll_operand_store(OP_SI, &instr->dst, REG_DEFAULT, result, state);
+            ll_operand_store(OP_SI, ALIGN_MAXIMUM, &instr->dst, REG_DEFAULT, result, state);
             break;
         case IT_INC:
-            operand1 = ll_operand_load(OP_SI, &instr->dst, state);
+            operand1 = ll_operand_load(OP_SI, ALIGN_MAXIMUM, &instr->dst, state);
             operand2 = LLVMConstInt(LLVMTypeOf(operand1), 1, false);
             result = LLVMBuildAdd(state->builder, operand1, operand2, "");
             ll_flags_invalidate(state);
             // ll_flags_set_inc(result, operand1, state);
-            ll_operand_store(OP_SI, &instr->dst, REG_DEFAULT, result, state);
+            ll_operand_store(OP_SI, ALIGN_MAXIMUM, &instr->dst, REG_DEFAULT, result, state);
             break;
         case IT_DEC:
-            operand1 = ll_operand_load(OP_SI, &instr->dst, state);
+            operand1 = ll_operand_load(OP_SI, ALIGN_MAXIMUM, &instr->dst, state);
             operand2 = LLVMConstInt(LLVMTypeOf(operand1), 1, false);
             result = LLVMBuildSub(state->builder, operand1, operand2, "");
             ll_flags_invalidate(state);
             // ll_flags_set_dec(result, operand1, state);
-            ll_operand_store(OP_SI, &instr->dst, REG_DEFAULT, result, state);
+            ll_operand_store(OP_SI, ALIGN_MAXIMUM, &instr->dst, REG_DEFAULT, result, state);
             break;
         case IT_ADD:
-            operand1 = ll_operand_load(OP_SI, &instr->dst, state);
-            operand2 = ll_operand_load(OP_SI, &instr->src, state);
+            operand1 = ll_operand_load(OP_SI, ALIGN_MAXIMUM, &instr->dst, state);
+            operand2 = ll_operand_load(OP_SI, ALIGN_MAXIMUM, &instr->src, state);
             operand2 = LLVMBuildSExtOrBitCast(state->builder, operand2, LLVMTypeOf(operand1), "");
 
             if (state->unsafePointerOptimizations &&
@@ -980,12 +971,12 @@ ll_generate_instruction(Instr* instr, LLState* state)
                 result = LLVMBuildAdd(state->builder, operand1, operand2, "");
 
             ll_flags_set_add(result, operand1, operand2, state);
-            ll_operand_store(OP_SI, &instr->dst, REG_DEFAULT, result, state);
+            ll_operand_store(OP_SI, ALIGN_MAXIMUM, &instr->dst, REG_DEFAULT, result, state);
             break;
         case IT_ADC:
             // TODO: Test this!!
-            operand1 = ll_operand_load(OP_SI, &instr->dst, state);
-            operand2 = ll_operand_load(OP_SI, &instr->src, state);
+            operand1 = ll_operand_load(OP_SI, ALIGN_MAXIMUM, &instr->dst, state);
+            operand2 = ll_operand_load(OP_SI, ALIGN_MAXIMUM, &instr->src, state);
             operand2 = LLVMBuildSExtOrBitCast(state->builder, operand2, LLVMTypeOf(operand1), "");
 
             operand1 = LLVMBuildAdd(state->builder, operand1, operand2, "");
@@ -993,11 +984,11 @@ ll_generate_instruction(Instr* instr, LLState* state)
             result = LLVMBuildAdd(state->builder, operand1, operand2, "");
             ll_flags_invalidate(state);
             // ll_flags_set_adc(result, operand1, operand2, state);
-            ll_operand_store(OP_SI, &instr->dst, REG_DEFAULT, result, state);
+            ll_operand_store(OP_SI, ALIGN_MAXIMUM, &instr->dst, REG_DEFAULT, result, state);
             break;
         case IT_SUB:
-            operand1 = ll_operand_load(OP_SI, &instr->dst, state);
-            operand2 = ll_operand_load(OP_SI, &instr->src, state);
+            operand1 = ll_operand_load(OP_SI, ALIGN_MAXIMUM, &instr->dst, state);
+            operand2 = ll_operand_load(OP_SI, ALIGN_MAXIMUM, &instr->src, state);
             operand2 = LLVMBuildSExtOrBitCast(state->builder, operand2, LLVMTypeOf(operand1), "");
 
             if (state->unsafePointerOptimizations &&
@@ -1019,22 +1010,22 @@ ll_generate_instruction(Instr* instr, LLState* state)
                 result = LLVMBuildSub(state->builder, operand1, operand2, "");
 
             ll_flags_set_sub(result, operand1, operand2, state);
-            ll_operand_store(OP_SI, &instr->dst, REG_DEFAULT, result, state);
+            ll_operand_store(OP_SI, ALIGN_MAXIMUM, &instr->dst, REG_DEFAULT, result, state);
             break;
         case IT_IMUL:
             // TODO: currently, only the variant with two operands is handled!
             // warn_if_reached();
             if (instr->form == OF_2)
             {
-                operand1 = ll_operand_load(OP_SI, &instr->dst, state);
-                operand2 = ll_operand_load(OP_SI, &instr->src, state);
+                operand1 = ll_operand_load(OP_SI, ALIGN_MAXIMUM, &instr->dst, state);
+                operand2 = ll_operand_load(OP_SI, ALIGN_MAXIMUM, &instr->src, state);
                 operand2 = LLVMBuildSExtOrBitCast(state->builder, operand2, LLVMTypeOf(operand1), "");
                 result = LLVMBuildMul(state->builder, operand1, operand2, "");
             }
             else if (instr->form == OF_3)
             {
-                operand1 = ll_operand_load(OP_SI, &instr->src, state);
-                operand2 = ll_operand_load(OP_SI, &instr->src2, state);
+                operand1 = ll_operand_load(OP_SI, ALIGN_MAXIMUM, &instr->src, state);
+                operand2 = ll_operand_load(OP_SI, ALIGN_MAXIMUM, &instr->src2, state);
                 operand2 = LLVMBuildSExtOrBitCast(state->builder, operand2, LLVMTypeOf(operand1), "");
                 result = LLVMBuildMul(state->builder, operand1, operand2, "");
             }
@@ -1043,23 +1034,23 @@ ll_generate_instruction(Instr* instr, LLState* state)
                 result = LLVMGetUndef(LLVMInt64TypeInContext(state->context));
                 warn_if_reached();
             }
-            ll_operand_store(OP_SI, &instr->dst, REG_DEFAULT, result, state);
+            ll_operand_store(OP_SI, ALIGN_MAXIMUM, &instr->dst, REG_DEFAULT, result, state);
             break;
         case IT_AND:
-            operand1 = ll_operand_load(OP_SI, &instr->dst, state);
-            operand2 = ll_operand_load(OP_SI, &instr->src, state);
+            operand1 = ll_operand_load(OP_SI, ALIGN_MAXIMUM, &instr->dst, state);
+            operand2 = ll_operand_load(OP_SI, ALIGN_MAXIMUM, &instr->src, state);
             operand2 = LLVMBuildSExtOrBitCast(state->builder, operand2, LLVMTypeOf(operand1), "");
             result = LLVMBuildAnd(state->builder, operand1, operand2, "");
             ll_flags_set_bit(result, state);
-            ll_operand_store(OP_SI, &instr->dst, REG_DEFAULT, result, state);
+            ll_operand_store(OP_SI, ALIGN_MAXIMUM, &instr->dst, REG_DEFAULT, result, state);
             break;
         case IT_OR:
-            operand1 = ll_operand_load(OP_SI, &instr->dst, state);
-            operand2 = ll_operand_load(OP_SI, &instr->src, state);
+            operand1 = ll_operand_load(OP_SI, ALIGN_MAXIMUM, &instr->dst, state);
+            operand2 = ll_operand_load(OP_SI, ALIGN_MAXIMUM, &instr->src, state);
             operand2 = LLVMBuildSExtOrBitCast(state->builder, operand2, LLVMTypeOf(operand1), "");
             result = LLVMBuildOr(state->builder, operand1, operand2, "");
             ll_flags_set_bit(result, state);
-            ll_operand_store(OP_SI, &instr->dst, REG_DEFAULT, result, state);
+            ll_operand_store(OP_SI, ALIGN_MAXIMUM, &instr->dst, REG_DEFAULT, result, state);
             break;
         case IT_XOR:
             if (opIsEqual(&instr->dst, &instr->src))
@@ -1069,64 +1060,64 @@ ll_generate_instruction(Instr* instr, LLState* state)
             }
             else
             {
-                operand1 = ll_operand_load(OP_SI, &instr->dst, state);
-                operand2 = ll_operand_load(OP_SI, &instr->src, state);
+                operand1 = ll_operand_load(OP_SI, ALIGN_MAXIMUM, &instr->dst, state);
+                operand2 = ll_operand_load(OP_SI, ALIGN_MAXIMUM, &instr->src, state);
                 operand2 = LLVMBuildSExtOrBitCast(state->builder, operand2, LLVMTypeOf(operand1), "");
                 result = LLVMBuildXor(state->builder, operand1, operand2, "");
             }
             ll_flags_set_bit(result, state);
-            ll_operand_store(OP_SI, &instr->dst, REG_DEFAULT, result, state);
+            ll_operand_store(OP_SI, ALIGN_MAXIMUM, &instr->dst, REG_DEFAULT, result, state);
             break;
         case IT_SHL:
-            operand1 = ll_operand_load(OP_SI, &instr->dst, state);
-            operand2 = ll_operand_load(OP_SI, &instr->src, state);
+            operand1 = ll_operand_load(OP_SI, ALIGN_MAXIMUM, &instr->dst, state);
+            operand2 = ll_operand_load(OP_SI, ALIGN_MAXIMUM, &instr->src, state);
             operand2 = LLVMBuildSExtOrBitCast(state->builder, operand2, LLVMTypeOf(operand1), "");
             result = LLVMBuildShl(state->builder, operand1, operand2, "");
             ll_flags_invalidate(state);
             // ll_flags_set_shift(result, operand1, operand2, state);
-            ll_operand_store(OP_SI, &instr->dst, REG_DEFAULT, result, state);
+            ll_operand_store(OP_SI, ALIGN_MAXIMUM, &instr->dst, REG_DEFAULT, result, state);
             break;
         case IT_SHR:
-            operand1 = ll_operand_load(OP_SI, &instr->dst, state);
-            operand2 = ll_operand_load(OP_SI, &instr->src, state);
+            operand1 = ll_operand_load(OP_SI, ALIGN_MAXIMUM, &instr->dst, state);
+            operand2 = ll_operand_load(OP_SI, ALIGN_MAXIMUM, &instr->src, state);
             operand2 = LLVMBuildSExtOrBitCast(state->builder, operand2, LLVMTypeOf(operand1), "");
             result = LLVMBuildLShr(state->builder, operand1, operand2, "");
             ll_flags_invalidate(state);
             // ll_flags_set_shift(result, operand1, operand2, state);
-            ll_operand_store(OP_SI, &instr->dst, REG_DEFAULT, result, state);
+            ll_operand_store(OP_SI, ALIGN_MAXIMUM, &instr->dst, REG_DEFAULT, result, state);
             break;
         case IT_SAR:
-            operand1 = ll_operand_load(OP_SI, &instr->dst, state);
-            operand2 = ll_operand_load(OP_SI, &instr->src, state);
+            operand1 = ll_operand_load(OP_SI, ALIGN_MAXIMUM, &instr->dst, state);
+            operand2 = ll_operand_load(OP_SI, ALIGN_MAXIMUM, &instr->src, state);
             operand2 = LLVMBuildSExtOrBitCast(state->builder, operand2, LLVMTypeOf(operand1), "");
             result = LLVMBuildAShr(state->builder, operand1, operand2, "");
             ll_flags_invalidate(state);
             // ll_flags_set_shift(result, operand1, operand2, state);
-            ll_operand_store(OP_SI, &instr->dst, REG_DEFAULT, result, state);
+            ll_operand_store(OP_SI, ALIGN_MAXIMUM, &instr->dst, REG_DEFAULT, result, state);
             break;
         case IT_LEA:
             // assert(opIsInd(&(instr->src)));
             operand1 = ll_get_operand_address(OP_SI, &instr->src, state);
             result = LLVMBuildPtrToInt(state->builder, operand1, LLVMInt64TypeInContext(state->context), "");
-            ll_operand_store(OP_SI, &instr->dst, REG_DEFAULT, result, state);
+            ll_operand_store(OP_SI, ALIGN_MAXIMUM, &instr->dst, REG_DEFAULT, result, state);
             break;
         case IT_TEST:
-            operand1 = ll_operand_load(OP_SI, &instr->dst, state);
-            operand2 = ll_operand_load(OP_SI, &instr->src, state);
+            operand1 = ll_operand_load(OP_SI, ALIGN_MAXIMUM, &instr->dst, state);
+            operand2 = ll_operand_load(OP_SI, ALIGN_MAXIMUM, &instr->src, state);
             operand2 = LLVMBuildSExtOrBitCast(state->builder, operand2, LLVMTypeOf(operand1), "");
             result = LLVMBuildAnd(state->builder, operand1, operand2, "");
             ll_flags_set_bit(result, state);
             break;
         case IT_CMP:
-            operand1 = ll_operand_load(OP_SI, &instr->dst, state);
-            operand2 = ll_operand_load(OP_SI, &instr->src, state);
+            operand1 = ll_operand_load(OP_SI, ALIGN_MAXIMUM, &instr->dst, state);
+            operand2 = ll_operand_load(OP_SI, ALIGN_MAXIMUM, &instr->src, state);
             operand2 = LLVMBuildSExtOrBitCast(state->builder, operand2, LLVMTypeOf(operand1), "");
             result = LLVMBuildSub(state->builder, operand1, operand2, "");
             ll_flags_set_sub(result, operand1, operand2, state);
             break;
         case IT_CLTQ:
-            operand1 = ll_operand_load(OP_SI, getRegOp(VT_32, Reg_AX), state);
-            ll_operand_store(OP_SI, getRegOp(VT_64, Reg_AX), REG_DEFAULT, operand1, state);
+            operand1 = ll_operand_load(OP_SI, ALIGN_MAXIMUM, getRegOp(VT_32, Reg_AX), state);
+            ll_operand_store(OP_SI, ALIGN_MAXIMUM, getRegOp(VT_64, Reg_AX), REG_DEFAULT, operand1, state);
             break;
 
         ////////////////////////////////////////////////////////////////////////
@@ -1134,38 +1125,38 @@ ll_generate_instruction(Instr* instr, LLState* state)
         ////////////////////////////////////////////////////////////////////////
 
         case IT_MOVSS:
-            operand1 = ll_operand_load(OP_SF, &instr->src, state);
-            ll_operand_store(OP_SF, &instr->dst, REG_KEEP_UPPER, operand1, state);
+            operand1 = ll_operand_load(OP_SF, ALIGN_MAXIMUM, &instr->src, state);
+            ll_operand_store(OP_SF, ALIGN_MAXIMUM, &instr->dst, REG_KEEP_UPPER, operand1, state);
             break;
         case IT_MOVSD:
-            operand1 = ll_operand_load(OP_SF, &instr->src, state);
-            ll_operand_store(OP_SF, &instr->dst, REG_KEEP_UPPER, operand1, state);
+            operand1 = ll_operand_load(OP_SF, ALIGN_MAXIMUM, &instr->src, state);
+            ll_operand_store(OP_SF, ALIGN_MAXIMUM, &instr->dst, REG_KEEP_UPPER, operand1, state);
             break;
         case IT_MOVUPS:
-            operand1 = ll_operand_load(OP_VF32, &instr->src, state);
-            ll_operand_store(OP_VF32, &instr->dst, REG_KEEP_UPPER, operand1, state);
+            operand1 = ll_operand_load(OP_VF32, ALIGN_8, &instr->src, state);
+            ll_operand_store(OP_VF32, ALIGN_8, &instr->dst, REG_KEEP_UPPER, operand1, state);
             break;
         case IT_MOVUPD:
-            operand1 = ll_operand_load(OP_VF64, &instr->src, state);
-            ll_operand_store(OP_VF64, &instr->dst, REG_KEEP_UPPER, operand1, state);
+            operand1 = ll_operand_load(OP_VF64, ALIGN_8, &instr->src, state);
+            ll_operand_store(OP_VF64, ALIGN_8, &instr->dst, REG_KEEP_UPPER, operand1, state);
             break;
         case IT_MOVAPS:
             // TODO: Set alignment
-            operand1 = ll_operand_load(OP_VF32, &instr->src, state);
-            ll_operand_store(OP_VF32, &instr->dst, REG_KEEP_UPPER, operand1, state);
+            operand1 = ll_operand_load(OP_VF32, ALIGN_MAXIMUM, &instr->src, state);
+            ll_operand_store(OP_VF32, ALIGN_MAXIMUM, &instr->dst, REG_KEEP_UPPER, operand1, state);
             break;
         case IT_MOVAPD:
             // TODO: Set alignment
-            operand1 = ll_operand_load(OP_VF64, &instr->src, state);
-            ll_operand_store(OP_VF64, &instr->dst, REG_KEEP_UPPER, operand1, state);
+            operand1 = ll_operand_load(OP_VF64, ALIGN_MAXIMUM, &instr->src, state);
+            ll_operand_store(OP_VF64, ALIGN_MAXIMUM, &instr->dst, REG_KEEP_UPPER, operand1, state);
             break;
         // case IT_MOVLPS:
-        //     operand1 = ll_operand_load(OP_VF32, &instr->src, state);
-        //     ll_operand_store(OP_VF32, &instr->dst, REG_KEEP_UPPER, operand1, state);
+        //     operand1 = ll_operand_load(OP_VF32, ALIGN_MAXIMUM, &instr->src, state);
+        //     ll_operand_store(OP_VF32, ALIGN_MAXIMUM, &instr->dst, REG_KEEP_UPPER, operand1, state);
         //     break;
         // case IT_MOVLPD:
-        //     operand1 = ll_operand_load(OP_VF64, &instr->src, state);
-        //     ll_operand_store(OP_VF64, &instr->dst, REG_KEEP_UPPER, operand1, state);
+        //     operand1 = ll_operand_load(OP_VF64, ALIGN_MAXIMUM, &instr->src, state);
+        //     ll_operand_store(OP_VF64, ALIGN_MAXIMUM, &instr->dst, REG_KEEP_UPPER, operand1, state);
         //     break;
         // case IT_MOVHPS:
         //     {
@@ -1176,83 +1167,83 @@ ll_generate_instruction(Instr* instr, LLState* state)
         //         maskElements[3] = LLVMConstInt(i32, 5, false);
         //         LLVMValueRef mask = LLVMConstVector(maskElements, 4);
 
-        //         operand1 = ll_operand_load(OP_VF32, &instr->dst, state);
-        //         operand2 = ll_operand_load(OP_VF32, &instr->src, state);
+        //         operand1 = ll_operand_load(OP_VF32, ALIGN_MAXIMUM, &instr->dst, state);
+        //         operand2 = ll_operand_load(OP_VF32, ALIGN_MAXIMUM, &instr->src, state);
         //         result = LLVMBuildShuffleVector(state->builder, operand1, operand2, mask, "");
-        //         ll_operand_store(OP_VF32, &instr->dst, REG_KEEP_UPPER, result, state);
+        //         ll_operand_store(OP_VF32, ALIGN_MAXIMUM, &instr->dst, REG_KEEP_UPPER, result, state);
         //     }
         //     break;
         case IT_ADDSS:
-            operand1 = ll_operand_load(OP_SF, &instr->dst, state);
-            operand2 = ll_operand_load(OP_SF, &instr->src, state);
+            operand1 = ll_operand_load(OP_SF, ALIGN_MAXIMUM, &instr->dst, state);
+            operand2 = ll_operand_load(OP_SF, ALIGN_MAXIMUM, &instr->src, state);
             result = LLVMBuildFAdd(state->builder, operand1, operand2, "");
-            ll_operand_store(OP_SF, &instr->dst, REG_KEEP_UPPER, result, state);
+            ll_operand_store(OP_SF, ALIGN_MAXIMUM, &instr->dst, REG_KEEP_UPPER, result, state);
             break;
         case IT_ADDSD:
-            operand1 = ll_operand_load(OP_SF, &instr->dst, state);
-            operand2 = ll_operand_load(OP_SF, &instr->src, state);
+            operand1 = ll_operand_load(OP_SF, ALIGN_MAXIMUM, &instr->dst, state);
+            operand2 = ll_operand_load(OP_SF, ALIGN_MAXIMUM, &instr->src, state);
             result = LLVMBuildFAdd(state->builder, operand1, operand2, "");
-            ll_operand_store(OP_SF, &instr->dst, REG_KEEP_UPPER, result, state);
+            ll_operand_store(OP_SF, ALIGN_MAXIMUM, &instr->dst, REG_KEEP_UPPER, result, state);
             break;
         case IT_ADDPS:
-            operand1 = ll_operand_load(OP_VF32, &instr->dst, state);
-            operand2 = ll_operand_load(OP_VF32, &instr->src, state);
+            operand1 = ll_operand_load(OP_VF32, ALIGN_MAXIMUM, &instr->dst, state);
+            operand2 = ll_operand_load(OP_VF32, ALIGN_MAXIMUM, &instr->src, state);
             result = LLVMBuildFAdd(state->builder, operand1, operand2, "");
-            ll_operand_store(OP_VF32, &instr->dst, REG_KEEP_UPPER, result, state);
+            ll_operand_store(OP_VF32, ALIGN_MAXIMUM, &instr->dst, REG_KEEP_UPPER, result, state);
             break;
         case IT_ADDPD:
-            operand1 = ll_operand_load(OP_VF64, &instr->dst, state);
-            operand2 = ll_operand_load(OP_VF64, &instr->src, state);
+            operand1 = ll_operand_load(OP_VF64, ALIGN_MAXIMUM, &instr->dst, state);
+            operand2 = ll_operand_load(OP_VF64, ALIGN_MAXIMUM, &instr->src, state);
             result = LLVMBuildFAdd(state->builder, operand1, operand2, "");
-            ll_operand_store(OP_VF64, &instr->dst, REG_KEEP_UPPER, result, state);
+            ll_operand_store(OP_VF64, ALIGN_MAXIMUM, &instr->dst, REG_KEEP_UPPER, result, state);
             break;
         case IT_SUBSS:
-            operand1 = ll_operand_load(OP_SF, &instr->dst, state);
-            operand2 = ll_operand_load(OP_SF, &instr->src, state);
+            operand1 = ll_operand_load(OP_SF, ALIGN_MAXIMUM, &instr->dst, state);
+            operand2 = ll_operand_load(OP_SF, ALIGN_MAXIMUM, &instr->src, state);
             result = LLVMBuildFSub(state->builder, operand1, operand2, "");
-            ll_operand_store(OP_SF, &instr->dst, REG_KEEP_UPPER, result, state);
+            ll_operand_store(OP_SF, ALIGN_MAXIMUM, &instr->dst, REG_KEEP_UPPER, result, state);
             break;
         case IT_SUBSD:
-            operand1 = ll_operand_load(OP_SF, &instr->dst, state);
-            operand2 = ll_operand_load(OP_SF, &instr->src, state);
+            operand1 = ll_operand_load(OP_SF, ALIGN_MAXIMUM, &instr->dst, state);
+            operand2 = ll_operand_load(OP_SF, ALIGN_MAXIMUM, &instr->src, state);
             result = LLVMBuildFSub(state->builder, operand1, operand2, "");
-            ll_operand_store(OP_SF, &instr->dst, REG_KEEP_UPPER, result, state);
+            ll_operand_store(OP_SF, ALIGN_MAXIMUM, &instr->dst, REG_KEEP_UPPER, result, state);
             break;
         case IT_SUBPS:
-            operand1 = ll_operand_load(OP_VF32, &instr->dst, state);
-            operand2 = ll_operand_load(OP_VF32, &instr->src, state);
+            operand1 = ll_operand_load(OP_VF32, ALIGN_MAXIMUM, &instr->dst, state);
+            operand2 = ll_operand_load(OP_VF32, ALIGN_MAXIMUM, &instr->src, state);
             result = LLVMBuildFSub(state->builder, operand1, operand2, "");
-            ll_operand_store(OP_VF32, &instr->dst, REG_KEEP_UPPER, result, state);
+            ll_operand_store(OP_VF32, ALIGN_MAXIMUM, &instr->dst, REG_KEEP_UPPER, result, state);
             break;
         case IT_SUBPD:
-            operand1 = ll_operand_load(OP_VF64, &instr->dst, state);
-            operand2 = ll_operand_load(OP_VF64, &instr->src, state);
+            operand1 = ll_operand_load(OP_VF64, ALIGN_MAXIMUM, &instr->dst, state);
+            operand2 = ll_operand_load(OP_VF64, ALIGN_MAXIMUM, &instr->src, state);
             result = LLVMBuildFSub(state->builder, operand1, operand2, "");
-            ll_operand_store(OP_VF64, &instr->dst, REG_KEEP_UPPER, result, state);
+            ll_operand_store(OP_VF64, ALIGN_MAXIMUM, &instr->dst, REG_KEEP_UPPER, result, state);
             break;
         case IT_MULSS:
-            operand1 = ll_operand_load(OP_SF, &instr->dst, state);
-            operand2 = ll_operand_load(OP_SF, &instr->src, state);
+            operand1 = ll_operand_load(OP_SF, ALIGN_MAXIMUM, &instr->dst, state);
+            operand2 = ll_operand_load(OP_SF, ALIGN_MAXIMUM, &instr->src, state);
             result = LLVMBuildFMul(state->builder, operand1, operand2, "");
-            ll_operand_store(OP_SF, &instr->dst, REG_KEEP_UPPER, result, state);
+            ll_operand_store(OP_SF, ALIGN_MAXIMUM, &instr->dst, REG_KEEP_UPPER, result, state);
             break;
         case IT_MULSD:
-            operand1 = ll_operand_load(OP_SF, &instr->dst, state);
-            operand2 = ll_operand_load(OP_SF, &instr->src, state);
+            operand1 = ll_operand_load(OP_SF, ALIGN_MAXIMUM, &instr->dst, state);
+            operand2 = ll_operand_load(OP_SF, ALIGN_MAXIMUM, &instr->src, state);
             result = LLVMBuildFMul(state->builder, operand1, operand2, "");
-            ll_operand_store(OP_SF, &instr->dst, REG_KEEP_UPPER, result, state);
+            ll_operand_store(OP_SF, ALIGN_MAXIMUM, &instr->dst, REG_KEEP_UPPER, result, state);
             break;
         case IT_MULPS:
-            operand1 = ll_operand_load(OP_VF32, &instr->dst, state);
-            operand2 = ll_operand_load(OP_VF32, &instr->src, state);
+            operand1 = ll_operand_load(OP_VF32, ALIGN_MAXIMUM, &instr->dst, state);
+            operand2 = ll_operand_load(OP_VF32, ALIGN_MAXIMUM, &instr->src, state);
             result = LLVMBuildFMul(state->builder, operand1, operand2, "");
-            ll_operand_store(OP_VF32, &instr->dst, REG_KEEP_UPPER, result, state);
+            ll_operand_store(OP_VF32, ALIGN_MAXIMUM, &instr->dst, REG_KEEP_UPPER, result, state);
             break;
         case IT_MULPD:
-            operand1 = ll_operand_load(OP_VF64, &instr->dst, state);
-            operand2 = ll_operand_load(OP_VF64, &instr->src, state);
+            operand1 = ll_operand_load(OP_VF64, ALIGN_MAXIMUM, &instr->dst, state);
+            operand2 = ll_operand_load(OP_VF64, ALIGN_MAXIMUM, &instr->src, state);
             result = LLVMBuildFMul(state->builder, operand1, operand2, "");
-            ll_operand_store(OP_VF64, &instr->dst, REG_KEEP_UPPER, result, state);
+            ll_operand_store(OP_VF64, ALIGN_MAXIMUM, &instr->dst, REG_KEEP_UPPER, result, state);
             break;
         case IT_PXOR:
         case IT_XORPS:
@@ -1267,11 +1258,11 @@ ll_generate_instruction(Instr* instr, LLState* state)
             }
             else
             {
-                operand1 = ll_operand_load(OP_VI64, &instr->dst, state);
-                operand2 = ll_operand_load(OP_VI64, &instr->src, state);
+                operand1 = ll_operand_load(OP_VI64, ALIGN_MAXIMUM, &instr->dst, state);
+                operand2 = ll_operand_load(OP_VI64, ALIGN_MAXIMUM, &instr->src, state);
                 result = LLVMBuildXor(state->builder, operand1, operand2, "");
             }
-            ll_operand_store(OP_VI64, &instr->dst, REG_KEEP_UPPER, result, state);
+            ll_operand_store(OP_VI64, ALIGN_MAXIMUM, &instr->dst, REG_KEEP_UPPER, result, state);
             break;
         // case IT_UNPCKLPS:
         //     {
@@ -1282,10 +1273,10 @@ ll_generate_instruction(Instr* instr, LLState* state)
         //         maskElements[3] = LLVMConstInt(i32, 5, false);
         //         LLVMValueRef mask = LLVMConstVector(maskElements, 4);
 
-        //         operand1 = ll_operand_load(OP_VF32, &instr->dst, state);
-        //         operand2 = ll_operand_load(OP_VF32, &instr->src, state);
+        //         operand1 = ll_operand_load(OP_VF32, ALIGN_MAXIMUM, &instr->dst, state);
+        //         operand2 = ll_operand_load(OP_VF32, ALIGN_MAXIMUM, &instr->src, state);
         //         result = LLVMBuildShuffleVector(state->builder, operand1, operand2, mask, "");
-        //         ll_operand_store(OP_VF32, &instr->dst, REG_KEEP_UPPER, result, state);
+        //         ll_operand_store(OP_VF32, ALIGN_MAXIMUM, &instr->dst, REG_KEEP_UPPER, result, state);
         //     }
         //     break;
         // case IT_UNPCKLPD:
@@ -1295,10 +1286,10 @@ ll_generate_instruction(Instr* instr, LLState* state)
         //         maskElements[1] = LLVMConstInt(i32, 2, false);
         //         LLVMValueRef mask = LLVMConstVector(maskElements, 2);
 
-        //         operand1 = ll_operand_load(OP_VF64, &instr->dst, state);
-        //         operand2 = ll_operand_load(OP_VF64, &instr->src, state);
+        //         operand1 = ll_operand_load(OP_VF64, ALIGN_MAXIMUM, &instr->dst, state);
+        //         operand2 = ll_operand_load(OP_VF64, ALIGN_MAXIMUM, &instr->src, state);
         //         result = LLVMBuildShuffleVector(state->builder, operand1, operand2, mask, "");
-        //         ll_operand_store(OP_VF64, &instr->dst, REG_KEEP_UPPER, result, state);
+        //         ll_operand_store(OP_VF64, ALIGN_MAXIMUM, &instr->dst, REG_KEEP_UPPER, result, state);
         //     }
         //     break;
 
