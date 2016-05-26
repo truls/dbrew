@@ -60,7 +60,7 @@ ll_function_new(LLFunctionDecl* declParam, LLConfig* config, LLState* state)
     LLVMTypeRef i1 = LLVMInt1TypeInContext(state->context);
     LLVMTypeRef i8 = LLVMInt8TypeInContext(state->context);
     LLVMTypeRef i64 = LLVMInt64TypeInContext(state->context);
-    LLVMTypeRef i256 = LLVMIntTypeInContext(state->context, 256);
+    LLVMTypeRef iVec = LLVMIntTypeInContext(state->context, LL_VECTOR_REGISTER_SIZE);
     LLVMTypeRef ip = LLVMPointerType(i8, 0);
 
     // Construct function type and add a new function to the module
@@ -84,7 +84,7 @@ ll_function_new(LLFunctionDecl* declParam, LLConfig* config, LLState* state)
     // Set all registers to undef first.
     for (int i = 0; i < 55; i++)
     {
-        LLVMTypeRef type = i < 17 ? i64 : i < 49 ? i256 : i1;
+        LLVMTypeRef type = i < 17 ? i64 : i < 49 ? iVec : i1;
         initialBB->registers[i] = LLVMGetUndef(type);
     }
 

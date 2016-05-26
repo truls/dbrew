@@ -37,6 +37,8 @@
 #define critical(format, ...) printf("!CRITICAL %s: " format "\n", __PRETTY_FUNCTION__, ##__VA_ARGS__)
 #define warn_if_reached() do { printf("!WARN %s: Code should not be reached.\n", __PRETTY_FUNCTION__); __asm__("int3"); } while (0)
 
+#define LL_VECTOR_REGISTER_SIZE 128
+
 struct LLBasicBlock;
 
 typedef struct LLBasicBlock LLBasicBlock;

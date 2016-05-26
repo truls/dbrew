@@ -165,7 +165,7 @@ ll_basic_block_build_ir(LLBasicBlock* bb, LLState* state)
 
     for (int i = 0; i < 55; i++)
     {
-        int length = i < 17 ? 64 : i < 49 ? 256 : 1;
+        int length = i < 17 ? 64 : i < 49 ? LL_VECTOR_REGISTER_SIZE : 1;
         phiNode = LLVMBuildPhi(state->builder, LLVMIntTypeInContext(state->context, length), "");
 
         bb->registers[i] = phiNode;

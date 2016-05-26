@@ -552,7 +552,7 @@ ll_operand_store(OperandDataType dataType, Operand* operand, PartialRegisterHand
         case OT_Reg256:
             {
                 // bool keepUpper =
-                int regWidth = operand->reg < Reg_X0 ? 64 : 256;
+                int regWidth = operand->reg < Reg_X0 ? 64 : LL_VECTOR_REGISTER_SIZE;
 
                 // TODO: This is likely _really_ wrong and buggy.
                 // TODO: Keep upper part

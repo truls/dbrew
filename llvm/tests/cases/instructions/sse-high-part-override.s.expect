@@ -15,22 +15,16 @@ target triple = "x86_64-pc-linux-gnu"
 define i64 @test(i8* nocapture, i8* noalias nocapture readonly, i8* nocapture readnone, i8* nocapture readnone, i8* nocapture readnone, i8* nocapture readnone) {
   %7 = bitcast i8* %0 to <2 x double>*
   %8 = load <2 x double>, <2 x double>* %7, align 8
-  %9 = shufflevector <2 x double> %8, <2 x double> undef, <4 x i32> <i32 undef, i32 1, i32 undef, i32 undef>
-  %10 = bitcast i8* %1 to <2 x double>*
-  %11 = load <2 x double>, <2 x double>* %10, align 8
-  %12 = extractelement <2 x double> %8, i32 0
-  %13 = extractelement <2 x double> %11, i32 0
-  %14 = fadd double %12, %13
-  %15 = insertelement <4 x double> %9, double %14, i64 0
-  %16 = bitcast <4 x double> %15 to <2 x i128>
-  %17 = extractelement <2 x i128> %16, i32 0
-  %18 = shufflevector <4 x double> %15, <4 x double> undef, <2 x i32> <i32 0, i32 1>
-  store <2 x double> %18, <2 x double>* %7, align 8
-  %19 = bitcast i8* %0 to double*
-  %20 = trunc i128 %17 to i64
-  %21 = bitcast i64 %20 to double
-  %22 = fadd double %13, %21
-  store double %22, double* %19, align 8
+  %9 = bitcast i8* %1 to <2 x double>*
+  %10 = load <2 x double>, <2 x double>* %9, align 8
+  %11 = extractelement <2 x double> %8, i32 0
+  %12 = extractelement <2 x double> %10, i32 0
+  %13 = fadd double %11, %12
+  %14 = insertelement <2 x double> %8, double %13, i64 0
+  store <2 x double> %14, <2 x double>* %7, align 8
+  %15 = bitcast i8* %0 to double*
+  %16 = fadd double %12, %13
+  store double %16, double* %15, align 8
   ret i64 0
 }
 
