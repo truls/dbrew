@@ -1031,6 +1031,13 @@ ll_generate_instruction(Instr* instr, LLState* state)
                 operand2 = LLVMBuildSExtOrBitCast(state->builder, operand2, LLVMTypeOf(operand1), "");
                 result = LLVMBuildMul(state->builder, operand1, operand2, "");
             }
+            else if (instr->form == OF_3)
+            {
+                operand1 = ll_operand_load(OP_SI, &instr->src, state);
+                operand2 = ll_operand_load(OP_SI, &instr->src2, state);
+                operand2 = LLVMBuildSExtOrBitCast(state->builder, operand2, LLVMTypeOf(operand1), "");
+                result = LLVMBuildMul(state->builder, operand1, operand2, "");
+            }
             else
             {
                 result = LLVMGetUndef(LLVMInt64TypeInContext(state->context));

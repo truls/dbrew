@@ -1,0 +1,23 @@
+Decoded BB at ?+0:
+                   ?:  48 6b c7 03           imul    $0x3,%rdi,%rax
+                 ?+4:  c3                    ret    
+; ModuleID = '<llengine>'
+target triple = "x86_64-pc-linux-gnu"
+
+; Function Attrs: readnone
+define i64 @test(i8*, i8* nocapture readnone, i8* nocapture readnone, i8* nocapture readnone, i8* nocapture readnone, i8* nocapture readnone) #0 {
+  %7 = ptrtoint i8* %0 to i64
+  %8 = mul i64 %7, 3, !asm.reg.rax !0
+  ret i64 %8
+}
+
+; Function Attrs: nounwind readnone
+declare void @llvm.donothing() #1
+
+attributes #0 = { readnone }
+attributes #1 = { nounwind readnone }
+
+!0 = !{}
+
+Result: 30
+Result: 30
