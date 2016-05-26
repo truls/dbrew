@@ -312,6 +312,9 @@ ll_get_global_offset(LLVMValueRef constGlobal, LLState* state)
 {
     uintptr_t ptr = LLVMConstIntGetZExtValue(constGlobal);
 
+    if (ptr == 0)
+        return LLVMConstPointerNull(LLVMInt8TypeInContext(state->context));
+
     if (state->globalOffsetBase == 0)
     {
         state->globalOffsetBase = ptr;
