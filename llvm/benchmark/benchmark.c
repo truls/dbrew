@@ -349,6 +349,7 @@ benchmark_run2(const BenchmarkArgs* args, const BenchmarkStencilConfig* config)
     {
         params(&arg0, &arg1, &arg2);
 
+        llconfig.fixFirstParam = arg0 != NULL;
         llconfig.firstParam = (uintptr_t) arg0;
 
         JTimerCont(&timerTotal);
