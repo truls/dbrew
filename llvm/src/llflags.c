@@ -154,15 +154,29 @@ ll_flags_set_sf(LLVMValueRef result, LLState* state)
 static void
 ll_flags_set_of_sub(LLVMValueRef result, LLVMValueRef lhs, LLVMValueRef rhs, LLState* state)
 {
-    int width = LLVMGetIntTypeWidth(LLVMTypeOf(result));
     LLVMTypeRef intType = LLVMTypeOf(result);
-    LLVMTypeRef i1 = LLVMInt1TypeInContext(state->context);
+    LLVMValueRef overflowFlag;
 
-    LLVMValueRef xor1 = LLVMBuildXor(state->builder, lhs, result, "");
-    LLVMValueRef xor2 = LLVMBuildXor(state->builder, lhs, rhs, "");
-    LLVMValueRef and = LLVMBuildAnd(state->builder, xor1, xor2, "");
-    LLVMValueRef overflow = LLVMBuildLShr(state->builder, and, LLVMConstInt(intType, width - 1, false), "");
-    state->currentBB->registers[RFLAG_OF] = LLVMBuildTrunc(state->builder, overflow, i1, "");
+    if (state->enableOverflowIntrinsics)
+    {
+        LLVMValueRef intrinsicSsubWithOverflow = ll_support_get_intrinsic(state->module, LL_INTRINSIC_SSUB_WITH_OVERFLOW, &intType, 1);
+        LLVMValueRef args[2] = { lhs, rhs };
+        LLVMValueRef packedData = LLVMBuildCall(state->builder, intrinsicSsubWithOverflow, args, 2, "");
+        overflowFlag = LLVMBuildExtractValue(state->builder, packedData, 1, "");
+    }
+    else
+    {
+        int width = LLVMGetIntTypeWidth(intType);
+
+        LLVMTypeRef i1 = LLVMInt1TypeInContext(state->context);
+        LLVMValueRef xor1 = LLVMBuildXor(state->builder, lhs, result, "");
+        LLVMValueRef xor2 = LLVMBuildXor(state->builder, lhs, rhs, "");
+        LLVMValueRef and = LLVMBuildAnd(state->builder, xor1, xor2, "");
+        LLVMValueRef overflow = LLVMBuildLShr(state->builder, and, LLVMConstInt(intType, width - 1, false), "");
+        overflowFlag = LLVMBuildTrunc(state->builder, overflow, i1, "");
+    }
+
+    state->currentBB->registers[RFLAG_OF] = overflowFlag;
 
     LLVMSetMetadata(state->currentBB->registers[RFLAG_OF], LLVMGetMDKindIDInContext(state->context, "asm.flag.of", 11), state->emptyMD);
 }
@@ -178,18 +192,30 @@ ll_flags_set_cf_sub(LLVMValueRef lhs, LLVMValueRef rhs, LLState* state)
 static void
 ll_flags_set_of_add(LLVMValueRef result, LLVMValueRef lhs, LLVMValueRef rhs, LLState* state)
 {
-    int width = LLVMGetIntTypeWidth(LLVMTypeOf(result));
     LLVMTypeRef intType = LLVMTypeOf(result);
-    LLVMTypeRef i1 = LLVMInt1TypeInContext(state->context);
+    LLVMValueRef overflowFlag;
 
-    // TODO: Verify this
-    LLVMValueRef xor1 = LLVMBuildXor(state->builder, lhs, result, "");
-    LLVMValueRef xor2 = LLVMBuildXor(state->builder, lhs, rhs, "");
-    LLVMValueRef not = LLVMBuildNot(state->builder, xor2, "");
-    LLVMValueRef and = LLVMBuildAnd(state->builder, xor1, not, "");
-    LLVMValueRef overflow = LLVMBuildLShr(state->builder, and, LLVMConstInt(intType, width - 1, false), "");
-    state->currentBB->registers[RFLAG_OF] = LLVMBuildTrunc(state->builder, overflow, i1, "");
+    if (state->enableOverflowIntrinsics)
+    {
+        LLVMValueRef intrinsicSaddWithOverflow = ll_support_get_intrinsic(state->module, LL_INTRINSIC_SADD_WITH_OVERFLOW, &intType, 1);
+        LLVMValueRef args[2] = { lhs, rhs };
+        LLVMValueRef packedData = LLVMBuildCall(state->builder, intrinsicSaddWithOverflow, args, 2, "");
+        overflowFlag = LLVMBuildExtractValue(state->builder, packedData, 1, "");
+    }
+    else
+    {
+        int width = LLVMGetIntTypeWidth(intType);
 
+        LLVMTypeRef i1 = LLVMInt1TypeInContext(state->context);
+        LLVMValueRef xor1 = LLVMBuildXor(state->builder, lhs, result, "");
+        LLVMValueRef xor2 = LLVMBuildXor(state->builder, lhs, rhs, "");
+        LLVMValueRef not = LLVMBuildNot(state->builder, xor2, "");
+        LLVMValueRef and = LLVMBuildAnd(state->builder, xor1, not, "");
+        LLVMValueRef overflow = LLVMBuildLShr(state->builder, and, LLVMConstInt(intType, width - 1, false), "");
+        overflowFlag = LLVMBuildTrunc(state->builder, overflow, i1, "");
+    }
+
+    state->currentBB->registers[RFLAG_OF] = overflowFlag;
     LLVMSetMetadata(state->currentBB->registers[RFLAG_OF], LLVMGetMDKindIDInContext(state->context, "asm.flag.of", 11), state->emptyMD);
 }
 

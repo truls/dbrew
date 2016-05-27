@@ -34,6 +34,7 @@ enum LLSupportIntrinsics {
     LL_INTRINSIC_DO_NOTHING,
     LL_INTRINSIC_CTPOP,
     LL_INTRINSIC_SADD_WITH_OVERFLOW,
+    LL_INTRINSIC_SSUB_WITH_OVERFLOW,
 };
 
 typedef enum LLSupportIntrinsics LLSupportIntrinsics;

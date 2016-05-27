@@ -95,6 +95,7 @@ ll_engine_init(void)
     state->emptyMD = LLVMMDNodeInContext(state->context, NULL, 0); //LLVMMDStringInContext(state->context, "", 0);
     state->globalOffsetBase = 0;
     state->unsafePointerOptimizations = false;
+    state->enableOverflowIntrinsics = false;
 
     return state;
 }
@@ -109,6 +110,8 @@ ll_engine_init(void)
  *
  * This function must be called before the IR of the function is built.
  *
+ * \author Alexis Engelke
+ *
  * \param state The module state
  * \param enable Whether unsafe pointer optimizations can be performed.
  **/
@@ -116,6 +119,25 @@ void
 ll_engine_enable_unsafe_pointer_optimizations(LLState* state, bool enable)
 {
     state->unsafePointerOptimizations = enable;
+}
+
+/**
+ * Enable the usage of overflow intrinsics instead of bitwise operations when
+ * setting the overflow flag. For dynamic values this leads to better code which
+ * relies on the overflow flag again. However, immediate values are not folded
+ * when they are guaranteed to overflow.
+ *
+ * This function must be called before the IR of the function is built.
+ *
+ * \author Alexis Engelke
+ *
+ * \param state The module state
+ * \param enable Whether overflow intrinsics shall be used
+ **/
+void
+ll_engine_enable_overflow_intrinsics(LLState* state, bool enable)
+{
+    state->enableOverflowIntrinsics = enable;
 }
 
 void

@@ -19,6 +19,7 @@ ll_support_get_intrinsic(LLVMModuleRef module, LLSupportIntrinsics intrinsic, LL
         case LL_INTRINSIC_DO_NOTHING: intrinsicId = llvm::Intrinsic::donothing; break;
         case LL_INTRINSIC_CTPOP: intrinsicId = llvm::Intrinsic::ctpop; break;
         case LL_INTRINSIC_SADD_WITH_OVERFLOW: intrinsicId = llvm::Intrinsic::sadd_with_overflow; break;
+        case LL_INTRINSIC_SSUB_WITH_OVERFLOW: intrinsicId = llvm::Intrinsic::ssub_with_overflow; break;
         default: intrinsicId = llvm::Intrinsic::not_intrinsic; break;
     }
 

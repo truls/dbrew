@@ -82,6 +82,7 @@ struct LLState {
     LLVMValueRef globalBase;
 
     bool unsafePointerOptimizations;
+    bool enableOverflowIntrinsics;
 };
 
 #endif
