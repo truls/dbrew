@@ -25,6 +25,7 @@
 #define LL_SUPPORT_H
 
 #include <llvm-c/Core.h>
+#include <llvm-c/Transforms/PassManagerBuilder.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -40,6 +41,7 @@ enum LLSupportIntrinsics {
 typedef enum LLSupportIntrinsics LLSupportIntrinsics;
 
 LLVMValueRef ll_support_get_intrinsic(LLVMModuleRef, LLSupportIntrinsics, LLVMTypeRef*, unsigned);
+void ll_support_pass_manager_builder_set_enable_vectorize(LLVMPassManagerBuilderRef, LLVMBool);
 
 #ifdef __cplusplus
 }

@@ -31,6 +31,7 @@
 #include <llvm-c/Transforms/IPO.h>
 #include <llvm-c/Transforms/Scalar.h>
 #include <llvm-c/Transforms/Vectorize.h>
+#include <llvm-c/Transforms/PassManagerBuilder.h>
 
 #include <common.h>
 #include <engine.h>
@@ -42,6 +43,7 @@
 #include <llcommon-internal.h>
 #include <lldecoder.h>
 #include <llfunction-internal.h>
+#include <llsupport.h>
 
 /**
  * \ingroup LLEngine
@@ -188,90 +190,22 @@ ll_engine_dispose(LLState* state)
 void
 ll_engine_optimize(LLState* state, int level)
 {
-    LLVMPassManagerRef pm;
+    LLVMPassManagerRef pm = LLVMCreatePassManager();
+    LLVMPassManagerBuilderRef pmb = LLVMPassManagerBuilderCreate();
 
-    pm = LLVMCreatePassManager();
+    LLVMPassManagerBuilderSetOptLevel(pmb, level);
+    ll_support_pass_manager_builder_set_enable_vectorize(pmb, level >= 3);
 
-    // LLVMAddStripSymbolsPass(pm);
-    // LLVMAddStripDeadPrototypesPass(pm);
+    LLVMPassManagerBuilderPopulateModulePassManager(pmb, pm);
+    LLVMPassManagerBuilderDispose(pmb);
 
-    if (level >= 1)
-    {
-        LLVMAddCFGSimplificationPass(pm);
-        LLVMAddFunctionAttrsPass(pm);
-        LLVMAddInstructionCombiningPass(pm);
-        LLVMAddGVNPass(pm);
-
-        LLVMAddEarlyCSEPass(pm);
-    }
-
-    if (level >= 2)
-    {
-        LLVMAddBasicAliasAnalysisPass(pm);
-        // LLVMAddScopedNoAliasAAPass(pm);
-        LLVMAddTypeBasedAliasAnalysisPass(pm);
-
-        LLVMAddDeadStoreEliminationPass(pm);
-        // LLVMAddMergedLoadStoreMotionPass(pm);
-
-        // LLVMAddConstantMergePass(pm);
-        // LLVMAddArgumentPromotionPass(pm);
-
-        // LLVMAddDeadArgEliminationPass(pm);
-        // LLVMAddIPConstantPropagationPass(pm);
-        // LLVMAddCorrelatedValuePropagationPass(pm);
-        // LLVMAddConstantPropagationPass(pm);
-
-        LLVMAddPromoteMemoryToRegisterPass(pm);
-
-        // LLVMAddFunctionInliningPass(pm);
-        // LLVMAddAlwaysInlinerPass(pm);
-
-        // LLVMAddGlobalOptimizerPass(pm);
-
-        LLVMAddIndVarSimplifyPass(pm);
-
-        LLVMAddLoopDeletionPass(pm);
-        LLVMAddLoopUnrollPass(pm);
-        LLVMAddLoopRerollPass(pm);
-        LLVMAddLICMPass(pm);
-        LLVMAddLoopIdiomPass(pm);
-        LLVMAddLoopUnswitchPass(pm);
-        LLVMAddScalarReplAggregatesPassSSA(pm);
-
-        // LLVMAddScalarizerPass(pm);
-
-        LLVMAddReassociatePass(pm);
-        // LLVMAddAlignmentFromAssumptionsPass(pm);
-    }
-
-    // Run thrice: GCC with -O0 produces code which needs a third run to get
-    // things right and looking good.
-    LLVMRunPassManager(pm, state->module);
-
-    // We run the vectorizer later so that things get handled in the scalar form
-    // first. This eliminates many unused instructions, which would get part of
-    // a vector instruction otherwise. The vector instructions would not get
-    // eliminated though.
-    if (level >= 3)
-    {
-        LLVMAddAggressiveDCEPass(pm);
-        LLVMAddBBVectorizePass(pm);
-        LLVMAddSLPVectorizePass(pm);
-        LLVMAddLoopVectorizePass(pm);
-    }
-
-    LLVMRunPassManager(pm, state->module);
-    LLVMRunPassManager(pm, state->module);
-    LLVMRunPassManager(pm, state->module);
-
-    LLVMDisposePassManager(pm);
-
-    // Add an additional clean-up pass pipeline
-    pm = LLVMCreatePassManager();
+    // Add clean-up passes
     LLVMAddStripSymbolsPass(pm);
     LLVMAddStripDeadPrototypesPass(pm);
+
     LLVMRunPassManager(pm, state->module);
+    LLVMRunPassManager(pm, state->module);
+
     LLVMDisposePassManager(pm);
 }
 

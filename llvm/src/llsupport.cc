@@ -3,6 +3,8 @@
 #include <llvm/IR/DataLayout.h>
 #include <llvm/IR/Intrinsics.h>
 #include <llvm/IR/Module.h>
+#include <llvm/Transforms/IPO/PassManagerBuilder.h>
+#include <llvm-c/Transforms/PassManagerBuilder.h>
 
 #include <llsupport.h>
 
@@ -24,4 +26,14 @@ ll_support_get_intrinsic(LLVMModuleRef module, LLSupportIntrinsics intrinsic, LL
     }
 
     return llvm::wrap(llvm::Intrinsic::getDeclaration(llvm::unwrap(module), intrinsicId, Tys));
+}
+
+extern "C"
+void
+ll_support_pass_manager_builder_set_enable_vectorize(LLVMPassManagerBuilderRef PMB, LLVMBool value)
+{
+    llvm::PassManagerBuilder* Builder = reinterpret_cast<llvm::PassManagerBuilder*>(PMB);
+    Builder->BBVectorize = value;
+    Builder->SLPVectorize = value;
+    Builder->LoopVectorize = value;
 }

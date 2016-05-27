@@ -18,7 +18,8 @@ Decoded BB at ?+0:
 ; ModuleID = '<llengine>'
 target triple = "x86_64-pc-linux-gnu"
 
-define i64 @test(i8* nocapture, i8* nocapture readnone, i8* nocapture readnone, i8* nocapture readnone, i8* nocapture readnone, i8* nocapture readnone) {
+; Function Attrs: nounwind
+define i64 @test(i8* nocapture, i8* nocapture readnone, i8* nocapture readnone, i8* nocapture readnone, i8* nocapture readnone, i8* nocapture readnone) #0 {
   %7 = bitcast i8* %0 to <8 x i64>*
   %8 = load <8 x i64>, <8 x i64>* %7, align 8
   %9 = extractelement <8 x i64> %8, i32 0
@@ -26,6 +27,8 @@ define i64 @test(i8* nocapture, i8* nocapture readnone, i8* nocapture readnone, 
   store <8 x i64> %10, <8 x i64>* %7, align 8
   ret i64 %9
 }
+
+attributes #0 = { nounwind }
 
 Result: 1 11 12 13 14 15 16 17 18
 Result: 1 11 12 13 14 15 16 17 18

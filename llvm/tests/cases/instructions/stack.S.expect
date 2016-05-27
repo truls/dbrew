@@ -16,13 +16,13 @@ Decoded BB at ?+0:
 ; ModuleID = '<llengine>'
 target triple = "x86_64-pc-linux-gnu"
 
-; Function Attrs: readnone
+; Function Attrs: nounwind readnone
 define i64 @test(i8*, i8* nocapture readnone, i8* nocapture readnone, i8* nocapture readnone, i8* nocapture readnone, i8* nocapture readnone) #0 {
   %7 = ptrtoint i8* %0 to i64
   ret i64 %7
 }
 
-attributes #0 = { readnone }
+attributes #0 = { nounwind readnone }
 
 Result: 10
 Result: 10

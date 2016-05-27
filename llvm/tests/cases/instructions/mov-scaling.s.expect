@@ -7,7 +7,7 @@ target triple = "x86_64-pc-linux-gnu"
 
 @__ll_global_base__ = external global i8
 
-; Function Attrs: readonly
+; Function Attrs: nounwind readonly
 define i64 @test(i8* nocapture readonly, i8* nocapture readnone, i8* nocapture readnone, i8* nocapture readnone, i8* nocapture readnone, i8* nocapture readnone) #0 {
   %7 = load i64, i64* bitcast (i8* @__ll_global_base__ to i64*), align 8, !asm.reg.rcx !0
   %8 = bitcast i8* %0 to i64*
@@ -16,7 +16,7 @@ define i64 @test(i8* nocapture readonly, i8* nocapture readnone, i8* nocapture r
   ret i64 %10
 }
 
-attributes #0 = { readonly }
+attributes #0 = { nounwind readonly }
 
 !0 = !{}
 
