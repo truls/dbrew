@@ -156,6 +156,7 @@ test_llvm_generation(bool debug)
         else
         {
             ll_engine_optimize(state, 3);
+            ll_engine_dump(state);
             // void* fn = ll_function_get_pointer(function, state);
             // ll_decode_function(dbrewDecoder, (uintptr_t) fn, &config, state);
         }

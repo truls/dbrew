@@ -223,6 +223,14 @@ ll_engine_optimize(LLState* state, int level)
         // LLVMAddAlignmentFromAssumptionsPass(pm);
     }
 
+    // Run thrice: GCC with -O0 produces code which needs a third run to get
+    // things right and looking good.
+    LLVMRunPassManager(pm, state->module);
+
+    // We run the vectorizer later so that things get handled in the scalar form
+    // first. This eliminates many unused instructions, which would get part of
+    // a vector instruction otherwise. The vector instructions would not get
+    // eliminated though.
     if (level >= 3)
     {
         LLVMAddAggressiveDCEPass(pm);
@@ -231,12 +239,6 @@ ll_engine_optimize(LLState* state, int level)
         LLVMAddLoopVectorizePass(pm);
     }
 
-    // Run twice: The vectorizer runs late in the pipeline, but we still want to
-    // optimize the vectorized code.
-    // Run thrice: GCC with -O0 produces code which needs a third run to get
-    // things right and looking good.
-    // while (LLVMRunPassManager(pm, state->module));
-    LLVMRunPassManager(pm, state->module);
     LLVMRunPassManager(pm, state->module);
     LLVMRunPassManager(pm, state->module);
     LLVMRunPassManager(pm, state->module);
@@ -247,8 +249,6 @@ ll_engine_optimize(LLState* state, int level)
     LLVMAddStripSymbolsPass(pm);
     LLVMRunPassManager(pm, state->module);
     LLVMDisposePassManager(pm);
-
-    ll_engine_dump(state);
 }
 
 void
@@ -336,6 +336,7 @@ dbrew_llvm_backend(Rewriter* rewriter)
     }
 
     ll_engine_optimize(state, 3);
+    ll_engine_dump(state);
 
     rewriter->generatedCodeAddr = (uintptr_t) ll_function_get_pointer(function, state);
     rewriter->generatedCodeSize = 0;
