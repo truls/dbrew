@@ -127,14 +127,12 @@ ll_function_new(LLFunctionDecl* declParam, LLConfig* config, LLState* state)
     }
 
     // Setup virtual stack
-    function->sp = LLVMBuildArrayAlloca(state->builder, i8, LLVMConstInt(i64, config->stackSize, false), "");
-    function->spInt = LLVMBuildPtrToInt(state->builder, function->sp, i64, "stackInt");
-
-    LLVMSetAlignment(function->sp, 16);
-
-    LLVMValueRef stackOffset = LLVMConstInt(i64, config->stackSize, false);
-    LLVMValueRef sp = LLVMBuildGEP(state->builder, function->sp, &stackOffset, 1, "sp");
+    LLVMValueRef stackSize = LLVMConstInt(i64, config->stackSize, false);
+    LLVMValueRef stack = LLVMBuildArrayAlloca(state->builder, i8, stackSize, "");
+    LLVMValueRef sp = LLVMBuildGEP(state->builder, stack, &stackSize, 1, "");
     initialBB->registers[Reg_SP - Reg_AX] = LLVMBuildPtrToInt(state->builder, sp, i64, "sp");
+
+    LLVMSetAlignment(stack, 16);
 
     function->initialBB = initialBB;
 

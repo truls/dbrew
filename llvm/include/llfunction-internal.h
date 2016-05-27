@@ -82,16 +82,6 @@ struct LLFunction {
     LLBasicBlock** bbs;
 
     /**
-     * \brief Pointer to the base of the allocated memory for the virtual stack
-     **/
-    LLVMValueRef sp;
-    /**
-     * \brief Integer value of the pointer to the base of the allocated memory
-     * for the virtual stack
-     **/
-    LLVMValueRef spInt;
-
-    /**
      * \brief The initial basic block, which is the entry point
      **/
     LLBasicBlock* initialBB;

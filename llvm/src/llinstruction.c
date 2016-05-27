@@ -45,7 +45,7 @@
  *
  * @{
  **/
-#define STACK_POINTER_CAST
+
 #define SHUFFLE_VECTOR
 
 enum OperandDataType {
@@ -693,6 +693,7 @@ ll_operand_store(OperandDataType dataType, Alignment alignment, Operand* operand
 static void
 ll_generate_push(Instr* instr, LLState* state)
 {
+    LLVMTypeRef i8 = LLVMInt8TypeInContext(state->context);
     LLVMTypeRef i64 = LLVMInt64TypeInContext(state->context);
 
     LLVMValueRef value = ll_operand_load(OP_SI, ALIGN_MAXIMUM, &instr->dst, state);
@@ -700,14 +701,7 @@ ll_generate_push(Instr* instr, LLState* state)
 
     // Get pointer to current top of stack
     LLVMValueRef spReg = state->currentBB->registers[Reg_SP - Reg_AX];
-
-#ifdef STACK_POINTER_CAST
-    LLVMTypeRef i8 = LLVMInt8TypeInContext(state->context);
     LLVMValueRef sp = LLVMBuildIntToPtr(state->builder, spReg, LLVMPointerType(i8, 0), "");
-#else
-    LLVMValueRef spOffset = LLVMBuildSub(state->builder, spReg, state->currentFunction->spInt, "");
-    LLVMValueRef sp = LLVMBuildGEP(state->builder, state->currentFunction->sp, &spOffset, 1, "");
-#endif
 
     // Decrement Stack Pointer via a GEP instruction
     LLVMValueRef constSub = LLVMConstInt(i64, -8, false);
@@ -740,17 +734,11 @@ ll_generate_push(Instr* instr, LLState* state)
 static void
 ll_generate_pop(Operand* operand, LLState* state)
 {
+    LLVMTypeRef i8 = LLVMInt8TypeInContext(state->context);
     LLVMTypeRef i64 = LLVMInt64TypeInContext(state->context);
 
     LLVMValueRef spReg = state->currentBB->registers[Reg_SP - Reg_AX];
-
-#ifdef STACK_POINTER_CAST
-    LLVMTypeRef i8 = LLVMInt8TypeInContext(state->context);
     LLVMValueRef sp = LLVMBuildIntToPtr(state->builder, spReg, LLVMPointerType(i8, 0), "");
-#else
-    LLVMValueRef spOffset = LLVMBuildSub(state->builder, spReg, state->currentFunction->spInt, "");
-    LLVMValueRef sp = LLVMBuildGEP(state->builder, state->currentFunction->sp, &spOffset, 1, "");
-#endif
 
     LLVMValueRef castedPtr = LLVMBuildBitCast(state->builder, sp, LLVMPointerType(i64, 0), "");
     LLVMValueRef value = LLVMBuildLoad(state->builder, castedPtr, "");
