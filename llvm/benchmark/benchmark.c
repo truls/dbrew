@@ -52,27 +52,35 @@ SortedStencil s5s = {1, {{0.25,4,&(s5.p[0])}}};
 #define STENCIL_OFFSET(base,x,y) ((base) + (y) * ((STENCIL_N) + 1) + (x))
 
 
-static void
+static
+// inline
+void
 stencil_inner_native_interleaved(void* a, double* restrict b, double* restrict c, uint64_t index)
 {
     c[index-1] = 0.25 * (b[STENCIL_OFFSET(index-1, 0, -1)] + b[STENCIL_OFFSET(index-1, 0, 1)] + b[STENCIL_OFFSET(index-1, -1, 0)] + b[STENCIL_OFFSET(index-1, 1, 0)]);
     c[index] = 0.25 * (b[STENCIL_OFFSET(index, 0, -1)] + b[STENCIL_OFFSET(index, 0, 1)] + b[STENCIL_OFFSET(index, -1, 0)] + b[STENCIL_OFFSET(index, 1, 0)]);
 }
 
-static void
+static
+// inline
+void
 stencil_inner_native(void* a, double* restrict b, double* restrict c, uint64_t index)
 {
     c[index] = 0.25 * (b[STENCIL_OFFSET(index, 0, -1)] + b[STENCIL_OFFSET(index, 0, 1)] + b[STENCIL_OFFSET(index, -1, 0)] + b[STENCIL_OFFSET(index, 1, 0)]);
 }
 
-static void
+static
+// inline
+void
 stencil_inner_native2(Stencil* restrict s, double* restrict b, double* restrict c, uint64_t index)
 {
     stencil_inner_native(s, b, c, index-1);
     stencil_inner_native(s, b, c, index);
 }
 
-static void
+static
+// inline
+void
 stencil_inner_struct_interleaved(Stencil* restrict s, double* restrict b, double* restrict c, uint64_t index)
 {
     double result1 = 0;
@@ -87,7 +95,9 @@ stencil_inner_struct_interleaved(Stencil* restrict s, double* restrict b, double
     c[index] = result1;
 }
 
-static void
+static
+// inline
+void
 stencil_inner_struct(Stencil* restrict s, double* restrict b, double* restrict c, uint64_t index)
 {
     double result1 = 0;
@@ -99,14 +109,18 @@ stencil_inner_struct(Stencil* restrict s, double* restrict b, double* restrict c
     c[index] = result1;
 }
 
-static void
+static
+// inline
+void
 stencil_inner_struct2(Stencil* restrict s, double* restrict b, double* restrict c, uint64_t index)
 {
     stencil_inner_struct(s, b, c, index-1);
     stencil_inner_struct(s, b, c, index);
 }
 
-static inline void
+static
+// inline
+void
 stencil_inner_sorted_struct_interleaved(SortedStencil* restrict s, double* restrict b, double* restrict c, uint64_t index)
 {
     double result1 = 0, sum1 = 0;
@@ -130,7 +144,9 @@ stencil_inner_sorted_struct_interleaved(SortedStencil* restrict s, double* restr
     c[index] = result1;
 }
 
-static inline void
+static
+// inline
+void
 stencil_inner_sorted_struct(SortedStencil* restrict s, double* restrict b, double* restrict c, uint64_t index)
 {
     double result1 = 0, sum1 = 0;
@@ -149,7 +165,9 @@ stencil_inner_sorted_struct(SortedStencil* restrict s, double* restrict b, doubl
     c[index] = result1;
 }
 
-static void
+static
+// inline
+void
 stencil_inner_sorted_struct2(SortedStencil* restrict s, double* restrict b, double* restrict c, uint64_t index)
 {
     stencil_inner_sorted_struct(s, b, c, index-1);
@@ -266,6 +284,7 @@ enum BenchmarkMode {
     BENCHMARK_PLAIN,
     BENCHMARK_DBREW,
     BENCHMARK_LLVM,
+    BENCHMARK_LLVM_FIXED,
     BENCHMARK_DBREW_LLVM,
     BENCHMARK_DBREW_LLVM_TWICE,
 };
@@ -333,7 +352,7 @@ benchmark_run2(const BenchmarkArgs* args, const BenchmarkStencilConfig* config)
         .name = "test",
         .stackSize = 128,
         .noaliasParams = 7,
-        .fixFirstParam = true,
+        .fixFirstParam = false,
         .firstParam = 0,
         .firstParamLength = 0x100,
     };
@@ -349,9 +368,6 @@ benchmark_run2(const BenchmarkArgs* args, const BenchmarkStencilConfig* config)
     {
         params(&arg0, &arg1, &arg2);
 
-        llconfig.fixFirstParam = arg0 != NULL;
-        llconfig.firstParam = (uintptr_t) arg0;
-
         JTimerCont(&timerTotal);
         JTimerCont(&timerCompile);
 
@@ -359,7 +375,7 @@ benchmark_run2(const BenchmarkArgs* args, const BenchmarkStencilConfig* config)
 
         if (args->mode != BENCHMARK_PLAIN) r = benchmark_init_dbrew(stencilfn);
 
-        if (args->mode == BENCHMARK_LLVM || args->mode == BENCHMARK_DBREW_LLVM_TWICE)
+        if (args->mode == BENCHMARK_LLVM || args->mode == BENCHMARK_LLVM_FIXED || args->mode == BENCHMARK_DBREW_LLVM_TWICE)
         {
             state = ll_engine_init();
             ll_engine_enable_unsafe_pointer_optimizations(state, true);
@@ -379,6 +395,17 @@ benchmark_run2(const BenchmarkArgs* args, const BenchmarkStencilConfig* config)
                     assert(!ll_function_build_ir(llfn, state));
                     ll_engine_optimize(state, 3);
                     // ll_engine_dump(state);
+                    processed = ll_function_get_pointer(llfn, state);
+                }
+                break;
+            case BENCHMARK_LLVM_FIXED:
+                {
+                    llconfig.fixFirstParam = arg0 != NULL;
+                    llconfig.firstParam = (uintptr_t) arg0;
+                    LLFunction* llfn = ll_decode_function(r, (uintptr_t) stencilfn, &llconfig, state);
+                    assert(!ll_function_build_ir(llfn, state));
+                    ll_engine_optimize(state, 3);
+                    ll_engine_dump(state);
                     processed = ll_function_get_pointer(llfn, state);
                 }
                 break;
