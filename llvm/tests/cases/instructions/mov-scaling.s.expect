@@ -16,11 +16,7 @@ define i64 @test(i8* nocapture readonly, i8* nocapture readnone, i8* nocapture r
   ret i64 %10
 }
 
-; Function Attrs: nounwind readnone
-declare void @llvm.donothing() #1
-
 attributes #0 = { readonly }
-attributes #1 = { nounwind readnone }
 
 !0 = !{}
 

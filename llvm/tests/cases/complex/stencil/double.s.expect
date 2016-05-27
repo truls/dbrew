@@ -79,14 +79,7 @@ define i64 @test(i8* noalias, i8* noalias nocapture readonly, i8*, i8*, i8* noca
   ret i64 0
 }
 
-; Function Attrs: nounwind readnone
-declare void @llvm.donothing() #1
-
-; Function Attrs: nounwind readnone
-declare i8 @llvm.ctpop.i8(i8) #1
-
 attributes #0 = { readonly }
-attributes #1 = { nounwind readnone }
 
 !0 = !{}
 

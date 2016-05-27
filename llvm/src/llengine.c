@@ -267,8 +267,10 @@ ll_engine_optimize(LLState* state, int level)
 
     LLVMDisposePassManager(pm);
 
+    // Add an additional clean-up pass pipeline
     pm = LLVMCreatePassManager();
     LLVMAddStripSymbolsPass(pm);
+    LLVMAddStripDeadPrototypesPass(pm);
     LLVMRunPassManager(pm, state->module);
     LLVMDisposePassManager(pm);
 }

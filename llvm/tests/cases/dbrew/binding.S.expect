@@ -10,12 +10,5 @@ define i64 @__dbrew__(i8* noalias readnone, i8* noalias nocapture readnone, i8* 
   ret i64 %8
 }
 
-; Function Attrs: nounwind readnone
-declare void @llvm.donothing() #1
-
-; Function Attrs: nounwind readnone
-declare i8 @llvm.ctpop.i8(i8) #1
-
 attributes #0 = { readnone }
-attributes #1 = { nounwind readnone }
 
