@@ -94,7 +94,7 @@ ll_engine_init(void)
 
     state->emptyMD = LLVMMDNodeInContext(state->context, NULL, 0); //LLVMMDStringInContext(state->context, "", 0);
     state->globalOffsetBase = 0;
-    state->unsafePointerOptimizations = false;
+    state->enableUnsafePointerOptimizations = false;
     state->enableOverflowIntrinsics = false;
 
     return state;
@@ -118,7 +118,7 @@ ll_engine_init(void)
 void
 ll_engine_enable_unsafe_pointer_optimizations(LLState* state, bool enable)
 {
-    state->unsafePointerOptimizations = enable;
+    state->enableUnsafePointerOptimizations = enable;
 }
 
 /**

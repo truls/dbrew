@@ -940,7 +940,7 @@ ll_generate_instruction(Instr* instr, LLState* state)
             operand2 = ll_operand_load(OP_SI, ALIGN_MAXIMUM, &instr->src, state);
             operand2 = LLVMBuildSExtOrBitCast(state->builder, operand2, LLVMTypeOf(operand1), "");
 
-            if (state->unsafePointerOptimizations &&
+            if (state->enableUnsafePointerOptimizations &&
                 ll_value_is_pointer(operand1, state) && LLVMIsConstant(operand2))
             {
                 int64_t value = LLVMConstIntGetSExtValue(operand2);
@@ -979,7 +979,7 @@ ll_generate_instruction(Instr* instr, LLState* state)
             operand2 = ll_operand_load(OP_SI, ALIGN_MAXIMUM, &instr->src, state);
             operand2 = LLVMBuildSExtOrBitCast(state->builder, operand2, LLVMTypeOf(operand1), "");
 
-            if (state->unsafePointerOptimizations &&
+            if (state->enableUnsafePointerOptimizations &&
                 ll_value_is_pointer(operand1, state) && LLVMIsConstant(operand2))
             {
                 int64_t value = LLVMConstIntGetSExtValue(operand2);
