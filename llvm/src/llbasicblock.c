@@ -157,7 +157,6 @@ void
 ll_basic_block_build_ir(LLBasicBlock* bb, LLState* state)
 {
     LLVMValueRef phiNode;
-    bool appendBranch = false;
 
     state->currentBB = bb;
 
@@ -183,41 +182,24 @@ ll_basic_block_build_ir(LLBasicBlock* bb, LLState* state)
     bb->flagCache.valid = false;
 
     for (size_t i = 0; i < bb->instrCount; i++)
-    {
         ll_generate_instruction(bb->instrs + i, state);
-    }
+
+    InstrType endType = IT_None;
 
     if (bb->dbrewBB != NULL)
-    {
-        if (instrIsJcc(bb->dbrewBB->endType))
-        {
-            LLVMValueRef cond = ll_flags_condition(bb->dbrewBB->endType, IT_JO, state);
-            LLVMBuildCondBr(state->builder, cond, bb->nextBranch->llvmBB, bb->nextFallThrough->llvmBB);
-        }
-        else if (bb->dbrewBB->endType == IT_None)
-            LLVMBuildBr(state->builder, bb->nextFallThrough->llvmBB);
+        endType = bb->dbrewBB->endType;
+    else if (bb->instrCount != 0)
+        endType = bb->instrs[bb->instrCount - 1].type;
 
-        return;
+    if (instrIsJcc(endType))
+    {
+        LLVMValueRef cond = ll_flags_condition(endType, IT_JO, state);
+        LLVMBuildCondBr(state->builder, cond, bb->nextBranch->llvmBB, bb->nextFallThrough->llvmBB);
     }
-
-    if (bb->instrCount == 0)
-    {
-        appendBranch = true;
-    }
-    else
-    {
-        InstrType type = bb->instrs[bb->instrCount - 1].type;
-
-        if (type != IT_JMP && !instrIsJcc(type) && type != IT_RET)
-        {
-            appendBranch = true;
-        }
-    }
-
-    if (appendBranch && bb->nextFallThrough != NULL)
-    {
+    else if (endType == IT_JMP)
+        LLVMBuildBr(state->builder, bb->nextBranch->llvmBB);
+    else if (endType != IT_RET) // Any other instruction which is not a terminator
         LLVMBuildBr(state->builder, bb->nextFallThrough->llvmBB);
-    }
 }
 
 void

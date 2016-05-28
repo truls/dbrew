@@ -285,29 +285,6 @@ ll_generate_instruction(Instr* instr, LLState* state)
             operand1 = LLVMBuildSExtOrBitCast(state->builder, operand1, LLVMInt64TypeInContext(state->context), "");
             LLVMBuildRet(state->builder, operand1);
             break;
-        case IT_JMP:
-            // The destination comes from the decoder.
-            LLVMBuildBr(state->builder, state->currentBB->nextBranch->llvmBB);
-            break;
-        case IT_JO:
-        case IT_JNO:
-        case IT_JC:
-        case IT_JNC:
-        case IT_JZ:
-        case IT_JNZ:
-        case IT_JBE:
-        case IT_JA:
-        case IT_JS:
-        case IT_JNS:
-        case IT_JP:
-        case IT_JNP:
-        case IT_JL:
-        case IT_JGE:
-        case IT_JLE:
-        case IT_JG:
-            cond = ll_flags_condition(instr->type, IT_JO, state);
-            LLVMBuildCondBr(state->builder, cond, state->currentBB->nextBranch->llvmBB, state->currentBB->nextFallThrough->llvmBB);
-            break;
 
         ////////////////////////////////////////////////////////////////////////
         //// Stack Instructions
@@ -727,9 +704,31 @@ ll_generate_instruction(Instr* instr, LLState* state)
         //// Unhandled Instructions
         ////////////////////////////////////////////////////////////////////////
 
+        // These are no instructions
         case IT_HINT_CALL:
         case IT_HINT_RET:
             break;
+
+        // These are handled by the basic block generation code.
+        case IT_JMP:
+        case IT_JO:
+        case IT_JNO:
+        case IT_JC:
+        case IT_JNC:
+        case IT_JZ:
+        case IT_JNZ:
+        case IT_JBE:
+        case IT_JA:
+        case IT_JS:
+        case IT_JNS:
+        case IT_JP:
+        case IT_JNP:
+        case IT_JL:
+        case IT_JGE:
+        case IT_JLE:
+        case IT_JG:
+            break;
+
         case IT_CQTO:
         case IT_MOVZBL:
         case IT_SBB:
