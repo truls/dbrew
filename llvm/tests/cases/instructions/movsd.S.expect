@@ -1,0 +1,25 @@
+Decoded BB at ?+0:
+                   ?:  66 0f 10 07           movupd  (%rdi),%xmm0
+                 ?+4:  66 0f 10 0f           movupd  (%rdi),%xmm1
+                 ?+8:  f2 0f 10 07           movsd   (%rdi),%xmm0
+                ?+12:  66 0f 58 c1           addpd   %xmm1,%xmm0
+                ?+16:  66 0f 11 07           movupd  %xmm0,(%rdi)
+                ?+20:  31 c0                 xor     %eax,%eax
+                ?+22:  c3                    ret    
+; ModuleID = '<llengine>'
+target triple = "x86_64-pc-linux-gnu"
+
+; Function Attrs: nounwind
+define i64 @test(i8* nocapture, i8* noalias nocapture readnone, i8* nocapture readnone, i8* nocapture readnone, i8* nocapture readnone, i8* nocapture readnone) #0 {
+  %7 = bitcast i8* %0 to <2 x double>*
+  %8 = load <2 x double>, <2 x double>* %7, align 8
+  %9 = shufflevector <2 x double> <double undef, double 0.000000e+00>, <2 x double> %8, <2 x i32> <i32 2, i32 1>
+  %10 = fadd <2 x double> %8, %9
+  store <2 x double> %10, <2 x double>* %7, align 8
+  ret i64 0
+}
+
+attributes #0 = { nounwind }
+
+Result: 0 1.000000 2.250000 3.000000 3.000000
+Result: 0 1.000000 2.250000 3.000000 3.000000

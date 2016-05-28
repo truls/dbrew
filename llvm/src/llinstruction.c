@@ -1077,11 +1077,35 @@ ll_generate_instruction(Instr* instr, LLState* state)
 
         case IT_MOVSS:
             operand1 = ll_operand_load(OP_SF, ALIGN_MAXIMUM, &instr->src, state);
-            ll_operand_store(OP_SF, ALIGN_MAXIMUM, &instr->dst, REG_KEEP_UPPER, operand1, state);
+            if (opIsInd(&instr->src))
+            {
+                LLVMValueRef zeroElements[4];
+                for (int i = 0; i < 4; i++)
+                    zeroElements[i] = LLVMConstReal(LLVMFloatTypeInContext(state->context), 0);
+                LLVMValueRef zero = LLVMConstVector(zeroElements, 4);
+
+                result = LLVMBuildInsertElement(state->builder, zero, operand1, LLVMConstInt(i64, 0, false), "");
+                opOverwriteType(&instr->dst, VT_128);
+                ll_operand_store(OP_VF32, ALIGN_MAXIMUM, &instr->dst, REG_KEEP_UPPER, result, state);
+            }
+            else
+                ll_operand_store(OP_SF, ALIGN_MAXIMUM, &instr->dst, REG_KEEP_UPPER, operand1, state);
             break;
         case IT_MOVSD:
             operand1 = ll_operand_load(OP_SF, ALIGN_MAXIMUM, &instr->src, state);
-            ll_operand_store(OP_SF, ALIGN_MAXIMUM, &instr->dst, REG_KEEP_UPPER, operand1, state);
+            if (opIsInd(&instr->src))
+            {
+                LLVMValueRef zeroElements[2];
+                for (int i = 0; i < 2; i++)
+                    zeroElements[i] = LLVMConstReal(LLVMDoubleTypeInContext(state->context), 0);
+                LLVMValueRef zero = LLVMConstVector(zeroElements, 2);
+
+                result = LLVMBuildInsertElement(state->builder, zero, operand1, LLVMConstInt(i64, 0, false), "");
+                opOverwriteType(&instr->dst, VT_128);
+                ll_operand_store(OP_VF64, ALIGN_MAXIMUM, &instr->dst, REG_KEEP_UPPER, result, state);
+            }
+            else
+                ll_operand_store(OP_SF, ALIGN_MAXIMUM, &instr->dst, REG_KEEP_UPPER, operand1, state);
             break;
         case IT_MOVUPS:
             operand1 = ll_operand_load(OP_VF32, ALIGN_8, &instr->src, state);
