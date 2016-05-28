@@ -121,10 +121,12 @@ void ll_basic_block_fill_phis(LLBasicBlock*);
 #define ll_set_register(reg,value,state) ll_basic_block_set_register(state->currentBB,reg,value)
 #define ll_get_flag(reg,state) ll_basic_block_get_flag(state->currentBB,reg)
 #define ll_set_flag(reg,value,state) ll_basic_block_set_flag(state->currentBB,reg,value)
+#define ll_get_flag_cache(state) ll_basic_block_get_flag_cache(state->currentBB)
 
 LLVMValueRef ll_basic_block_get_register(LLBasicBlock*, Reg);
 void ll_basic_block_set_register(LLBasicBlock*, Reg, LLVMValueRef);
 LLVMValueRef ll_basic_block_get_flag(LLBasicBlock*, int);
 void ll_basic_block_set_flag(LLBasicBlock*, int, LLVMValueRef);
+LLFlagCache* ll_basic_block_get_flag_cache(LLBasicBlock*);
 
 #endif

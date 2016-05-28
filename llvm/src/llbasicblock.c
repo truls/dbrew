@@ -298,6 +298,12 @@ ll_basic_block_set_flag(LLBasicBlock* bb, int flag, LLVMValueRef value)
     bb->flags[flag] = value;
 }
 
+LLFlagCache*
+ll_basic_block_get_flag_cache(LLBasicBlock* bb)
+{
+    return &bb->flagCache;
+}
+
 /**
  * @}
  **/

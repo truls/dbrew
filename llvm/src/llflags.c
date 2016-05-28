@@ -55,7 +55,7 @@ ll_flags_condition(InstrType type, InstrType base, LLState* state)
     bool negate = condition & 1;
 
     LLVMValueRef result;
-    LLFlagCache* flagCache = &state->currentBB->flagCache;
+    LLFlagCache* flagCache = ll_get_flag_cache(state);
 
     switch (conditionType)
     {
@@ -253,7 +253,7 @@ ll_flags_set_sub(LLVMValueRef result, LLVMValueRef lhs, LLVMValueRef rhs, LLStat
     ll_flags_set_of_sub(result, lhs, rhs, state);
     ll_flags_set_pf(result, state);
 
-    LLFlagCache* flagCache = &state->currentBB->flagCache;
+    LLFlagCache* flagCache = ll_get_flag_cache(state);
     flagCache->valid = true;
     flagCache->operand1 = lhs;
     flagCache->operand2 = rhs;
@@ -270,7 +270,7 @@ ll_flags_set_add(LLVMValueRef result, LLVMValueRef lhs, LLVMValueRef rhs, LLStat
     ll_flags_set_of_add(result, lhs, rhs, state);
     ll_flags_set_pf(result, state);
 
-    LLFlagCache* flagCache = &state->currentBB->flagCache;
+    LLFlagCache* flagCache = ll_get_flag_cache(state);
     flagCache->valid = false;
 }
 
@@ -287,7 +287,7 @@ ll_flags_set_bit(LLVMValueRef result, LLState* state)
     ll_flags_set_sf(result, state);
     ll_flags_set_pf(result, state);
 
-    LLFlagCache* flagCache = &state->currentBB->flagCache;
+    LLFlagCache* flagCache = ll_get_flag_cache(state);
     flagCache->valid = false;
 }
 
@@ -303,7 +303,7 @@ ll_flags_invalidate(LLState* state)
     ll_set_flag(RFLAG_ZF, LLVMGetUndef(i1), state);
     ll_set_flag(RFLAG_PF, LLVMGetUndef(i1), state);
 
-    LLFlagCache* flagCache = &state->currentBB->flagCache;
+    LLFlagCache* flagCache = ll_get_flag_cache(state);
     flagCache->valid = false;
 }
 
