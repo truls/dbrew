@@ -82,18 +82,18 @@ ll_function_new(LLFunctionDecl* declParam, LLConfig* config, LLState* state)
     LLVMValueRef params = LLVMGetFirstParam(decl->llvmFunction);
 
     // Set all registers to undef first.
-    for (int i = 0; i < 55; i++)
-    {
-        LLVMTypeRef type = i < 17 ? i64 : i < 49 ? iVec : i1;
-        initialBB->registers[i] = LLVMGetUndef(type);
-    }
+    for (Reg i = Reg_AX; i < Reg_Max; i++)
+        ll_basic_block_set_register(initialBB, i, LLVMGetUndef(i < Reg_X0 ? i64 : iVec));
+
+    for (int i = 0; i < RFLAG_Max; i++)
+        ll_basic_block_set_flag(initialBB, i, LLVMGetUndef(i1));
 
     static Reg paramRegisters[6] = { Reg_DI, Reg_SI, Reg_DX, Reg_CX, Reg_8, Reg_9 };
     for (int i = 0; i < 6; i++)
     {
         LLVMValueRef intValue = LLVMBuildPtrToInt(state->builder, params, i64, "");
 
-        initialBB->registers[paramRegisters[i] - Reg_AX] = intValue;
+        ll_basic_block_set_register(initialBB, paramRegisters[i], intValue);
 
         if (config->noaliasParams & (1 << i))
         {
@@ -120,17 +120,17 @@ ll_function_new(LLFunctionDecl* declParam, LLConfig* config, LLState* state)
             LLVMSetLinkage(global, LLVMPrivateLinkage);
             LLVMSetInitializer(global, LLVMConstArray(arrayType, qwords, config->firstParamLength / 8));
 
-            initialBB->registers[Reg_DI - Reg_AX] = LLVMBuildPtrToInt(state->builder, global, i64, "");
+            ll_basic_block_set_register(initialBB, Reg_DI, LLVMBuildPtrToInt(state->builder, global, i64, ""));
         }
         else
-            initialBB->registers[Reg_DI - Reg_AX] = LLVMConstInt(i64, config->firstParam, false);
+            ll_basic_block_set_register(initialBB, Reg_DI, LLVMConstInt(i64, config->firstParam, false));
     }
 
     // Setup virtual stack
     LLVMValueRef stackSize = LLVMConstInt(i64, config->stackSize, false);
     LLVMValueRef stack = LLVMBuildArrayAlloca(state->builder, i8, stackSize, "");
     LLVMValueRef sp = LLVMBuildGEP(state->builder, stack, &stackSize, 1, "");
-    initialBB->registers[Reg_SP - Reg_AX] = LLVMBuildPtrToInt(state->builder, sp, i64, "sp");
+    ll_basic_block_set_register(initialBB, Reg_SP, LLVMBuildPtrToInt(state->builder, sp, i64, "sp"));
 
     LLVMSetAlignment(stack, 16);
 

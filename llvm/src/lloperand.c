@@ -263,7 +263,7 @@ ll_operand_get_address(OperandDataType dataType, Operand* operand, LLState* stat
         // TODO: Also move scale into the optimized method
         if (operand->reg != Reg_None)
         {
-            result = LLVMBuildSExtOrBitCast(state->builder, state->currentBB->registers[operand->reg - Reg_AX], i64, "");
+            result = LLVMBuildSExtOrBitCast(state->builder, ll_get_register(operand->reg, state), i64, "");
 
             if (LLVMIsConstant(result))
                 result = LLVMBuildBitCast(state->builder, ll_get_global_offset(result, state), pointerType, "");
@@ -273,7 +273,7 @@ ll_operand_get_address(OperandDataType dataType, Operand* operand, LLState* stat
             if (operand->scale != 0)
             {
                 int factor = operand->scale / (bits / 8);
-                LLVMValueRef offset = LLVMBuildSExtOrBitCast(state->builder, state->currentBB->registers[operand->ireg - Reg_AX], i64, "");
+                LLVMValueRef offset = LLVMBuildSExtOrBitCast(state->builder, ll_get_register(operand->ireg, state), i64, "");
 
                 if (factor != 1)
                 {
@@ -298,7 +298,7 @@ ll_operand_get_address(OperandDataType dataType, Operand* operand, LLState* stat
             if (operand->scale != 0)
             {
                 int factor = operand->scale / (bits / 8);
-                LLVMValueRef offset = LLVMBuildSExtOrBitCast(state->builder, state->currentBB->registers[operand->ireg - Reg_AX], i64, "");
+                LLVMValueRef offset = LLVMBuildSExtOrBitCast(state->builder, ll_get_register(operand->ireg, state), i64, "");
 
                 if (factor != 1)
                 {
@@ -317,13 +317,13 @@ ll_operand_get_address(OperandDataType dataType, Operand* operand, LLState* stat
 
         if (operand->reg != Reg_None)
         {
-            LLVMValueRef offset = LLVMBuildSExtOrBitCast(state->builder, state->currentBB->registers[operand->reg - Reg_AX], i64, "");
+            LLVMValueRef offset = LLVMBuildSExtOrBitCast(state->builder, ll_get_register(operand->reg, state), i64, "");
             result = LLVMBuildAdd(state->builder, result, offset, "");
         }
 
         if (operand->scale > 0)
         {
-            LLVMValueRef scale = LLVMBuildSExtOrBitCast(state->builder, state->currentBB->registers[operand->ireg - Reg_AX], i64, "");
+            LLVMValueRef scale = LLVMBuildSExtOrBitCast(state->builder, ll_get_register(operand->ireg, state), i64, "");
             LLVMValueRef factor = LLVMConstInt(LLVMInt64TypeInContext(state->context), operand->scale, false);
             LLVMValueRef offset = LLVMBuildMul(state->builder, scale, factor, "");
             result = LLVMBuildAdd(state->builder, result, offset, "");
@@ -372,7 +372,7 @@ ll_operand_load(OperandDataType dataType, Alignment alignment, Operand* operand,
         case OT_Reg128:
         case OT_Reg256:
             {
-                LLVMValueRef reg = state->currentBB->registers[operand->reg - Reg_AX];
+                LLVMValueRef reg = ll_get_register(operand->reg, state);
                 result = ll_cast_from_int(reg, dataType, opTypeWidth(operand), state);
             }
             break;
@@ -455,7 +455,7 @@ ll_operand_store(OperandDataType dataType, Alignment alignment, Operand* operand
 
                             if (elementCount != totalCount)
                             {
-                                LLVMValueRef current = state->currentBB->registers[operand->reg - Reg_AX];
+                                LLVMValueRef current = ll_get_register(operand->reg, state);
                                 LLVMTypeRef vectorType = LLVMVectorType(LLVMGetElementType(LLVMTypeOf(value)), totalCount);
                                 LLVMValueRef vectorCurrent = LLVMBuildBitCast(state->builder, current, vectorType, "");
 #ifdef SHUFFLE_VECTOR
@@ -489,7 +489,7 @@ ll_operand_store(OperandDataType dataType, Alignment alignment, Operand* operand
                         }
                         else
                         {
-                            LLVMValueRef current = state->currentBB->registers[operand->reg - Reg_AX];
+                            LLVMValueRef current = ll_get_register(operand->reg, state);
                             LLVMTypeRef vectorType = LLVMVectorType(LLVMTypeOf(value), regWidth / operandWidth);
                             LLVMValueRef vectorCurrent = LLVMBuildBitCast(state->builder, current, vectorType, "");
 
@@ -502,7 +502,7 @@ ll_operand_store(OperandDataType dataType, Alignment alignment, Operand* operand
                         warn_if_reached();
                 }
 
-                state->currentBB->registers[operand->reg - Reg_AX] = result;
+                ll_set_register(operand->reg, result, state);
 
                 char buffer[20];
                 int len = snprintf(buffer, sizeof(buffer), "asm.reg.%s", regName(operand->reg, operand->type));

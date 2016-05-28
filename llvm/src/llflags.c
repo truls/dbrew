@@ -60,13 +60,13 @@ ll_flags_condition(InstrType type, InstrType base, LLState* state)
     switch (conditionType)
     {
         case 0: // JO / JNO
-            result = state->currentBB->registers[RFLAG_OF];
+            result = ll_get_flag(RFLAG_OF, state);
             break;
         case 1: // JC / JNC
-            result = state->currentBB->registers[RFLAG_CF];
+            result = ll_get_flag(RFLAG_CF, state);
             break;
         case 2: // JZ / JNZ
-            result = state->currentBB->registers[RFLAG_ZF];
+            result = ll_get_flag(RFLAG_ZF, state);
             break;
         case 3: // JBE / JA
             if (flagCache->valid)
@@ -75,14 +75,14 @@ ll_flags_condition(InstrType type, InstrType base, LLState* state)
             }
             else
             {
-                result = LLVMBuildOr(state->builder, state->currentBB->registers[RFLAG_CF], state->currentBB->registers[RFLAG_ZF], "");
+                result = LLVMBuildOr(state->builder, ll_get_flag(RFLAG_CF, state), ll_get_flag(RFLAG_ZF, state), "");
             }
             break;
         case 4: // JS / JNS
-            result = state->currentBB->registers[RFLAG_SF];
+            result = ll_get_flag(RFLAG_SF, state);
             break;
         case 5: // JP / JNP
-            result = state->currentBB->registers[RFLAG_PF];
+            result = ll_get_flag(RFLAG_PF, state);
             break;
         case 6: // JL / JGE
             if (flagCache->valid)
@@ -91,7 +91,7 @@ ll_flags_condition(InstrType type, InstrType base, LLState* state)
             }
             else
             {
-                result = LLVMBuildICmp(state->builder, LLVMIntNE, state->currentBB->registers[RFLAG_SF], state->currentBB->registers[RFLAG_OF], "");
+                result = LLVMBuildICmp(state->builder, LLVMIntNE, ll_get_flag(RFLAG_SF, state), ll_get_flag(RFLAG_OF, state), "");
             }
             break;
         case 7: // JLE / JG
@@ -101,8 +101,8 @@ ll_flags_condition(InstrType type, InstrType base, LLState* state)
             }
             else
             {
-                result = LLVMBuildICmp(state->builder, LLVMIntNE, state->currentBB->registers[RFLAG_SF], state->currentBB->registers[RFLAG_OF], "");
-                result = LLVMBuildOr(state->builder, result, state->currentBB->registers[RFLAG_ZF], "");
+                result = LLVMBuildICmp(state->builder, LLVMIntNE, ll_get_flag(RFLAG_SF, state), ll_get_flag(RFLAG_OF, state), "");
+                result = LLVMBuildOr(state->builder, result, ll_get_flag(RFLAG_ZF, state), "");
             }
             break;
         default:
@@ -130,25 +130,25 @@ ll_flags_set_af(LLVMValueRef result, LLVMValueRef lhs, LLVMValueRef rhs, LLState
     LLVMValueRef xor1 = LLVMBuildXor(state->builder, lhs, result, "");
     LLVMValueRef xor2 = LLVMBuildXor(state->builder, xor1, rhs, "");
     LLVMValueRef and1 = LLVMBuildAnd(state->builder, xor2, LLVMConstInt(LLVMTypeOf(result), 16, false), "");
-    state->currentBB->registers[RFLAG_AF] = LLVMBuildICmp(state->builder, LLVMIntNE, and1, LLVMConstInt(LLVMTypeOf(result), 0, false), "");
+    ll_set_flag(RFLAG_AF, LLVMBuildICmp(state->builder, LLVMIntNE, and1, LLVMConstInt(LLVMTypeOf(result), 0, false), ""), state);
 
-    LLVMSetMetadata(state->currentBB->registers[RFLAG_AF], LLVMGetMDKindIDInContext(state->context, "asm.flag.af", 11), state->emptyMD);
+    LLVMSetMetadata(ll_get_flag(RFLAG_AF, state), LLVMGetMDKindIDInContext(state->context, "asm.flag.af", 11), state->emptyMD);
 }
 
 static void
 ll_flags_set_zf(LLVMValueRef result, LLState* state)
 {
-    state->currentBB->registers[RFLAG_ZF] = LLVMBuildICmp(state->builder, LLVMIntEQ, result, LLVMConstInt(LLVMTypeOf(result), 0, false), "");
+    ll_set_flag(RFLAG_ZF, LLVMBuildICmp(state->builder, LLVMIntEQ, result, LLVMConstInt(LLVMTypeOf(result), 0, false), ""), state);
 
-    LLVMSetMetadata(state->currentBB->registers[RFLAG_ZF], LLVMGetMDKindIDInContext(state->context, "asm.flag.zf", 11), state->emptyMD);
+    LLVMSetMetadata(ll_get_flag(RFLAG_ZF, state), LLVMGetMDKindIDInContext(state->context, "asm.flag.zf", 11), state->emptyMD);
 }
 
 static void
 ll_flags_set_sf(LLVMValueRef result, LLState* state)
 {
-    state->currentBB->registers[RFLAG_SF] = LLVMBuildICmp(state->builder, LLVMIntSLT, result, LLVMConstInt(LLVMTypeOf(result), 0, false), "");
+    ll_set_flag(RFLAG_SF, LLVMBuildICmp(state->builder, LLVMIntSLT, result, LLVMConstInt(LLVMTypeOf(result), 0, false), ""), state);
 
-    LLVMSetMetadata(state->currentBB->registers[RFLAG_SF], LLVMGetMDKindIDInContext(state->context, "asm.flag.sf", 11), state->emptyMD);
+    LLVMSetMetadata(ll_get_flag(RFLAG_SF, state), LLVMGetMDKindIDInContext(state->context, "asm.flag.sf", 11), state->emptyMD);
 }
 
 static void
@@ -176,17 +176,17 @@ ll_flags_set_of_sub(LLVMValueRef result, LLVMValueRef lhs, LLVMValueRef rhs, LLS
         overflowFlag = LLVMBuildTrunc(state->builder, overflow, i1, "");
     }
 
-    state->currentBB->registers[RFLAG_OF] = overflowFlag;
+    ll_set_flag(RFLAG_OF, overflowFlag, state);
 
-    LLVMSetMetadata(state->currentBB->registers[RFLAG_OF], LLVMGetMDKindIDInContext(state->context, "asm.flag.of", 11), state->emptyMD);
+    LLVMSetMetadata(ll_get_flag(RFLAG_OF, state), LLVMGetMDKindIDInContext(state->context, "asm.flag.of", 11), state->emptyMD);
 }
 
 static void
 ll_flags_set_cf_sub(LLVMValueRef lhs, LLVMValueRef rhs, LLState* state)
 {
-    state->currentBB->registers[RFLAG_CF] = LLVMBuildICmp(state->builder, LLVMIntULT, lhs, rhs, "");
+    ll_set_flag(RFLAG_CF, LLVMBuildICmp(state->builder, LLVMIntULT, lhs, rhs, ""), state);
 
-    LLVMSetMetadata(state->currentBB->registers[RFLAG_CF], LLVMGetMDKindIDInContext(state->context, "asm.flag.cf", 11), state->emptyMD);
+    LLVMSetMetadata(ll_get_flag(RFLAG_CF, state), LLVMGetMDKindIDInContext(state->context, "asm.flag.cf", 11), state->emptyMD);
 }
 
 static void
@@ -215,16 +215,16 @@ ll_flags_set_of_add(LLVMValueRef result, LLVMValueRef lhs, LLVMValueRef rhs, LLS
         overflowFlag = LLVMBuildTrunc(state->builder, overflow, i1, "");
     }
 
-    state->currentBB->registers[RFLAG_OF] = overflowFlag;
-    LLVMSetMetadata(state->currentBB->registers[RFLAG_OF], LLVMGetMDKindIDInContext(state->context, "asm.flag.of", 11), state->emptyMD);
+    ll_set_flag(RFLAG_OF, overflowFlag, state);
+    LLVMSetMetadata(ll_get_flag(RFLAG_OF, state), LLVMGetMDKindIDInContext(state->context, "asm.flag.of", 11), state->emptyMD);
 }
 
 static void
 ll_flags_set_cf_add(LLVMValueRef result, LLVMValueRef lhs, LLState* state)
 {
-    state->currentBB->registers[RFLAG_CF] = LLVMBuildICmp(state->builder, LLVMIntULT, result, lhs, "");
+    ll_set_flag(RFLAG_CF, LLVMBuildICmp(state->builder, LLVMIntULT, result, lhs, ""), state);
 
-    LLVMSetMetadata(state->currentBB->registers[RFLAG_CF], LLVMGetMDKindIDInContext(state->context, "asm.flag.cf", 11), state->emptyMD);
+    LLVMSetMetadata(ll_get_flag(RFLAG_CF, state), LLVMGetMDKindIDInContext(state->context, "asm.flag.cf", 11), state->emptyMD);
 }
 
 static void
@@ -238,9 +238,9 @@ ll_flags_set_pf(LLVMValueRef result, LLState* state)
     LLVMValueRef arg = LLVMBuildTruncOrBitCast(state->builder, result, i8, "");
     LLVMValueRef count = LLVMBuildCall(state->builder, intrinsicCtpop8, &arg, 1, "");
     LLVMValueRef bit = LLVMBuildTruncOrBitCast(state->builder, count, i1, "");
-    state->currentBB->registers[RFLAG_PF] = LLVMBuildNot(state->builder, bit, "");
+    ll_set_flag(RFLAG_PF, LLVMBuildNot(state->builder, bit, ""), state);
 
-    LLVMSetMetadata(state->currentBB->registers[RFLAG_PF], LLVMGetMDKindIDInContext(state->context, "asm.flag.pf", 11), state->emptyMD);
+    LLVMSetMetadata(ll_get_flag(RFLAG_PF, state), LLVMGetMDKindIDInContext(state->context, "asm.flag.pf", 11), state->emptyMD);
 }
 
 void
@@ -279,9 +279,9 @@ ll_flags_set_bit(LLVMValueRef result, LLState* state)
 {
     LLVMTypeRef i1 = LLVMInt1TypeInContext(state->context);
 
-    state->currentBB->registers[RFLAG_AF] = LLVMGetUndef(i1);
-    state->currentBB->registers[RFLAG_CF] = LLVMConstInt(i1, 0, false);
-    state->currentBB->registers[RFLAG_OF] = LLVMConstInt(i1, 0, false);
+    ll_set_flag(RFLAG_AF, LLVMGetUndef(i1), state);
+    ll_set_flag(RFLAG_CF, LLVMConstInt(i1, 0, false), state);
+    ll_set_flag(RFLAG_OF, LLVMConstInt(i1, 0, false), state);
 
     ll_flags_set_zf(result, state);
     ll_flags_set_sf(result, state);
@@ -296,12 +296,12 @@ ll_flags_invalidate(LLState* state)
 {
     LLVMTypeRef i1 = LLVMInt1TypeInContext(state->context);
 
-    state->currentBB->registers[RFLAG_AF] = LLVMGetUndef(i1);
-    state->currentBB->registers[RFLAG_CF] = LLVMGetUndef(i1);
-    state->currentBB->registers[RFLAG_OF] = LLVMGetUndef(i1);
-    state->currentBB->registers[RFLAG_SF] = LLVMGetUndef(i1);
-    state->currentBB->registers[RFLAG_ZF] = LLVMGetUndef(i1);
-    state->currentBB->registers[RFLAG_PF] = LLVMGetUndef(i1);
+    ll_set_flag(RFLAG_AF, LLVMGetUndef(i1), state);
+    ll_set_flag(RFLAG_CF, LLVMGetUndef(i1), state);
+    ll_set_flag(RFLAG_OF, LLVMGetUndef(i1), state);
+    ll_set_flag(RFLAG_SF, LLVMGetUndef(i1), state);
+    ll_set_flag(RFLAG_ZF, LLVMGetUndef(i1), state);
+    ll_set_flag(RFLAG_PF, LLVMGetUndef(i1), state);
 
     LLFlagCache* flagCache = &state->currentBB->flagCache;
     flagCache->valid = false;

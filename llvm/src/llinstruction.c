@@ -125,7 +125,7 @@ ll_generate_push(Instr* instr, LLState* state)
     value = LLVMBuildSExtOrBitCast(state->builder, value, i64, "");
 
     // Get pointer to current top of stack
-    LLVMValueRef spReg = state->currentBB->registers[Reg_SP - Reg_AX];
+    LLVMValueRef spReg = ll_get_register(Reg_SP, state);
     LLVMValueRef sp = LLVMBuildIntToPtr(state->builder, spReg, LLVMPointerType(i8, 0), "");
 
     // Decrement Stack Pointer via a GEP instruction
@@ -141,7 +141,7 @@ ll_generate_push(Instr* instr, LLState* state)
     LLVMValueRef newSpReg = LLVMBuildPtrToInt(state->builder, newSp, i64, "");
     LLVMSetMetadata(newSpReg, LLVMGetMDKindIDInContext(state->context, "asm.reg.rsp", 11), state->emptyMD);
 
-    state->currentBB->registers[Reg_SP - Reg_AX] = newSpReg;
+    ll_set_register(Reg_SP, newSpReg, state);
 }
 
 /**
@@ -162,7 +162,7 @@ ll_generate_pop(Operand* operand, LLState* state)
     LLVMTypeRef i8 = LLVMInt8TypeInContext(state->context);
     LLVMTypeRef i64 = LLVMInt64TypeInContext(state->context);
 
-    LLVMValueRef spReg = state->currentBB->registers[Reg_SP - Reg_AX];
+    LLVMValueRef spReg = ll_get_register(Reg_SP, state);
     LLVMValueRef sp = LLVMBuildIntToPtr(state->builder, spReg, LLVMPointerType(i8, 0), "");
 
     LLVMValueRef castedPtr = LLVMBuildBitCast(state->builder, sp, LLVMPointerType(i64, 0), "");
@@ -179,7 +179,7 @@ ll_generate_pop(Operand* operand, LLState* state)
     LLVMValueRef newSpReg = LLVMBuildPtrToInt(state->builder, newSp, i64, "");
     LLVMSetMetadata(newSpReg, LLVMGetMDKindIDInContext(state->context, "asm.reg.rsp", 11), state->emptyMD);
 
-    state->currentBB->registers[Reg_SP - Reg_AX] = newSpReg;
+    ll_set_register(Reg_SP, newSpReg, state);
 }
 
 /**
@@ -207,7 +207,7 @@ ll_generate_instruction(Instr* instr, LLState* state)
     // Set new instruction pointer register
     uintptr_t rip = instr->addr + instr->len;
     LLVMValueRef ripValue = LLVMConstInt(LLVMInt64TypeInContext(state->context), rip, false);
-    state->currentBB->registers[Reg_IP - Reg_AX] = ripValue;
+    ll_set_register(Reg_IP, ripValue, state);
 
     // Add Metadata for debugging.
     LLVMValueRef intrinsicDoNothing = ll_support_get_intrinsic(state->module, LL_INTRINSIC_DO_NOTHING, NULL, 0);
@@ -281,7 +281,8 @@ ll_generate_instruction(Instr* instr, LLState* state)
         ////////////////////////////////////////////////////////////////////////
 
         case IT_RET:
-            operand1 = LLVMBuildSExtOrBitCast(state->builder, state->currentBB->registers[0], LLVMInt64TypeInContext(state->context), "");
+            operand1 = ll_get_register(Reg_AX, state);
+            operand1 = LLVMBuildSExtOrBitCast(state->builder, operand1, LLVMInt64TypeInContext(state->context), "");
             LLVMBuildRet(state->builder, operand1);
             break;
         case IT_JMP:
@@ -391,7 +392,7 @@ ll_generate_instruction(Instr* instr, LLState* state)
             operand2 = LLVMBuildSExtOrBitCast(state->builder, operand2, LLVMTypeOf(operand1), "");
 
             operand1 = LLVMBuildAdd(state->builder, operand1, operand2, "");
-            operand2 = LLVMBuildSExtOrBitCast(state->builder, state->currentBB->registers[RFLAG_CF], LLVMTypeOf(operand1), "");
+            operand2 = LLVMBuildSExtOrBitCast(state->builder, ll_get_flag(RFLAG_CF, state), LLVMTypeOf(operand1), "");
             result = LLVMBuildAdd(state->builder, operand1, operand2, "");
             ll_flags_invalidate(state);
             // ll_flags_set_adc(result, operand1, operand2, state);

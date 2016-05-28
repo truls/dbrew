@@ -38,12 +38,13 @@
 
 
 enum {
-    RFLAG_ZF = Reg_AX + 48 + 0,
-    RFLAG_SF = Reg_AX + 48 + 1,
-    RFLAG_PF = Reg_AX + 48 + 2,
-    RFLAG_CF = Reg_AX + 48 + 3,
-    RFLAG_OF = Reg_AX + 48 + 4,
-    RFLAG_AF = Reg_AX + 48 + 5,
+    RFLAG_ZF = 0,
+    RFLAG_SF,
+    RFLAG_PF,
+    RFLAG_CF,
+    RFLAG_OF,
+    RFLAG_AF,
+    RFLAG_Max
 };
 
 struct LLFlagCache {
@@ -88,12 +89,22 @@ struct LLBasicBlock {
      * Ordering: 16 GP regs (i64), IP reg (i64), 32 AVX regs (i256), 6 flags.
      * The registers always store integers of an appropriate length.
      **/
-    LLVMValueRef registers[55];
+    LLVMValueRef registers[Reg_Max - Reg_AX];
+
+    /**
+     * \brief The LLVM values of the architectural general purpose registers
+     **/
+    LLVMValueRef flags[RFLAG_Max];
 
     /**
      * \brief The phi nodes for the registers
      **/
-    LLVMValueRef phiNodes[55];
+    LLVMValueRef phiNodesRegisters[Reg_Max - Reg_AX];
+
+    /**
+     * \brief The phi nodes for the flags
+     **/
+    LLVMValueRef phiNodesFlags[RFLAG_Max];
 
     LLFlagCache flagCache;
 };
@@ -105,5 +116,15 @@ void ll_basic_block_add_predecessor(LLBasicBlock*, LLBasicBlock*);
 LLBasicBlock* ll_basic_block_split(LLBasicBlock*, size_t, LLState*);
 void ll_basic_block_build_ir(LLBasicBlock*, LLState*);
 void ll_basic_block_fill_phis(LLBasicBlock*);
+
+#define ll_get_register(reg,state) ll_basic_block_get_register(state->currentBB,reg)
+#define ll_set_register(reg,value,state) ll_basic_block_set_register(state->currentBB,reg,value)
+#define ll_get_flag(reg,state) ll_basic_block_get_flag(state->currentBB,reg)
+#define ll_set_flag(reg,value,state) ll_basic_block_set_flag(state->currentBB,reg,value)
+
+LLVMValueRef ll_basic_block_get_register(LLBasicBlock*, Reg);
+void ll_basic_block_set_register(LLBasicBlock*, Reg, LLVMValueRef);
+LLVMValueRef ll_basic_block_get_flag(LLBasicBlock*, int);
+void ll_basic_block_set_flag(LLBasicBlock*, int, LLVMValueRef);
 
 #endif

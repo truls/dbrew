@@ -163,13 +163,21 @@ ll_basic_block_build_ir(LLBasicBlock* bb, LLState* state)
 
     LLVMPositionBuilderAtEnd(state->builder, bb->llvmBB);
 
-    for (int i = 0; i < 55; i++)
+    for (int i = 0; i < Reg_Max - Reg_AX; i++)
     {
-        int length = i < 17 ? 64 : i < 49 ? LL_VECTOR_REGISTER_SIZE : 1;
+        int length = i < Reg_X0 - Reg_AX ? 64 : LL_VECTOR_REGISTER_SIZE;
         phiNode = LLVMBuildPhi(state->builder, LLVMIntTypeInContext(state->context, length), "");
 
         bb->registers[i] = phiNode;
-        bb->phiNodes[i] = phiNode;
+        bb->phiNodesRegisters[i] = phiNode;
+    }
+
+    for (int i = 0; i < RFLAG_Max; i++)
+    {
+        phiNode = LLVMBuildPhi(state->builder, LLVMInt1TypeInContext(state->context), "");
+
+        bb->flags[i] = phiNode;
+        bb->phiNodesFlags[i] = phiNode;
     }
 
     bb->flagCache.valid = false;
@@ -218,7 +226,7 @@ ll_basic_block_fill_phis(LLBasicBlock* bb)
     LLVMValueRef values[bb->predCount];
     LLVMBasicBlockRef bbs[bb->predCount];
 
-    for (int j = 0; j < 55; j++)
+    for (int j = 0; j < Reg_Max - Reg_AX; j++)
     {
         bool isUndef = true;
 
@@ -227,16 +235,16 @@ ll_basic_block_fill_phis(LLBasicBlock* bb)
             bbs[i] = bb->preds[i]->llvmBB;
             values[i] = bb->preds[i]->registers[j];
 
-            isUndef = isUndef && (LLVMIsUndef(values[i]) || values[i] == bb->phiNodes[j]);
+            isUndef = isUndef && (LLVMIsUndef(values[i]) || values[i] == bb->phiNodesRegisters[j]);
         }
 
-        LLVMAddIncoming(bb->phiNodes[j], values, bbs, bb->predCount);
+        LLVMAddIncoming(bb->phiNodesRegisters[j], values, bbs, bb->predCount);
 
         // Stylistic improvement: remove phis which are actually undef
         if (isUndef || j == Reg_IP - Reg_AX)
         {
-            LLVMValueRef phiNode = bb->phiNodes[j];
-            LLVMValueRef undef = LLVMGetUndef(LLVMTypeOf(bb->phiNodes[j]));
+            LLVMValueRef phiNode = bb->phiNodesRegisters[j];
+            LLVMValueRef undef = LLVMGetUndef(LLVMTypeOf(bb->phiNodesRegisters[j]));
 
             LLVMReplaceAllUsesWith(phiNode, undef);
             LLVMInstructionEraseFromParent(phiNode);
@@ -246,10 +254,48 @@ ll_basic_block_fill_phis(LLBasicBlock* bb)
                 bb->registers[j] = undef;
             }
 
-            bb->phiNodes[j] = undef;
+            bb->phiNodesRegisters[j] = undef;
         }
     }
 
+    for (int j = 0; j < RFLAG_Max; j++)
+    {
+        bool isUndef = true;
+
+        for (size_t i = 0; i < bb->predCount; i++)
+        {
+            bbs[i] = bb->preds[i]->llvmBB;
+            values[i] = bb->preds[i]->flags[j];
+
+            isUndef = isUndef && (LLVMIsUndef(values[i]) || values[i] == bb->phiNodesFlags[j]);
+        }
+
+        LLVMAddIncoming(bb->phiNodesFlags[j], values, bbs, bb->predCount);
+    }
+}
+
+LLVMValueRef
+ll_basic_block_get_register(LLBasicBlock* bb, Reg reg)
+{
+    return bb->registers[reg - Reg_AX];
+}
+
+void
+ll_basic_block_set_register(LLBasicBlock* bb, Reg reg, LLVMValueRef value)
+{
+    bb->registers[reg - Reg_AX] = value;
+}
+
+LLVMValueRef
+ll_basic_block_get_flag(LLBasicBlock* bb, int flag)
+{
+    return bb->flags[flag];
+}
+
+void
+ll_basic_block_set_flag(LLBasicBlock* bb, int flag, LLVMValueRef value)
+{
+    bb->flags[flag] = value;
 }
 
 /**
