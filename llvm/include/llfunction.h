@@ -31,6 +31,7 @@
 #include <llcommon.h>
 
 
+LLFunction* ll_function_specialize(LLFunction*, uintptr_t, uintptr_t, size_t, LLState* state);
 void ll_function_dispose(LLFunction*);
 void* ll_function_get_pointer(LLFunction*, LLState*);
 bool ll_function_build_ir(LLFunction*, LLState*);

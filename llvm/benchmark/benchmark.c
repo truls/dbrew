@@ -400,10 +400,10 @@ benchmark_run2(const BenchmarkArgs* args, const BenchmarkStencilConfig* config)
                 break;
             case BENCHMARK_LLVM_FIXED:
                 {
-                    llconfig.fixFirstParam = arg0 != NULL;
-                    llconfig.firstParam = (uintptr_t) arg0;
                     LLFunction* llfn = ll_decode_function(r, (uintptr_t) stencilfn, &llconfig, state);
                     assert(!ll_function_build_ir(llfn, state));
+                    if (arg0 != NULL)
+                        llfn = ll_function_specialize(llfn, 0, (uintptr_t) arg0, 0x100, state);
                     ll_engine_optimize(state, 3);
                     ll_engine_dump(state);
                     processed = ll_function_get_pointer(llfn, state);

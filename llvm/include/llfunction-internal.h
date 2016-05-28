@@ -88,11 +88,6 @@ struct LLFunction {
              **/
             LLBasicBlock* initialBB;
         } definition;
-        struct {
-            LLFunction* base;
-            int paramIndex;
-            LLVMValueRef paramValue;
-        } specialization;
     } u;
 };
 

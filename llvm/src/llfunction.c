@@ -138,6 +138,77 @@ ll_function_new_definition(uintptr_t address, LLConfig* config, LLState* state)
     return function;
 }
 
+LLFunction*
+ll_function_specialize(LLFunction* base, uintptr_t index, uintptr_t value, size_t length, LLState* state)
+{
+    LLFunction* function;
+
+    function = malloc(sizeof(LLFunction));
+    function->kind = LL_FUNCTION_SPECIALIZATION;
+    function->name = base->name;
+    function->address = base->address;
+
+    LLVMTypeRef fnType = LLVMGetElementType(LLVMGetElementType(LLVMTypeOf(base->llvmFunction)));
+    size_t paramCount = LLVMCountParamTypes(fnType);
+
+    // Add alwaysinline attribute such that the optimization routine inlines the
+    // base function for the best results.
+    LLVMAddFunctionAttr(base->llvmFunction, LLVMAlwaysInlineAttribute);
+
+    if (index >= paramCount)
+        warn_if_reached();
+
+    LLVMTypeRef i8 = LLVMInt8TypeInContext(state->context);
+    LLVMTypeRef i64 = LLVMInt64TypeInContext(state->context);
+    LLVMTypeRef ip = LLVMPointerType(i8, 0);
+    LLVMTypeRef paramTypes[6] = { ip, ip, ip, ip, ip, ip };
+    LLVMTypeRef functionType = LLVMFunctionType(i64, paramTypes, 6, false);
+    function->llvmFunction = LLVMAddFunction(state->module, function->name, functionType);
+
+    LLVMValueRef params = LLVMGetFirstParam(function->llvmFunction);
+    LLVMValueRef args[6];
+
+    LLVMValueRef fixed;
+
+    // Last check is for sanity.
+    if (length != 0 && length < 0x200)
+    {
+        LLVMTypeRef arrayType = LLVMArrayType(i64, length / 8);
+        LLVMValueRef qwords[length / 8];
+
+        uint64_t* data = (uint64_t*) value;
+        for (size_t i = 0; i < length / 8; i++)
+            qwords[i] = LLVMConstInt(i64, data[i], false);
+
+        LLVMValueRef global = LLVMAddGlobal(state->module, arrayType, "globalParam0");
+        LLVMSetGlobalConstant(global, true);
+        LLVMSetLinkage(global, LLVMPrivateLinkage);
+        LLVMSetInitializer(global, LLVMConstArray(arrayType, qwords, length / 8));
+
+        fixed = LLVMBuildPointerCast(state->builder, global, ip, "");
+    }
+    else
+        fixed = LLVMConstPtrToInt(LLVMConstInt(i64, value, false), ip);
+
+    for (uintptr_t i = 0; i < 6; i++)
+    {
+        if (i == index)
+            args[i] = fixed;
+        else
+            args[i] = params;
+
+        params = LLVMGetNextParam(params);
+    }
+
+    LLVMBasicBlockRef llvmBB = LLVMAppendBasicBlock(function->llvmFunction, "");
+    LLVMPositionBuilderAtEnd(state->builder, llvmBB);
+
+    LLVMValueRef retValue = LLVMBuildCall(state->builder, base->llvmFunction, args, 6, "");
+    LLVMBuildRet(state->builder, retValue);
+
+    return function;
+}
+
 void
 ll_function_dispose(LLFunction* function)
 {

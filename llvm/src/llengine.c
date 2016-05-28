@@ -193,6 +193,10 @@ ll_engine_optimize(LLState* state, int level)
     LLVMPassManagerRef pm = LLVMCreatePassManager();
     LLVMPassManagerBuilderRef pmb = LLVMPassManagerBuilderCreate();
 
+    // Run inliner early.
+    LLVMAddAlwaysInlinerPass(pm);
+    LLVMRunPassManager(pm, state->module);
+
     LLVMPassManagerBuilderSetOptLevel(pmb, level);
     ll_support_pass_manager_builder_set_enable_vectorize(pmb, level >= 3);
 
