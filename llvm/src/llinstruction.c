@@ -36,6 +36,7 @@
 #include <llcommon.h>
 #include <llcommon-internal.h>
 #include <llflags-internal.h>
+#include <llfunction.h>
 #include <llfunction-internal.h>
 #include <lloperand-internal.h>
 #include <llsupport.h>

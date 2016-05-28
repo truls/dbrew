@@ -32,6 +32,7 @@
 #include <llvm-c/ExecutionEngine.h>
 
 #include <llcommon.h>
+#include <llfunction.h>
 
 
 #define critical(format, ...) printf("!CRITICAL %s: " format "\n", __PRETTY_FUNCTION__, ##__VA_ARGS__)

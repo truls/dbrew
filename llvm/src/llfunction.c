@@ -27,6 +27,7 @@
 #include <llvm-c/Analysis.h>
 #include <llvm-c/Core.h>
 
+#include <llfunction.h>
 #include <llfunction-internal.h>
 
 #include <llbasicblock-internal.h>

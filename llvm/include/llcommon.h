@@ -29,14 +29,6 @@
 #include <stdint.h>
 
 
-struct LLVMFunctionDecl;
-
-typedef struct LLFunctionDecl LLFunctionDecl;
-
-struct LLFunction;
-
-typedef struct LLFunction LLFunction;
-
 struct LLState;
 
 typedef struct LLState LLState;

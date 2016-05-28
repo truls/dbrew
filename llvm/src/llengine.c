@@ -42,6 +42,7 @@
 #include <llcommon.h>
 #include <llcommon-internal.h>
 #include <lldecoder.h>
+#include <llfunction.h>
 #include <llfunction-internal.h>
 #include <llsupport.h>
 

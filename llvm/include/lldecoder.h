@@ -31,6 +31,7 @@
 #include <dbrew.h>
 
 #include <llcommon.h>
+#include <llfunction.h>
 
 
 LLFunction* ll_decode_function(Rewriter*, uintptr_t, LLConfig*, LLState*);

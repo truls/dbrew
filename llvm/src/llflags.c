@@ -34,7 +34,6 @@
 #include <llbasicblock-internal.h>
 #include <llcommon.h>
 #include <llcommon-internal.h>
-#include <llfunction-internal.h>
 #include <llsupport.h>
 
 /**
