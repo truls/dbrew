@@ -102,29 +102,6 @@ ll_function_new_definition(uintptr_t address, LLConfig* config, LLState* state)
         params = LLVMGetNextParam(params);
     }
 
-    if (config->fixFirstParam)
-    {
-        // Last check is for sanity.
-        if (config->firstParamLength != 0 && config->firstParamLength < 0x200)
-        {
-            LLVMTypeRef arrayType = LLVMArrayType(i64, config->firstParamLength / 8);
-            LLVMValueRef qwords[config->firstParamLength / 8];
-
-            uint64_t* data = (uint64_t*) config->firstParam;
-            for (size_t i = 0; i < config->firstParamLength / 8; i++)
-                qwords[i] = LLVMConstInt(i64, data[i], false);
-
-            LLVMValueRef global = LLVMAddGlobal(state->module, arrayType, "globalParam0");
-            LLVMSetGlobalConstant(global, true);
-            LLVMSetLinkage(global, LLVMPrivateLinkage);
-            LLVMSetInitializer(global, LLVMConstArray(arrayType, qwords, config->firstParamLength / 8));
-
-            ll_basic_block_set_register(initialBB, Reg_DI, LLVMBuildPtrToInt(state->builder, global, i64, ""));
-        }
-        else
-            ll_basic_block_set_register(initialBB, Reg_DI, LLVMConstInt(i64, config->firstParam, false));
-    }
-
     // Setup virtual stack
     LLVMValueRef stackSize = LLVMConstInt(i64, config->stackSize, false);
     LLVMValueRef stack = LLVMBuildArrayAlloca(state->builder, i8, stackSize, "");

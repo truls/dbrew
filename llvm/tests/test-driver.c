@@ -107,8 +107,7 @@ test_dbrew_binding(bool debug)
         LLConfig config = {
             .name = "test",
             .stackSize = 128,
-            .noaliasParams = 7,
-            .fixFirstParam = false
+            .noaliasParams = 7
         };
 
         LLState* state = ll_engine_init();
@@ -130,7 +129,6 @@ test_llvm_generation(bool debug)
         .name = "test",
         .stackSize = testCase.length >= 4 ? testCase.stackSize : 128,
         .noaliasParams = testCase.length >= 5 ? testCase.noaliasParams : 0,
-        .fixFirstParam = false,
     };
 
     LLState* state = ll_engine_init();

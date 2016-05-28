@@ -51,10 +51,6 @@ struct LLConfig {
 
     // FunctionSignature sign;
     size_t noaliasParams;
-
-    bool fixFirstParam;
-    uintptr_t firstParam;
-    size_t firstParamLength;
 };
 
 typedef struct LLConfig LLConfig;

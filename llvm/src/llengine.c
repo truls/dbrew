@@ -248,7 +248,6 @@ dbrew_llvm_backend(Rewriter* rewriter)
     LLConfig config = {
         .stackSize = 128,
         .noaliasParams = 7,
-        .fixFirstParam = false,
         .name = "__dbrew__"
     };
 

@@ -352,9 +352,6 @@ benchmark_run2(const BenchmarkArgs* args, const BenchmarkStencilConfig* config)
         .name = "test",
         .stackSize = 128,
         .noaliasParams = 7,
-        .fixFirstParam = false,
-        .firstParam = 0,
-        .firstParamLength = 0x100,
     };
 
     LLState* state = NULL;
