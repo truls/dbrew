@@ -125,8 +125,11 @@ ll_function_specialize(LLFunction* base, uintptr_t index, uintptr_t value, size_
     function->name = base->name;
     function->address = base->address;
 
-    LLVMTypeRef fnType = LLVMGetElementType(LLVMGetElementType(LLVMTypeOf(base->llvmFunction)));
+    LLVMTypeRef fnType = LLVMGetElementType(LLVMTypeOf(base->llvmFunction));
     size_t paramCount = LLVMCountParamTypes(fnType);
+
+    LLVMTypeRef paramTypes[paramCount];
+    LLVMGetParamTypes(fnType, paramTypes);
 
     // Add alwaysinline attribute such that the optimization routine inlines the
     // base function for the best results.
@@ -135,15 +138,11 @@ ll_function_specialize(LLFunction* base, uintptr_t index, uintptr_t value, size_
     if (index >= paramCount)
         warn_if_reached();
 
-    LLVMTypeRef i8 = LLVMInt8TypeInContext(state->context);
     LLVMTypeRef i64 = LLVMInt64TypeInContext(state->context);
-    LLVMTypeRef ip = LLVMPointerType(i8, 0);
-    LLVMTypeRef paramTypes[6] = { ip, ip, ip, ip, ip, ip };
-    LLVMTypeRef functionType = LLVMFunctionType(i64, paramTypes, 6, false);
-    function->llvmFunction = LLVMAddFunction(state->module, function->name, functionType);
+    function->llvmFunction = LLVMAddFunction(state->module, function->name, fnType);
 
     LLVMValueRef params = LLVMGetFirstParam(function->llvmFunction);
-    LLVMValueRef args[6];
+    LLVMValueRef args[paramCount];
 
     LLVMValueRef fixed;
 
@@ -162,12 +161,12 @@ ll_function_specialize(LLFunction* base, uintptr_t index, uintptr_t value, size_
         LLVMSetLinkage(global, LLVMPrivateLinkage);
         LLVMSetInitializer(global, LLVMConstArray(arrayType, qwords, length / 8));
 
-        fixed = LLVMBuildPointerCast(state->builder, global, ip, "");
+        fixed = LLVMBuildPointerCast(state->builder, global, paramTypes[index], "");
     }
     else
-        fixed = LLVMConstPtrToInt(LLVMConstInt(i64, value, false), ip);
+        fixed = LLVMConstPtrToInt(LLVMConstInt(i64, value, false), paramTypes[index]);
 
-    for (uintptr_t i = 0; i < 6; i++)
+    for (uintptr_t i = 0; i < paramCount; i++)
     {
         if (i == index)
             args[i] = fixed;
@@ -180,7 +179,7 @@ ll_function_specialize(LLFunction* base, uintptr_t index, uintptr_t value, size_
     LLVMBasicBlockRef llvmBB = LLVMAppendBasicBlock(function->llvmFunction, "");
     LLVMPositionBuilderAtEnd(state->builder, llvmBB);
 
-    LLVMValueRef retValue = LLVMBuildCall(state->builder, base->llvmFunction, args, 6, "");
+    LLVMValueRef retValue = LLVMBuildCall(state->builder, base->llvmFunction, args, paramCount, "");
     LLVMBuildRet(state->builder, retValue);
 
     return function;
