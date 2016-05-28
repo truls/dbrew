@@ -41,15 +41,43 @@
  * @{
  **/
 
-LLFunction*
-ll_function_new_definition(uintptr_t address, LLConfig* config, LLState* state)
+static LLFunction*
+ll_function_new(LLFunctionKind kind, uintptr_t address, LLState* state)
 {
     LLFunction* function;
 
     function = malloc(sizeof(LLFunction));
-    function->kind = LL_FUNCTION_DEFINITION;
-    function->name = config->name;
+    function->kind = kind;
     function->address = address;
+
+    if (state->functionsAllocated == 0)
+    {
+        state->functions = malloc(sizeof(LLBasicBlock*) * 10);
+        state->functionsAllocated = 10;
+
+        if (state->functions == NULL)
+            warn_if_reached();
+    }
+    else if (state->functionsAllocated == state->functionCount)
+    {
+        state->functions = realloc(state->functions, sizeof(LLBasicBlock*) * state->functionsAllocated * 2);
+        state->functionsAllocated *= 2;
+
+        if (state->functions == NULL)
+            warn_if_reached();
+    }
+
+    state->functions[state->functionCount] = function;
+    state->functionCount++;
+
+    return function;
+}
+
+LLFunction*
+ll_function_new_definition(uintptr_t address, LLConfig* config, LLState* state)
+{
+    LLFunction* function = ll_function_new(LL_FUNCTION_DEFINITION, address, state);
+    function->name = config->name;
     function->u.definition.bbCount = 0;
     function->u.definition.bbs = NULL;
     function->u.definition.bbsAllocated = 0;
@@ -119,12 +147,8 @@ ll_function_new_definition(uintptr_t address, LLConfig* config, LLState* state)
 LLFunction*
 ll_function_specialize(LLFunction* base, uintptr_t index, uintptr_t value, size_t length, LLState* state)
 {
-    LLFunction* function;
-
-    function = malloc(sizeof(LLFunction));
-    function->kind = LL_FUNCTION_SPECIALIZATION;
+    LLFunction* function = ll_function_new(LL_FUNCTION_SPECIALIZATION, 0, state);
     function->name = base->name;
-    function->address = base->address;
 
     LLVMTypeRef fnType = LLVMGetElementType(LLVMTypeOf(base->llvmFunction));
     size_t paramCount = LLVMCountParamTypes(fnType);

@@ -65,6 +65,10 @@ struct LLState {
      **/
     LLVMExecutionEngineRef engine;
 
+    size_t functionCount;
+    size_t functionsAllocated;
+    LLFunction** functions;
+
     /**
      * \brief The empty metadata node
      **/

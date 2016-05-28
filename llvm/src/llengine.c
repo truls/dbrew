@@ -75,6 +75,9 @@ ll_engine_init(void)
     state->context = LLVMContextCreate();
     state->module = LLVMModuleCreateWithNameInContext("<llengine>", state->context);
     state->builder = LLVMCreateBuilderInContext(state->context);
+    state->functionCount = 0;
+    state->functionsAllocated = 0;
+    state->functions = NULL;
 
     LLVMSetTarget(state->module, "x86_64-pc-linux-gnu"); // LLVMGetDefaultTargetTriple()
     LLVMLinkInMCJIT();
