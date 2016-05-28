@@ -1,0 +1,40 @@
+Decoded BB at ?+0:
+                   ?:  55                    push    %rbp
+                 ?+1:  48 89 e5              mov     %rsp,%rbp
+                 ?+4:  48 89 7d f8           mov     %rdi,-0x8(%rbp)
+                 ?+8:  48 8b 45 f8           mov     -0x8(%rbp),%rax
+                ?+12:  48 83 c0 0a           add     $0xa,%rax
+                ?+16:  5d                    pop     %rbp
+                ?+17:  c3                    ret    
+Decoded BB at ?+0:
+                   ?:  57                    push    %rdi
+                 ?+1:  e8 22 00 00 00        callq   $?+40
+Decoded BB at ?+6:
+                 ?+6:  5f                    pop     %rdi
+                 ?+7:  48 01 f8              add     %rdi,%rax
+                ?+10:  c3                    ret    
+; ModuleID = '<llengine>'
+target triple = "x86_64-pc-linux-gnu"
+
+; Function Attrs: inlinehint nounwind readnone
+define i64 @test(i8*, i8* nocapture readnone, i8* nocapture readnone, i8* nocapture readnone, i8* nocapture readnone, i8* nocapture readnone) #0 {
+  %7 = ptrtoint i8* %0 to i64
+  %8 = add i64 %7, 10, !asm.reg.rax !0
+  ret i64 %8
+}
+
+; Function Attrs: nounwind readnone
+define i64 @test.1(i8*, i8* nocapture readnone, i8* nocapture readnone, i8* nocapture readnone, i8* nocapture readnone, i8* nocapture readnone) #1 {
+  %7 = ptrtoint i8* %0 to i64
+  %8 = tail call i64 @test(i8* %0, i8* undef, i8* undef, i8* undef, i8* undef, i8* undef)
+  %9 = add i64 %8, %7, !asm.reg.rax !0
+  ret i64 %9
+}
+
+attributes #0 = { inlinehint nounwind readnone }
+attributes #1 = { nounwind readnone }
+
+!0 = !{}
+
+Result: 30
+Result: 30

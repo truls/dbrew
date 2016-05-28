@@ -203,6 +203,7 @@ ll_generate_instruction(Instr* instr, LLState* state)
 
     LLVMTypeRef i8 = LLVMInt8TypeInContext(state->context);
     LLVMTypeRef i64 = LLVMInt64TypeInContext(state->context);
+    LLVMTypeRef pi8 = LLVMPointerType(i8, 0);
     LLVMTypeRef pi64 = LLVMPointerType(i64, 0);
 
     // Set new instruction pointer register
@@ -281,6 +282,39 @@ ll_generate_instruction(Instr* instr, LLState* state)
         //// Control Flow Instructions
         ////////////////////////////////////////////////////////////////////////
 
+        case IT_CALL:
+            if (instr->dst.type != OT_Imm64)
+                warn_if_reached();
+
+            {
+                uintptr_t address = instr->dst.val;
+                LLFunction* function = NULL;
+
+                for (size_t i = 0; i < state->functionCount; i++)
+                    if (state->functions[i]->address == address)
+                        function = state->functions[i];
+
+                if (function == NULL)
+                    warn_if_reached();
+
+                // TODO: FP + Stack arguments
+                LLVMValueRef args[6] = {
+                    LLVMBuildIntToPtr(state->builder, ll_get_register(Reg_DI, state), pi8, ""),
+                    LLVMBuildIntToPtr(state->builder, ll_get_register(Reg_SI, state), pi8, ""),
+                    LLVMBuildIntToPtr(state->builder, ll_get_register(Reg_DX, state), pi8, ""),
+                    LLVMBuildIntToPtr(state->builder, ll_get_register(Reg_CX, state), pi8, ""),
+                    LLVMBuildIntToPtr(state->builder, ll_get_register(Reg_8, state), pi8, ""),
+                    LLVMBuildIntToPtr(state->builder, ll_get_register(Reg_9, state), pi8, "")
+                };
+
+                LLVMAddFunctionAttr(function->llvmFunction, LLVMInlineHintAttribute);
+
+                result = LLVMBuildCall(state->builder, function->llvmFunction, args, 6, "");
+
+                // TODO: Handle return values except for i64!
+                ll_set_register(Reg_AX, result, state);
+            }
+            break;
         case IT_RET:
             operand1 = ll_get_register(Reg_AX, state);
             operand1 = LLVMBuildSExtOrBitCast(state->builder, operand1, LLVMInt64TypeInContext(state->context), "");
@@ -734,7 +768,6 @@ ll_generate_instruction(Instr* instr, LLState* state)
         case IT_MOVZBL:
         case IT_SBB:
         case IT_IDIV1:
-        case IT_CALL:
         case IT_JMPI:
         case IT_BSF:
         case IT_MUL:
