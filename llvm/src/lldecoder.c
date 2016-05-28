@@ -43,45 +43,32 @@
  * @{
  **/
 
+/**
+ * We want to ensure that each instruction belongs *to exactly one basic block*.
+ * This is contrary to the handling of DBrew (which doesn't care). We care about
+ * this because LLVM does not recognize two BB parts to be identical and
+ * generates the code twice (which is not what we want).
+ *
+ *    Example:
+ *      0: push rax
+ *      1: inc rax
+ *      2: jmp 1b
+ **/
 static LLBasicBlock*
 ll_decode_basic_block(Rewriter* dbrewDecoder, uintptr_t address, LLState* state)
 {
     for (size_t i = 0; i < state->currentFunction->bbCount; i++)
     {
         LLBasicBlock* otherBB = state->currentFunction->bbs[i];
-        Instr* lastInstr = otherBB->instrs + otherBB->instrCount - 1;
+        long index = ll_basic_block_find_address(otherBB, address);
 
-        if (otherBB->address == address)
+        if (index == 0)
             return otherBB;
-        else if (otherBB->address < address && lastInstr->addr >= address)
-        {
-            // The basic block has to be split here. We can only come here by
-            // a JMP or Jcc given the case that the condition is true.
-            // Example:
-            //   0: push rax
-            //   1: inc rax
-            //   2: jmp 1b
+        else if (index > 0)
             // Needs to be split into two basic blocks such that the blocks are
             // really basic and we can jump correctly.
-
-            size_t splitIndex = 0;
-
-            for (size_t j = 1; j < otherBB->instrCount; j++)
-            {
-                if (otherBB->instrs[j].addr == address)
-                {
-                    splitIndex = j;
-                }
-            }
-
-            // If we didn't find the instruction, the jump is into the middle of
-            // an instruction. We don't handle these cases as no compiler would
-            // ever emit such code.
-            if (splitIndex == 0)
-                warn_if_reached();
-
-            return ll_basic_block_split(otherBB, splitIndex, state);
-        }
+            return ll_basic_block_split(otherBB, index, state);
+        // If index == -1, the basic block does not contain this address.
     }
 
     FunctionConfig fc = {
@@ -92,20 +79,33 @@ ll_decode_basic_block(Rewriter* dbrewDecoder, uintptr_t address, LLState* state)
     };
     DBB* dbb = dbrew_decode(dbrewDecoder, address);
     dbb->fc = &fc;
+
     printf("Decoded BB at ?+%lx:\n", address - state->currentFunction->decl.address);
     dbrew_print_decoded(dbb);
 
-    LLBasicBlock* bb = ll_basic_block_new(address);
-    bb->instrs = dbb->instr;
-    bb->instrCount = dbb->count;
-
+    LLBasicBlock* bb = ll_basic_block_new_from_dbb(dbb);
     ll_function_add_basic_block(state->currentFunction, bb);
 
-    Instr* lastInstr = bb->instrs + bb->instrCount - 1;
+    Instr* lastInstr = dbb->instr + dbb->count - 1;
     InstrType type = lastInstr->type;
 
+    // In case the last instruction is already part of another BB.
+    for (size_t i = 0; i < state->currentFunction->bbCount; i++)
+    {
+        LLBasicBlock* otherBB = state->currentFunction->bbs[i];
+        long index = ll_basic_block_find_address(otherBB, lastInstr->addr);
 
-    LLBasicBlock* endOfBB = bb;
+        if (otherBB != bb && index >= 0)
+        {
+            ll_basic_block_truncate(bb, index);
+            ll_basic_block_add_branches(bb, NULL, otherBB);
+
+            return bb;
+        }
+    }
+
+
+    LLBasicBlock* endOfBB = NULL;
     LLBasicBlock* next = NULL;
     LLBasicBlock* fallThrough = NULL;
 
@@ -120,33 +120,23 @@ ll_decode_basic_block(Rewriter* dbrewDecoder, uintptr_t address, LLState* state)
     }
 
     // It may happen that bb has been split in the meantime.
-    // So the question is: has bb been split up? if yes, to which basic block
-    // does the original last instruction belong?
-    if (bb->instrCount != (size_t) dbb->count)
+    for (size_t i = 0; i < state->currentFunction->bbCount; i++)
     {
-        // So we have been split up. Lets search.
-        for (size_t i = 0; i < state->currentFunction->bbCount; i++)
-        {
-            LLBasicBlock* otherBB = state->currentFunction->bbs[i];
+        LLBasicBlock* otherBB = state->currentFunction->bbs[i];
 
-            if (lastInstr->addr == otherBB->instrs[otherBB->instrCount - 1].addr)
-            {
-                endOfBB = otherBB;
-            }
+        if (ll_basic_block_find_address(otherBB, lastInstr->addr) >= 0)
+        {
+            if (endOfBB != NULL)
+                warn_if_reached();
+
+            endOfBB = otherBB;
         }
     }
 
-    if (next != NULL)
-    {
-        ll_basic_block_add_predecessor(next, endOfBB);
-        endOfBB->nextBranch = next;
-    }
+    if (endOfBB == NULL)
+        warn_if_reached();
 
-    if (fallThrough != NULL)
-    {
-        ll_basic_block_add_predecessor(fallThrough, endOfBB);
-        endOfBB->nextFallThrough = fallThrough;
-    }
+    ll_basic_block_add_branches(endOfBB, next, fallThrough);
 
     return bb;
 }

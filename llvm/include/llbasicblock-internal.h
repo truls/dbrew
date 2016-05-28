@@ -56,63 +56,13 @@ struct LLFlagCache {
 
 typedef struct LLFlagCache LLFlagCache;
 
-struct LLBasicBlock {
-    uintptr_t address;
-
-    size_t instrCount;
-    Instr* instrs;
-
-    LLBasicBlock* nextBranch;
-    LLBasicBlock* nextFallThrough;
-
-    // Predecessors needed for phi nodes
-    size_t predCount;
-    size_t predsAllocated;
-    /**
-     * \brief The preceding basic blocks
-     **/
-    LLBasicBlock** preds;
-
-    /**
-     * \brief The LLVM basic block
-     **/
-    LLVMBasicBlockRef llvmBB;
-
-    /**
-     * \brief The DBrew CBB. NULL if the basic block is not derived from DBrew.
-     **/
-    CBB* dbrewBB;
-
-    /**
-     * \brief The LLVM values of the architectural general purpose registers
-     *
-     * Ordering: 16 GP regs (i64), IP reg (i64), 32 AVX regs (i256), 6 flags.
-     * The registers always store integers of an appropriate length.
-     **/
-    LLVMValueRef registers[Reg_Max - Reg_AX];
-
-    /**
-     * \brief The LLVM values of the architectural general purpose registers
-     **/
-    LLVMValueRef flags[RFLAG_Max];
-
-    /**
-     * \brief The phi nodes for the registers
-     **/
-    LLVMValueRef phiNodesRegisters[Reg_Max - Reg_AX];
-
-    /**
-     * \brief The phi nodes for the flags
-     **/
-    LLVMValueRef phiNodesFlags[RFLAG_Max];
-
-    LLFlagCache flagCache;
-};
-
 LLBasicBlock* ll_basic_block_new(uintptr_t);
+LLBasicBlock* ll_basic_block_new_from_dbb(DBB*);
+LLBasicBlock* ll_basic_block_new_from_cbb(CBB*);
 void ll_basic_block_dispose(LLBasicBlock*);
 void ll_basic_block_declare(LLBasicBlock*, LLState*);
 void ll_basic_block_add_predecessor(LLBasicBlock*, LLBasicBlock*);
+void ll_basic_block_truncate(LLBasicBlock*, size_t);
 LLBasicBlock* ll_basic_block_split(LLBasicBlock*, size_t, LLState*);
 void ll_basic_block_build_ir(LLBasicBlock*, LLState*);
 void ll_basic_block_fill_phis(LLBasicBlock*);
@@ -128,5 +78,9 @@ void ll_basic_block_set_register(LLBasicBlock*, Reg, LLVMValueRef);
 LLVMValueRef ll_basic_block_get_flag(LLBasicBlock*, int);
 void ll_basic_block_set_flag(LLBasicBlock*, int, LLVMValueRef);
 LLFlagCache* ll_basic_block_get_flag_cache(LLBasicBlock*);
+
+long ll_basic_block_find_address(LLBasicBlock*, uintptr_t);
+void ll_basic_block_add_branches(LLBasicBlock*, LLBasicBlock*, LLBasicBlock*);
+LLVMBasicBlockRef ll_basic_block_llvm(LLBasicBlock*);
 
 #endif

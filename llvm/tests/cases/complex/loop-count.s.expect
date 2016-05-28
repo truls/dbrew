@@ -19,11 +19,9 @@ target triple = "x86_64-pc-linux-gnu"
 ; Function Attrs: nounwind readnone
 define i64 @test(i8*, i8* nocapture readnone, i8* nocapture readnone, i8* nocapture readnone, i8* nocapture readnone, i8* nocapture readnone) #0 {
   %7 = ptrtoint i8* %0 to i64
-  %8 = icmp sgt i8* %0, null
-  %9 = icmp sgt i64 %7, 1
-  %10 = select i1 %9, i64 %7, i64 1
-  %11 = select i1 %8, i64 %10, i64 0
-  ret i64 %11
+  %8 = icmp sgt i64 %7, 0
+  %9 = select i1 %8, i64 %7, i64 0
+  ret i64 %9
 }
 
 attributes #0 = { nounwind readnone }

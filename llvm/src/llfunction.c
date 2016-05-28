@@ -75,7 +75,7 @@ ll_function_new(LLFunctionDecl* declParam, LLConfig* config, LLState* state)
     ll_basic_block_declare(initialBB, state);
 
     // Position IR builder at a new basic block in the function
-    LLVMPositionBuilderAtEnd(state->builder, initialBB->llvmBB);
+    LLVMPositionBuilderAtEnd(state->builder, ll_basic_block_llvm(initialBB));
 
 
     // Iterate over the parameters to initialize the registers.
@@ -187,32 +187,17 @@ ll_function_build_ir(LLFunction* function, LLState* state)
     state->currentFunction = function;
 
     for (size_t i = 0; i < bbCount; i++)
-    {
         ll_basic_block_declare(function->bbs[i], state);
-    }
 
-    LLVMPositionBuilderAtEnd(state->builder, function->initialBB->llvmBB);
-    LLVMBuildBr(state->builder, function->bbs[0]->llvmBB);
+    LLVMPositionBuilderAtEnd(state->builder, ll_basic_block_llvm(function->initialBB));
+    LLVMBuildBr(state->builder, ll_basic_block_llvm(function->bbs[0]));
 
     for (size_t i = 0; i < bbCount; i++)
-    {
         ll_basic_block_build_ir(function->bbs[i], state);
-    }
 
     for (size_t i = 0; i < bbCount; i++)
-    {
-        if (function->bbs[i]->predCount == 0)
-        {
-            LLVMRemoveBasicBlockFromParent(function->bbs[i]->llvmBB);
-        }
-        else
-        {
-            ll_basic_block_fill_phis(function->bbs[i]);
-        }
-    }
+        ll_basic_block_fill_phis(function->bbs[i]);
 
-    // LLVMDumpModule(state->module);
-    // __asm__("int3");
     bool error = LLVMVerifyFunction(function->decl.llvmFunction, LLVMPrintMessageAction);
 
     return error;

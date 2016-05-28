@@ -43,6 +43,58 @@
  * @{
  **/
 
+struct LLBasicBlock {
+    uintptr_t address;
+
+    size_t instrCount;
+    Instr* instrs;
+
+    LLBasicBlock* nextBranch;
+    LLBasicBlock* nextFallThrough;
+
+    // Predecessors needed for phi nodes
+    size_t predCount;
+    size_t predsAllocated;
+    /**
+     * \brief The preceding basic blocks
+     **/
+    LLBasicBlock** preds;
+
+    /**
+     * \brief The LLVM basic block
+     **/
+    LLVMBasicBlockRef llvmBB;
+
+    /**
+     * \brief The DBrew CBB. NULL if the basic block is not derived from DBrew.
+     **/
+    CBB* dbrewBB;
+
+    /**
+     * \brief The LLVM values of the architectural general purpose registers
+     *
+     * Ordering: 16 GP regs (i64), IP reg (i64), 32 AVX regs (i256), 6 flags.
+     * The registers always store integers of an appropriate length.
+     **/
+    LLVMValueRef registers[Reg_Max - Reg_AX];
+
+    /**
+     * \brief The LLVM values of the architectural general purpose registers
+     **/
+    LLVMValueRef flags[RFLAG_Max];
+
+    /**
+     * \brief The phi nodes for the registers
+     **/
+    LLVMValueRef phiNodesRegisters[Reg_Max - Reg_AX];
+
+    /**
+     * \brief The phi nodes for the flags
+     **/
+    LLVMValueRef phiNodesFlags[RFLAG_Max];
+
+    LLFlagCache flagCache;
+};
 
 LLBasicBlock*
 ll_basic_block_new(uintptr_t address)
@@ -58,6 +110,29 @@ ll_basic_block_new(uintptr_t address)
     bb->nextFallThrough = NULL;
     bb->predCount = 0;
     bb->predsAllocated = 0;
+
+    return bb;
+}
+
+LLBasicBlock*
+ll_basic_block_new_from_dbb(DBB* dbb)
+{
+    LLBasicBlock* bb = ll_basic_block_new(dbb->addr);
+
+    bb->instrs = dbb->instr;
+    bb->instrCount = dbb->count;
+
+    return bb;
+}
+
+LLBasicBlock*
+ll_basic_block_new_from_cbb(CBB* cbb)
+{
+    LLBasicBlock* bb = ll_basic_block_new(cbb->dec_addr);
+
+    bb->instrs = cbb->instr;
+    bb->instrCount = cbb->count;
+    bb->dbrewBB = cbb;
 
     return bb;
 }
@@ -102,6 +177,47 @@ ll_basic_block_add_predecessor(LLBasicBlock* bb, LLBasicBlock* pred)
 
     bb->preds[bb->predCount] = pred;
     bb->predCount++;
+}
+
+
+LLVMBasicBlockRef
+ll_basic_block_llvm(LLBasicBlock* bb)
+{
+    return bb->llvmBB;
+}
+
+long
+ll_basic_block_find_address(LLBasicBlock* bb, uintptr_t address)
+{
+    for (size_t j = 0; j < bb->instrCount; j++)
+        if (bb->instrs[j].addr == address)
+            return j;
+
+    return -1;
+}
+
+void
+ll_basic_block_add_branches(LLBasicBlock* bb, LLBasicBlock* branch, LLBasicBlock* fallThrough)
+{
+    if (branch != NULL)
+    {
+        ll_basic_block_add_predecessor(branch, bb);
+        bb->nextBranch = branch;
+    }
+
+    if (fallThrough != NULL)
+    {
+        ll_basic_block_add_predecessor(fallThrough, bb);
+        bb->nextFallThrough = fallThrough;
+    }
+}
+
+void
+ll_basic_block_truncate(LLBasicBlock* bb, size_t splitIndex)
+{
+    bb->instrCount = splitIndex;
+    bb->nextFallThrough = NULL;
+    bb->nextBranch = NULL;
 }
 
 /**
@@ -156,6 +272,12 @@ ll_basic_block_split(LLBasicBlock* bb, size_t splitIndex, LLState* state)
 void
 ll_basic_block_build_ir(LLBasicBlock* bb, LLState* state)
 {
+    if (bb->predCount == 0)
+    {
+        LLVMRemoveBasicBlockFromParent(bb->llvmBB);
+        return;
+    }
+
     LLVMValueRef phiNode;
 
     state->currentBB = bb;
@@ -205,6 +327,9 @@ ll_basic_block_build_ir(LLBasicBlock* bb, LLState* state)
 void
 ll_basic_block_fill_phis(LLBasicBlock* bb)
 {
+    if (bb->predCount == 0)
+        return;
+
     LLVMValueRef values[bb->predCount];
     LLVMBasicBlockRef bbs[bb->predCount];
 

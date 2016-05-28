@@ -257,10 +257,7 @@ dbrew_llvm_backend(Rewriter* rewriter)
     for (int i = 0; i < rewriter->capBBCount; i++)
     {
         CBB* cbb = rewriter->capBB + i;
-        LLBasicBlock* bb = ll_basic_block_new(cbb->dec_addr);
-        bb->instrs = cbb->instr;
-        bb->instrCount = cbb->count;
-        bb->dbrewBB = cbb;
+        LLBasicBlock* bb = ll_basic_block_new_from_cbb(cbb);
 
         cbb->generatorData = bb;
 
@@ -271,18 +268,15 @@ dbrew_llvm_backend(Rewriter* rewriter)
     {
         CBB* cbb = rewriter->capBB + i;
         LLBasicBlock* bb = cbb->generatorData;
+        LLBasicBlock* branch = NULL;
+        LLBasicBlock* fallThrough = NULL;
 
         if (cbb->nextBranch != NULL)
-        {
-            bb->nextBranch = cbb->nextBranch->generatorData;
-            ll_basic_block_add_predecessor(bb->nextBranch, bb);
-        }
-
+            branch = cbb->nextBranch->generatorData;
         if (cbb->nextFallThrough != NULL)
-        {
-            bb->nextFallThrough = cbb->nextFallThrough->generatorData;
-            ll_basic_block_add_predecessor(bb->nextFallThrough, bb);
-        }
+            fallThrough = cbb->nextFallThrough->generatorData;
+
+        ll_basic_block_add_branches(bb, branch, fallThrough);
     }
 
     if (ll_function_build_ir(function, state))
