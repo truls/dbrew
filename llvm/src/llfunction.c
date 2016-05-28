@@ -142,6 +142,7 @@ ll_function_specialize(LLFunction* base, uintptr_t index, uintptr_t value, size_
     function->llvmFunction = LLVMAddFunction(state->module, function->name, fnType);
 
     LLVMValueRef params = LLVMGetFirstParam(function->llvmFunction);
+    LLVMValueRef baseParams = LLVMGetFirstParam(base->llvmFunction);
     LLVMValueRef args[paramCount];
 
     LLVMValueRef fixed;
@@ -173,7 +174,11 @@ ll_function_specialize(LLFunction* base, uintptr_t index, uintptr_t value, size_
         else
             args[i] = params;
 
+        if (LLVMGetAttribute(baseParams) != 0)
+            LLVMAddAttribute(params, LLVMGetAttribute(baseParams));
+
         params = LLVMGetNextParam(params);
+        baseParams = LLVMGetNextParam(baseParams);
     }
 
     LLVMBasicBlockRef llvmBB = LLVMAppendBasicBlock(function->llvmFunction, "");
