@@ -152,7 +152,7 @@ ll_basic_block_declare(LLBasicBlock* bb, LLState* state)
     if (bb->llvmBB != NULL)
         return;
 
-    bb->llvmBB = LLVMAppendBasicBlockInContext(state->context, state->currentFunction->decl.llvmFunction, "");
+    bb->llvmBB = LLVMAppendBasicBlockInContext(state->context, state->currentFunction->llvmFunction, "");
 }
 
 void
@@ -249,8 +249,8 @@ ll_basic_block_split(LLBasicBlock* bb, size_t splitIndex, LLState* state)
     bb->nextBranch = NULL;
 
     // Update all predecessor links
-    LLBasicBlock** bbs = state->currentFunction->bbs;
-    for (size_t i = 0; i < state->currentFunction->bbCount; i++)
+    LLBasicBlock** bbs = state->currentFunction->u.definition.bbs;
+    for (size_t i = 0; i < state->currentFunction->u.definition.bbCount; i++)
     {
         LLBasicBlock* otherBB = bbs[i];
 

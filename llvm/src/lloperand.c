@@ -260,7 +260,6 @@ ll_operand_get_address(OperandDataType dataType, Operand* operand, LLState* stat
     // Optimized method to improve alias analysis which then allows vectorization
     if ((operand->scale % (bits / 8)) == 0 && (((int64_t) operand->val) % (bits / 8)) == 0)
     {
-        // TODO: Also move scale into the optimized method
         if (operand->reg != Reg_None)
         {
             result = LLVMBuildSExtOrBitCast(state->builder, ll_get_register(operand->reg, state), i64, "");
@@ -269,19 +268,6 @@ ll_operand_get_address(OperandDataType dataType, Operand* operand, LLState* stat
                 result = LLVMBuildBitCast(state->builder, ll_get_global_offset(result, state), pointerType, "");
             else
                 result = LLVMBuildIntToPtr(state->builder, result, pointerType, "");
-
-            if (operand->scale != 0)
-            {
-                int factor = operand->scale / (bits / 8);
-                LLVMValueRef offset = LLVMBuildSExtOrBitCast(state->builder, ll_get_register(operand->ireg, state), i64, "");
-
-                if (factor != 1)
-                {
-                    offset = LLVMBuildMul(state->builder, offset, LLVMConstInt(i64, factor, false), "");
-                }
-
-                result = LLVMBuildGEP(state->builder, result, &offset, 1, "");
-            }
 
             if (operand->val != 0)
             {
@@ -294,25 +280,22 @@ ll_operand_get_address(OperandDataType dataType, Operand* operand, LLState* stat
         {
             result = ll_get_global_offset(LLVMConstInt(i64, operand->val, false), state);
             result = LLVMBuildBitCast(state->builder, result, pointerType, "");
-
-            if (operand->scale != 0)
-            {
-                int factor = operand->scale / (bits / 8);
-                LLVMValueRef offset = LLVMBuildSExtOrBitCast(state->builder, ll_get_register(operand->ireg, state), i64, "");
-
-                if (factor != 1)
-                {
-                    offset = LLVMBuildMul(state->builder, offset, LLVMConstInt(i64, factor, false), "");
-                }
-
-                result = LLVMBuildGEP(state->builder, result, &offset, 1, "");
-            }
         }
 
-        // LLVMDumpValue(result);
+        if (operand->scale != 0)
+        {
+            int factor = operand->scale / (bits / 8);
+            LLVMValueRef offset = LLVMBuildSExtOrBitCast(state->builder, ll_get_register(operand->ireg, state), i64, "");
+
+            if (factor != 1)
+                offset = LLVMBuildMul(state->builder, offset, LLVMConstInt(i64, factor, false), "");
+
+            result = LLVMBuildGEP(state->builder, result, &offset, 1, "");
+        }
     }
     else
     {
+        // Inefficient pointer computations for programs which do strange things
         result = LLVMConstInt(i64, operand->val, false);
 
         if (operand->reg != Reg_None)

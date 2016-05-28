@@ -35,7 +35,15 @@
 #include <llcommon-internal.h>
 
 
-struct LLFunctionDecl {
+enum LLFunctionKind {
+    LL_FUNCTION_DECLARATION,
+    LL_FUNCTION_DEFINITION,
+    LL_FUNCTION_SPECIALIZATION
+};
+
+typedef enum LLFunctionKind LLFunctionKind;
+
+struct LLFunction {
     /**
      * \brief The name of the function
      **/
@@ -51,43 +59,44 @@ struct LLFunctionDecl {
 
     /**
      * \brief The LLVM function value
-     *
-     * This is actually an LLVMValueRef and is plugged in automatically
      **/
-    void* llvmFunction;
+    LLVMValueRef llvmFunction;
+
+    LLFunctionKind kind;
+    union {
+        struct {
+            /**
+             * \brief The size of the stack in bytes
+             **/
+            size_t stackSize;
+
+            /**
+             * \brief The basic block count
+             **/
+            size_t bbCount;
+            /**
+             * \brief The allocated size for basic blocks
+             **/
+            size_t bbsAllocated;
+            /**
+             * \brief Array of basics blocks belonging to this function
+             **/
+            LLBasicBlock** bbs;
+
+            /**
+             * \brief The initial basic block, which is the entry point
+             **/
+            LLBasicBlock* initialBB;
+        } definition;
+        struct {
+            LLFunction* base;
+            int paramIndex;
+            LLVMValueRef paramValue;
+        } specialization;
+    } u;
 };
 
-struct LLFunction {
-    /**
-     * \brief The function declaration
-     **/
-    LLFunctionDecl decl;
-
-    /**
-     * \brief The size of the stack in bytes
-     **/
-    size_t stackSize;
-
-    /**
-     * \brief The basic block count
-     **/
-    size_t bbCount;
-    /**
-     * \brief The allocated size for basic blocks
-     **/
-    size_t bbsAllocated;
-    /**
-     * \brief Array of basics blocks belonging to this function
-     **/
-    LLBasicBlock** bbs;
-
-    /**
-     * \brief The initial basic block, which is the entry point
-     **/
-    LLBasicBlock* initialBB;
-};
-
-LLFunction* ll_function_new(LLFunctionDecl*, LLConfig*, LLState*);
+LLFunction* ll_function_new_definition(uintptr_t, LLConfig*, LLState*);
 void ll_function_add_basic_block(LLFunction*, LLBasicBlock*);
 
 #endif

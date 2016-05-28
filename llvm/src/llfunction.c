@@ -41,19 +41,19 @@
  **/
 
 LLFunction*
-ll_function_new(LLFunctionDecl* declParam, LLConfig* config, LLState* state)
+ll_function_new_definition(uintptr_t address, LLConfig* config, LLState* state)
 {
     LLFunction* function;
-    LLFunctionDecl* decl;
 
     function = malloc(sizeof(LLFunction));
-    function->decl = *declParam;
-    function->bbCount = 0;
-    function->bbs = NULL;
-    function->bbsAllocated = 0;
-    function->stackSize = config->stackSize;
-    function->decl.noaliasParams = config->noaliasParams;
-    decl = &function->decl;
+    function->kind = LL_FUNCTION_DEFINITION;
+    function->name = config->name;
+    function->address = address;
+    function->u.definition.bbCount = 0;
+    function->u.definition.bbs = NULL;
+    function->u.definition.bbsAllocated = 0;
+    function->u.definition.stackSize = config->stackSize;
+    function->noaliasParams = config->noaliasParams;
 
     state->currentFunction = function;
 
@@ -69,17 +69,16 @@ ll_function_new(LLFunctionDecl* declParam, LLConfig* config, LLState* state)
     // marked as noalias.
     LLVMTypeRef paramTypes[6] = { ip, ip, ip, ip, ip, ip };
     LLVMTypeRef functionType = LLVMFunctionType(i64, paramTypes, 6, false);
-    decl->llvmFunction = LLVMAddFunction(state->module, decl->name, functionType);
+    function->llvmFunction = LLVMAddFunction(state->module, function->name, functionType);
 
-    LLBasicBlock* initialBB = ll_basic_block_new(decl->address);
+    LLBasicBlock* initialBB = ll_basic_block_new(function->address);
     ll_basic_block_declare(initialBB, state);
 
     // Position IR builder at a new basic block in the function
     LLVMPositionBuilderAtEnd(state->builder, ll_basic_block_llvm(initialBB));
 
-
     // Iterate over the parameters to initialize the registers.
-    LLVMValueRef params = LLVMGetFirstParam(decl->llvmFunction);
+    LLVMValueRef params = LLVMGetFirstParam(function->llvmFunction);
 
     // Set all registers to undef first.
     for (Reg i = Reg_AX; i < Reg_Max; i++)
@@ -134,7 +133,7 @@ ll_function_new(LLFunctionDecl* declParam, LLConfig* config, LLState* state)
 
     LLVMSetAlignment(stack, 16);
 
-    function->initialBB = initialBB;
+    function->u.definition.initialBB = initialBB;
 
     return function;
 }
@@ -142,12 +141,22 @@ ll_function_new(LLFunctionDecl* declParam, LLConfig* config, LLState* state)
 void
 ll_function_dispose(LLFunction* function)
 {
-    if (function->bbsAllocated != 0)
+    switch (function->kind)
     {
-        for (size_t i = 0; i < function->bbCount; i++)
-            ll_basic_block_dispose(function->bbs[i]);
+        case LL_FUNCTION_DEFINITION:
+            if (function->u.definition.bbsAllocated != 0)
+            {
+                for (size_t i = 0; i < function->u.definition.bbCount; i++)
+                    ll_basic_block_dispose(function->u.definition.bbs[i]);
 
-        free(function->bbs);
+                free(function->u.definition.bbs);
+            }
+            break;
+        case LL_FUNCTION_DECLARATION:
+        case LL_FUNCTION_SPECIALIZATION:
+            break;
+        default:
+            warn_if_reached();
     }
 
     free(function);
@@ -156,49 +165,64 @@ ll_function_dispose(LLFunction* function)
 void
 ll_function_add_basic_block(LLFunction* function, LLBasicBlock* bb)
 {
-    if (function->bbsAllocated == 0)
-    {
-        function->bbs = malloc(sizeof(LLBasicBlock*) * 100);
-        function->bbsAllocated = 100;
+    if (function->kind != LL_FUNCTION_DEFINITION)
+        warn_if_reached();
 
-        if (function->bbs == NULL)
+    if (function->u.definition.bbsAllocated == 0)
+    {
+        function->u.definition.bbs = malloc(sizeof(LLBasicBlock*) * 100);
+        function->u.definition.bbsAllocated = 100;
+
+        if (function->u.definition.bbs == NULL)
             warn_if_reached();
 
-        ll_basic_block_add_predecessor(bb, function->initialBB);
+        ll_basic_block_add_predecessor(bb, function->u.definition.initialBB);
     }
-    else if (function->bbsAllocated == function->bbCount)
+    else if (function->u.definition.bbsAllocated == function->u.definition.bbCount)
     {
-        function->bbs = realloc(function->bbs, sizeof(LLBasicBlock*) * function->bbsAllocated * 2);
-        function->bbsAllocated *= 2;
+        function->u.definition.bbs = realloc(function->u.definition.bbs, sizeof(LLBasicBlock*) * function->u.definition.bbsAllocated * 2);
+        function->u.definition.bbsAllocated *= 2;
 
-        if (function->bbs == NULL)
+        if (function->u.definition.bbs == NULL)
             warn_if_reached();
     }
 
-    function->bbs[function->bbCount] = bb;
-    function->bbCount++;
+    function->u.definition.bbs[function->u.definition.bbCount] = bb;
+    function->u.definition.bbCount++;
 }
 
 bool
 ll_function_build_ir(LLFunction* function, LLState* state)
 {
-    size_t bbCount = function->bbCount;
+    switch (function->kind)
+    {
+        case LL_FUNCTION_DEFINITION:
+            {
+                size_t bbCount = function->u.definition.bbCount;
 
-    state->currentFunction = function;
+                state->currentFunction = function;
 
-    for (size_t i = 0; i < bbCount; i++)
-        ll_basic_block_declare(function->bbs[i], state);
+                for (size_t i = 0; i < bbCount; i++)
+                    ll_basic_block_declare(function->u.definition.bbs[i], state);
 
-    LLVMPositionBuilderAtEnd(state->builder, ll_basic_block_llvm(function->initialBB));
-    LLVMBuildBr(state->builder, ll_basic_block_llvm(function->bbs[0]));
+                LLVMPositionBuilderAtEnd(state->builder, ll_basic_block_llvm(function->u.definition.initialBB));
+                LLVMBuildBr(state->builder, ll_basic_block_llvm(function->u.definition.bbs[0]));
 
-    for (size_t i = 0; i < bbCount; i++)
-        ll_basic_block_build_ir(function->bbs[i], state);
+                for (size_t i = 0; i < bbCount; i++)
+                    ll_basic_block_build_ir(function->u.definition.bbs[i], state);
 
-    for (size_t i = 0; i < bbCount; i++)
-        ll_basic_block_fill_phis(function->bbs[i]);
+                for (size_t i = 0; i < bbCount; i++)
+                    ll_basic_block_fill_phis(function->u.definition.bbs[i]);
+            }
+            break;
+        case LL_FUNCTION_DECLARATION:
+        case LL_FUNCTION_SPECIALIZATION:
+            break;
+        default:
+            warn_if_reached();
+    }
 
-    bool error = LLVMVerifyFunction(function->decl.llvmFunction, LLVMPrintMessageAction);
+    bool error = LLVMVerifyFunction(function->llvmFunction, LLVMPrintMessageAction);
 
     return error;
 }
@@ -206,7 +230,7 @@ ll_function_build_ir(LLFunction* function, LLState* state)
 void*
 ll_function_get_pointer(LLFunction* function, LLState* state)
 {
-    return LLVMGetPointerToGlobal(state->engine, function->decl.llvmFunction);
+    return LLVMGetPointerToGlobal(state->engine, function->llvmFunction);
 }
 
 /**

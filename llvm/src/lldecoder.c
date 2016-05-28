@@ -57,9 +57,9 @@
 static LLBasicBlock*
 ll_decode_basic_block(Rewriter* dbrewDecoder, uintptr_t address, LLState* state)
 {
-    for (size_t i = 0; i < state->currentFunction->bbCount; i++)
+    for (size_t i = 0; i < state->currentFunction->u.definition.bbCount; i++)
     {
-        LLBasicBlock* otherBB = state->currentFunction->bbs[i];
+        LLBasicBlock* otherBB = state->currentFunction->u.definition.bbs[i];
         long index = ll_basic_block_find_address(otherBB, address);
 
         if (index == 0)
@@ -72,7 +72,7 @@ ll_decode_basic_block(Rewriter* dbrewDecoder, uintptr_t address, LLState* state)
     }
 
     FunctionConfig fc = {
-        .func = state->currentFunction->decl.address,
+        .func = state->currentFunction->address,
         .size = 0x1000,
         .name = (char*) "?",
         .next = NULL
@@ -80,7 +80,7 @@ ll_decode_basic_block(Rewriter* dbrewDecoder, uintptr_t address, LLState* state)
     DBB* dbb = dbrew_decode(dbrewDecoder, address);
     dbb->fc = &fc;
 
-    printf("Decoded BB at ?+%lx:\n", address - state->currentFunction->decl.address);
+    printf("Decoded BB at ?+%lx:\n", address - state->currentFunction->address);
     dbrew_print_decoded(dbb);
 
     LLBasicBlock* bb = ll_basic_block_new_from_dbb(dbb);
@@ -90,9 +90,9 @@ ll_decode_basic_block(Rewriter* dbrewDecoder, uintptr_t address, LLState* state)
     InstrType type = lastInstr->type;
 
     // In case the last instruction is already part of another BB.
-    for (size_t i = 0; i < state->currentFunction->bbCount; i++)
+    for (size_t i = 0; i < state->currentFunction->u.definition.bbCount; i++)
     {
-        LLBasicBlock* otherBB = state->currentFunction->bbs[i];
+        LLBasicBlock* otherBB = state->currentFunction->u.definition.bbs[i];
         long index = ll_basic_block_find_address(otherBB, lastInstr->addr);
 
         if (otherBB != bb && index >= 0)
@@ -120,9 +120,9 @@ ll_decode_basic_block(Rewriter* dbrewDecoder, uintptr_t address, LLState* state)
     }
 
     // It may happen that bb has been split in the meantime.
-    for (size_t i = 0; i < state->currentFunction->bbCount; i++)
+    for (size_t i = 0; i < state->currentFunction->u.definition.bbCount; i++)
     {
-        LLBasicBlock* otherBB = state->currentFunction->bbs[i];
+        LLBasicBlock* otherBB = state->currentFunction->u.definition.bbs[i];
 
         if (ll_basic_block_find_address(otherBB, lastInstr->addr) >= 0)
         {
@@ -144,12 +144,7 @@ ll_decode_basic_block(Rewriter* dbrewDecoder, uintptr_t address, LLState* state)
 LLFunction*
 ll_decode_function(Rewriter* dbrewDecoder, uintptr_t address, LLConfig* config, LLState* state)
 {
-    LLFunctionDecl decl = {
-        .name = config->name,
-        .address = address
-    };
-
-    LLFunction* function = ll_function_new(&decl, config, state);
+    LLFunction* function = ll_function_new_definition(address, config, state);
 
     state->currentFunction = function;
     ll_decode_basic_block(dbrewDecoder, address, state);

@@ -241,18 +241,14 @@ dbrew_llvm_backend(Rewriter* rewriter)
 {
     LLState* state = ll_engine_init();
 
-    LLFunctionDecl decl = {
-        .name = "__dbrew__",
-        .address = rewriter->func
-    };
-
     LLConfig config = {
         .stackSize = 128,
         .noaliasParams = 7,
-        .fixFirstParam = false
+        .fixFirstParam = false,
+        .name = "__dbrew__"
     };
 
-    LLFunction* function = ll_function_new(&decl, &config, state);
+    LLFunction* function = ll_function_new_definition(rewriter->func, &config, state);
 
     for (int i = 0; i < rewriter->capBBCount; i++)
     {
