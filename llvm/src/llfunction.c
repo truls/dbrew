@@ -74,6 +74,23 @@ ll_function_new(LLFunctionKind kind, uintptr_t address, LLState* state)
 }
 
 LLFunction*
+ll_function_declare(uintptr_t address, const char* name, LLState* state)
+{
+    LLFunction* function = ll_function_new(LL_FUNCTION_DECLARATION, address, state);
+    function->name = name;
+
+    LLVMTypeRef i8 = LLVMInt8TypeInContext(state->context);
+    LLVMTypeRef i64 = LLVMInt64TypeInContext(state->context);
+    LLVMTypeRef ip = LLVMPointerType(i8, 0);
+
+    LLVMTypeRef paramTypes[6] = { ip, ip, ip, ip, ip, ip };
+    LLVMTypeRef functionType = LLVMFunctionType(i64, paramTypes, 6, false);
+    function->llvmFunction = LLVMAddFunction(state->module, function->name, functionType);
+
+    return function;
+}
+
+LLFunction*
 ll_function_new_definition(uintptr_t address, LLConfig* config, LLState* state)
 {
     LLFunction* function = ll_function_new(LL_FUNCTION_DEFINITION, address, state);
