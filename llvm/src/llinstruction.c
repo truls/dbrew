@@ -235,6 +235,11 @@ ll_generate_instruction(Instr* instr, LLState* state)
             operand1 = ll_operand_load(OP_SI, ALIGN_MAXIMUM, &instr->src, state);
             ll_operand_store(OP_SI, ALIGN_MAXIMUM, &instr->dst, REG_DEFAULT, operand1, state);
             break;
+        case IT_MOVZBL:
+            operand1 = ll_operand_load(OP_SI, ALIGN_MAXIMUM, &instr->src, state);
+            result = LLVMBuildZExtOrBitCast(state->builder, operand1, LLVMIntTypeInContext(state->context, opTypeWidth(&instr->dst)), "");
+            ll_operand_store(OP_SI, ALIGN_MAXIMUM, &instr->dst, REG_DEFAULT, result, state);
+            break;
         case IT_CMOVO:
         case IT_CMOVNO:
         case IT_CMOVC:
@@ -765,7 +770,6 @@ ll_generate_instruction(Instr* instr, LLState* state)
             break;
 
         case IT_CQTO:
-        case IT_MOVZBL:
         case IT_SBB:
         case IT_IDIV1:
         case IT_JMPI:
