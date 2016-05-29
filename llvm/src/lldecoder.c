@@ -98,7 +98,7 @@ ll_decode_basic_block(Rewriter* dbrewDecoder, uintptr_t address, LLState* state)
 
         if (otherBB != bb && index >= 0)
         {
-            ll_basic_block_truncate(bb, index);
+            ll_basic_block_truncate(bb, index + 1);
             ll_basic_block_add_branches(bb, NULL, otherBB);
 
             return bb;
