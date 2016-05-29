@@ -277,8 +277,8 @@ ll_function_add_basic_block(LLFunction* function, LLBasicBlock* bb)
 
     if (function->u.definition.bbsAllocated == 0)
     {
-        function->u.definition.bbs = malloc(sizeof(LLBasicBlock*) * 100);
-        function->u.definition.bbsAllocated = 100;
+        function->u.definition.bbs = malloc(sizeof(LLBasicBlock*) * 10);
+        function->u.definition.bbsAllocated = 10;
 
         if (function->u.definition.bbs == NULL)
             warn_if_reached();
