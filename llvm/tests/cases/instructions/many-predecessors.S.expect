@@ -1,0 +1,43 @@
+Decoded BB at ?+0:
+                   ?:  31 c0                 xor     %eax,%eax
+                 ?+2:  48 85 ff              test    %rdi,%rdi
+                 ?+5:  74 16                 je      $?+29
+Decoded BB at ?+7:
+                 ?+7:  74 14                 je      $?+29
+Decoded BB at ?+9:
+                 ?+9:  74 12                 je      $?+29
+Decoded BB at ?+b:
+                ?+11:  74 10                 je      $?+29
+Decoded BB at ?+d:
+                ?+13:  74 0e                 je      $?+29
+Decoded BB at ?+f:
+                ?+15:  74 0c                 je      $?+29
+Decoded BB at ?+11:
+                ?+17:  74 0a                 je      $?+29
+Decoded BB at ?+13:
+                ?+19:  74 08                 je      $?+29
+Decoded BB at ?+15:
+                ?+21:  74 06                 je      $?+29
+Decoded BB at ?+17:
+                ?+23:  74 04                 je      $?+29
+Decoded BB at ?+19:
+                ?+25:  74 02                 je      $?+29
+Decoded BB at ?+1b:
+                ?+27:  ff c0                 inc     %eax
+                ?+29:  c3                    ret    
+; ModuleID = '<llengine>'
+target triple = "x86_64-pc-linux-gnu"
+
+; Function Attrs: nounwind readnone
+define i64 @test(i8* readnone, i8* noalias nocapture readnone, i8* nocapture readnone, i8* nocapture readnone, i8* nocapture readnone, i8* nocapture readnone) #0 {
+  %7 = icmp eq i8* %0, null
+  %8 = zext i1 %7 to i64
+  %9 = xor i64 %8, 1
+  %10 = select i1 %7, i64 0, i64 %9
+  ret i64 %10
+}
+
+attributes #0 = { nounwind readnone }
+
+Result: 1
+Result: 1

@@ -1,0 +1,25 @@
+Decoded BB at ?+0:
+                   ?:  48 b9 00 00 00 00 00  mov     $0x8000000000000000,%rcx
+                 ?+7:  00 00 80            
+                ?+10:  48 31 c0              xor     %rax,%rax
+                ?+13:  48 29 cf              sub     %rcx,%rdi
+                ?+16:  48 0f 41 c7           cmovno  %rdi,%rax
+                ?+20:  c3                    ret    
+; ModuleID = '<llengine>'
+target triple = "x86_64-pc-linux-gnu"
+
+; Function Attrs: nounwind readnone
+define i64 @test(i8*, i8* nocapture readnone, i8* nocapture readnone, i8* nocapture readnone, i8* nocapture readnone, i8* nocapture readnone) #0 {
+  %7 = ptrtoint i8* %0 to i64
+  %8 = xor i64 %7, -9223372036854775808
+  %9 = icmp slt i8* %0, null
+  %10 = select i1 %9, i64 %8, i64 0, !asm.reg.rax !0
+  ret i64 %10
+}
+
+attributes #0 = { nounwind readnone }
+
+!0 = !{}
+
+Result: 0
+Result: 0
