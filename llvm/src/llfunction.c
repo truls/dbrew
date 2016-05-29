@@ -24,6 +24,7 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <string.h>
 #include <llvm-c/Analysis.h>
 #include <llvm-c/Core.h>
 
@@ -86,6 +87,18 @@ ll_function_declare(uintptr_t address, const char* name, LLState* state)
     LLVMTypeRef paramTypes[6] = { ip, ip, ip, ip, ip, ip };
     LLVMTypeRef functionType = LLVMFunctionType(i64, paramTypes, 6, false);
     function->llvmFunction = LLVMAddFunction(state->module, function->name, functionType);
+
+    bool isIntrinsic = false;
+    bool isSymbol = false;
+
+    if (name != NULL)
+    {
+        isIntrinsic = strlen(name) > 5 && strncmp("llvm.", name, 5) == 0;
+        isSymbol = LLVMSearchForAddressOfSymbol(name);
+    }
+
+    if (!isIntrinsic && !isSymbol)
+        LLVMAddGlobalMapping(state->engine, function->llvmFunction, (void*) address);
 
     return function;
 }

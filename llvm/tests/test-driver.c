@@ -142,10 +142,9 @@ test_llvm_generation(bool debug)
     if (testCase.length >= 7 && testCase.enableUnsafePointerOptimizations)
         ll_engine_enable_unsafe_pointer_optimizations(state, true);
 
-    LLFunction* test = ll_decode_function(dbrewDecoder, (uintptr_t) &test_add, &config, state);
+    ll_function_declare((uintptr_t) &test_add, "test_add", state);
     LLFunction* function = ll_decode_function(dbrewDecoder, (uintptr_t) testCase.function, &config, state);
 
-    ll_function_build_ir(test, state);
 
     if (function != NULL)
     {
