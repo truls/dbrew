@@ -372,16 +372,26 @@ DBB* dbrew_decode(Rewriter* r, uint64_t f)
         opc = fp[off++];
         switch(opc) {
 
-        case 0x01:
-            // add r/m,r 16/32/64 (MR, dst: r/m, src: r)
+        case 0x00: // add r/m8,r8 (MR, dst: r/m, src: r)
+        case 0x01: // add r/m,r 16/32/64 (MR, dst: r/m, src: r)
+            if (opc == 0x00) vt = VT_8;
             off += parseModRM(fp+off, vt, rex, segOv, RT_GG, &o1, &o2, 0);
             addBinaryOp(r, a, (uint64_t)(fp + off), IT_ADD, vt, &o1, &o2);
             break;
 
-        case 0x03:
-            // add r,r/m 16/32/64 (RM, dst: r, src: r/m)
+        case 0x02: // add r8,r/m8 (RM, dst: r, src: r/m)
+        case 0x03: // add r,r/m 16/32/64 (RM, dst: r, src: r/m)
+            if (opc == 0x02) vt = VT_8;
             off += parseModRM(fp+off, vt, rex, segOv, RT_GG, &o2, &o1, 0);
             addBinaryOp(r, a, (uint64_t)(fp + off), IT_ADD, vt, &o1, &o2);
+            break;
+
+        case 0x04: // add al,imm8
+        case 0x05: // add ax/eax/rax,imm16/32/64
+            if (opc == 0x04) vt = VT_8;
+            off += parseI(fp+off, vt, &o1);
+            addBinaryOp(r, a, (uint64_t)(fp + off), IT_ADD, vt,
+                        getRegOp(vt, Reg_AX), &o1);
             break;
 
         case 0x09:

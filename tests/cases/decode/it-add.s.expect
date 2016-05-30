@@ -1,0 +1,26 @@
+BB f1 (25 instructions):
+                  f1:  48 01 07              add     %rax,(%rdi)
+                f1+3:  4c 01 0f              add     %r9,(%rdi)
+                f1+6:  01 07                 add     %eax,(%rdi)
+                f1+8:  44 01 0f              add     %r9d,(%rdi)
+               f1+11:  66 01 07              add     %ax,(%rdi)
+               f1+14:  66 44 01 0f           add     %r9w,(%rdi)
+               f1+18:  00 07                 add     %al,(%rdi)
+               f1+20:  44 00 0f              add     %r9b,(%rdi)
+               f1+23:  48 03 07              add     (%rdi),%rax
+               f1+26:  4c 03 0f              add     (%rdi),%r9
+               f1+29:  03 07                 add     (%rdi),%eax
+               f1+31:  44 03 0f              add     (%rdi),%r9d
+               f1+34:  66 03 07              add     (%rdi),%ax
+               f1+37:  66 44 03 0f           add     (%rdi),%r9w
+               f1+41:  02 07                 add     (%rdi),%al
+               f1+43:  44 02 0f              add     (%rdi),%r9b
+               f1+46:  04 10                 add     $0x10,%al
+               f1+48:  66 05 00 10           add     $0x1000,%ax
+               f1+52:  05 00 ef cd ab        add     $0xabcdef00,%eax
+               f1+57:  48 05 00 ef cd 0b     add     $0xbcdef00,%rax
+               f1+63:  80 00 10              addb    $0x10,(%rax)
+               f1+66:  66 81 00 10 03        addw    $0x310,(%rax)
+               f1+71:  81 00 10 03 00 00     addl    $0x310,(%rax)
+               f1+77:  48 81 00 10 03 00 00  addq    $0x310,(%rax)
+               f1+84:  c3                    ret    
