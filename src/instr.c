@@ -238,6 +238,7 @@ void copyOperand(Operand* dst, Operand* src)
         dst->reg = src->reg;
         break;
     case OT_Ind8:
+    case OT_Ind16:
     case OT_Ind32:
     case OT_Ind64:
     case OT_Ind128:
