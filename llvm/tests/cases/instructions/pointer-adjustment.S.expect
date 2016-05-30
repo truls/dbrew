@@ -1,0 +1,64 @@
+Decoded BB at ?+0:
+                   ?:  b9 08 00 00 00        mov     $0x8,%ecx
+                 ?+5:  48 83 07 0a           addq    $0xa,(%rdi)
+                 ?+9:  48 83 c7 08           add     $0x8,%rdi
+                ?+13:  ff c9                 dec     %ecx
+                ?+15:  85 c9                 test    %ecx,%ecx
+                ?+17:  75 f2                 jne     $?+5
+Decoded BB at ?+13:
+                ?+19:  31 c0                 xor     %eax,%eax
+                ?+21:  c3                    ret    
+; ModuleID = '<llengine>'
+target triple = "x86_64-pc-linux-gnu"
+
+; Function Attrs: nounwind
+define i64 @test(i8*, i8* nocapture readnone, i8* nocapture readnone, i8* nocapture readnone, i8* nocapture readnone, i8* nocapture readnone) #0 {
+  %7 = ptrtoint i8* %0 to i64
+  %8 = bitcast i8* %0 to i64*
+  %9 = load i64, i64* %8, align 8
+  %10 = add i64 %9, 10
+  store i64 %10, i64* %8, align 8
+  %11 = add i64 %7, 8, !asm.reg.rdi !0
+  %12 = inttoptr i64 %11 to i64*
+  %13 = load i64, i64* %12, align 8
+  %14 = add i64 %13, 10
+  store i64 %14, i64* %12, align 8
+  %15 = add i64 %7, 16, !asm.reg.rdi !0
+  %16 = inttoptr i64 %15 to i64*
+  %17 = load i64, i64* %16, align 8
+  %18 = add i64 %17, 10
+  store i64 %18, i64* %16, align 8
+  %19 = add i64 %7, 24, !asm.reg.rdi !0
+  %20 = inttoptr i64 %19 to i64*
+  %21 = load i64, i64* %20, align 8
+  %22 = add i64 %21, 10
+  store i64 %22, i64* %20, align 8
+  %23 = add i64 %7, 32, !asm.reg.rdi !0
+  %24 = inttoptr i64 %23 to i64*
+  %25 = load i64, i64* %24, align 8
+  %26 = add i64 %25, 10
+  store i64 %26, i64* %24, align 8
+  %27 = add i64 %7, 40, !asm.reg.rdi !0
+  %28 = inttoptr i64 %27 to i64*
+  %29 = load i64, i64* %28, align 8
+  %30 = add i64 %29, 10
+  store i64 %30, i64* %28, align 8
+  %31 = add i64 %7, 48, !asm.reg.rdi !0
+  %32 = inttoptr i64 %31 to i64*
+  %33 = load i64, i64* %32, align 8
+  %34 = add i64 %33, 10
+  store i64 %34, i64* %32, align 8
+  %35 = add i64 %7, 56, !asm.reg.rdi !0
+  %36 = inttoptr i64 %35 to i64*
+  %37 = load i64, i64* %36, align 8
+  %38 = add i64 %37, 10
+  store i64 %38, i64* %36, align 8
+  ret i64 0
+}
+
+attributes #0 = { nounwind }
+
+!0 = !{}
+
+Result: 0 11 12 13 14 15 16 17 18
+Result: 0 11 12 13 14 15 16 17 18
