@@ -8,6 +8,10 @@ compiler:
 os:
     - linux
 
+# install "python3" used in the test script
+before_install:
+    - sudo apt-get install python3
+
 # build and test
 script:
     - make CI=1
