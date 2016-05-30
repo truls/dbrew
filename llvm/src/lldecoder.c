@@ -40,20 +40,47 @@
 /**
  * \ingroup LLDecoder
  * \defgroup LLDecoder Decoder
+ * \brief Decode assembly functions
  *
  * @{
  **/
 
 /**
+ * Decode a basic block at the given address. This function calls itself
+ * recursively.
+ *
  * We want to ensure that each instruction belongs *to exactly one basic block*.
  * This is contrary to the handling of DBrew (which doesn't care). We care about
  * this because LLVM does not recognize two BB parts to be identical and
  * generates the code twice (which is not what we want).
  *
- *    Example:
- *      0: push rax
- *      1: inc rax
- *      2: jmp 1b
+ * Here is an example code:
+ *
+ *     1: jmp 3f
+ *     2: dec rax
+ *     3: test rax, rax
+ *     4: jnz 2b
+ *     5: ret
+ *
+ * We want this code to be split up in four basic blocks as follows:
+ *
+ *     BB 1 jmp 3f
+ *          branch to BB 3
+ *     BB 2 dec rax
+ *          fall-through to BB 3
+ *     BB 3 test rax, rax
+ *     BB 3 jnz 2b
+ *          conditional branch to BB 2, or fall-through to BB 4
+ *     BB 4 ret
+ *
+ * \private
+ *
+ * \author Alexis Engelke
+ *
+ * \param dbrewDecoder The decoder
+ * \param address The address of the basic block
+ * \param state The module state
+ * \returns The decoded basic block, which is ready-to-use
  **/
 static LLBasicBlock*
 ll_decode_basic_block(Rewriter* dbrewDecoder, uintptr_t address, LLState* state)
@@ -142,6 +169,18 @@ ll_decode_basic_block(Rewriter* dbrewDecoder, uintptr_t address, LLState* state)
     return bb;
 }
 
+/**
+ * Decode a function at the given address. This only adds the declaration to the
+ * module, the body needs to be built with #ll_function_build_ir.
+ *
+ * \author Alexis Engelke
+ *
+ * \param dbrewDecoder The decoder
+ * \param address The address of the function
+ * \param config The function configuration, see #ll_function_new_definition
+ * \param state The module state
+ * \returns The decoded function
+ **/
 LLFunction*
 ll_decode_function(Rewriter* dbrewDecoder, uintptr_t address, LLConfig* config, LLState* state)
 {

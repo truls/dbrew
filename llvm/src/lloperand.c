@@ -39,12 +39,25 @@
 /**
  * \ingroup LLOperand
  * \defgroup LLOperand Operand
+ * \brief Handling of instruction operands
  *
  * @{
  **/
 
 #define SHUFFLE_VECTOR
 
+/**
+ * Infer the LLVM type from the requested data type and the number of bits.
+ *
+ * \private
+ *
+ * \author Alexis Engelke
+ *
+ * \param dataType The data type
+ * \param bits The number of bits
+ * \param state The module state
+ * \returns An LLVM type matching the data type and the number of bits
+ **/
 static LLVMTypeRef
 ll_operand_get_type(OperandDataType dataType, int bits, LLState* state)
 {
@@ -95,6 +108,20 @@ ll_operand_get_type(OperandDataType dataType, int bits, LLState* state)
     return type;
 }
 
+/**
+ * Cast a value from an integer type to the appropriate LLVM type. See
+ * #ll_operand_get_type for the type inference.
+ *
+ * \private
+ *
+ * \author Alexis Engelke
+ *
+ * \param value The value to cast
+ * \param dataType The data type
+ * \param bits The number of bits
+ * \param state The module state
+ * \returns The casted value to an appropriate type
+ **/
 static LLVMValueRef
 ll_cast_from_int(LLVMValueRef value, OperandDataType dataType, int bits, LLState* state)
 {

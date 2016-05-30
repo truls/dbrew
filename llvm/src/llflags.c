@@ -34,18 +34,29 @@
 #include <llbasicblock-internal.h>
 #include <llcommon.h>
 #include <llcommon-internal.h>
-#include <llsupport.h>
+#include <llsupport-internal.h>
 
 /**
  * \ingroup LLFlags
  * \defgroup LLFlags Flags
+ * \brief Computation of X86 flags
  *
- * Computation of flags ported from https://github.com/trailofbits/mcsema .
+ * Ported from https://github.com/trailofbits/mcsema .
  *
  * @{
  **/
 
-
+/**
+ * Evaluate a condition based on the condition from the instruction type.
+ *
+ * \private
+ *
+ * \author Alexis Engelke
+ *
+ * \param type The instruction type
+ * \param type The base instruction type (this is the overflow variant)
+ * \param state The module state
+ **/
 LLVMValueRef
 ll_flags_condition(InstrType type, InstrType base, LLState* state)
 {
@@ -123,6 +134,18 @@ ll_flags_condition(InstrType type, InstrType base, LLState* state)
  * Credits to https://github.com/trailofbits/mcsema
  */
 
+/**
+ * Set the auxiliary flag.
+ *
+ * \private
+ *
+ * \author Alexis Engelke
+ *
+ * \param result The result of the operation
+ * \param lhs The first operand
+ * \param rhs The second operand
+ * \param state The module state
+ **/
 static void
 ll_flags_set_af(LLVMValueRef result, LLVMValueRef lhs, LLVMValueRef rhs, LLState* state)
 {
@@ -134,6 +157,16 @@ ll_flags_set_af(LLVMValueRef result, LLVMValueRef lhs, LLVMValueRef rhs, LLState
     LLVMSetMetadata(ll_get_flag(RFLAG_AF, state), LLVMGetMDKindIDInContext(state->context, "asm.flag.af", 11), state->emptyMD);
 }
 
+/**
+ * Set the zero flag.
+ *
+ * \private
+ *
+ * \author Alexis Engelke
+ *
+ * \param result The result of the operation
+ * \param state The module state
+ **/
 static void
 ll_flags_set_zf(LLVMValueRef result, LLState* state)
 {
@@ -142,6 +175,16 @@ ll_flags_set_zf(LLVMValueRef result, LLState* state)
     LLVMSetMetadata(ll_get_flag(RFLAG_ZF, state), LLVMGetMDKindIDInContext(state->context, "asm.flag.zf", 11), state->emptyMD);
 }
 
+/**
+ * Set the sign flag.
+ *
+ * \private
+ *
+ * \author Alexis Engelke
+ *
+ * \param result The result of the operation
+ * \param state The module state
+ **/
 static void
 ll_flags_set_sf(LLVMValueRef result, LLState* state)
 {
@@ -150,6 +193,18 @@ ll_flags_set_sf(LLVMValueRef result, LLState* state)
     LLVMSetMetadata(ll_get_flag(RFLAG_SF, state), LLVMGetMDKindIDInContext(state->context, "asm.flag.sf", 11), state->emptyMD);
 }
 
+/**
+ * Set the overflow flag for a subtraction.
+ *
+ * \private
+ *
+ * \author Alexis Engelke
+ *
+ * \param result The result of the operation
+ * \param lhs The first operand
+ * \param rhs The second operand
+ * \param state The module state
+ **/
 static void
 ll_flags_set_of_sub(LLVMValueRef result, LLVMValueRef lhs, LLVMValueRef rhs, LLState* state)
 {
@@ -180,6 +235,17 @@ ll_flags_set_of_sub(LLVMValueRef result, LLVMValueRef lhs, LLVMValueRef rhs, LLS
     LLVMSetMetadata(ll_get_flag(RFLAG_OF, state), LLVMGetMDKindIDInContext(state->context, "asm.flag.of", 11), state->emptyMD);
 }
 
+/**
+ * Set the carry flag for a subtraction.
+ *
+ * \private
+ *
+ * \author Alexis Engelke
+ *
+ * \param lhs The first operand
+ * \param rhs The second operand
+ * \param state The module state
+ **/
 static void
 ll_flags_set_cf_sub(LLVMValueRef lhs, LLVMValueRef rhs, LLState* state)
 {
@@ -188,6 +254,18 @@ ll_flags_set_cf_sub(LLVMValueRef lhs, LLVMValueRef rhs, LLState* state)
     LLVMSetMetadata(ll_get_flag(RFLAG_CF, state), LLVMGetMDKindIDInContext(state->context, "asm.flag.cf", 11), state->emptyMD);
 }
 
+/**
+ * Set the overflow flag for an addition.
+ *
+ * \private
+ *
+ * \author Alexis Engelke
+ *
+ * \param result The result of the operation
+ * \param lhs The first operand
+ * \param rhs The second operand
+ * \param state The module state
+ **/
 static void
 ll_flags_set_of_add(LLVMValueRef result, LLVMValueRef lhs, LLVMValueRef rhs, LLState* state)
 {
@@ -218,6 +296,17 @@ ll_flags_set_of_add(LLVMValueRef result, LLVMValueRef lhs, LLVMValueRef rhs, LLS
     LLVMSetMetadata(ll_get_flag(RFLAG_OF, state), LLVMGetMDKindIDInContext(state->context, "asm.flag.of", 11), state->emptyMD);
 }
 
+/**
+ * Set the carry flag for an addition.
+ *
+ * \private
+ *
+ * \author Alexis Engelke
+ *
+ * \param result The result of the operation
+ * \param lhs The first operand
+ * \param state The module state
+ **/
 static void
 ll_flags_set_cf_add(LLVMValueRef result, LLVMValueRef lhs, LLState* state)
 {
@@ -226,6 +315,17 @@ ll_flags_set_cf_add(LLVMValueRef result, LLVMValueRef lhs, LLState* state)
     LLVMSetMetadata(ll_get_flag(RFLAG_CF, state), LLVMGetMDKindIDInContext(state->context, "asm.flag.cf", 11), state->emptyMD);
 }
 
+/**
+ * Set the parity flag of a result. This is not really optimized since no one is
+ * using this anyway.
+ *
+ * \private
+ *
+ * \author Alexis Engelke
+ *
+ * \param result The result of the operation
+ * \param state The module state
+ **/
 static void
 ll_flags_set_pf(LLVMValueRef result, LLState* state)
 {
@@ -242,6 +342,18 @@ ll_flags_set_pf(LLVMValueRef result, LLState* state)
     LLVMSetMetadata(ll_get_flag(RFLAG_PF, state), LLVMGetMDKindIDInContext(state->context, "asm.flag.pf", 11), state->emptyMD);
 }
 
+/**
+ * Set the flags for a subtraction. The flag cache will be valid.
+ *
+ * \private
+ *
+ * \author Alexis Engelke
+ *
+ * \param result The result of the operation
+ * \param lhs The first operand
+ * \param rhs The second operand
+ * \param state The module state
+ **/
 void
 ll_flags_set_sub(LLVMValueRef result, LLVMValueRef lhs, LLVMValueRef rhs, LLState* state)
 {
@@ -259,6 +371,18 @@ ll_flags_set_sub(LLVMValueRef result, LLVMValueRef lhs, LLVMValueRef rhs, LLStat
     flagCache->result = result;
 }
 
+/**
+ * Set the flags for an addition. The flag cache will be invalidated.
+ *
+ * \private
+ *
+ * \author Alexis Engelke
+ *
+ * \param result The result of the operation
+ * \param lhs The first operand
+ * \param rhs The second operand
+ * \param state The module state
+ **/
 void
 ll_flags_set_add(LLVMValueRef result, LLVMValueRef lhs, LLVMValueRef rhs, LLState* state)
 {
@@ -273,6 +397,16 @@ ll_flags_set_add(LLVMValueRef result, LLVMValueRef lhs, LLVMValueRef rhs, LLStat
     flagCache->valid = false;
 }
 
+/**
+ * Set the flags for a bitwise operation. The flag cache will be invalidated.
+ *
+ * \private
+ *
+ * \author Alexis Engelke
+ *
+ * \param result The result of the operation
+ * \param state The module state
+ **/
 void
 ll_flags_set_bit(LLVMValueRef result, LLState* state)
 {
@@ -290,6 +424,15 @@ ll_flags_set_bit(LLVMValueRef result, LLState* state)
     flagCache->valid = false;
 }
 
+/**
+ * Invalidate the flags and the flag cache.
+ *
+ * \private
+ *
+ * \author Alexis Engelke
+ *
+ * \param state The module state
+ **/
 void
 ll_flags_invalidate(LLState* state)
 {

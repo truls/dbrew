@@ -31,6 +31,9 @@
 extern "C" {
 #endif
 
+/**
+ * \ingroup LLSupport
+ **/
 enum LLSupportIntrinsics {
     LL_INTRINSIC_DO_NOTHING,
     LL_INTRINSIC_CTPOP,

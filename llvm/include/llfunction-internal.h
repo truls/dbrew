@@ -35,14 +35,29 @@
 #include <llcommon-internal.h>
 
 
+/**
+ * \ingroup LLFunction
+ **/
 enum LLFunctionKind {
+    /**
+     * \brief The function is only declared
+     **/
     LL_FUNCTION_DECLARATION,
+    /**
+     * \brief The function is defined from assembly code
+     **/
     LL_FUNCTION_DEFINITION,
+    /**
+     * \brief The function is specialized
+     **/
     LL_FUNCTION_SPECIALIZATION
 };
 
 typedef enum LLFunctionKind LLFunctionKind;
 
+/**
+ * \ingroup LLFunction
+ **/
 struct LLFunction {
     /**
      * \brief The name of the function
@@ -62,7 +77,11 @@ struct LLFunction {
      **/
     LLVMValueRef llvmFunction;
 
+    /**
+     * \brief The kind of the function
+     **/
     LLFunctionKind kind;
+
     union {
         struct {
             /**

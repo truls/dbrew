@@ -37,20 +37,56 @@
 #include <llcommon-internal.h>
 
 
+/**
+ * \ingroup LLBasicBlock
+ **/
 enum {
+    /**
+     * \brief The zero flag
+     **/
     RFLAG_ZF = 0,
+    /**
+     * \brief The sign flag
+     **/
     RFLAG_SF,
+    /**
+     * \brief The parity flag
+     **/
     RFLAG_PF,
+    /**
+     * \brief The carry flag
+     **/
     RFLAG_CF,
+    /**
+     * \brief The overflow flag
+     **/
     RFLAG_OF,
+    /**
+     * \brief The auxiliary carry flag
+     **/
     RFLAG_AF,
     RFLAG_Max
 };
 
+/**
+ * \ingroup LLBasicBlock
+ **/
 struct LLFlagCache {
+    /**
+     * \brief Whether the information is valid
+     **/
     bool valid;
+    /**
+     * \brief The first operand of the subtraction
+     **/
     LLVMValueRef operand1;
+    /**
+     * \brief The second operand of the subtraction
+     **/
     LLVMValueRef operand2;
+    /**
+     * \brief The result of the subtraction
+     **/
     LLVMValueRef result;
 };
 

@@ -36,8 +36,15 @@
 
 
 #define critical(format, ...) printf("!CRITICAL %s: " format "\n", __PRETTY_FUNCTION__, ##__VA_ARGS__)
+
+/**
+ * \brief Emit a warning and jump into a debugger
+ **/
 #define warn_if_reached() do { printf("!WARN %s: Code should not be reached.\n", __PRETTY_FUNCTION__); __asm__("int3"); } while (0)
 
+/**
+ * \brief The size of a vector
+ **/
 #define LL_VECTOR_REGISTER_SIZE 128
 
 struct LLBasicBlock;
@@ -65,8 +72,17 @@ struct LLState {
      **/
     LLVMExecutionEngineRef engine;
 
+    /**
+     * \brief The function count
+     **/
     size_t functionCount;
+    /**
+     * \brief The allocated size for function
+     **/
     size_t functionsAllocated;
+    /**
+     * \brief The functions of the module
+     **/
     LLFunction** functions;
 
     /**
@@ -83,10 +99,23 @@ struct LLState {
      **/
     LLBasicBlock* currentBB;
 
+    /**
+     * \brief The global offset base
+     **/
     uintptr_t globalOffsetBase;
+    /**
+     * \brief The global variable used to access constant memory regions. Points
+     * to globalOffsetBase.
+     **/
     LLVMValueRef globalBase;
 
+    /**
+     * \brief Whether unsafe pointer optimizations are enabled.
+     **/
     bool enableUnsafePointerOptimizations;
+    /**
+     * \brief Whether overflow intrinsics should be used.
+     **/
     bool enableOverflowIntrinsics;
 };
 

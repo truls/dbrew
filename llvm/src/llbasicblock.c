@@ -39,21 +39,43 @@
 /**
  * \ingroup LLBasicBlock
  * \defgroup LLBasicBlock Basic Block
+ * \brief Representation of a basic block
  *
  * @{
  **/
 
 struct LLBasicBlock {
+    /**
+     * \brief The address
+     **/
     uintptr_t address;
 
+    /**
+     * \brief The instruction count
+     **/
     size_t instrCount;
+    /**
+     * \brief The instructions
+     **/
     Instr* instrs;
 
+    /**
+     * \brief The branch basic block, or NULL
+     **/
     LLBasicBlock* nextBranch;
+    /**
+     * \brief The fall-through basic block, or NULL
+     **/
     LLBasicBlock* nextFallThrough;
 
     // Predecessors needed for phi nodes
+    /**
+     * \brief The predecessor count
+     **/
     size_t predCount;
+    /**
+     * \brief The number predecessors allocated
+     **/
     size_t predsAllocated;
     /**
      * \brief The preceding basic blocks
@@ -73,8 +95,9 @@ struct LLBasicBlock {
     /**
      * \brief The LLVM values of the architectural general purpose registers
      *
-     * Ordering: 16 GP regs (i64), IP reg (i64), 32 AVX regs (i256), 6 flags.
+     * Ordering: 16 GP regs (i64), IP reg (i64), vector registers).
      * The registers always store integers of an appropriate length.
+     * The vector length depends on #LL_VECTOR_REGISTER_SIZE.
      **/
     LLVMValueRef registers[Reg_Max - Reg_AX];
 
@@ -93,9 +116,22 @@ struct LLBasicBlock {
      **/
     LLVMValueRef phiNodesFlags[RFLAG_Max];
 
+    /**
+     * \brief The flag cache
+     **/
     LLFlagCache flagCache;
 };
 
+/**
+ * Create a new basic block.
+ *
+ * \private
+ *
+ * \author Alexis Engelke
+ *
+ * \param address The address of the basic block
+ * \returns The new basic block
+ **/
 LLBasicBlock*
 ll_basic_block_new(uintptr_t address)
 {
@@ -114,6 +150,16 @@ ll_basic_block_new(uintptr_t address)
     return bb;
 }
 
+/**
+ * Create a new basic block from a DBB.
+ *
+ * \private
+ *
+ * \author Alexis Engelke
+ *
+ * \param dbb The underlying DBB
+ * \returns The new basic block
+ **/
 LLBasicBlock*
 ll_basic_block_new_from_dbb(DBB* dbb)
 {
@@ -125,6 +171,16 @@ ll_basic_block_new_from_dbb(DBB* dbb)
     return bb;
 }
 
+/**
+ * Create a new basic block from a CBB.
+ *
+ * \private
+ *
+ * \author Alexis Engelke
+ *
+ * \param cbb The underlying CBB
+ * \returns The new basic block
+ **/
 LLBasicBlock*
 ll_basic_block_new_from_cbb(CBB* cbb)
 {
@@ -137,6 +193,15 @@ ll_basic_block_new_from_cbb(CBB* cbb)
     return bb;
 }
 
+/**
+ * Dispose a basic block.
+ *
+ * \private
+ *
+ * \author Alexis Engelke
+ *
+ * \param bb The basic block
+ **/
 void
 ll_basic_block_dispose(LLBasicBlock* bb)
 {
@@ -146,6 +211,16 @@ ll_basic_block_dispose(LLBasicBlock* bb)
     free(bb);
 }
 
+/**
+ * Declare a basic block in the current function.
+ *
+ * \private
+ *
+ * \author Alexis Engelke
+ *
+ * \param bb The basic block
+ * \param state The module state
+ **/
 void
 ll_basic_block_declare(LLBasicBlock* bb, LLState* state)
 {
@@ -155,6 +230,16 @@ ll_basic_block_declare(LLBasicBlock* bb, LLState* state)
     bb->llvmBB = LLVMAppendBasicBlockInContext(state->context, state->currentFunction->llvmFunction, "");
 }
 
+/**
+ * Add a predecessor.
+ *
+ * \private
+ *
+ * \author Alexis Engelke
+ *
+ * \param bb The basic block
+ * \param pred The preceding basic block
+ **/
 void
 ll_basic_block_add_predecessor(LLBasicBlock* bb, LLBasicBlock* pred)
 {
@@ -179,13 +264,34 @@ ll_basic_block_add_predecessor(LLBasicBlock* bb, LLBasicBlock* pred)
     bb->predCount++;
 }
 
-
+/**
+ * Get the LLVM value of the basic block.
+ *
+ * \private
+ *
+ * \author Alexis Engelke
+ *
+ * \param bb The basic block
+ * \returns The LLVM basic block
+ **/
 LLVMBasicBlockRef
 ll_basic_block_llvm(LLBasicBlock* bb)
 {
     return bb->llvmBB;
 }
 
+/**
+ * Find an instruction with the given address in the basic block.
+ *
+ * \private
+ *
+ * \author Alexis Engelke
+ *
+ * \param bb The basic block
+ * \param address The address of an instruction
+ * \returns The index of the instruction, or -1 if no instruction with the given
+ * address exists.
+ **/
 long
 ll_basic_block_find_address(LLBasicBlock* bb, uintptr_t address)
 {
@@ -196,6 +302,17 @@ ll_basic_block_find_address(LLBasicBlock* bb, uintptr_t address)
     return -1;
 }
 
+/**
+ * Add branches to the basic block. This also registers them as predecessors.
+ *
+ * \private
+ *
+ * \author Alexis Engelke
+ *
+ * \param bb The basic block
+ * \param branch The active branch, or NULL
+ * \param fallThrough The fall-through branch, or NULL
+ **/
 void
 ll_basic_block_add_branches(LLBasicBlock* bb, LLBasicBlock* branch, LLBasicBlock* fallThrough)
 {
@@ -212,6 +329,16 @@ ll_basic_block_add_branches(LLBasicBlock* bb, LLBasicBlock* branch, LLBasicBlock
     }
 }
 
+/**
+ * Truncate the basic block to the given number of instructions.
+ *
+ * \private
+ *
+ * \author Alexis Engelke
+ *
+ * \param bb The basic block
+ * \param splitIndex The instruction where to cut the block
+ **/
 void
 ll_basic_block_truncate(LLBasicBlock* bb, size_t splitIndex)
 {
@@ -230,7 +357,7 @@ ll_basic_block_truncate(LLBasicBlock* bb, size_t splitIndex)
  *
  * \param bb The basic block
  * \param splitIndex The instruction where to split the block
- * \param state The engine state
+ * \param state The module state
  * \returns The part of the block which has been split off
  **/
 LLBasicBlock*
@@ -269,6 +396,16 @@ ll_basic_block_split(LLBasicBlock* bb, size_t splitIndex, LLState* state)
     return newBB;
 }
 
+/**
+ * Build the LLVM IR.
+ *
+ * \private
+ *
+ * \author Alexis Engelke
+ *
+ * \param bb The basic block
+ * \param state The module state
+ **/
 void
 ll_basic_block_build_ir(LLBasicBlock* bb, LLState* state)
 {
@@ -324,6 +461,16 @@ ll_basic_block_build_ir(LLBasicBlock* bb, LLState* state)
         LLVMBuildBr(state->builder, bb->nextFallThrough->llvmBB);
 }
 
+/**
+ * Fill PHI nodes after the IR for all basic blocks of the function is
+ * generated.
+ *
+ * \private
+ *
+ * \author Alexis Engelke
+ *
+ * \param bb The basic block
+ **/
 void
 ll_basic_block_fill_phis(LLBasicBlock* bb)
 {
@@ -381,30 +528,84 @@ ll_basic_block_fill_phis(LLBasicBlock* bb)
     }
 }
 
+/**
+ * Get a register value of the basic block.
+ *
+ * \private
+ *
+ * \author Alexis Engelke
+ *
+ * \param bb The basic block
+ * \param reg The register
+ * \returns The current register value
+ **/
 LLVMValueRef
 ll_basic_block_get_register(LLBasicBlock* bb, Reg reg)
 {
     return bb->registers[reg - Reg_AX];
 }
 
+/**
+ * Set a register value of the basic block.
+ *
+ * \private
+ *
+ * \author Alexis Engelke
+ *
+ * \param bb The basic block
+ * \param reg The register
+ * \param value The new value
+ **/
 void
 ll_basic_block_set_register(LLBasicBlock* bb, Reg reg, LLVMValueRef value)
 {
     bb->registers[reg - Reg_AX] = value;
 }
 
+/**
+ * Get a flag value of the basic block.
+ *
+ * \private
+ *
+ * \author Alexis Engelke
+ *
+ * \param bb The basic block
+ * \param flag The flag
+ * \returns The current flag value
+ **/
 LLVMValueRef
 ll_basic_block_get_flag(LLBasicBlock* bb, int flag)
 {
     return bb->flags[flag];
 }
 
+/**
+ * Set a flag value of the basic block.
+ *
+ * \private
+ *
+ * \author Alexis Engelke
+ *
+ * \param bb The basic block
+ * \param flag The flag
+ * \param value The new value
+ **/
 void
 ll_basic_block_set_flag(LLBasicBlock* bb, int flag, LLVMValueRef value)
 {
     bb->flags[flag] = value;
 }
 
+/**
+ * Get the flag cache.
+ *
+ * \private
+ *
+ * \author Alexis Engelke
+ *
+ * \param bb The basic block
+ * \returns The flag cache
+ **/
 LLFlagCache*
 ll_basic_block_get_flag_cache(LLBasicBlock* bb)
 {

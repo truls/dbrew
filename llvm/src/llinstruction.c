@@ -39,7 +39,7 @@
 #include <llfunction.h>
 #include <llfunction-internal.h>
 #include <lloperand-internal.h>
-#include <llsupport.h>
+#include <llsupport-internal.h>
 
 /**
  * \ingroup LLInstruction
@@ -58,9 +58,15 @@
  * arithmetic for arithmetic operations is disabled by default. It can be
  * enabled via #ll_engine_enable_unsafe_pointer_optimizations.
  *
+ * \todo Implement better heuristics here?
+ *
  * \private
  *
+ * \author Alexis Engelke
+ *
  * \param value The value to check
+ * \param state The module state
+ * \returns Whether the value should be treated as pointer
  **/
 static bool
 ll_value_is_pointer(LLVMValueRef value, LLState* state)

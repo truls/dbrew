@@ -35,27 +35,72 @@
 #include <llcommon-internal.h>
 
 
+/**
+ * \ingroup LLOperand
+ * \brief The data type of an operand
+ **/
 enum OperandDataType {
+    /**
+     * \brief Single Integer, length chosen appropriately
+     **/
     OP_SI,
+    /**
+     * \brief Vector of 8-bit integers
+     **/
     OP_VI8,
+    /**
+     * \brief Vector of 8-bit integers
+     **/
     OP_VI64,
+    /**
+     * \brief Single Real, length chosen appropriately
+     **/
     OP_SF,
+    /**
+     * \brief Vector of floats
+     **/
     OP_VF32,
+    /**
+     * \brief Vector of doubles
+     **/
     OP_VF64,
 };
 
 typedef enum OperandDataType OperandDataType;
 
+/**
+ * \ingroup LLOperand
+ * \brief The alignment of an operand
+ **/
 enum Alignment {
+    /**
+     * \brief Maximum alignment based on data type size
+     **/
     ALIGN_MAXIMUM = 0,
+    /**
+     * \brief 1-byte alignment
+     **/
     ALIGN_1 = 1,
+    /**
+     * \brief 2-byte alignment
+     **/
     ALIGN_2 = 2,
+    /**
+     * \brief 4-byte alignment
+     **/
     ALIGN_4 = 4,
+    /**
+     * \brief 8-byte alignment
+     **/
     ALIGN_8 = 8,
 };
 
 typedef enum Alignment Alignment;
 
+/**
+ * \ingroup LLOperand
+ * \brief The handling when storing a partial register
+ **/
 enum PartialRegisterHandling {
     /**
      * \brief Default handling for general purpose registers
@@ -65,7 +110,13 @@ enum PartialRegisterHandling {
      * allowed since there is no default (depending on VEX prefix).
      **/
     REG_DEFAULT,
+    /**
+     * \brief Zero the unused half.
+     **/
     REG_ZERO_UPPER,
+    /**
+     * \brief Keep the unused half. This might produce less optimizable code.
+     **/
     REG_KEEP_UPPER
 };
 

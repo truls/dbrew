@@ -44,11 +44,12 @@
 #include <lldecoder.h>
 #include <llfunction.h>
 #include <llfunction-internal.h>
-#include <llsupport.h>
+#include <llsupport-internal.h>
 
 /**
  * \ingroup LLEngine
  * \defgroup LLEngine Engine
+ * \brief Common public APIs and State management
  *
  * @{
  **/
@@ -146,6 +147,13 @@ ll_engine_enable_overflow_intrinsics(LLState* state, bool enable)
     state->enableOverflowIntrinsics = enable;
 }
 
+/**
+ * Dispose an engine. The functions generated will not be usable any longer.
+ *
+ * \author Alexis Engelke
+ *
+ * \param state The module state
+ **/
 void
 ll_engine_dispose(LLState* state)
 {
@@ -188,8 +196,8 @@ ll_engine_dispose(LLState* state)
  *
  * \author Alexis Engelke
  *
- * \param level The optimization level
  * \param state The module state
+ * \param level The optimization level
  **/
 void
 ll_engine_optimize(LLState* state, int level)
@@ -217,6 +225,13 @@ ll_engine_optimize(LLState* state, int level)
     LLVMDisposePassManager(pm);
 }
 
+/**
+ * Dump the LLVM IR of the module.
+ *
+ * \author Alexis Engelke
+ *
+ * \param state The module state
+ **/
 void
 ll_engine_dump(LLState* state)
 {
@@ -297,6 +312,13 @@ dbrew_llvm_backend(Rewriter* rewriter)
     rewriter->generatedCodeSize = 0;
 }
 
+/**
+ * Rewrite a function using DBrew and the LLVM optimization and code generation.
+ *
+ * \author Alexis Engelke
+ *
+ * \param r The DBrew rewriter
+ **/
 uintptr_t
 dbrew_llvm_rewrite(Rewriter* r, ...)
 {

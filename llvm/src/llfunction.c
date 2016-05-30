@@ -38,10 +38,23 @@
 /**
  * \ingroup LLFunction
  * \defgroup LLFunction Function
+ * \brief Representation of a function
  *
  * @{
  **/
 
+/**
+ * Helper function to allocate a function.
+ *
+ * \private
+ *
+ * \author Alexis Engelke
+ *
+ * \param kind The kind of the function
+ * \param address The address of the function
+ * \param state The module state
+ * \returns The declared function
+ **/
 static LLFunction*
 ll_function_new(LLFunctionKind kind, uintptr_t address, LLState* state)
 {
@@ -74,6 +87,19 @@ ll_function_new(LLFunctionKind kind, uintptr_t address, LLState* state)
     return function;
 }
 
+/**
+ * Declare a function in the module with the given address and name. If the name
+ * is a symbol, the symbol has preference over the address (which is used to
+ * detect calls to the function). If the name begins with `llvm.`, it is assumed
+ * that an LLVM intrinsic is meant.
+ *
+ * \author Alexis Engelke
+ *
+ * \param address The address of the function
+ * \param name The name of the function
+ * \param state The module state
+ * \returns The declared function
+ **/
 LLFunction*
 ll_function_declare(uintptr_t address, const char* name, LLState* state)
 {
@@ -103,6 +129,21 @@ ll_function_declare(uintptr_t address, const char* name, LLState* state)
     return function;
 }
 
+/**
+ * Define a new function at the given address and configuration. After this
+ * call, the function consists only of a prologue. Basic blocks can be added
+ * with #ll_function_add_basic_block, the final IR can be built with
+ * #ll_function_build_ir.
+ *
+ * \private
+ *
+ * \author Alexis Engelke
+ *
+ * \param address The address of the function
+ * \param config The function configuration
+ * \param state The module state
+ * \returns The defined function
+ **/
 LLFunction*
 ll_function_new_definition(uintptr_t address, LLConfig* config, LLState* state)
 {
@@ -174,6 +215,20 @@ ll_function_new_definition(uintptr_t address, LLConfig* config, LLState* state)
     return function;
 }
 
+/**
+ * Specialize a function by inlining the base function into a new wrapper
+ * function and fixing a parameter. If the length of the value is larger than
+ * zero, the memory region starting at value will be fixed, too.
+ *
+ * \author Alexis Engelke
+ *
+ * \param base The base function
+ * \param index The index of the parameter
+ * \param value The value of the parameter
+ * \param length The length of the memory region, or zero
+ * \param state The module state
+ * \returns The specialized function
+ **/
 LLFunction*
 ll_function_specialize(LLFunction* base, uintptr_t index, uintptr_t value, size_t length, LLState* state)
 {
@@ -245,6 +300,13 @@ ll_function_specialize(LLFunction* base, uintptr_t index, uintptr_t value, size_
     return function;
 }
 
+/**
+ * Dispose a function.
+ *
+ * \author Alexis Engelke
+ *
+ * \param function The function
+ **/
 void
 ll_function_dispose(LLFunction* function)
 {
@@ -269,6 +331,17 @@ ll_function_dispose(LLFunction* function)
     free(function);
 }
 
+/**
+ * Add a basic block to the function. Only valid for defined functions, where
+ * the IR is not built yet.
+ *
+ * \private
+ *
+ * \author Alexis Engelke
+ *
+ * \param function The function
+ * \param bb The basic block to add
+ **/
 void
 ll_function_add_basic_block(LLFunction* function, LLBasicBlock* bb)
 {
@@ -298,6 +371,16 @@ ll_function_add_basic_block(LLFunction* function, LLBasicBlock* bb)
     function->u.definition.bbCount++;
 }
 
+/**
+ * Build the IR for a defined function. This function must be called at most
+ * once.
+ *
+ * \author Alexis Engelke
+ *
+ * \param function The function
+ * \param state The module state
+ * \returns Whether there was an error while generating the IR
+ **/
 bool
 ll_function_build_ir(LLFunction* function, LLState* state)
 {
@@ -334,6 +417,15 @@ ll_function_build_ir(LLFunction* function, LLState* state)
     return error;
 }
 
+/**
+ * Compile a function after generating the IR.
+ *
+ * \author Alexis Engelke
+ *
+ * \param function The function
+ * \param state The module state
+ * \returns A pointer to the function
+ **/
 void*
 ll_function_get_pointer(LLFunction* function, LLState* state)
 {

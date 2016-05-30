@@ -39,9 +39,16 @@ struct LLConfig {
      **/
     const char* name;
 
+    /**
+     * \brief The size of the emulated stack
+     **/
     size_t stackSize;
 
     // FunctionSignature sign;
+
+    /**
+     * \brief Bitwise combination of parameters which have the attribute noalias
+     **/
     size_t noaliasParams;
 };
 
