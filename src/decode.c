@@ -884,25 +884,26 @@ DBB* dbrew_decode(Rewriter* r, uint64_t f)
             addBinaryOp(r, a, (uint64_t)(fp + off), IT_XOR, vt, &o1, &o2);
             break;
 
-        case 0x39:
-            // cmp r/m,r 16/32/64 (MR)
+        case 0x38: // cmp r/m8,r8 (RM, dst: r, src: r/m)
+        case 0x39: // cmp r/m,r 16/32/64 (MR)
+            if (opc == 0x38) vt = VT_8;
             off += parseModRM(fp+off, vt, rex, segOv, RT_GG, &o1, &o2, 0);
             addBinaryOp(r, a, (uint64_t)(fp + off), IT_CMP, vt, &o1, &o2);
             break;
 
-        case 0x3B:
-            // cmp r,r/m 16/32/64 (RM)
+        case 0x3A: // cmp r8,r/m8 (RM, dst: r, src: r/m)
+        case 0x3B: // cmp r,r/m 16/32/64 (RM)
+            if (opc == 0x3A) vt = VT_8;
             off += parseModRM(fp+off, vt, rex, segOv, RT_GG, &o2, &o1, 0);
             addBinaryOp(r, a, (uint64_t)(fp + off), IT_CMP, vt, &o1, &o2);
             break;
 
-        case 0x3D:
-            // cmp eax,imm32
-            o1.type = OT_Imm32;
-            o1.val = *(uint32_t*)(fp + off);
-            off += 4;
-            addBinaryOp(r, a, (uint64_t)(fp + off), IT_CMP, VT_32,
-                        getRegOp(VT_32, Reg_AX), &o1);
+        case 0x3C: // cmp al,imm8
+        case 0x3D: // cmp eax,imm32
+            if (opc == 0x3C) vt = VT_8;
+            off += parseI(fp+off, vt, &o1);
+            addBinaryOp(r, a, (uint64_t)(fp + off), IT_CMP, vt,
+                        getRegOp(vt, Reg_AX), &o1);
             break;
 
         case 0x50: case 0x51: case 0x52: case 0x53:

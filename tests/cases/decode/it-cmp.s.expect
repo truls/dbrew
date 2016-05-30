@@ -1,0 +1,26 @@
+BB f1 (25 instructions):
+                  f1:  48 39 07              cmp     %rax,(%rdi)
+                f1+3:  4c 39 0f              cmp     %r9,(%rdi)
+                f1+6:  39 07                 cmp     %eax,(%rdi)
+                f1+8:  44 39 0f              cmp     %r9d,(%rdi)
+               f1+11:  66 39 07              cmp     %ax,(%rdi)
+               f1+14:  66 44 39 0f           cmp     %r9w,(%rdi)
+               f1+18:  38 07                 cmp     %al,(%rdi)
+               f1+20:  44 38 0f              cmp     %r9b,(%rdi)
+               f1+23:  48 3b 07              cmp     (%rdi),%rax
+               f1+26:  4c 3b 0f              cmp     (%rdi),%r9
+               f1+29:  3b 07                 cmp     (%rdi),%eax
+               f1+31:  44 3b 0f              cmp     (%rdi),%r9d
+               f1+34:  66 3b 07              cmp     (%rdi),%ax
+               f1+37:  66 44 3b 0f           cmp     (%rdi),%r9w
+               f1+41:  3a 07                 cmp     (%rdi),%al
+               f1+43:  44 3a 0f              cmp     (%rdi),%r9b
+               f1+46:  3c 10                 cmp     $0x10,%al
+               f1+48:  66 3d 00 10           cmp     $0x1000,%ax
+               f1+52:  3d 00 ef cd ab        cmp     $0xabcdef00,%eax
+               f1+57:  48 3d 00 ef cd 0b     cmp     $0xbcdef00,%rax
+               f1+63:  80 38 10              cmpb    $0x10,(%rax)
+               f1+66:  66 81 38 10 03        cmpw    $0x310,(%rax)
+               f1+71:  81 38 10 03 00 00     cmpl    $0x310,(%rax)
+               f1+77:  48 81 38 10 03 00 00  cmpq    $0x310,(%rax)
+               f1+84:  c3                    ret    
