@@ -1,0 +1,50 @@
+BB f1 (49 instructions):
+                  f1:  66 0f 40 00           cmovo   (%rax),%ax
+                f1+4:  0f 40 00              cmovo   (%rax),%eax
+                f1+7:  48 0f 40 00           cmovo   (%rax),%rax
+               f1+11:  66 0f 41 00           cmovno  (%rax),%ax
+               f1+15:  0f 41 00              cmovno  (%rax),%eax
+               f1+18:  48 0f 41 00           cmovno  (%rax),%rax
+               f1+22:  66 0f 42 00           cmovc   (%rax),%ax
+               f1+26:  0f 42 00              cmovc   (%rax),%eax
+               f1+29:  48 0f 42 00           cmovc   (%rax),%rax
+               f1+33:  66 0f 43 00           cmovnc  (%rax),%ax
+               f1+37:  0f 43 00              cmovnc  (%rax),%eax
+               f1+40:  48 0f 43 00           cmovnc  (%rax),%rax
+               f1+44:  66 0f 44 00           cmovz   (%rax),%ax
+               f1+48:  0f 44 00              cmovz   (%rax),%eax
+               f1+51:  48 0f 44 00           cmovz   (%rax),%rax
+               f1+55:  66 0f 45 00           cmovnz  (%rax),%ax
+               f1+59:  0f 45 00              cmovnz  (%rax),%eax
+               f1+62:  48 0f 45 00           cmovnz  (%rax),%rax
+               f1+66:  66 0f 46 00           cmovbe  (%rax),%ax
+               f1+70:  0f 46 00              cmovbe  (%rax),%eax
+               f1+73:  48 0f 46 00           cmovbe  (%rax),%rax
+               f1+77:  66 0f 47 00           cmova   (%rax),%ax
+               f1+81:  0f 47 00              cmova   (%rax),%eax
+               f1+84:  48 0f 47 00           cmova   (%rax),%rax
+               f1+88:  66 0f 48 00           cmovs   (%rax),%ax
+               f1+92:  0f 48 00              cmovs   (%rax),%eax
+               f1+95:  48 0f 48 00           cmovs   (%rax),%rax
+               f1+99:  66 0f 49 00           cmovns  (%rax),%ax
+              f1+103:  0f 49 00              cmovns  (%rax),%eax
+              f1+106:  48 0f 49 00           cmovns  (%rax),%rax
+              f1+110:  66 0f 4a 00           cmovp   (%rax),%ax
+              f1+114:  0f 4a 00              cmovp   (%rax),%eax
+              f1+117:  48 0f 4a 00           cmovp   (%rax),%rax
+              f1+121:  66 0f 4b 00           cmovnp  (%rax),%ax
+              f1+125:  0f 4b 00              cmovnp  (%rax),%eax
+              f1+128:  48 0f 4b 00           cmovnp  (%rax),%rax
+              f1+132:  66 0f 4c 00           cmovl   (%rax),%ax
+              f1+136:  0f 4c 00              cmovl   (%rax),%eax
+              f1+139:  48 0f 4c 00           cmovl   (%rax),%rax
+              f1+143:  66 0f 4d 00           cmovge  (%rax),%ax
+              f1+147:  0f 4d 00              cmovge  (%rax),%eax
+              f1+150:  48 0f 4d 00           cmovge  (%rax),%rax
+              f1+154:  66 0f 4e 00           cmovle  (%rax),%ax
+              f1+158:  0f 4e 00              cmovle  (%rax),%eax
+              f1+161:  48 0f 4e 00           cmovle  (%rax),%rax
+              f1+165:  66 0f 4f 00           cmovg   (%rax),%ax
+              f1+169:  0f 4f 00              cmovg   (%rax),%eax
+              f1+172:  48 0f 4f 00           cmovg   (%rax),%rax
+              f1+176:  c3                    ret    
