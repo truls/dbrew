@@ -296,6 +296,7 @@ char* op2string(Operand* o, ValType t, FunctionConfig* fc)
         case VT_64:
             if (val > 0x7FFF) val += 0xFFFFFFFFFFFF0000;
             break;
+        case VT_16:
         case VT_None:
             break;
         default: assert(0);

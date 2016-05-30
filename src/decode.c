@@ -137,6 +137,7 @@ int parseModRM(uint8_t* p, ValType vt,
     rm = modrm & 7;
 
     switch(vt) {
+    case VT_8:  ot = OT_Reg8; break;
     case VT_16: ot = OT_Reg16; break;
     case VT_32: ot = OT_Reg32; break;
     case VT_64: ot = OT_Reg64; break;
@@ -191,6 +192,7 @@ int parseModRM(uint8_t* p, ValType vt,
     }
 
     switch(vt) {
+    case VT_8:  ot = OT_Ind8; break;
     case VT_16: ot = OT_Ind16; break;
     case VT_32: ot = OT_Ind32; break;
     case VT_64: ot = OT_Ind64; break;
@@ -221,6 +223,34 @@ int parseModRM(uint8_t* p, ValType vt,
     if (o1->ireg == Reg_None) o1->scale = 0;
 
     return o;
+}
+
+// parse immediate values at <p> into operand <o>
+static
+int parseI(uint8_t* p, ValType vt, Operand* o)
+{
+    switch(vt) {
+    case VT_8:
+        o->type = OT_Imm8;
+        o->val = *p;
+        return 1;
+    case VT_16:
+        o->type = OT_Imm16;
+        o->val = *(uint16_t*)p;
+        return 2;
+    case VT_32:
+        o->type = OT_Imm32;
+        o->val = *(uint32_t*)p;
+        return 4;
+    case VT_64:
+        // operand is sign-extended from 32bit
+        o->type = OT_Imm64;
+        o->val = (int64_t)(*(int32_t*)p);
+        return 4;
+    default:
+        break;
+    }
+    assert(0);
 }
 
 
@@ -839,16 +869,26 @@ DBB* dbrew_decode(Rewriter* r, uint64_t f)
             }
             break;
 
-        case 0x11:
-            // adc r/m,r 16/32/64 (MR, dst: r/m, src: r)
+        case 0x10: // adc r/m8,r8 (MR, dst: r/m, src: r)
+        case 0x11: // adc r/m,r 16/32/64 (MR, dst: r/m, src: r)
+            if (opc == 0x10) vt = VT_8;
             off += parseModRM(fp+off, vt, rex, segOv, 0, 0, &o1, &o2, 0);
             addBinaryOp(r, a, (uint64_t)(fp + off), IT_ADC, vt, &o1, &o2);
             break;
 
-        case 0x13:
-            // adc r,r/m 16/32/64 (RM, dst: r, src: r/m)
+        case 0x12: // adc r8,r/m8 (RM, dst: r, src: r/m)
+        case 0x13: // adc r,r/m 16/32/64 (RM, dst: r, src: r/m)
+            if (opc == 0x12) vt = VT_8;
             off += parseModRM(fp+off, vt, rex, segOv, 0, 0, &o2, &o1, 0);
             addBinaryOp(r, a, (uint64_t)(fp + off), IT_ADC, vt, &o1, &o2);
+            break;
+
+        case 0x14: // adc al,imm8
+        case 0x15: // adc ax/eax/rax,imm16/32/64
+            if (opc == 0x14) vt = VT_8;
+            off += parseI(fp+off, vt, &o1);
+            addBinaryOp(r, a, (uint64_t)(fp + off), IT_ADC, vt,
+                        getRegOp(vt, Reg_AX), &o1);
             break;
 
         case 0x19:
