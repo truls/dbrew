@@ -383,6 +383,92 @@ void decode0F(Rewriter* r, DContext* cxt, ValType vt, bool* exit)
         attachPassthrough(ii, cxt->ps, OE_MR, SC_None, 0x0F, 0x11, -1);
         break;
 
+    case 0x12:
+        switch(cxt->ps) {
+        case PS_66:
+            // movlpd xmm,m64 (RM) - mov DP FP from m64 to low quadword of xmm
+            it = IT_MOVLPD; break;
+        case PS_None:
+            // movlps xmm,m64 (RM) - mov 2SP FP from m64 to low quadword of xmm
+            it = IT_MOVLPS; break;
+        default: assert(0);
+        }
+        parseModRM(cxt, VT_64, RT_VV, &o2, &o1, 0);
+        ii = addBinaryOp(r, cxt, it, VT_Implicit, &o1, &o2);
+        attachPassthrough(ii, cxt->ps, OE_RM, SC_None, 0x0F, 0x12, -1);
+        break;
+
+    case 0x13:
+        switch(cxt->ps) {
+        case PS_66:
+            // movlpd m64,xmm (MR) - mov DP FP from low quadword of xmm to m64
+            it = IT_MOVLPD; break;
+        case PS_None:
+            // movlps m64,xmm (MR) - mov 2SP FP from low quadword of xmm to m64
+            it = IT_MOVLPS; break;
+        default: assert(0);
+        }
+        parseModRM(cxt, VT_64, RT_VV, &o1, &o2, 0);
+        ii = addBinaryOp(r, cxt, it, VT_Implicit, &o1, &o2);
+        attachPassthrough(ii, cxt->ps, OE_MR, SC_None, 0x0F, 0x13, -1);
+        break;
+
+    case 0x14:
+        switch(cxt->ps) {
+        case PS_66:   // unpcklpd xmm1,xmm2/m128 (RM)
+            it = IT_UNPCKLPD; break;
+        case PS_None: // unpcklps xmm1,xmm2/m128 (RM)
+            it = IT_UNPCKLPS; break;
+        default: assert(0);
+        }
+        parseModRM(cxt, VT_128, RT_VV, &o2, &o1, 0);
+        ii = addBinaryOp(r, cxt, it, VT_Implicit, &o1, &o2);
+        attachPassthrough(ii, cxt->ps, OE_RM, SC_None, 0x0F, 0x14, -1);
+        break;
+
+    case 0x15:
+        switch(cxt->ps) {
+        case PS_66:   // unpckhpd xmm1,xmm2/m128 (RM)
+            it = IT_UNPCKHPD; break;
+        case PS_None: // unpckhps xmm1,xmm2/m128 (RM)
+            it = IT_UNPCKHPS; break;
+        default: assert(0);
+        }
+        parseModRM(cxt, VT_128, RT_VV, &o2, &o1, 0);
+        ii = addBinaryOp(r, cxt, it, VT_Implicit, &o1, &o2);
+        attachPassthrough(ii, cxt->ps, OE_RM, SC_None, 0x0F, 0x15, -1);
+        break;
+
+    case 0x16:
+        switch(cxt->ps) {
+        case PS_66:
+            // movhpd xmm,m64 (RM) - mov DP FP from m64 to high quadword of xmm
+            it = IT_MOVHPD; break;
+        case PS_None:
+            // movhps xmm,m64 (RM) - mov 2SP FP from m64 to high quadword of xmm
+            it = IT_MOVHPS; break;
+        default: assert(0);
+        }
+        parseModRM(cxt, VT_64, RT_VV, &o2, &o1, 0);
+        ii = addBinaryOp(r, cxt, it, VT_Implicit, &o1, &o2);
+        attachPassthrough(ii, cxt->ps, OE_RM, SC_None, 0x0F, 0x16, -1);
+        break;
+
+    case 0x17:
+        switch(cxt->ps) {
+        case PS_66:
+            // movhpd m64,xmm (MR) - mov DP FP from high quadword of xmm to m64
+            it = IT_MOVHPD; break;
+        case PS_None:
+            // movhps m64,xmm (MR) - mov 2SP FP from high quadword of xmm to m64
+            it = IT_MOVHPS; break;
+        default: assert(0);
+        }
+        parseModRM(cxt, VT_64, RT_VV, &o1, &o2, 0);
+        ii = addBinaryOp(r, cxt, it, VT_Implicit, &o1, &o2);
+        attachPassthrough(ii, cxt->ps, OE_MR, SC_None, 0x0F, 0x17, -1);
+        break;
+
     case 0x1F:
         parseModRM(cxt, vt, RT_G, &o1, 0, &digit);
         switch(digit) {
@@ -707,6 +793,14 @@ void decode0F(Rewriter* r, DContext* cxt, ValType vt, bool* exit)
         parseModRM(cxt, vt, RT_VV, &o2, &o1, 0);
         ii = addBinaryOp(r, cxt, IT_PADDQ, VT_Implicit, &o1, &o2);
         attachPassthrough(ii, cxt->ps, OE_RM, SC_None, 0x0F, 0xD4, -1);
+        break;
+
+    case 0xD6:
+        // movq xmm2/m64,xmm1 (MR)
+        assert(cxt->ps == PS_66);
+        parseModRM(cxt, VT_64, RT_VV, &o1, &o2, 0);
+        ii = addBinaryOp(r, cxt, IT_MOVQ, VT_Implicit, &o1, &o2);
+        attachPassthrough(ii, cxt->ps, OE_MR, SC_None, 0x0F, 0xD6, -1);
         break;
 
     case 0xD7:
