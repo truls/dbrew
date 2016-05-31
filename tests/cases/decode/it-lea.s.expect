@@ -1,0 +1,8 @@
+BB f1 (7 instructions):
+                  f1:  48 8d 07              lea     (%rdi),%rax
+                f1+3:  4c 8d 0f              lea     (%rdi),%r9
+                f1+6:  8d 07                 lea     (%rdi),%eax
+                f1+8:  44 8d 0f              lea     (%rdi),%r9d
+               f1+11:  66 8d 07              lea     (%rdi),%ax
+               f1+14:  66 44 8d 0f           lea     (%rdi),%r9w
+               f1+18:  c3                    ret    

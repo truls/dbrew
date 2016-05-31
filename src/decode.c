@@ -1046,10 +1046,10 @@ void decode(Rewriter* r, DContext* cxt, ValType vt, bool* exit)
         break;
 
     case 0x8D:
-        // lea r32/64,m
-        parseModRM(cxt, VT_None, RT_GG, &o2, &o1, 0);
+        // lea r16/32/64,m (RM)
+        parseModRM(cxt, vt, RT_GG, &o2, &o1, 0);
         assert(opIsInd(&o2)); // TODO: bad code error
-        addBinaryOp(r, cxt, IT_LEA, VT_None, &o1, &o2);
+        addBinaryOp(r, cxt, IT_LEA, vt, &o1, &o2);
         break;
 
     case 0x90:
