@@ -1092,6 +1092,25 @@ void decode(Rewriter* r, DContext* cxt, ValType vt, bool* exit)
         addBinaryOp(r, cxt, IT_LEA, vt, &o1, &o2);
         break;
 
+    case 0x8F:
+        parseModRM(cxt, vt, RT_G, &o1, 0, &digit);
+        switch(digit) {
+        case 0: // pop r/m 16/64
+            // default operand type is 64, not 32
+            if (vt == VT_32)
+                opOverwriteType(&o1, VT_64);
+            else
+                assert(vt == VT_16);
+            addUnaryOp(r, cxt, IT_POP, &o1);
+            break;
+
+        default:
+            addSimple(r, cxt, IT_Invalid);
+            break;
+        }
+        break;
+
+
     case 0x90:
         // nop
         addSimple(r, cxt, IT_NOP);
@@ -1284,6 +1303,15 @@ void decode(Rewriter* r, DContext* cxt, ValType vt, bool* exit)
             opOverwriteType(&o1, VT_64);
             addUnaryOp(r, cxt, IT_JMPI, &o1);
             *exit = true;
+            break;
+
+        case 6: // push r/m 16/64
+            // default operand type is 64, not 32
+            if (vt == VT_32)
+                opOverwriteType(&o1, VT_64);
+            else
+                assert(vt == VT_16);
+            addUnaryOp(r, cxt, IT_PUSH, &o1);
             break;
 
         default:
