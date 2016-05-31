@@ -24,8 +24,11 @@ f1:
     add r9b, [rdi]
     add al, 0x10
     add ax, 0x1000
+    add ax, 0x10
     add eax, 0xabcdef00
+    add eax, 0x10
     add rax, 0x0bcdef00
+    add rax, 0x10
     add byte ptr [rax], 0x10
     add word ptr [rax], 0x310
     add dword ptr [rax], 0x310
