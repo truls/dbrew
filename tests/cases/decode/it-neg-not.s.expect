@@ -1,0 +1,26 @@
+BB f1 (25 instructions):
+                  f1:  f6 1a                 negb    (%rdx)
+                f1+2:  f6 d8                 neg     %al
+                f1+4:  41 f6 db              neg     %r11b
+                f1+7:  66 f7 1a              negw    (%rdx)
+               f1+10:  66 f7 d8              neg     %ax
+               f1+13:  66 41 f7 db           neg     %r11w
+               f1+17:  f7 1a                 negl    (%rdx)
+               f1+19:  f7 d8                 neg     %eax
+               f1+21:  41 f7 db              neg     %r11d
+               f1+24:  48 f7 1a              negq    (%rdx)
+               f1+27:  48 f7 d8              neg     %rax
+               f1+30:  49 f7 db              neg     %r11
+               f1+33:  f6 12                 notb    (%rdx)
+               f1+35:  f6 d0                 not     %al
+               f1+37:  41 f6 d3              not     %r11b
+               f1+40:  66 f7 12              notw    (%rdx)
+               f1+43:  66 f7 d0              not     %ax
+               f1+46:  66 41 f7 d3           not     %r11w
+               f1+50:  f7 12                 notl    (%rdx)
+               f1+52:  f7 d0                 not     %eax
+               f1+54:  41 f7 d3              not     %r11d
+               f1+57:  48 f7 12              notq    (%rdx)
+               f1+60:  48 f7 d0              not     %rax
+               f1+63:  49 f7 d3              not     %r11
+               f1+66:  c3                    ret    

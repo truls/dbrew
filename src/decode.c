@@ -1207,6 +1207,10 @@ void decode(Rewriter* r, DContext* cxt, ValType vt, bool* exit)
         vt = VT_8;
         parseModRM(cxt, vt, RT_GG, &o1, 0, &digit);
         switch(digit) {
+        case 2: // not r/m8
+            addUnaryOp(r, cxt, IT_NOT, &o1); break;
+        case 3: // neg r/m8
+            addUnaryOp(r, cxt, IT_NEG, &o1); break;
         case 4: // mul r/m8 (unsigned mul ax by r/m8)
             addUnaryOp(r, cxt, IT_MUL, &o1); break;
         case 5: // imul r/m8 (signed mul ax/eax/rax by r/m8)
