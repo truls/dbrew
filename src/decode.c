@@ -1161,18 +1161,17 @@ void decode(Rewriter* r, DContext* cxt, ValType vt, bool* exit)
         break;
 
     case 0x83:
-        vt = (cxt->rex & REX_MASK_W) ? VT_64 : VT_32;
         parseModRM(cxt, vt, RT_GG, &o1, 0, &digit);
         // add/or/... r/m and sign-extended imm8
         switch(digit) {
-        case 0: it = IT_ADD; break; // 83/0: add r/m 32/64, imm8
-        case 1: it = IT_OR;  break; // 83/1: or  r/m 32/64, imm8
-        case 2: it = IT_ADC; break; // 83/2: adc r/m 32/64, imm8
-        case 3: it = IT_SBB; break; // 83/3: sbb r/m 32/64, imm8
-        case 4: it = IT_AND; break; // 83/4: and r/m 32/64, imm8
-        case 5: it = IT_SUB; break; // 83/5: sub r/m 32/64, imm8
-        case 6: it = IT_XOR; break; // 83/6: xor r/m 32/64, imm8
-        case 7: it = IT_CMP; break; // 83/7: cmp r/m 32/64, imm8
+        case 0: it = IT_ADD; break; // 83/0: add r/m 16/32/64, imm8
+        case 1: it = IT_OR;  break; // 83/1: or  r/m 16/32/64, imm8
+        case 2: it = IT_ADC; break; // 83/2: adc r/m 16/32/64, imm8
+        case 3: it = IT_SBB; break; // 83/3: sbb r/m 16/32/64, imm8
+        case 4: it = IT_AND; break; // 83/4: and r/m 16/32/64, imm8
+        case 5: it = IT_SUB; break; // 83/5: sub r/m 16/32/64, imm8
+        case 6: it = IT_XOR; break; // 83/6: xor r/m 16/32/64, imm8
+        case 7: it = IT_CMP; break; // 83/7: cmp r/m 16/32/64, imm8
         default: assert(0);
         }
         parseImm(cxt, VT_8, &o2, false);

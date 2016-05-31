@@ -17,7 +17,7 @@ BB f1 (28 instructions):
                f1+43:  44 02 0f              add     (%rdi),%r9b
                f1+46:  04 10                 add     $0x10,%al
                f1+48:  66 05 00 10           add     $0x1000,%ax
-               f1+52:  66 83 c0 10           add     $0x10,%eax
+               f1+52:  66 83 c0 10           add     $0x10,%ax
                f1+56:  05 00 ef cd ab        add     $0xabcdef00,%eax
                f1+61:  83 c0 10              add     $0x10,%eax
                f1+64:  48 05 00 ef cd 0b     add     $0xbcdef00,%rax
