@@ -1,0 +1,5 @@
+BB f1 (4 instructions):
+                  f1:  90                    nop    
+                f1+1:  66 0f 1f c7           nop     %di
+                f1+5:  0f 1f c7              nop     %edi
+                f1+8:  c3                    ret    

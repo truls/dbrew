@@ -384,10 +384,11 @@ void decode0F(Rewriter* r, DContext* cxt, ValType vt, bool* exit)
         break;
 
     case 0x1F:
-        parseModRM(cxt, VT_None, RT_GG, &o1, 0, &digit);
+        parseModRM(cxt, vt, RT_G, &o1, 0, &digit);
         switch(digit) {
         case 0:
-            // 0F 1F /0: nop r/m 32
+            // 0F 1F /0: nop r/m 16/32
+            assert((vt == VT_16) || (vt == VT_32));
             addUnaryOp(r, cxt, IT_NOP, &o1);
             break;
 
