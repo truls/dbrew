@@ -326,18 +326,928 @@ void decodePrefixes(DContext* cxt)
     }
 }
 
+// Decode multi-byte opcode starting with 0x0F.
+// Parameters:
+//  <vt> default operand type, <exit>: set to true for control flow change
+static
+void decode0F(Rewriter* r, DContext* cxt, ValType vt, bool* exit)
+{
+    int opc2, digit;
+    Operand o1, o2;
+    OperandEncoding oe;
+    InstrType it;
+    Instr* ii;
+
+    opc2 = cxt->fp[cxt->off++];
+    switch(opc2) {
+    case 0xAF:
+        // imul r 32/64, r/m 32/64 (RM, dst: r)
+        vt = (cxt->rex & REX_MASK_W) ? VT_64 : VT_32;
+        parseModRM(cxt, vt, RT_GG, &o2, &o1, 0);
+        addBinaryOp(r, cxt, IT_IMUL, vt, &o1, &o2);
+        break;
+
+    case 0x10:
+        switch(cxt->ps) {
+        case PS_F3:   // movss xmm1,xmm2/m32 (RM)
+            vt = VT_32;  it = IT_MOVSS; break;
+        case PS_F2:   // movsd xmm1,xmm2/m64 (RM)
+            vt = VT_64;  it = IT_MOVSD; break;
+        case PS_None: // movups xmm1,xmm2/m128 (RM)
+            vt = VT_128; it = IT_MOVUPS; break;
+        case PS_66:   // movupd xmm1,xmm2/m128 (RM)
+            vt = VT_128; it = IT_MOVUPD; break;
+        default: assert(0);
+        }
+        parseModRM(cxt, vt, RT_VV, &o2, &o1, 0);
+        ii = addBinaryOp(r, cxt, it, VT_Implicit, &o1, &o2);
+        attachPassthrough(ii, cxt->ps, OE_RM, SC_None, 0x0F, 0x10, -1);
+        break;
+
+    case 0x11:
+        switch(cxt->ps) {
+        case PS_F3:   // movss xmm1/m32,xmm2 (MR)
+            vt = VT_32;  it = IT_MOVSS; break;
+        case PS_F2:   // movsd xmm1/m64,xmm2 (MR)
+            vt = VT_64;  it = IT_MOVSD; break;
+        case PS_None: // movups xmm1/m128,xmm2 (MR)
+            vt = VT_128; it = IT_MOVUPS; break;
+        case PS_66:   // movupd xmm1/m128,xmm2 (MR)
+            vt = VT_128; it = IT_MOVUPD; break;
+        default: assert(0);
+        }
+        parseModRM(cxt, vt, RT_VV, &o1, &o2, 0);
+        ii = addBinaryOp(r, cxt, it, VT_Implicit, &o1, &o2);
+        attachPassthrough(ii, cxt->ps, OE_MR, SC_None, 0x0F, 0x11, -1);
+        break;
+
+    case 0x1F:
+        parseModRM(cxt, VT_None, RT_GG, &o1, 0, &digit);
+        switch(digit) {
+        case 0:
+            // 0F 1F /0: nop r/m 32
+            addUnaryOp(r, cxt, IT_NOP, &o1);
+            break;
+
+        default:
+            addSimple(r, cxt, IT_Invalid);
+            break;
+        }
+        break;
+
+    case 0x28:
+        switch(cxt->ps) {
+        case PS_None: // movaps xmm1,xmm2/m128 (RM)
+            vt = VT_128; it = IT_MOVAPS; break;
+        case PS_66:   // movapd xmm1,xmm2/m128 (RM)
+            vt = VT_128; it = IT_MOVAPD; break;
+        default: assert(0);
+        }
+        parseModRM(cxt, vt, RT_VV, &o2, &o1, 0);
+        ii = addBinaryOp(r, cxt, it, VT_Implicit, &o1, &o2);
+        attachPassthrough(ii, cxt->ps, OE_RM, SC_None, 0x0F, 0x28, -1);
+        break;
+
+    case 0x29:
+        switch(cxt->ps) {
+        case PS_None: // movaps xmm2/m128,xmm1 (MR)
+            vt = VT_128; it = IT_MOVAPS; break;
+        case PS_66:   // movapd xmm2/m128,xmm1 (MR)
+            vt = VT_128; it = IT_MOVAPD; break;
+        default: assert(0);
+        }
+        parseModRM(cxt, vt, RT_VV, &o1, &o2, 0);
+        ii = addBinaryOp(r, cxt, it, VT_Implicit, &o1, &o2);
+        attachPassthrough(ii, cxt->ps, OE_RM, SC_None, 0x0F, 0x29, -1);
+        break;
+
+    case 0x2E:
+        assert(cxt->ps & PS_66);
+        // ucomisd xmm1,xmm2/m64 (RM)
+        parseModRM(cxt, VT_64, RT_VV, &o2, &o1, 0);
+        ii = addBinaryOp(r, cxt, IT_UCOMISD, VT_Implicit, &o1, &o2);
+        attachPassthrough(ii, PS_66, OE_RM, SC_None, 0x0F, 0x2E, -1);
+        break;
+
+    case 0x40: // cmovo   r,r/m 16/32/64
+    case 0x41: // cmovno  r,r/m 16/32/64
+    case 0x42: // cmovc   r,r/m 16/32/64
+    case 0x43: // cmovnc  r,r/m 16/32/64
+    case 0x44: // cmovz   r,r/m 16/32/64
+    case 0x45: // cmovnz  r,r/m 16/32/64
+    case 0x46: // cmovbe  r,r/m 16/32/64
+    case 0x47: // cmova   r,r/m 16/32/64
+    case 0x48: // cmovs   r,r/m 16/32/64
+    case 0x49: // cmovns  r,r/m 16/32/64
+    case 0x4A: // cmovp   r,r/m 16/32/64
+    case 0x4B: // cmovnp  r,r/m 16/32/64
+    case 0x4C: // cmovl   r,r/m 16/32/64
+    case 0x4D: // cmovge  r,r/m 16/32/64
+    case 0x4E: // cmovle  r,r/m 16/32/64
+    case 0x4F: // cmovg   r,r/m 16/32/64
+        switch (opc2) {
+        case 0x40: it = IT_CMOVO; break;
+        case 0x41: it = IT_CMOVNO; break;
+        case 0x42: it = IT_CMOVC; break;
+        case 0x43: it = IT_CMOVNC; break;
+        case 0x44: it = IT_CMOVZ; break;
+        case 0x45: it = IT_CMOVNZ; break;
+        case 0x46: it = IT_CMOVBE; break;
+        case 0x47: it = IT_CMOVA; break;
+        case 0x48: it = IT_CMOVS; break;
+        case 0x49: it = IT_CMOVNS; break;
+        case 0x4A: it = IT_CMOVP; break;
+        case 0x4B: it = IT_CMOVNP; break;
+        case 0x4C: it = IT_CMOVL; break;
+        case 0x4D: it = IT_CMOVGE; break;
+        case 0x4E: it = IT_CMOVLE; break;
+        case 0x4F: it = IT_CMOVG; break;
+        default: assert(0);
+        }
+        parseModRM(cxt, vt, RT_GG, &o2, &o1, 0);
+        addBinaryOp(r, cxt, it, vt, &o1, &o2);
+        break;
+
+    case 0x57:
+        // xorps xmm1,xmm2/m64 (RM)
+        parseModRM(cxt, VT_128, RT_VV, &o2, &o1, 0);
+        ii = addBinaryOp(r, cxt, IT_XORPS, VT_Implicit, &o1, &o2);
+        attachPassthrough(ii, PS_None, OE_RM, SC_None, 0x0F, 0x57, -1);
+        break;
+
+    case 0x58:
+        switch(cxt->ps) {
+        case PS_F3:   // addss xmm1,xmm2/m32 (RM)
+            vt = VT_32;  it = IT_ADDSS; break;
+        case PS_F2:   // addsd xmm1,xmm2/m64 (RM)
+            vt = VT_64;  it = IT_ADDSD; break;
+        case PS_None: // addps xmm1,xmm2/m128 (RM)
+            vt = VT_128; it = IT_ADDPS; break;
+        case PS_66:   // addpd xmm1,xmm2/m128 (RM)
+            vt = VT_128; it = IT_ADDPD; break;
+        default: assert(0);
+        }
+        parseModRM(cxt, vt, RT_VV, &o2, &o1, 0);
+        ii = addBinaryOp(r, cxt, it, VT_Implicit, &o1, &o2);
+        attachPassthrough(ii, cxt->ps, OE_RM, SC_None, 0x0F, 0x58, -1);
+        break;
+
+    case 0x59:
+        switch(cxt->ps) {
+        case PS_F3:   // mulss xmm1,xmm2/m32 (RM)
+            vt = VT_32;  it = IT_MULSS; break;
+        case PS_F2:   // mulsd xmm1,xmm2/m64 (RM)
+            vt = VT_64;  it = IT_MULSD; break;
+        case PS_None: // mulps xmm1,xmm2/m128 (RM)
+            vt = VT_128; it = IT_MULPS; break;
+        case PS_66:   // mulpd xmm1,xmm2/m128 (RM)
+            vt = VT_128; it = IT_MULPD; break;
+        default: assert(0);
+        }
+        parseModRM(cxt, vt, RT_VV, &o2, &o1, 0);
+        ii = addBinaryOp(r, cxt, it, VT_Implicit, &o1, &o2);
+        attachPassthrough(ii, cxt->ps, OE_RM, SC_None, 0x0F, 0x59, -1);
+        break;
+
+    case 0x5C:
+        switch(cxt->ps) {
+        case PS_F3:   // subss xmm1,xmm2/m32 (RM)
+            vt = VT_32;  it = IT_SUBSS; break;
+        case PS_F2:   // subsd xmm1,xmm2/m64 (RM)
+            vt = VT_64;  it = IT_SUBSD; break;
+        case PS_None: // subps xmm1,xmm2/m128 (RM)
+            vt = VT_128; it = IT_SUBPS; break;
+        case PS_66:   // subpd xmm1,xmm2/m128 (RM)
+            vt = VT_128; it = IT_SUBPD; break;
+        default: assert(0);
+        }
+        parseModRM(cxt, vt, RT_VV, &o2, &o1, 0);
+        ii = addBinaryOp(r, cxt, it, VT_Implicit, &o1, &o2);
+        attachPassthrough(ii, cxt->ps, OE_RM, SC_None, 0x0F, 0x5C, -1);
+        break;
+
+    case 0x6E:
+        if (cxt->ps == PS_66) {
+            // movd/q xmm,r/m 32/64 (RM)
+            vt = (cxt->rex & REX_MASK_W) ? VT_64 : VT_32;
+            it = (cxt->rex & REX_MASK_W) ? IT_MOVQ : IT_MOVD;
+            parseModRM(cxt, vt, RT_GV, &o2, &o1, 0);
+        } else {
+            assert(0);
+        }
+        ii = addBinaryOp(r, cxt, it, VT_Implicit, &o1, &o2);
+        attachPassthrough(ii, cxt->ps, OE_RM, SC_dstDyn, 0x0F, 0x6E, -1);
+        break;
+
+    case 0x6F:
+        switch(cxt->ps) {
+        case PS_F3:
+            // movdqu xmm1,xmm2/m128 (RM): move unaligned dqw xmm2 -> xmm1
+            vt = VT_128; it = IT_MOVDQU; break;
+        case PS_66:
+            // movdqa xmm1,xmm2/m128 (RM): move aligned dqw xmm2 -> xmm1
+            vt = VT_128; it = IT_MOVDQA; break;
+        case PS_None:
+            // movq mm1,mm2/m64 (RM): Move quadword from mm/m64 to mm.
+            vt = VT_64;  it = IT_MOVQ; break;
+        default: assert(0);
+        }
+        parseModRM(cxt, vt, RT_VV, &o2, &o1, 0);
+        ii = addBinaryOp(r, cxt, it, VT_Implicit, &o1, &o2);
+        attachPassthrough(ii, cxt->ps, OE_RM, SC_None, 0x0F, 0x6F, -1);
+        break;
+
+    case 0x74:
+        // pcmpeqb mm,mm/m 64/128 (RM): compare packed bytes
+        switch(cxt->ps) {
+        case PS_66:   vt = VT_128; break;
+        case PS_None: vt = VT_64; break;
+        default: assert(0);
+        }
+        parseModRM(cxt, vt, RT_VV, &o2, &o1, 0);
+        ii = addBinaryOp(r, cxt, IT_PCMPEQB, VT_Implicit, &o1, &o2);
+        attachPassthrough(ii, cxt->ps, OE_RM, SC_None, 0x0F, 0x74, -1);
+        break;
+
+    case 0x7E:
+        switch(cxt->ps) {
+        case PS_66:
+            // movd/q r/m 32/64,xmm (MR)
+            oe = OE_MR;
+            vt = (cxt->rex & REX_MASK_W) ? VT_64 : VT_32;
+            it = (cxt->rex & REX_MASK_W) ? IT_MOVQ : IT_MOVD;
+            parseModRM(cxt, vt, RT_GV, &o1, &o2, 0);
+            break;
+        case PS_F3:
+            // movq xmm1, xmm2/m64 (RM) - move from xmm2/m64 to xmm1
+            oe = OE_RM;
+            vt = VT_64;
+            it = IT_MOVQ;
+            parseModRM(cxt, vt, RT_VV, &o2, &o1, 0);
+            break;
+        default: assert(0);
+        }
+        ii = addBinaryOp(r, cxt, it, VT_Implicit, &o1, &o2);
+        attachPassthrough(ii, cxt->ps, oe, SC_dstDyn, 0x0F, 0x7E, -1);
+        break;
+
+    case 0x7F:
+        switch(cxt->ps) {
+        case PS_F3:
+            // movdqu xmm2/m128,xmm1 (MR)
+            // - move unaligned double quadword from xmm1 to xmm2/m128.
+            vt = VT_128; it = IT_MOVDQU; break;
+        case PS_66:
+            // movdqa xmm2/m128,xmm1 (MR)
+            // - move aligned double quadword from xmm1 to xmm2/m128.
+            vt = VT_128; it = IT_MOVDQA; break;
+        default: assert(0);
+        }
+        parseModRM(cxt, vt, RT_VV, &o1, &o2, 0);
+        ii = addBinaryOp(r, cxt, it, VT_Implicit, &o1, &o2);
+        attachPassthrough(ii, cxt->ps, OE_MR, SC_None, 0x0F, 0x7F, -1);
+        break;
+
+    case 0x80: // jo rel32
+    case 0x81: // jno rel32
+    case 0x82: // jc/jb/jnae rel32
+    case 0x83: // jnc/jnb/jae rel32
+    case 0x84: // jz/je rel32
+    case 0x85: // jnz/jne rel32
+    case 0x86: // jbe/jna rel32
+    case 0x87: // ja/jnbe rel32
+    case 0x88: // js rel32
+    case 0x89: // jns rel32
+    case 0x8A: // jp/jpe rel32
+    case 0x8B: // jnp/jpo rel32
+    case 0x8C: // jl/jnge rel32
+    case 0x8D: // jge/jnl rel32
+    case 0x8E: // jle/jng rel32
+    case 0x8F: // jg/jnle rel32
+        o1.type = OT_Imm64;
+        o1.val = (uint64_t) (cxt->fp + cxt->off + 4 + *(int32_t*)(cxt->fp + cxt->off));
+        cxt->off += 4;
+        switch (opc2) {
+        case 0x80: it = IT_JO; break;
+        case 0x81: it = IT_JNO; break;
+        case 0x82: it = IT_JC; break;
+        case 0x83: it = IT_JNC; break;
+        case 0x84: it = IT_JZ; break;
+        case 0x85: it = IT_JNZ; break;
+        case 0x86: it = IT_JBE; break;
+        case 0x87: it = IT_JA; break;
+        case 0x88: it = IT_JS; break;
+        case 0x89: it = IT_JNS; break;
+        case 0x8A: it = IT_JP; break;
+        case 0x8B: it = IT_JNP; break;
+        case 0x8C: it = IT_JL; break;
+        case 0x8D: it = IT_JGE; break;
+        case 0x8E: it = IT_JLE; break;
+        case 0x8F: it = IT_JG; break;
+        default: assert(0);
+        }
+        it = IT_JO + (opc2 & 0xf);
+        ii = addUnaryOp(r, cxt, it, &o1);
+        ii->vtype = VT_Implicit; // jump address size is implicit
+        *exit = true;
+        break;
+
+    case 0xB6:
+        // movzbl r32/64,r/m8 (RM): move byte to (d)word, zero-extend
+        vt = (cxt->rex & REX_MASK_W) ? VT_64 : VT_32;
+        parseModRM(cxt, vt, RT_GG, &o2, &o1, 0);
+        opOverwriteType(&o2, VT_8); // src, r/m8
+        addBinaryOp(r, cxt, IT_MOVZBL, vt, &o1, &o2);
+        break;
+
+    case 0xBC:
+        // bsf r,r/m 32/64 (RM): bit scan forward
+        vt = (cxt->rex & REX_MASK_W) ? VT_64 : VT_32;
+        parseModRM(cxt, vt, RT_GG, &o2, &o1, 0);
+        addBinaryOp(r, cxt, IT_BSF, vt, &o1, &o2);
+        break;
+
+    case 0xD4:
+        // paddq mm1, mm2/m64 (RM)
+        // - add quadword integer mm2/m64 to mm1
+        // paddq xmm1, xmm2/m64 (RM)
+        // - add packed quadword xmm2/m128 to xmm1
+        vt = (cxt->ps & PS_66) ? VT_128 : VT_64;
+        parseModRM(cxt, vt, RT_VV, &o2, &o1, 0);
+        ii = addBinaryOp(r, cxt, IT_PADDQ, VT_Implicit, &o1, &o2);
+        attachPassthrough(ii, cxt->ps, OE_RM, SC_None, 0x0F, 0xD4, -1);
+        break;
+
+    case 0xD7:
+        // pmovmskb r,mm 64/128 (RM): minimum of packed bytes
+        vt = (cxt->ps & PS_66) ? VT_128 : VT_64;
+        parseModRM(cxt, vt, RT_VG, &o2, &o1, 0);
+        opOverwriteType(&o1, VT_32); // result always 32bit
+        ii = addBinaryOp(r, cxt, IT_PMOVMSKB, VT_32, &o1, &o2);
+        attachPassthrough(ii, (PrefixSet)(cxt->ps & PS_66), OE_RM, SC_dstDyn,
+                          0x0F, 0xD7, -1);
+        break;
+
+    case 0xDA:
+        // pminub mm,mm/m 64/128 (RM): minimum of packed bytes
+        vt = (cxt->ps & PS_66) ? VT_128 : VT_64;
+        parseModRM(cxt, vt, RT_VV, &o2, &o1, 0);
+        ii = addBinaryOp(r, cxt, IT_PMINUB, VT_Implicit, &o1, &o2);
+        attachPassthrough(ii, (PrefixSet)(cxt->ps & PS_66), OE_RM, SC_None,
+                          0x0F, 0xDA, -1);
+        break;
+
+
+    case 0xEF:
+        // pxor xmm1, xmm2/m 64/128 (RM)
+        vt = (cxt->ps & PS_66) ? VT_128 : VT_64;
+        parseModRM(cxt, vt, RT_VV, &o2, &o1, 0);
+        ii = addBinaryOp(r, cxt, IT_PXOR, VT_Implicit, &o1, &o2);
+        attachPassthrough(ii, (PrefixSet)(cxt->ps & PS_66), OE_RM, SC_None,
+                          0x0F, 0xEF, -1);
+        break;
+
+    default:
+        addSimple(r, cxt, IT_Invalid);
+        break;
+    }
+}
+
+// Decode instruction with parsed prefixes.
+// Parameters:
+//  <vt> default operand type, <exit>: set to true for control flow change
+static
+void decode(Rewriter* r, DContext* cxt, ValType vt, bool* exit)
+{
+    int opc, digit;
+    Operand o1, o2, o3;
+    Reg reg;
+    InstrType it;
+    Instr* ii;
+
+    opc = cxt->fp[cxt->off++];
+    switch(opc) {
+
+    case 0x00: // add r/m8,r8 (MR, dst: r/m, src: r)
+    case 0x01: // add r/m,r 16/32/64 (MR, dst: r/m, src: r)
+        if (opc == 0x00) vt = VT_8;
+        parseModRM(cxt, vt, RT_GG, &o1, &o2, 0);
+        addBinaryOp(r, cxt, IT_ADD, vt, &o1, &o2);
+        break;
+
+    case 0x02: // add r8,r/m8 (RM, dst: r, src: r/m)
+    case 0x03: // add r,r/m 16/32/64 (RM, dst: r, src: r/m)
+        if (opc == 0x02) vt = VT_8;
+        parseModRM(cxt, vt, RT_GG, &o2, &o1, 0);
+        addBinaryOp(r, cxt, IT_ADD, vt, &o1, &o2);
+        break;
+
+    case 0x04: // add al,imm8
+    case 0x05: // add ax/eax/rax,imm16/32/64
+        if (opc == 0x04) vt = VT_8;
+        parseImm(cxt, vt, &o1);
+        addBinaryOp(r, cxt, IT_ADD, vt, getRegOp(vt, Reg_AX), &o1);
+        break;
+
+    case 0x09:
+        // or r/m,r 16/32/64 (MR, dst: r/m, src: r)
+        parseModRM(cxt, vt, RT_GG, &o1, &o2, 0);
+        addBinaryOp(r, cxt, IT_OR, vt, &o1, &o2);
+        break;
+
+    case 0x0B:
+        // or r,r/m 16/32/64 (RM, dst: r, src: r/m)
+        parseModRM(cxt, vt, RT_GG, &o2, &o1, 0);
+        addBinaryOp(r, cxt, IT_OR, vt, &o1, &o2);
+        break;
+
+    case 0x0F:
+        // multi-byte opcode
+        decode0F(r, cxt, vt, exit);
+        break;
+
+    case 0x10: // adc r/m8,r8 (MR, dst: r/m, src: r)
+    case 0x11: // adc r/m,r 16/32/64 (MR, dst: r/m, src: r)
+        if (opc == 0x10) vt = VT_8;
+        parseModRM(cxt, vt, RT_GG, &o1, &o2, 0);
+        addBinaryOp(r, cxt, IT_ADC, vt, &o1, &o2);
+        break;
+
+    case 0x12: // adc r8,r/m8 (RM, dst: r, src: r/m)
+    case 0x13: // adc r,r/m 16/32/64 (RM, dst: r, src: r/m)
+        if (opc == 0x12) vt = VT_8;
+        parseModRM(cxt, vt, RT_GG, &o2, &o1, 0);
+        addBinaryOp(r, cxt, IT_ADC, vt, &o1, &o2);
+        break;
+
+    case 0x14: // adc al,imm8
+    case 0x15: // adc ax/eax/rax,imm16/32/64
+        if (opc == 0x14) vt = VT_8;
+        parseImm(cxt, vt, &o1);
+        addBinaryOp(r, cxt, IT_ADC, vt, getRegOp(vt, Reg_AX), &o1);
+        break;
+
+    case 0x19:
+        // sbb r/m,r 16/32/64 (MR, dst: r/m, src: r)
+        parseModRM(cxt, vt, RT_GG, &o1, &o2, 0);
+        addBinaryOp(r, cxt, IT_SBB, vt, &o1, &o2);
+        break;
+
+    case 0x1B:
+        // sbb r,r/m 16/32/64 (RM, dst: r, src: r/m)
+        parseModRM(cxt, vt, RT_GG, &o2, &o1, 0);
+        addBinaryOp(r, cxt, IT_SBB, vt, &o1, &o2);
+        break;
+
+    case 0x20: // and r/m8,r8 (MR, dst: r/m, src: r)
+    case 0x21: // and r/m,r 16/32/64 (MR, dst: r/m, src: r)
+        if (opc == 0x20) vt = VT_8;
+        parseModRM(cxt, vt, RT_GG, &o1, &o2, 0);
+        addBinaryOp(r, cxt, IT_AND, vt, &o1, &o2);
+        break;
+
+    case 0x22: // and r8,r/m8 (RM, dst: r, src: r/m)
+    case 0x23: // and r,r/m 16/32/64 (RM, dst: r, src: r/m)
+        if (opc == 0x22) vt = VT_8;
+        parseModRM(cxt, vt, RT_GG, &o2, &o1, 0);
+        addBinaryOp(r, cxt, IT_AND, vt, &o1, &o2);
+        break;
+
+    case 0x24: // and al,imm8
+    case 0x25: // and eax,imm32
+        if (opc == 0x24) vt = VT_8;
+        parseImm(cxt, vt, &o1);
+        addBinaryOp(r, cxt, IT_AND, vt, getRegOp(vt, Reg_AX), &o1);
+        break;
+
+    case 0x29:
+        // sub r/m,r 16/32/64 (MR)
+        parseModRM(cxt, vt, RT_GG, &o1, &o2, 0);
+        addBinaryOp(r, cxt, IT_SUB, vt, &o1, &o2);
+        break;
+
+    case 0x2B:
+        // sub r,r/m 16/32/64 (RM)
+        parseModRM(cxt, vt, RT_GG, &o2, &o1, 0);
+        addBinaryOp(r, cxt, IT_SUB, vt, &o1, &o2);
+        break;
+
+    case 0x31:
+        // xor r/m,r 16/32/64 (MR, dst: r/m, src: r)
+        parseModRM(cxt, vt, RT_GG, &o1, &o2, 0);
+        addBinaryOp(r, cxt, IT_XOR, vt, &o1, &o2);
+        break;
+
+    case 0x33:
+        // xor r,r/m 16/32/64 (RM, dst: r, src: r/m)
+        parseModRM(cxt, vt, RT_GG, &o2, &o1, 0);
+        addBinaryOp(r, cxt, IT_XOR, vt, &o1, &o2);
+        break;
+
+    case 0x38: // cmp r/m8,r8 (RM, dst: r, src: r/m)
+    case 0x39: // cmp r/m,r 16/32/64 (MR)
+        if (opc == 0x38) vt = VT_8;
+        parseModRM(cxt, vt, RT_GG, &o1, &o2, 0);
+        addBinaryOp(r, cxt, IT_CMP, vt, &o1, &o2);
+        break;
+
+    case 0x3A: // cmp r8,r/m8 (RM, dst: r, src: r/m)
+    case 0x3B: // cmp r,r/m 16/32/64 (RM)
+        if (opc == 0x3A) vt = VT_8;
+        parseModRM(cxt, vt, RT_GG, &o2, &o1, 0);
+        addBinaryOp(r, cxt, IT_CMP, vt, &o1, &o2);
+        break;
+
+    case 0x3C: // cmp al,imm8
+    case 0x3D: // cmp eax,imm32
+        if (opc == 0x3C) vt = VT_8;
+        parseImm(cxt, vt, &o1);
+        addBinaryOp(r, cxt, IT_CMP, vt, getRegOp(vt, Reg_AX), &o1);
+        break;
+
+    case 0x50: case 0x51: case 0x52: case 0x53:
+    case 0x54: case 0x55: case 0x56: case 0x57:
+        // push
+        reg = Reg_AX + (opc - 0x50);
+        vt = VT_64;
+        if (cxt->rex & REX_MASK_B) reg += 8;
+        if (cxt->ps & PS_66) vt = VT_16;
+        addUnaryOp(r, cxt, IT_PUSH, getRegOp(vt, reg));
+        break;
+
+    case 0x58: case 0x59: case 0x5A: case 0x5B:
+    case 0x5C: case 0x5D: case 0x5E: case 0x5F:
+        // pop
+        reg = Reg_AX + (opc - 0x58);
+        vt = VT_64;
+        if (cxt->rex & REX_MASK_B) reg += 8;
+        if (cxt->ps & PS_66) vt = VT_16;
+        addUnaryOp(r, cxt, IT_POP, getRegOp(vt, reg));
+        break;
+
+    case 0x63:
+        // movsx r64,r/m32 (RM) mov with sign extension
+        assert(cxt->rex & REX_MASK_W);
+        parseModRM(cxt, VT_None, RT_GG, &o2, &o1, 0);
+        // src is 32 bit
+        switch(o2.type) {
+        case OT_Reg64: o2.type = OT_Reg32; break;
+        case OT_Ind64: o2.type = OT_Ind32; break;
+        default: assert(0);
+        }
+        addBinaryOp(r, cxt, IT_MOVSX, VT_None, &o1, &o2);
+        break;
+
+    case 0x68: // push imm32
+        parseImm(cxt, VT_32, &o1);
+        addUnaryOp(r, cxt, IT_PUSH, &o1);
+        break;
+
+    case 0x69: // imul r,r/m32/64,imm32 (RMI)
+        parseModRM(cxt, VT_None, RT_GG, &o2, &o1, 0);
+        parseImm(cxt, VT_32, &o3);
+        addTernaryOp(r, cxt, IT_IMUL, &o1, &o2, &o3);
+        break;
+
+    case 0x6A: // push imm8
+        parseImm(cxt, VT_8, &o1);
+        addUnaryOp(r, cxt, IT_PUSH, &o1);
+        break;
+
+    case 0x6B: // imul r,r/m32/64,imm8 (RMI)
+        parseModRM(cxt, VT_None, RT_GG, &o2, &o1, 0);
+        parseImm(cxt, VT_8, &o3);
+        addTernaryOp(r, cxt, IT_IMUL, &o1, &o2, &o3);
+        break;
+
+    case 0x70: // jo rel8
+    case 0x71: // jno rel8
+    case 0x72: // jc/jb/jnae rel8
+    case 0x73: // jnc/jnb/jae rel8
+    case 0x74: // jz/je rel8
+    case 0x75: // jnz/jne rel8
+    case 0x76: // jbe/jna rel8
+    case 0x77: // ja/jnbe rel8
+    case 0x78: // js rel8
+    case 0x79: // jns rel8
+    case 0x7A: // jp/jpe rel8
+    case 0x7B: // jnp/jpo rel8
+    case 0x7C: // jl/jnge rel8
+    case 0x7D: // jge/jnl rel8
+    case 0x7E: // jle/jng rel8
+    case 0x7F: // jg/jnle rel8
+        o1.type = OT_Imm64;
+        o1.val = (uint64_t) (cxt->fp + cxt->off + 1 + *(int8_t*)(cxt->fp + cxt->off));
+        cxt->off += 1;
+        switch (opc) {
+        case 0x70: it = IT_JO; break;
+        case 0x71: it = IT_JNO; break;
+        case 0x72: it = IT_JC; break;
+        case 0x73: it = IT_JNC; break;
+        case 0x74: it = IT_JZ; break;
+        case 0x75: it = IT_JNZ; break;
+        case 0x76: it = IT_JBE; break;
+        case 0x77: it = IT_JA; break;
+        case 0x78: it = IT_JS; break;
+        case 0x79: it = IT_JNS; break;
+        case 0x7A: it = IT_JP; break;
+        case 0x7B: it = IT_JNP; break;
+        case 0x7C: it = IT_JL; break;
+        case 0x7D: it = IT_JGE; break;
+        case 0x7E: it = IT_JLE; break;
+        case 0x7F: it = IT_JG; break;
+        default: assert(0);
+        }
+        ii = addUnaryOp(r, cxt, it, &o1);
+        ii->vtype = VT_Implicit; // jump address size is implicit
+        *exit = true;
+        break;
+
+    case 0x80: // add/or/... r/m and imm8
+        vt = VT_8;
+        parseModRM(cxt, vt, RT_GG, &o1, 0, &digit);
+        switch(digit) {
+        case 0: it = IT_ADD; break; // 80/0: add r/m8,imm8
+        case 1: it = IT_OR;  break; // 80/1: or  r/m8,imm8
+        case 2: it = IT_ADC; break; // 80/2: adc r/m8,imm8
+        case 3: it = IT_SBB; break; // 80/3: sbb r/m8,imm8
+        case 4: it = IT_AND; break; // 80/4: and r/m8,imm8
+        case 5: it = IT_SUB; break; // 80/5: sub r/m8,imm8
+        case 6: it = IT_XOR; break; // 80/6: xor r/m8,imm8
+        case 7: it = IT_CMP; break; // 80/7: cmp r/m8,imm8
+        default: assert(0);
+        }
+        parseImm(cxt, vt, &o2);
+        addBinaryOp(r, cxt, it, vt, &o1, &o2);
+        break;
+
+    case 0x81:
+        // default value type 16/32/64, imm16 (for 16), imm32 (for 32/64)
+        parseModRM(cxt, vt, RT_GG, &o1, 0, &digit);
+        switch(digit) {
+        case 0: it = IT_ADD; break; // 81/0: add r/m 16/32/64, imm16/32
+        case 1: it = IT_OR;  break; // 81/1: or  r/m 16/32/64, imm16/32
+        case 2: it = IT_ADC; break; // 81/2: adc r/m 16/32/64, imm16/32
+        case 3: it = IT_SBB; break; // 81/3: sbb r/m 16/32/64, imm16/32
+        case 4: it = IT_AND; break; // 81/4: and r/m 16/32/64, imm16/32
+        case 5: it = IT_SUB; break; // 81/5: sub r/m 16/32/64, imm16/32
+        case 6: it = IT_XOR; break; // 81/6: xor r/m 16/32/64, imm16/32
+        case 7: it = IT_CMP; break; // 81/7: cmp r/m 16/32/64, imm16/32
+        default: assert(0);
+        }
+        parseImm(cxt, vt, &o2);
+        addBinaryOp(r, cxt, it, vt, &o1, &o2);
+        break;
+
+    case 0x83:
+        vt = (cxt->rex & REX_MASK_W) ? VT_64 : VT_32;
+        parseModRM(cxt, vt, RT_GG, &o1, 0, &digit);
+        // add/or/... r/m and sign-extended imm8
+        switch(digit) {
+        case 0: it = IT_ADD; break; // 83/0: add r/m 32/64, imm8
+        case 1: it = IT_OR;  break; // 83/1: or  r/m 32/64, imm8
+        case 2: it = IT_ADC; break; // 83/2: adc r/m 32/64, imm8
+        case 3: it = IT_SBB; break; // 83/3: sbb r/m 32/64, imm8
+        case 4: it = IT_AND; break; // 83/4: and r/m 32/64, imm8
+        case 5: it = IT_SUB; break; // 83/5: sub r/m 32/64, imm8
+        case 6: it = IT_XOR; break; // 83/6: xor r/m 32/64, imm8
+        case 7: it = IT_CMP; break; // 83/7: cmp r/m 32/64, imm8
+        default: assert(0);
+        }
+        parseImm(cxt, VT_8, &o2);
+        addBinaryOp(r, cxt, it, vt, &o1, &o2);
+        break;
+
+    case 0x84:
+        // test r/m,r 8 (MR) - AND r8 with r/m8; set SF, ZF, PF
+        // FIXME: We do not assert on use of AH/BH/CH/DH (not supported)
+        parseModRM(cxt, VT_8, RT_GG, &o1, &o2, 0);
+        addBinaryOp(r, cxt, IT_TEST, VT_None, &o1, &o2);
+        break;
+
+    case 0x85:
+        // test r/m,r 16/32/64 (dst: r/m, src: r)
+        parseModRM(cxt, vt, RT_GG, &o1, &o2, 0);
+        addBinaryOp(r, cxt, IT_TEST, vt, &o1, &o2);
+        break;
+
+    case 0x89:
+        // mov r/m,r 16/32/64 (dst: r/m, src: r)
+        parseModRM(cxt, vt, RT_GG, &o1, &o2, 0);
+        addBinaryOp(r, cxt, IT_MOV, vt, &o1, &o2);
+        break;
+
+    case 0x8B:
+        // mov r,r/m 16/32/64 (dst: r, src: r/m)
+        parseModRM(cxt, vt, RT_GG, &o2, &o1, 0);
+        addBinaryOp(r, cxt, IT_MOV, vt, &o1, &o2);
+        break;
+
+    case 0x8D:
+        // lea r32/64,m
+        parseModRM(cxt, VT_None, RT_GG, &o2, &o1, 0);
+        assert(opIsInd(&o2)); // TODO: bad code error
+        addBinaryOp(r, cxt, IT_LEA, VT_None, &o1, &o2);
+        break;
+
+    case 0x90:
+        // nop
+        addSimple(r, cxt, IT_NOP);
+        break;
+
+    case 0x98:
+        // cltq (Intel: cdqe - sign-extend eax to rax)
+        addSimpleVType(r, cxt, IT_CLTQ,
+                       (cxt->rex & REX_MASK_W) ? VT_64 : VT_32);
+        break;
+
+    case 0x99:
+        // cqto (Intel: cqo - sign-extend rax to rdx/rax, eax to edx/eax)
+        vt = (cxt->rex & REX_MASK_W) ? VT_128 : VT_64;
+        addSimpleVType(r, cxt, IT_CQTO, vt);
+        break;
+
+    case 0xB8: case 0xB9: case 0xBA: case 0xBB:
+    case 0xBC: case 0xBD: case 0xBE: case 0xBF:
+        // MOV r32/64,imm32/64
+        o1.reg = Reg_AX + (opc - 0xB8);
+        if (cxt->rex & REX_MASK_B) o1.reg += 8;
+        if (cxt->rex & REX_MASK_W) {
+            vt = VT_64;
+            o1.type = OT_Reg64;
+            // do not use parseImm, which assumes 32bit to be extended
+            o2.type = OT_Imm64;
+            o2.val = *(uint64_t*)(cxt->fp + cxt->off);
+            cxt->off += 8;
+        }
+        else {
+            vt = VT_32;
+            o1.type = OT_Reg32;
+            parseImm(cxt, vt, &o2);
+        }
+        addBinaryOp(r, cxt, IT_MOV, vt, &o1, &o2);
+        break;
+
+    case 0xC1:
+        parseModRM(cxt, VT_None, RT_GG, &o1, 0, &digit);
+        switch(digit) {
+        case 4:
+            // shl r/m 32/64,imm8 (MI) (= sal)
+            parseImm(cxt, VT_8, &o2);
+            addBinaryOp(r, cxt, IT_SHL, VT_None, &o1, &o2);
+            break;
+
+        case 5:
+            // shr r/m 32/64,imm8 (MI)
+            parseImm(cxt, VT_8, &o2);
+            addBinaryOp(r, cxt, IT_SHR, VT_None, &o1, &o2);
+            break;
+
+        case 7:
+            // sar r/m 32/64,imm8 (MI)
+            parseImm(cxt, VT_8, &o2);
+            addBinaryOp(r, cxt, IT_SAR, VT_None, &o1, &o2);
+            break;
+
+        default:
+            addSimple(r, cxt, IT_Invalid);
+            break;
+        }
+        break;
+
+    case 0xC3:
+        // ret
+        addSimple(r, cxt, IT_RET);
+        *exit = true;
+        break;
+
+    case 0xC7:
+        parseModRM(cxt, VT_None, RT_GG, &o1, 0, &digit);
+        switch(digit) {
+        case 0:
+            // mov r/m 32/64, imm32
+            vt = (cxt->rex & REX_MASK_W) ? VT_64 : VT_32;
+            parseImm(cxt, VT_32, &o2);
+            addBinaryOp(r, cxt, IT_MOV, vt, &o1, &o2);
+            break;
+
+        default:
+            addSimple(r, cxt, IT_Invalid);
+            break;
+        }
+        break;
+
+    case 0xC9:
+        // leave ( = mov rbp,rsp + pop rbp)
+        addSimple(r, cxt, IT_LEAVE);
+        break;
+
+    case 0xE8:
+        // call rel32
+        o1.type = OT_Imm64;
+        o1.val = (uint64_t) (cxt->fp + cxt->off + 4 + *(int32_t*)(cxt->fp + cxt->off));
+        cxt->off += 4;
+        addUnaryOp(r, cxt, IT_CALL, &o1);
+        *exit = true;
+        break;
+
+    case 0xE9:
+        // jmp rel32: relative, displacement relative to next instruction
+        o1.type = OT_Imm64;
+        o1.val = (uint64_t) (cxt->fp + cxt->off + 4 + *(int32_t*)(cxt->fp + cxt->off));
+        cxt->off += 4;
+        addUnaryOp(r, cxt, IT_JMP, &o1);
+        *exit = true;
+        break;
+
+    case 0xEB:
+        // jmp rel8: relative, displacement relative to next instruction
+        o1.type = OT_Imm64;
+        o1.val = (uint64_t) (cxt->fp + cxt->off + 1 + *(int8_t*)(cxt->fp + cxt->off));
+        cxt->off += 1;
+        addUnaryOp(r, cxt, IT_JMP, &o1);
+        *exit = true;
+        break;
+
+    case 0xF7:
+        parseModRM(cxt, vt, RT_GG, &o1, 0, &digit);
+        switch(digit) {
+        case 2:
+            // not r/m 16/32/64
+            addUnaryOp(r, cxt, IT_NOT, &o1);
+            break;
+        case 3:
+            // neg r/m 16/32/64
+            addUnaryOp(r, cxt, IT_NEG, &o1);
+            break;
+        case 4:
+            // mul r/m 16/32/64 (unsigned multiplication ax/eax/rax by r/m)
+            addUnaryOp(r, cxt, IT_MUL, &o1);
+            break;
+        case 5:
+            // imul r/m 16/32/64 (signed multiplication ax/eax/rax by r/m)
+            addUnaryOp(r, cxt, IT_IMUL, &o1);
+            break;
+        case 6:
+            // div r/m 16/32/64 (unsigned divide dx:ax/edx:eax/rdx:rax by r/m)
+            addUnaryOp(r, cxt, IT_DIV, &o1);
+            break;
+        case 7:
+            // idiv r/m 16/32/64 (signed divide dx:ax/edx:eax/rdx:rax by r/m)
+            addUnaryOp(r, cxt, IT_IDIV1, &o1);
+            break;
+        default:
+            addSimple(r, cxt, IT_Invalid);
+            break;
+        }
+        break;
+
+    case 0xFF:
+        parseModRM(cxt, VT_None, RT_GG, &o1, 0, &digit);
+        switch(digit) {
+        case 0:
+            // inc r/m 32/64
+            addUnaryOp(r, cxt, IT_INC, &o1);
+            break;
+
+        case 1:
+            // dec r/m 32/64
+            addUnaryOp(r, cxt, IT_DEC, &o1);
+            break;
+
+        case 2:
+            // call r/m64
+            addUnaryOp(r, cxt, IT_CALL, &o1);
+            *exit = true;
+            break;
+
+        case 4:
+            // jmp* r/m64: absolute indirect
+            assert(cxt->rex == 0);
+            opOverwriteType(&o1, VT_64);
+            addUnaryOp(r, cxt, IT_JMPI, &o1);
+            *exit = true;
+            break;
+
+        default:
+            addSimple(r, cxt, IT_Invalid);
+            break;
+        }
+        break;
+
+    default:
+        addSimple(r, cxt, IT_Invalid);
+        break;
+    }
+}
+
 // decode the basic block starting at f (automatically triggered by emulator)
 DBB* dbrew_decode(Rewriter* r, uint64_t f)
 {
     DContext cxt;
     ValType vt;
-    int i, opc, opc2, digit, old_icount;
+    int i, old_icount;
     bool exitLoop;
-    Operand o1, o2, o3;
-    OperandEncoding oe;
-    Reg reg;
-    InstrType it;
-    Instr* ii;
     DBB* dbb;
 
     if (f == 0) return 0; // nothing to decode
@@ -372,891 +1282,8 @@ DBB* dbrew_decode(Rewriter* r, uint64_t f)
         vt = (cxt.rex & REX_MASK_W) ? VT_64 : VT_32;
         if (cxt.ps & PS_66) vt = VT_16;
 
-        opc = cxt.fp[cxt.off++];
-        switch(opc) {
+        decode(r, &cxt, vt, &exitLoop);
 
-        case 0x00: // add r/m8,r8 (MR, dst: r/m, src: r)
-        case 0x01: // add r/m,r 16/32/64 (MR, dst: r/m, src: r)
-            if (opc == 0x00) vt = VT_8;
-            parseModRM(&cxt, vt, RT_GG, &o1, &o2, 0);
-            addBinaryOp(r, &cxt, IT_ADD, vt, &o1, &o2);
-            break;
-
-        case 0x02: // add r8,r/m8 (RM, dst: r, src: r/m)
-        case 0x03: // add r,r/m 16/32/64 (RM, dst: r, src: r/m)
-            if (opc == 0x02) vt = VT_8;
-            parseModRM(&cxt, vt, RT_GG, &o2, &o1, 0);
-            addBinaryOp(r, &cxt, IT_ADD, vt, &o1, &o2);
-            break;
-
-        case 0x04: // add al,imm8
-        case 0x05: // add ax/eax/rax,imm16/32/64
-            if (opc == 0x04) vt = VT_8;
-            parseImm(&cxt, vt, &o1);
-            addBinaryOp(r, &cxt, IT_ADD, vt, getRegOp(vt, Reg_AX), &o1);
-            break;
-
-        case 0x09:
-            // or r/m,r 16/32/64 (MR, dst: r/m, src: r)
-            parseModRM(&cxt, vt, RT_GG, &o1, &o2, 0);
-            addBinaryOp(r, &cxt, IT_OR, vt, &o1, &o2);
-            break;
-
-        case 0x0B:
-            // or r,r/m 16/32/64 (RM, dst: r, src: r/m)
-            parseModRM(&cxt, vt, RT_GG, &o2, &o1, 0);
-            addBinaryOp(r, &cxt, IT_OR, vt, &o1, &o2);
-            break;
-
-        case 0x0F:
-            opc2 = cxt.fp[cxt.off++];
-            switch(opc2) {
-            case 0xAF:
-                // imul r 32/64, r/m 32/64 (RM, dst: r)
-                vt = (cxt.rex & REX_MASK_W) ? VT_64 : VT_32;
-                parseModRM(&cxt, vt, RT_GG, &o2, &o1, 0);
-                addBinaryOp(r, &cxt, IT_IMUL, vt, &o1, &o2);
-                break;
-
-            case 0x10:
-                switch(cxt.ps) {
-                case PS_F3:   // movss xmm1,xmm2/m32 (RM)
-                    vt = VT_32;  it = IT_MOVSS; break;
-                case PS_F2:   // movsd xmm1,xmm2/m64 (RM)
-                    vt = VT_64;  it = IT_MOVSD; break;
-                case PS_None: // movups xmm1,xmm2/m128 (RM)
-                    vt = VT_128; it = IT_MOVUPS; break;
-                case PS_66:   // movupd xmm1,xmm2/m128 (RM)
-                    vt = VT_128; it = IT_MOVUPD; break;
-                default: assert(0);
-                }
-                parseModRM(&cxt, vt, RT_VV, &o2, &o1, 0);
-                ii = addBinaryOp(r, &cxt, it, VT_Implicit, &o1, &o2);
-                attachPassthrough(ii, cxt.ps, OE_RM, SC_None, 0x0F, 0x10, -1);
-                break;
-
-            case 0x11:
-                switch(cxt.ps) {
-                case PS_F3:   // movss xmm1/m32,xmm2 (MR)
-                    vt = VT_32;  it = IT_MOVSS; break;
-                case PS_F2:   // movsd xmm1/m64,xmm2 (MR)
-                    vt = VT_64;  it = IT_MOVSD; break;
-                case PS_None: // movups xmm1/m128,xmm2 (MR)
-                    vt = VT_128; it = IT_MOVUPS; break;
-                case PS_66:   // movupd xmm1/m128,xmm2 (MR)
-                    vt = VT_128; it = IT_MOVUPD; break;
-                default: assert(0);
-                }
-                parseModRM(&cxt, vt, RT_VV, &o1, &o2, 0);
-                ii = addBinaryOp(r, &cxt, it, VT_Implicit, &o1, &o2);
-                attachPassthrough(ii, cxt.ps, OE_MR, SC_None, 0x0F, 0x11, -1);
-                break;
-
-            case 0x1F:
-                parseModRM(&cxt, VT_None, RT_GG, &o1, 0, &digit);
-                switch(digit) {
-                case 0:
-                    // 0F 1F /0: nop r/m 32
-                    addUnaryOp(r, &cxt, IT_NOP, &o1);
-                    break;
-
-                default:
-                    addSimple(r, &cxt, IT_Invalid);
-                    break;
-                }
-                break;
-
-            case 0x28:
-                switch(cxt.ps) {
-                case PS_None: // movaps xmm1,xmm2/m128 (RM)
-                    vt = VT_128; it = IT_MOVAPS; break;
-                case PS_66:   // movapd xmm1,xmm2/m128 (RM)
-                    vt = VT_128; it = IT_MOVAPD; break;
-                default: assert(0);
-                }
-                parseModRM(&cxt, vt, RT_VV, &o2, &o1, 0);
-                ii = addBinaryOp(r, &cxt, it, VT_Implicit, &o1, &o2);
-                attachPassthrough(ii, cxt.ps, OE_RM, SC_None, 0x0F, 0x28, -1);
-                break;
-
-            case 0x29:
-                switch(cxt.ps) {
-                case PS_None: // movaps xmm2/m128,xmm1 (MR)
-                    vt = VT_128; it = IT_MOVAPS; break;
-                case PS_66:   // movapd xmm2/m128,xmm1 (MR)
-                    vt = VT_128; it = IT_MOVAPD; break;
-                default: assert(0);
-                }
-                parseModRM(&cxt, vt, RT_VV, &o1, &o2, 0);
-                ii = addBinaryOp(r, &cxt, it, VT_Implicit, &o1, &o2);
-                attachPassthrough(ii, cxt.ps, OE_RM, SC_None, 0x0F, 0x29, -1);
-                break;
-
-            case 0x2E:
-                assert(cxt.ps & PS_66);
-                // ucomisd xmm1,xmm2/m64 (RM)
-                parseModRM(&cxt, VT_64, RT_VV, &o2, &o1, 0);
-                ii = addBinaryOp(r, &cxt, IT_UCOMISD, VT_Implicit, &o1, &o2);
-                attachPassthrough(ii, PS_66, OE_RM, SC_None, 0x0F, 0x2E, -1);
-                break;
-
-            case 0x40: // cmovo   r,r/m 16/32/64
-            case 0x41: // cmovno  r,r/m 16/32/64
-            case 0x42: // cmovc   r,r/m 16/32/64
-            case 0x43: // cmovnc  r,r/m 16/32/64
-            case 0x44: // cmovz   r,r/m 16/32/64
-            case 0x45: // cmovnz  r,r/m 16/32/64
-            case 0x46: // cmovbe  r,r/m 16/32/64
-            case 0x47: // cmova   r,r/m 16/32/64
-            case 0x48: // cmovs   r,r/m 16/32/64
-            case 0x49: // cmovns  r,r/m 16/32/64
-            case 0x4A: // cmovp   r,r/m 16/32/64
-            case 0x4B: // cmovnp  r,r/m 16/32/64
-            case 0x4C: // cmovl   r,r/m 16/32/64
-            case 0x4D: // cmovge  r,r/m 16/32/64
-            case 0x4E: // cmovle  r,r/m 16/32/64
-            case 0x4F: // cmovg   r,r/m 16/32/64
-                switch (opc2) {
-                case 0x40: it = IT_CMOVO; break;
-                case 0x41: it = IT_CMOVNO; break;
-                case 0x42: it = IT_CMOVC; break;
-                case 0x43: it = IT_CMOVNC; break;
-                case 0x44: it = IT_CMOVZ; break;
-                case 0x45: it = IT_CMOVNZ; break;
-                case 0x46: it = IT_CMOVBE; break;
-                case 0x47: it = IT_CMOVA; break;
-                case 0x48: it = IT_CMOVS; break;
-                case 0x49: it = IT_CMOVNS; break;
-                case 0x4A: it = IT_CMOVP; break;
-                case 0x4B: it = IT_CMOVNP; break;
-                case 0x4C: it = IT_CMOVL; break;
-                case 0x4D: it = IT_CMOVGE; break;
-                case 0x4E: it = IT_CMOVLE; break;
-                case 0x4F: it = IT_CMOVG; break;
-                default: assert(0);
-                }
-                parseModRM(&cxt, vt, RT_GG, &o2, &o1, 0);
-                addBinaryOp(r, &cxt, it, vt, &o1, &o2);
-                break;
-
-            case 0x57:
-                // xorps xmm1,xmm2/m64 (RM)
-                parseModRM(&cxt, VT_128, RT_VV, &o2, &o1, 0);
-                ii = addBinaryOp(r, &cxt, IT_XORPS, VT_Implicit, &o1, &o2);
-                attachPassthrough(ii, PS_None, OE_RM, SC_None, 0x0F, 0x57, -1);
-                break;
-
-            case 0x58:
-                switch(cxt.ps) {
-                case PS_F3:   // addss xmm1,xmm2/m32 (RM)
-                    vt = VT_32;  it = IT_ADDSS; break;
-                case PS_F2:   // addsd xmm1,xmm2/m64 (RM)
-                    vt = VT_64;  it = IT_ADDSD; break;
-                case PS_None: // addps xmm1,xmm2/m128 (RM)
-                    vt = VT_128; it = IT_ADDPS; break;
-                case PS_66:   // addpd xmm1,xmm2/m128 (RM)
-                    vt = VT_128; it = IT_ADDPD; break;
-                default: assert(0);
-                }
-                parseModRM(&cxt, vt, RT_VV, &o2, &o1, 0);
-                ii = addBinaryOp(r, &cxt, it, VT_Implicit, &o1, &o2);
-                attachPassthrough(ii, cxt.ps, OE_RM, SC_None, 0x0F, 0x58, -1);
-                break;
-
-            case 0x59:
-                switch(cxt.ps) {
-                case PS_F3:   // mulss xmm1,xmm2/m32 (RM)
-                    vt = VT_32;  it = IT_MULSS; break;
-                case PS_F2:   // mulsd xmm1,xmm2/m64 (RM)
-                    vt = VT_64;  it = IT_MULSD; break;
-                case PS_None: // mulps xmm1,xmm2/m128 (RM)
-                    vt = VT_128; it = IT_MULPS; break;
-                case PS_66:   // mulpd xmm1,xmm2/m128 (RM)
-                    vt = VT_128; it = IT_MULPD; break;
-                default: assert(0);
-                }
-                parseModRM(&cxt, vt, RT_VV, &o2, &o1, 0);
-                ii = addBinaryOp(r, &cxt, it, VT_Implicit, &o1, &o2);
-                attachPassthrough(ii, cxt.ps, OE_RM, SC_None, 0x0F, 0x59, -1);
-                break;
-
-            case 0x5C:
-                switch(cxt.ps) {
-                case PS_F3:   // subss xmm1,xmm2/m32 (RM)
-                    vt = VT_32;  it = IT_SUBSS; break;
-                case PS_F2:   // subsd xmm1,xmm2/m64 (RM)
-                    vt = VT_64;  it = IT_SUBSD; break;
-                case PS_None: // subps xmm1,xmm2/m128 (RM)
-                    vt = VT_128; it = IT_SUBPS; break;
-                case PS_66:   // subpd xmm1,xmm2/m128 (RM)
-                    vt = VT_128; it = IT_SUBPD; break;
-                default: assert(0);
-                }
-                parseModRM(&cxt, vt, RT_VV, &o2, &o1, 0);
-                ii = addBinaryOp(r, &cxt, it, VT_Implicit, &o1, &o2);
-                attachPassthrough(ii, cxt.ps, OE_RM, SC_None, 0x0F, 0x5C, -1);
-                break;
-
-            case 0x6E:
-                if (cxt.ps == PS_66) {
-                    // movd/q xmm,r/m 32/64 (RM)
-                    vt = (cxt.rex & REX_MASK_W) ? VT_64 : VT_32;
-                    it = (cxt.rex & REX_MASK_W) ? IT_MOVQ : IT_MOVD;
-                    parseModRM(&cxt, vt, RT_GV, &o2, &o1, 0);
-                } else {
-                    assert(0);
-                }
-                ii = addBinaryOp(r, &cxt, it, VT_Implicit, &o1, &o2);
-                attachPassthrough(ii, cxt.ps, OE_RM, SC_dstDyn, 0x0F, 0x6E, -1);
-                break;
-
-            case 0x6F:
-                switch(cxt.ps) {
-                case PS_F3:
-                    // movdqu xmm1,xmm2/m128 (RM): move unaligned dqw xmm2 -> xmm1
-                    vt = VT_128; it = IT_MOVDQU; break;
-                case PS_66:
-                    // movdqa xmm1,xmm2/m128 (RM): move aligned dqw xmm2 -> xmm1
-                    vt = VT_128; it = IT_MOVDQA; break;
-                case PS_None:
-                    // movq mm1,mm2/m64 (RM): Move quadword from mm/m64 to mm.
-                    vt = VT_64;  it = IT_MOVQ; break;
-                default: assert(0);
-                }
-                parseModRM(&cxt, vt, RT_VV, &o2, &o1, 0);
-                ii = addBinaryOp(r, &cxt, it, VT_Implicit, &o1, &o2);
-                attachPassthrough(ii, cxt.ps, OE_RM, SC_None, 0x0F, 0x6F, -1);
-                break;
-
-            case 0x74:
-                // pcmpeqb mm,mm/m 64/128 (RM): compare packed bytes
-                switch(cxt.ps) {
-                case PS_66:   vt = VT_128; break;
-                case PS_None: vt = VT_64; break;
-                default: assert(0);
-                }
-                parseModRM(&cxt, vt, RT_VV, &o2, &o1, 0);
-                ii = addBinaryOp(r, &cxt, IT_PCMPEQB, VT_Implicit, &o1, &o2);
-                attachPassthrough(ii, cxt.ps, OE_RM, SC_None, 0x0F, 0x74, -1);
-                break;
-
-            case 0x7E:
-                switch(cxt.ps) {
-                case PS_66:
-                    // movd/q r/m 32/64,xmm (MR)
-                    oe = OE_MR;
-                    vt = (cxt.rex & REX_MASK_W) ? VT_64 : VT_32;
-                    it = (cxt.rex & REX_MASK_W) ? IT_MOVQ : IT_MOVD;
-                    parseModRM(&cxt, vt, RT_GV, &o1, &o2, 0);
-                    break;
-                case PS_F3:
-                    // movq xmm1, xmm2/m64 (RM) - move from xmm2/m64 to xmm1
-                    oe = OE_RM;
-                    vt = VT_64;
-                    it = IT_MOVQ;
-                    parseModRM(&cxt, vt, RT_VV, &o2, &o1, 0);
-                    break;
-                default: assert(0);
-                }
-                ii = addBinaryOp(r, &cxt, it, VT_Implicit, &o1, &o2);
-                attachPassthrough(ii, cxt.ps, oe, SC_dstDyn, 0x0F, 0x7E, -1);
-                break;
-
-            case 0x7F:
-                switch(cxt.ps) {
-                case PS_F3:
-                    // movdqu xmm2/m128,xmm1 (MR)
-                    // - move unaligned double quadword from xmm1 to xmm2/m128.
-                    vt = VT_128; it = IT_MOVDQU; break;
-                case PS_66:
-                    // movdqa xmm2/m128,xmm1 (MR)
-                    // - move aligned double quadword from xmm1 to xmm2/m128.
-                    vt = VT_128; it = IT_MOVDQA; break;
-                default: assert(0);
-                }
-                parseModRM(&cxt, vt, RT_VV, &o1, &o2, 0);
-                ii = addBinaryOp(r, &cxt, it, VT_Implicit, &o1, &o2);
-                attachPassthrough(ii, cxt.ps, OE_MR, SC_None, opc, opc2, -1);
-                break;
-
-            case 0x80: // jo rel32
-            case 0x81: // jno rel32
-            case 0x82: // jc/jb/jnae rel32
-            case 0x83: // jnc/jnb/jae rel32
-            case 0x84: // jz/je rel32
-            case 0x85: // jnz/jne rel32
-            case 0x86: // jbe/jna rel32
-            case 0x87: // ja/jnbe rel32
-            case 0x88: // js rel32
-            case 0x89: // jns rel32
-            case 0x8A: // jp/jpe rel32
-            case 0x8B: // jnp/jpo rel32
-            case 0x8C: // jl/jnge rel32
-            case 0x8D: // jge/jnl rel32
-            case 0x8E: // jle/jng rel32
-            case 0x8F: // jg/jnle rel32
-                o1.type = OT_Imm64;
-                o1.val = (uint64_t) (cxt.fp + cxt.off + 4 + *(int32_t*)(cxt.fp + cxt.off));
-                cxt.off += 4;
-                switch (opc2) {
-                case 0x80: it = IT_JO; break;
-                case 0x81: it = IT_JNO; break;
-                case 0x82: it = IT_JC; break;
-                case 0x83: it = IT_JNC; break;
-                case 0x84: it = IT_JZ; break;
-                case 0x85: it = IT_JNZ; break;
-                case 0x86: it = IT_JBE; break;
-                case 0x87: it = IT_JA; break;
-                case 0x88: it = IT_JS; break;
-                case 0x89: it = IT_JNS; break;
-                case 0x8A: it = IT_JP; break;
-                case 0x8B: it = IT_JNP; break;
-                case 0x8C: it = IT_JL; break;
-                case 0x8D: it = IT_JGE; break;
-                case 0x8E: it = IT_JLE; break;
-                case 0x8F: it = IT_JG; break;
-                default: assert(0);
-                }
-                it = IT_JO + (opc2 & 0xf);
-                ii = addUnaryOp(r, &cxt, it, &o1);
-                ii->vtype = VT_Implicit; // jump address size is implicit
-                exitLoop = true;
-                break;
-
-            case 0xB6:
-                // movzbl r32/64,r/m8 (RM): move byte to (d)word, zero-extend
-                vt = (cxt.rex & REX_MASK_W) ? VT_64 : VT_32;
-                parseModRM(&cxt, vt, RT_GG, &o2, &o1, 0);
-                opOverwriteType(&o2, VT_8); // src, r/m8
-                addBinaryOp(r, &cxt, IT_MOVZBL, vt, &o1, &o2);
-                break;
-
-            case 0xBC:
-                // bsf r,r/m 32/64 (RM): bit scan forward
-                vt = (cxt.rex & REX_MASK_W) ? VT_64 : VT_32;
-                parseModRM(&cxt, vt, RT_GG, &o2, &o1, 0);
-                addBinaryOp(r, &cxt, IT_BSF, vt, &o1, &o2);
-                break;
-
-            case 0xD4:
-                // paddq mm1, mm2/m64 (RM)
-                // - add quadword integer mm2/m64 to mm1
-                // paddq xmm1, xmm2/m64 (RM)
-                // - add packed quadword xmm2/m128 to xmm1
-                vt = (cxt.ps & PS_66) ? VT_128 : VT_64;
-                parseModRM(&cxt, vt, RT_VV, &o2, &o1, 0);
-                ii = addBinaryOp(r, &cxt, IT_PADDQ, VT_Implicit, &o1, &o2);
-                attachPassthrough(ii, cxt.ps, OE_RM, SC_None, opc, opc2, -1);
-                break;
-
-            case 0xD7:
-                // pmovmskb r,mm 64/128 (RM): minimum of packed bytes
-                vt = (cxt.ps & PS_66) ? VT_128 : VT_64;
-                parseModRM(&cxt, vt, RT_VG, &o2, &o1, 0);
-                opOverwriteType(&o1, VT_32); // result always 32bit
-                ii = addBinaryOp(r, &cxt, IT_PMOVMSKB, VT_32, &o1, &o2);
-                attachPassthrough(ii, (PrefixSet)(cxt.ps & PS_66), OE_RM, SC_dstDyn,
-                                  0x0F, 0xD7, -1);
-                break;
-
-            case 0xDA:
-                // pminub mm,mm/m 64/128 (RM): minimum of packed bytes
-                vt = (cxt.ps & PS_66) ? VT_128 : VT_64;
-                parseModRM(&cxt, vt, RT_VV, &o2, &o1, 0);
-                ii = addBinaryOp(r, &cxt, IT_PMINUB, VT_Implicit, &o1, &o2);
-                attachPassthrough(ii, (PrefixSet)(cxt.ps & PS_66), OE_RM, SC_None,
-                                  0x0F, 0xDA, -1);
-                break;
-
-
-            case 0xEF:
-                // pxor xmm1, xmm2/m 64/128 (RM)
-                vt = (cxt.ps & PS_66) ? VT_128 : VT_64;
-                parseModRM(&cxt, vt, RT_VV, &o2, &o1, 0);
-                ii = addBinaryOp(r, &cxt, IT_PXOR, VT_Implicit, &o1, &o2);
-                attachPassthrough(ii, (PrefixSet)(cxt.ps & PS_66), OE_RM, SC_None,
-                                  0x0F, 0xEF, -1);
-                break;
-
-            default:
-                addSimple(r, &cxt, IT_Invalid);
-                break;
-            }
-            break;
-
-        case 0x10: // adc r/m8,r8 (MR, dst: r/m, src: r)
-        case 0x11: // adc r/m,r 16/32/64 (MR, dst: r/m, src: r)
-            if (opc == 0x10) vt = VT_8;
-            parseModRM(&cxt, vt, RT_GG, &o1, &o2, 0);
-            addBinaryOp(r, &cxt, IT_ADC, vt, &o1, &o2);
-            break;
-
-        case 0x12: // adc r8,r/m8 (RM, dst: r, src: r/m)
-        case 0x13: // adc r,r/m 16/32/64 (RM, dst: r, src: r/m)
-            if (opc == 0x12) vt = VT_8;
-            parseModRM(&cxt, vt, RT_GG, &o2, &o1, 0);
-            addBinaryOp(r, &cxt, IT_ADC, vt, &o1, &o2);
-            break;
-
-        case 0x14: // adc al,imm8
-        case 0x15: // adc ax/eax/rax,imm16/32/64
-            if (opc == 0x14) vt = VT_8;
-            parseImm(&cxt, vt, &o1);
-            addBinaryOp(r, &cxt, IT_ADC, vt, getRegOp(vt, Reg_AX), &o1);
-            break;
-
-        case 0x19:
-            // sbb r/m,r 16/32/64 (MR, dst: r/m, src: r)
-            parseModRM(&cxt, vt, RT_GG, &o1, &o2, 0);
-            addBinaryOp(r, &cxt, IT_SBB, vt, &o1, &o2);
-            break;
-
-        case 0x1B:
-            // sbb r,r/m 16/32/64 (RM, dst: r, src: r/m)
-            parseModRM(&cxt, vt, RT_GG, &o2, &o1, 0);
-            addBinaryOp(r, &cxt, IT_SBB, vt, &o1, &o2);
-            break;
-
-        case 0x20: // and r/m8,r8 (MR, dst: r/m, src: r)
-        case 0x21: // and r/m,r 16/32/64 (MR, dst: r/m, src: r)
-            if (opc == 0x20) vt = VT_8;
-            parseModRM(&cxt, vt, RT_GG, &o1, &o2, 0);
-            addBinaryOp(r, &cxt, IT_AND, vt, &o1, &o2);
-            break;
-
-        case 0x22: // and r8,r/m8 (RM, dst: r, src: r/m)
-        case 0x23: // and r,r/m 16/32/64 (RM, dst: r, src: r/m)
-            if (opc == 0x22) vt = VT_8;
-            parseModRM(&cxt, vt, RT_GG, &o2, &o1, 0);
-            addBinaryOp(r, &cxt, IT_AND, vt, &o1, &o2);
-            break;
-
-        case 0x24: // and al,imm8
-        case 0x25: // and eax,imm32
-            if (opc == 0x24) vt = VT_8;
-            parseImm(&cxt, vt, &o1);
-            addBinaryOp(r, &cxt, IT_AND, vt, getRegOp(vt, Reg_AX), &o1);
-            break;
-
-        case 0x29:
-            // sub r/m,r 16/32/64 (MR)
-            parseModRM(&cxt, vt, RT_GG, &o1, &o2, 0);
-            addBinaryOp(r, &cxt, IT_SUB, vt, &o1, &o2);
-            break;
-
-        case 0x2B:
-            // sub r,r/m 16/32/64 (RM)
-            parseModRM(&cxt, vt, RT_GG, &o2, &o1, 0);
-            addBinaryOp(r, &cxt, IT_SUB, vt, &o1, &o2);
-            break;
-
-        case 0x31:
-            // xor r/m,r 16/32/64 (MR, dst: r/m, src: r)
-            parseModRM(&cxt, vt, RT_GG, &o1, &o2, 0);
-            addBinaryOp(r, &cxt, IT_XOR, vt, &o1, &o2);
-            break;
-
-        case 0x33:
-            // xor r,r/m 16/32/64 (RM, dst: r, src: r/m)
-            parseModRM(&cxt, vt, RT_GG, &o2, &o1, 0);
-            addBinaryOp(r, &cxt, IT_XOR, vt, &o1, &o2);
-            break;
-
-        case 0x38: // cmp r/m8,r8 (RM, dst: r, src: r/m)
-        case 0x39: // cmp r/m,r 16/32/64 (MR)
-            if (opc == 0x38) vt = VT_8;
-            parseModRM(&cxt, vt, RT_GG, &o1, &o2, 0);
-            addBinaryOp(r, &cxt, IT_CMP, vt, &o1, &o2);
-            break;
-
-        case 0x3A: // cmp r8,r/m8 (RM, dst: r, src: r/m)
-        case 0x3B: // cmp r,r/m 16/32/64 (RM)
-            if (opc == 0x3A) vt = VT_8;
-            parseModRM(&cxt, vt, RT_GG, &o2, &o1, 0);
-            addBinaryOp(r, &cxt, IT_CMP, vt, &o1, &o2);
-            break;
-
-        case 0x3C: // cmp al,imm8
-        case 0x3D: // cmp eax,imm32
-            if (opc == 0x3C) vt = VT_8;
-            parseImm(&cxt, vt, &o1);
-            addBinaryOp(r, &cxt, IT_CMP, vt, getRegOp(vt, Reg_AX), &o1);
-            break;
-
-        case 0x50: case 0x51: case 0x52: case 0x53:
-        case 0x54: case 0x55: case 0x56: case 0x57:
-            // push
-            reg = Reg_AX + (opc - 0x50);
-            vt = VT_64;
-            if (cxt.rex & REX_MASK_B) reg += 8;
-            if (cxt.ps & PS_66) vt = VT_16;
-            addUnaryOp(r, &cxt, IT_PUSH, getRegOp(vt, reg));
-            break;
-
-        case 0x58: case 0x59: case 0x5A: case 0x5B:
-        case 0x5C: case 0x5D: case 0x5E: case 0x5F:
-            // pop
-            reg = Reg_AX + (opc - 0x58);
-            vt = VT_64;
-            if (cxt.rex & REX_MASK_B) reg += 8;
-            if (cxt.ps & PS_66) vt = VT_16;
-            addUnaryOp(r, &cxt, IT_POP, getRegOp(vt, reg));
-            break;
-
-        case 0x63:
-            // movsx r64,r/m32 (RM) mov with sign extension
-            assert(cxt.rex & REX_MASK_W);
-            parseModRM(&cxt, VT_None, RT_GG, &o2, &o1, 0);
-            // src is 32 bit
-            switch(o2.type) {
-            case OT_Reg64: o2.type = OT_Reg32; break;
-            case OT_Ind64: o2.type = OT_Ind32; break;
-            default: assert(0);
-            }
-            addBinaryOp(r, &cxt, IT_MOVSX, VT_None, &o1, &o2);
-            break;
-
-        case 0x68: // push imm32
-            parseImm(&cxt, VT_32, &o1);
-            addUnaryOp(r, &cxt, IT_PUSH, &o1);
-            break;
-
-        case 0x69: // imul r,r/m32/64,imm32 (RMI)
-            parseModRM(&cxt, VT_None, RT_GG, &o2, &o1, 0);
-            parseImm(&cxt, VT_32, &o3);
-            addTernaryOp(r, &cxt, IT_IMUL, &o1, &o2, &o3);
-            break;
-
-        case 0x6A: // push imm8
-            parseImm(&cxt, VT_8, &o1);
-            addUnaryOp(r, &cxt, IT_PUSH, &o1);
-            break;
-
-        case 0x6B: // imul r,r/m32/64,imm8 (RMI)
-            parseModRM(&cxt, VT_None, RT_GG, &o2, &o1, 0);
-            parseImm(&cxt, VT_8, &o3);
-            addTernaryOp(r, &cxt, IT_IMUL, &o1, &o2, &o3);
-            break;
-
-        case 0x70: // jo rel8
-        case 0x71: // jno rel8
-        case 0x72: // jc/jb/jnae rel8
-        case 0x73: // jnc/jnb/jae rel8
-        case 0x74: // jz/je rel8
-        case 0x75: // jnz/jne rel8
-        case 0x76: // jbe/jna rel8
-        case 0x77: // ja/jnbe rel8
-        case 0x78: // js rel8
-        case 0x79: // jns rel8
-        case 0x7A: // jp/jpe rel8
-        case 0x7B: // jnp/jpo rel8
-        case 0x7C: // jl/jnge rel8
-        case 0x7D: // jge/jnl rel8
-        case 0x7E: // jle/jng rel8
-        case 0x7F: // jg/jnle rel8
-            o1.type = OT_Imm64;
-            o1.val = (uint64_t) (cxt.fp + cxt.off + 1 + *(int8_t*)(cxt.fp + cxt.off));
-            cxt.off += 1;
-            switch (opc) {
-            case 0x70: it = IT_JO; break;
-            case 0x71: it = IT_JNO; break;
-            case 0x72: it = IT_JC; break;
-            case 0x73: it = IT_JNC; break;
-            case 0x74: it = IT_JZ; break;
-            case 0x75: it = IT_JNZ; break;
-            case 0x76: it = IT_JBE; break;
-            case 0x77: it = IT_JA; break;
-            case 0x78: it = IT_JS; break;
-            case 0x79: it = IT_JNS; break;
-            case 0x7A: it = IT_JP; break;
-            case 0x7B: it = IT_JNP; break;
-            case 0x7C: it = IT_JL; break;
-            case 0x7D: it = IT_JGE; break;
-            case 0x7E: it = IT_JLE; break;
-            case 0x7F: it = IT_JG; break;
-            default: assert(0);
-            }
-            ii = addUnaryOp(r, &cxt, it, &o1);
-            ii->vtype = VT_Implicit; // jump address size is implicit
-            exitLoop = true;
-            break;
-
-        case 0x80: // add/or/... r/m and imm8
-            vt = VT_8;
-            parseModRM(&cxt, vt, RT_GG, &o1, 0, &digit);
-            switch(digit) {
-            case 0: it = IT_ADD; break; // 80/0: add r/m8,imm8
-            case 1: it = IT_OR;  break; // 80/1: or  r/m8,imm8
-            case 2: it = IT_ADC; break; // 80/2: adc r/m8,imm8
-            case 3: it = IT_SBB; break; // 80/3: sbb r/m8,imm8
-            case 4: it = IT_AND; break; // 80/4: and r/m8,imm8
-            case 5: it = IT_SUB; break; // 80/5: sub r/m8,imm8
-            case 6: it = IT_XOR; break; // 80/6: xor r/m8,imm8
-            case 7: it = IT_CMP; break; // 80/7: cmp r/m8,imm8
-            default: assert(0);
-            }
-            parseImm(&cxt, vt, &o2);
-            addBinaryOp(r, &cxt, it, vt, &o1, &o2);
-            break;
-
-        case 0x81:
-            // default value type 16/32/64, imm16 (for 16), imm32 (for 32/64)
-            parseModRM(&cxt, vt, RT_GG, &o1, 0, &digit);
-            switch(digit) {
-            case 0: it = IT_ADD; break; // 81/0: add r/m 16/32/64, imm16/32
-            case 1: it = IT_OR;  break; // 81/1: or  r/m 16/32/64, imm16/32
-            case 2: it = IT_ADC; break; // 81/2: adc r/m 16/32/64, imm16/32
-            case 3: it = IT_SBB; break; // 81/3: sbb r/m 16/32/64, imm16/32
-            case 4: it = IT_AND; break; // 81/4: and r/m 16/32/64, imm16/32
-            case 5: it = IT_SUB; break; // 81/5: sub r/m 16/32/64, imm16/32
-            case 6: it = IT_XOR; break; // 81/6: xor r/m 16/32/64, imm16/32
-            case 7: it = IT_CMP; break; // 81/7: cmp r/m 16/32/64, imm16/32
-            default: assert(0);
-            }
-            parseImm(&cxt, vt, &o2);
-            addBinaryOp(r, &cxt, it, vt, &o1, &o2);
-            break;
-
-        case 0x83:
-            vt = (cxt.rex & REX_MASK_W) ? VT_64 : VT_32;
-            parseModRM(&cxt, vt, RT_GG, &o1, 0, &digit);
-            // add/or/... r/m and sign-extended imm8
-            switch(digit) {
-            case 0: it = IT_ADD; break; // 83/0: add r/m 32/64, imm8
-            case 1: it = IT_OR;  break; // 83/1: or  r/m 32/64, imm8
-            case 2: it = IT_ADC; break; // 83/2: adc r/m 32/64, imm8
-            case 3: it = IT_SBB; break; // 83/3: sbb r/m 32/64, imm8
-            case 4: it = IT_AND; break; // 83/4: and r/m 32/64, imm8
-            case 5: it = IT_SUB; break; // 83/5: sub r/m 32/64, imm8
-            case 6: it = IT_XOR; break; // 83/6: xor r/m 32/64, imm8
-            case 7: it = IT_CMP; break; // 83/7: cmp r/m 32/64, imm8
-            default: assert(0);
-            }
-            parseImm(&cxt, VT_8, &o2);
-            addBinaryOp(r, &cxt, it, vt, &o1, &o2);
-            break;
-
-        case 0x84:
-            // test r/m,r 8 (MR) - AND r8 with r/m8; set SF, ZF, PF
-            // FIXME: We do not assert on use of AH/BH/CH/DH (not supported)
-            parseModRM(&cxt, VT_8, RT_GG, &o1, &o2, 0);
-            addBinaryOp(r, &cxt, IT_TEST, VT_None, &o1, &o2);
-            break;
-
-        case 0x85:
-            // test r/m,r 16/32/64 (dst: r/m, src: r)
-            parseModRM(&cxt, vt, RT_GG, &o1, &o2, 0);
-            addBinaryOp(r, &cxt, IT_TEST, vt, &o1, &o2);
-            break;
-
-        case 0x89:
-            // mov r/m,r 16/32/64 (dst: r/m, src: r)
-            parseModRM(&cxt, vt, RT_GG, &o1, &o2, 0);
-            addBinaryOp(r, &cxt, IT_MOV, vt, &o1, &o2);
-            break;
-
-        case 0x8B:
-            // mov r,r/m 16/32/64 (dst: r, src: r/m)
-            parseModRM(&cxt, vt, RT_GG, &o2, &o1, 0);
-            addBinaryOp(r, &cxt, IT_MOV, vt, &o1, &o2);
-            break;
-
-        case 0x8D:
-            // lea r32/64,m
-            parseModRM(&cxt, VT_None, RT_GG, &o2, &o1, 0);
-            assert(opIsInd(&o2)); // TODO: bad code error
-            addBinaryOp(r, &cxt, IT_LEA, VT_None, &o1, &o2);
-            break;
-
-        case 0x90:
-            // nop
-            addSimple(r, &cxt, IT_NOP);
-            break;
-
-        case 0x98:
-            // cltq (Intel: cdqe - sign-extend eax to rax)
-            addSimpleVType(r, &cxt, IT_CLTQ,
-                           (cxt.rex & REX_MASK_W) ? VT_64 : VT_32);
-            break;
-
-        case 0x99:
-            // cqto (Intel: cqo - sign-extend rax to rdx/rax, eax to edx/eax)
-            vt = (cxt.rex & REX_MASK_W) ? VT_128 : VT_64;
-            addSimpleVType(r, &cxt, IT_CQTO, vt);
-            break;
-
-        case 0xB8: case 0xB9: case 0xBA: case 0xBB:
-        case 0xBC: case 0xBD: case 0xBE: case 0xBF:
-            // MOV r32/64,imm32/64
-            o1.reg = Reg_AX + (opc - 0xB8);
-            if (cxt.rex & REX_MASK_B) o1.reg += 8;
-            if (cxt.rex & REX_MASK_W) {
-                vt = VT_64;
-                o1.type = OT_Reg64;
-                // do not use parseImm, which assumes 32bit to be extended
-                o2.type = OT_Imm64;
-                o2.val = *(uint64_t*)(cxt.fp + cxt.off);
-                cxt.off += 8;
-            }
-            else {
-                vt = VT_32;
-                o1.type = OT_Reg32;
-                parseImm(&cxt, vt, &o2);
-            }
-            addBinaryOp(r, &cxt, IT_MOV, vt, &o1, &o2);
-            break;
-
-        case 0xC1:
-            parseModRM(&cxt, VT_None, RT_GG, &o1, 0, &digit);
-            switch(digit) {
-            case 4:
-                // shl r/m 32/64,imm8 (MI) (= sal)
-                parseImm(&cxt, VT_8, &o2);
-                addBinaryOp(r, &cxt, IT_SHL, VT_None, &o1, &o2);
-                break;
-
-            case 5:
-                // shr r/m 32/64,imm8 (MI)
-                parseImm(&cxt, VT_8, &o2);
-                addBinaryOp(r, &cxt, IT_SHR, VT_None, &o1, &o2);
-                break;
-
-            case 7:
-                // sar r/m 32/64,imm8 (MI)
-                parseImm(&cxt, VT_8, &o2);
-                addBinaryOp(r, &cxt, IT_SAR, VT_None, &o1, &o2);
-                break;
-
-            default:
-                addSimple(r, &cxt, IT_Invalid);
-                break;
-            }
-            break;
-
-        case 0xC3:
-            // ret
-            addSimple(r, &cxt, IT_RET);
-            exitLoop = true;
-            break;
-
-        case 0xC7:
-            parseModRM(&cxt, VT_None, RT_GG, &o1, 0, &digit);
-            switch(digit) {
-            case 0:
-                // mov r/m 32/64, imm32
-                vt = (cxt.rex & REX_MASK_W) ? VT_64 : VT_32;
-                parseImm(&cxt, VT_32, &o2);
-                addBinaryOp(r, &cxt, IT_MOV, vt, &o1, &o2);
-                break;
-
-            default:
-                addSimple(r, &cxt, IT_Invalid);
-                break;
-            }
-            break;
-
-        case 0xC9:
-            // leave ( = mov rbp,rsp + pop rbp)
-            addSimple(r, &cxt, IT_LEAVE);
-            break;
-
-        case 0xE8:
-            // call rel32
-            o1.type = OT_Imm64;
-            o1.val = (uint64_t) (cxt.fp + cxt.off + 4 + *(int32_t*)(cxt.fp + cxt.off));
-            cxt.off += 4;
-            addUnaryOp(r, &cxt, IT_CALL, &o1);
-            exitLoop = true;
-            break;
-
-        case 0xE9:
-            // jmp rel32: relative, displacement relative to next instruction
-            o1.type = OT_Imm64;
-            o1.val = (uint64_t) (cxt.fp + cxt.off + 4 + *(int32_t*)(cxt.fp + cxt.off));
-            cxt.off += 4;
-            addUnaryOp(r, &cxt, IT_JMP, &o1);
-            exitLoop = true;
-            break;
-
-        case 0xEB:
-            // jmp rel8: relative, displacement relative to next instruction
-            o1.type = OT_Imm64;
-            o1.val = (uint64_t) (cxt.fp + cxt.off + 1 + *(int8_t*)(cxt.fp + cxt.off));
-            cxt.off += 1;
-            addUnaryOp(r, &cxt, IT_JMP, &o1);
-            exitLoop = true;
-            break;
-
-        case 0xF7:
-            parseModRM(&cxt, vt, RT_GG, &o1, 0, &digit);
-            switch(digit) {
-            case 2:
-                // not r/m 16/32/64
-                addUnaryOp(r, &cxt, IT_NOT, &o1);
-                break;
-            case 3:
-                // neg r/m 16/32/64
-                addUnaryOp(r, &cxt, IT_NEG, &o1);
-                break;
-            case 4:
-                // mul r/m 16/32/64 (unsigned multiplication ax/eax/rax by r/m)
-                addUnaryOp(r, &cxt, IT_MUL, &o1);
-                break;
-            case 5:
-                // imul r/m 16/32/64 (signed multiplication ax/eax/rax by r/m)
-                addUnaryOp(r, &cxt, IT_IMUL, &o1);
-                break;
-            case 6:
-                // div r/m 16/32/64 (unsigned divide dx:ax/edx:eax/rdx:rax by r/m)
-                addUnaryOp(r, &cxt, IT_DIV, &o1);
-                break;
-            case 7:
-                // idiv r/m 16/32/64 (signed divide dx:ax/edx:eax/rdx:rax by r/m)
-                addUnaryOp(r, &cxt, IT_IDIV1, &o1);
-                break;
-            default:
-                addSimple(r, &cxt, IT_Invalid);
-                break;
-            }
-            break;
-
-        case 0xFF:
-            parseModRM(&cxt, VT_None, RT_GG, &o1, 0, &digit);
-            switch(digit) {
-            case 0:
-                // inc r/m 32/64
-                addUnaryOp(r, &cxt, IT_INC, &o1);
-                break;
-
-            case 1:
-                // dec r/m 32/64
-                addUnaryOp(r, &cxt, IT_DEC, &o1);
-                break;
-
-            case 2:
-                // call r/m64
-                addUnaryOp(r, &cxt, IT_CALL, &o1);
-                exitLoop = true;
-                break;
-
-            case 4:
-                // jmp* r/m64: absolute indirect
-                assert(cxt.rex == 0);
-                opOverwriteType(&o1, VT_64);
-                addUnaryOp(r, &cxt, IT_JMPI, &o1);
-                exitLoop = true;
-                break;
-
-            default:
-                addSimple(r, &cxt, IT_Invalid);
-                break;
-            }
-            break;
-
-        default:
-            addSimple(r, &cxt, IT_Invalid);
-            break;
-        }
         cxt.rex = 0;
         cxt.hasRex = false;
         cxt.segOv = OSO_None;
