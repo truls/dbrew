@@ -1,0 +1,26 @@
+BB f1 (25 instructions):
+                  f1:  fe 02                 incb    (%rdx)
+                f1+2:  fe c0                 inc     %al
+                f1+4:  41 fe c3              inc     %r11b
+                f1+7:  66 ff 02              incw    (%rdx)
+               f1+10:  66 ff c0              inc     %ax
+               f1+13:  66 41 ff c3           inc     %r11w
+               f1+17:  ff 02                 incl    (%rdx)
+               f1+19:  ff c0                 inc     %eax
+               f1+21:  41 ff c3              inc     %r11d
+               f1+24:  48 ff 02              incq    (%rdx)
+               f1+27:  48 ff c0              inc     %rax
+               f1+30:  49 ff c3              inc     %r11
+               f1+33:  fe 0a                 decb    (%rdx)
+               f1+35:  fe c8                 dec     %al
+               f1+37:  41 fe cb              dec     %r11b
+               f1+40:  66 ff 0a              decw    (%rdx)
+               f1+43:  66 ff c8              dec     %ax
+               f1+46:  66 41 ff cb           dec     %r11w
+               f1+50:  ff 0a                 decl    (%rdx)
+               f1+52:  ff c8                 dec     %eax
+               f1+54:  41 ff cb              dec     %r11d
+               f1+57:  48 ff 0a              decq    (%rdx)
+               f1+60:  48 ff c8              dec     %rax
+               f1+63:  49 ff cb              dec     %r11
+               f1+66:  c3                    ret    

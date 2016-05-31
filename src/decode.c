@@ -39,9 +39,9 @@ typedef struct _DContext {
 
     // decoded prefixes
     bool hasRex;
+    int rex; // REX prefix
     PrefixSet ps; // detected prefix set
     OpSegOverride segOv; // segment override prefix
-    int rex; // REX prefix
 } DContext;
 
 Instr* nextInstr(Rewriter* r, uint64_t a, int len)
@@ -131,15 +131,17 @@ Instr* addTernaryOp(Rewriter* r, DContext* c,
 
 
 
-// for parseModRM: register types
+// for parseModRM: register types (GP: general purpose integer, V: vector)
 typedef enum _RegTypes {
     RT_None = 0,
     RT_Op1V = 1,
     RT_Op2V = 2,
-    RT_GG = 0, // 2 operands, both general purpose registers
-    RT_VG = RT_Op1V, // 2 ops, 1st is vector reg, 2nd GP reg
-    RT_GV = RT_Op2V, // 2 ops, 1st is GP reg, 2nd is vector reg
-    RT_VV = RT_Op1V | RT_Op2V // 2 ops, both vector regs
+    RT_G = 0,        // 1 GP operand
+    RT_V = RT_Op1V,  // 1 vector operand
+    RT_GG = 0,       // 2 operands, both GP
+    RT_VG = RT_Op1V, // 2 ops, 1st V, 2nd GP
+    RT_GV = RT_Op2V, // 2 ops, 1st GP, 2nd V
+    RT_VV = RT_Op1V | RT_Op2V // 2 ops, both V
 } RegTypes;
 
 // Parse MR encoding (r/m,r: op1 is reg or memory operand, op2 is reg/digit),
@@ -1202,21 +1204,28 @@ void decode(Rewriter* r, DContext* cxt, ValType vt, bool* exit)
         }
         break;
 
-    case 0xFF:
-        parseModRM(cxt, VT_None, RT_GG, &o1, 0, &digit);
+    case 0xFE:
+        parseModRM(cxt, VT_8, RT_G, &o1, 0, &digit);
         switch(digit) {
-        case 0:
-            // inc r/m 32/64
-            addUnaryOp(r, cxt, IT_INC, &o1);
-            break;
+        case 0: // inc r/m8
+            addUnaryOp(r, cxt, IT_INC, &o1); break;
+        case 1: // dec r/m8
+            addUnaryOp(r, cxt, IT_DEC, &o1); break;
+        default: assert(0);
+        }
+        break;
 
-        case 1:
-            // dec r/m 32/64
-            addUnaryOp(r, cxt, IT_DEC, &o1);
-            break;
+    case 0xFF:
+        parseModRM(cxt, vt, RT_G, &o1, 0, &digit);
+        switch(digit) {
+        case 0: // inc r/m 16/32/64
+            addUnaryOp(r, cxt, IT_INC, &o1); break;
+        case 1: // dec r/m 16/32/64
+            addUnaryOp(r, cxt, IT_DEC, &o1); break;
 
         case 2:
             // call r/m64
+            assert(vt == VT_64); // only 64bit target allowed in 64bit mode
             addUnaryOp(r, cxt, IT_CALL, &o1);
             *exit = true;
             break;
