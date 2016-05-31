@@ -827,16 +827,25 @@ void decode(Rewriter* r, DContext* cxt, ValType vt, bool* exit)
         addBinaryOp(r, cxt, IT_ADC, vt, getRegOp(vt, Reg_AX), &o1);
         break;
 
-    case 0x19:
-        // sbb r/m,r 16/32/64 (MR, dst: r/m, src: r)
+    case 0x18: // sbb r/m8,r8 (MR)
+    case 0x19: // sbb r/m,r 16/32/64 (MR, dst: r/m, src: r)
+        if (opc == 0x18) vt = VT_8;
         parseModRM(cxt, vt, RT_GG, &o1, &o2, 0);
         addBinaryOp(r, cxt, IT_SBB, vt, &o1, &o2);
         break;
 
-    case 0x1B:
-        // sbb r,r/m 16/32/64 (RM, dst: r, src: r/m)
+    case 0x1A: // sbb r8,r/m8 (RM)
+    case 0x1B: // sbb r,r/m 16/32/64 (RM, dst: r, src: r/m)
+        if (opc == 0x1A) vt = VT_8;
         parseModRM(cxt, vt, RT_GG, &o2, &o1, 0);
         addBinaryOp(r, cxt, IT_SBB, vt, &o1, &o2);
+        break;
+
+    case 0x1C: // sbb al,imm8
+    case 0x1D: // sbb ax/eax/rax,imm16/32/64
+        if (opc == 0x1C) vt = VT_8;
+        parseImm(cxt, vt, &o1, false);
+        addBinaryOp(r, cxt, IT_SBB, vt, getRegOp(vt, Reg_AX), &o1);
         break;
 
     case 0x20: // and r/m8,r8 (MR, dst: r/m, src: r)
