@@ -1172,27 +1172,37 @@ void decode(Rewriter* r, DContext* cxt, ValType vt, bool* exit)
         addBinaryOp(r, cxt, IT_MOV, vt, &o1, &o2);
         break;
 
-    case 0xC1:
-        parseModRM(cxt, VT_None, RT_GG, &o1, 0, &digit);
+    case 0xC0:
+        // 1st op 8bit
+        vt = VT_8;
+        parseModRM(cxt, vt, RT_G, &o1, 0, &digit);
+        // 2nd op imm8
+        parseImm(cxt, VT_8, &o2, false);
         switch(digit) {
-        case 4:
-            // shl r/m 32/64,imm8 (MI) (= sal)
-            parseImm(cxt, VT_8, &o2, false);
-            addBinaryOp(r, cxt, IT_SHL, VT_None, &o1, &o2);
+        case 4: // shl r/m8,imm8 (MI) (= sal)
+            addBinaryOp(r, cxt, IT_SHL, vt, &o1, &o2); break;
+        case 5: // shr r/m8,imm8 (MI)
+            addBinaryOp(r, cxt, IT_SHR, vt, &o1, &o2); break;
+        case 7: // sar r/m8,imm8 (MI)
+            addBinaryOp(r, cxt, IT_SAR, vt, &o1, &o2); break;
+        default:
+            addSimple(r, cxt, IT_Invalid);
             break;
+        }
+        break;
 
-        case 5:
-            // shr r/m 32/64,imm8 (MI)
-            parseImm(cxt, VT_8, &o2, false);
-            addBinaryOp(r, cxt, IT_SHR, VT_None, &o1, &o2);
-            break;
-
-        case 7:
-            // sar r/m 32/64,imm8 (MI)
-            parseImm(cxt, VT_8, &o2, false);
-            addBinaryOp(r, cxt, IT_SAR, VT_None, &o1, &o2);
-            break;
-
+    case 0xC1:
+        // 1st op 16/32/64
+        parseModRM(cxt, vt, RT_G, &o1, 0, &digit);
+        // 2nd op imm8
+        parseImm(cxt, VT_8, &o2, false);
+        switch(digit) {
+        case 4: // shl r/m 16/32/64,imm8 (MI) (= sal)
+            addBinaryOp(r, cxt, IT_SHL, vt, &o1, &o2); break;
+        case 5: // shr r/m 16/32/64,imm8 (MI)
+            addBinaryOp(r, cxt, IT_SHR, vt, &o1, &o2); break;
+        case 7: // sar r/m 16/32/64,imm8 (MI)
+            addBinaryOp(r, cxt, IT_SAR, vt, &o1, &o2); break;
         default:
             addSimple(r, cxt, IT_Invalid);
             break;
@@ -1232,6 +1242,69 @@ void decode(Rewriter* r, DContext* cxt, ValType vt, bool* exit)
     case 0xC9:
         // leave ( = mov rbp,rsp + pop rbp)
         addSimple(r, cxt, IT_LEAVE);
+        break;
+
+    case 0xD0:
+        vt = VT_8;
+        parseModRM(cxt, vt, RT_G, &o1, 0, &digit);
+        switch(digit) {
+        case 4: // shl r/m8,1 (M1) (= sal)
+            addUnaryOp(r, cxt, IT_SHL, &o1); break;
+        case 5: // shr r/m8,1 (M1)
+            addUnaryOp(r, cxt, IT_SHR, &o1); break;
+        case 7: // sar r/m8,1 (M1)
+            addUnaryOp(r, cxt, IT_SAR, &o1); break;
+        default:
+            addSimple(r, cxt, IT_Invalid); break;
+        }
+        break;
+
+    case 0xD1:
+        // for 16/32/64
+        parseModRM(cxt, vt, RT_G, &o1, 0, &digit);
+        switch(digit) {
+        case 4: // shl r/m16/32/64,1 (M1) (= sal)
+            addUnaryOp(r, cxt, IT_SHL, &o1); break;
+        case 5: // shr r/m16/32/64,1 (M1)
+            addUnaryOp(r, cxt, IT_SHR, &o1); break;
+        case 7: // sar r/m16/32/64,1 (M1)
+            addUnaryOp(r, cxt, IT_SAR, &o1); break;
+        default:
+            addSimple(r, cxt, IT_Invalid); break;
+        }
+        break;
+
+
+    case 0xD2:
+        vt = VT_8;
+        parseModRM(cxt, vt, RT_G, &o1, 0, &digit);
+        setRegOp(&o2, VT_8, Reg_CX);
+        switch(digit) {
+        case 4: // shl r/m8,cl (MC16/32/64) (= sal)
+            addBinaryOp(r, cxt, IT_SHL, vt, &o1, &o2); break;
+        case 5: // shr r/m8,cl (MC)
+            addBinaryOp(r, cxt, IT_SHR, vt, &o1, &o2); break;
+        case 7: // sar r/m8,cl (MC)
+            addBinaryOp(r, cxt, IT_SAR, vt, &o1, &o2); break;
+        default:
+            addSimple(r, cxt, IT_Invalid); break;
+        }
+        break;
+
+    case 0xD3:
+        // for 16/32/64
+        parseModRM(cxt, vt, RT_G, &o1, 0, &digit);
+        setRegOp(&o2, VT_8, Reg_CX);
+        switch(digit) {
+        case 4: // shl r/m16/32/64,cl (MC) (= sal)
+            addBinaryOp(r, cxt, IT_SHL, vt, &o1, &o2); break;
+        case 5: // shr r/m16/32/64,cl (MC)
+            addBinaryOp(r, cxt, IT_SHR, vt, &o1, &o2); break;
+        case 7: // sar r/m16/32/64,cl (MC)
+            addBinaryOp(r, cxt, IT_SAR, vt, &o1, &o2); break;
+        default:
+            addSimple(r, cxt, IT_Invalid); break;
+        }
         break;
 
     case 0xE8:

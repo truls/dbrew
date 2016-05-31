@@ -275,6 +275,7 @@ char* op2string(Operand* o, ValType t, FunctionConfig* fc)
         case VT_None:
         case VT_8:
             break;
+        case VT_16:
         case VT_32:
             if (val > 0x7F) val += 0xFFFFFF00;
             break;

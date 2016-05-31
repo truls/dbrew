@@ -164,27 +164,34 @@ OpType getGPRegOpType(ValType t)
     assert(0);
 }
 
-Operand* getRegOp(ValType t, Reg r)
+void setRegOp(Operand* o, ValType t, Reg r)
 {
-    static Operand o;
-
     if ((r >= Reg_AX) && (r <= Reg_15)) {
-        o.type = getGPRegOpType(t);
-        o.reg = r;
-        return &o;
+        o->type = getGPRegOpType(t);
+        o->reg = r;
+        return;
     }
 
     if ((r >= Reg_X0) && (r <= Reg_X15)) {
         switch(t) {
-        case VT_64:  o.type = OT_Reg64; break;
-        case VT_128: o.type = OT_Reg128; break;
-        case VT_256: o.type = OT_Reg256; break;
+        case VT_64:  o->type = OT_Reg64; break;
+        case VT_128: o->type = OT_Reg128; break;
+        case VT_256: o->type = OT_Reg256; break;
         default: assert(0);
         }
-        o.reg = r;
-        return &o;
+        o->reg = r;
+        return;
     }
     assert(0);
+
+}
+
+Operand* getRegOp(ValType t, Reg r)
+{
+    static Operand o;
+
+    setRegOp(&o, t, r);
+    return &o;
 }
 
 Operand* getImmOp(ValType t, uint64_t v)
