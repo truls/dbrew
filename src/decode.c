@@ -1088,12 +1088,8 @@ void decode(Rewriter* r, DContext* cxt, ValType vt, bool* exit)
     case 0x84:
         // test r/m,r 8 (MR) - AND r8 with r/m8; set SF, ZF, PF
         // FIXME: We do not assert on use of AH/BH/CH/DH (not supported)
-        parseModRM(cxt, VT_8, RT_GG, &o1, &o2, 0);
-        addBinaryOp(r, cxt, IT_TEST, VT_None, &o1, &o2);
-        break;
-
-    case 0x85:
-        // test r/m,r 16/32/64 (dst: r/m, src: r)
+    case 0x85: // test r/m,r 16/32/64 (dst: r/m, src: r)
+        if (opc == 0x84) vt = VT_8;
         parseModRM(cxt, vt, RT_GG, &o1, &o2, 0);
         addBinaryOp(r, cxt, IT_TEST, vt, &o1, &o2);
         break;
@@ -1153,6 +1149,13 @@ void decode(Rewriter* r, DContext* cxt, ValType vt, bool* exit)
         // cqto (Intel: cqo - sign-extend rax to rdx/rax, eax to edx/eax)
         vt = (cxt->rex & REX_MASK_W) ? VT_128 : VT_64;
         addSimpleVType(r, cxt, IT_CQTO, vt);
+        break;
+
+    case 0xA8: // test al,imm8
+    case 0xA9: // test ax/eax/rax,imm16/32/32se (se: sign extended)
+        if (opc == 0xA8) vt = VT_8;
+        parseImm(cxt, vt, &o1, false);
+        addBinaryOp(r, cxt, IT_TEST, vt, getRegOp(vt, Reg_AX), &o1);
         break;
 
     case 0xB0: case 0xB1: case 0xB2: case 0xB3:
@@ -1261,8 +1264,12 @@ void decode(Rewriter* r, DContext* cxt, ValType vt, bool* exit)
     case 0xF6:
         // source always 8bit
         vt = VT_8;
-        parseModRM(cxt, vt, RT_GG, &o1, 0, &digit);
+        parseModRM(cxt, vt, RT_G, &o1, 0, &digit);
         switch(digit) {
+        case 0: // test r/m8,imm8 (MI)
+            parseImm(cxt, vt, &o2, false);
+            addBinaryOp(r, cxt, IT_TEST, vt, &o1, &o2);
+            break;
         case 2: // not r/m8
             addUnaryOp(r, cxt, IT_NOT, &o1); break;
         case 3: // neg r/m8
@@ -1282,6 +1289,10 @@ void decode(Rewriter* r, DContext* cxt, ValType vt, bool* exit)
     case 0xF7:
         parseModRM(cxt, vt, RT_GG, &o1, 0, &digit);
         switch(digit) {
+        case 0: // test r/m16/32/64,imm16/32/32se (MI)
+            parseImm(cxt, vt, &o2, false);
+            addBinaryOp(r, cxt, IT_TEST, vt, &o1, &o2);
+            break;
         case 2: // not r/m 16/32/64
             addUnaryOp(r, cxt, IT_NOT, &o1); break;
         case 3: // neg r/m 16/32/64
