@@ -31,7 +31,7 @@
 #include "engine.h"
 
 // decode context
-typedef struct _DContext {
+struct _DContext {
     // decoder position
     uint8_t* fp;
     int off;
@@ -42,7 +42,7 @@ typedef struct _DContext {
     int rex; // REX prefix
     PrefixSet ps; // detected prefix set
     OpSegOverride segOv; // segment override prefix
-} DContext;
+};
 
 Instr* nextInstr(Rewriter* r, uint64_t a, int len)
 {
