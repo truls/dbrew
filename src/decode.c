@@ -676,6 +676,21 @@ void decode0F(Rewriter* r, DContext* cxt, ValType vt, bool* exit)
         addBinaryOp(r, cxt, IT_BSF, vt, &o1, &o2);
         break;
 
+    case 0xBE:
+        // movsx r16/32/64,r/m8 (RM). byte to (q/d)word with sign-extension
+        parseModRM(cxt, vt, RT_GG, &o2, &o1, 0);
+        opOverwriteType(&o2, VT_8); // source always 8bit
+        addBinaryOp(r, cxt, IT_MOVSX, vt, &o1, &o2);
+        break;
+
+    case 0xBF:
+        // movsx r32/64,r/m16 (RM). word to (q/d)word with sign-extension
+        assert((vt == VT_32) || (vt == VT_64));
+        parseModRM(cxt, vt, RT_GG, &o2, &o1, 0);
+        opOverwriteType(&o2, VT_16); // source always 16bit
+        addBinaryOp(r, cxt, IT_MOVSX, vt, &o1, &o2);
+        break;
+
     case 0xD4:
         // paddq mm1, mm2/m64 (RM)
         // - add quadword integer mm2/m64 to mm1

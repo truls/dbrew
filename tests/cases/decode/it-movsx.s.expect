@@ -1,0 +1,8 @@
+BB f1 (7 instructions):
+                  f1:  66 0f be 1f           movsxb  (%rdi),%bx
+                f1+4:  0f be 1f              movsxb  (%rdi),%ebx
+                f1+7:  48 0f be cb           movsx   %bl,%rcx
+               f1+11:  0f bf 1f              movsxw  (%rdi),%ebx
+               f1+14:  48 0f bf cb           movsx   %bx,%rcx
+               f1+18:  48 63 cb              movsx   %ebx,%rcx
+               f1+21:  c3                    ret    

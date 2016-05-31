@@ -489,6 +489,7 @@ char* instr2string(Instr* instr, int align, FunctionConfig* fc)
 
     // print value type if needed
     bool typeVisible = false;
+    ValType vt = instr->vtype;
     // do operands show type?
     if (instr->form == OF_1) {
         if (opTypeVisible(&(instr->dst)))
@@ -499,6 +500,12 @@ char* instr2string(Instr* instr, int align, FunctionConfig* fc)
             typeVisible = true;
         if (opTypeVisible(&(instr->src)))
             typeVisible = true;
+        // special case: conversions (MOVSX)
+        // if source type not visible, make it so
+        if ((instr->type == IT_MOVSX) && !opTypeVisible(&(instr->src))) {
+            typeVisible = false;
+            vt = opValType(&(instr->src));
+        }
     }
     if (instr->form == OF_3) {
         if (opTypeVisible(&(instr->dst)))
@@ -512,7 +519,6 @@ char* instr2string(Instr* instr, int align, FunctionConfig* fc)
     if (instr->vtype == VT_Implicit)
         typeVisible = true;
 
-    ValType vt = instr->vtype;
     if (vt == VT_None) {
         if ((instr->form >= OF_1) && (instr->form <= OF_3))
             vt = opValType(&(instr->dst));
