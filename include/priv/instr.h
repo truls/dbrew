@@ -118,7 +118,6 @@ typedef enum _OperandEncoding {
 
 typedef enum _PrefixSet {
     PS_None = 0,
-    PS_REX = 1,
     PS_66 = 2,
     PS_F2 = 4,
     PS_F3 = 8,
