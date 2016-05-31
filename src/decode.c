@@ -662,11 +662,18 @@ void decode0F(Rewriter* r, DContext* cxt, ValType vt, bool* exit)
         break;
 
     case 0xB6:
-        // movzbl r32/64,r/m8 (RM): move byte to (d)word, zero-extend
-        vt = (cxt->rex & REX_MASK_W) ? VT_64 : VT_32;
+        // movzbl r16/32/64,r/m8 (RM): move byte to (d)word, zero-extend
         parseModRM(cxt, vt, RT_GG, &o2, &o1, 0);
-        opOverwriteType(&o2, VT_8); // src, r/m8
-        addBinaryOp(r, cxt, IT_MOVZBL, vt, &o1, &o2);
+        opOverwriteType(&o2, VT_8); // source always 8bit
+        addBinaryOp(r, cxt, IT_MOVZX, vt, &o1, &o2);
+        break;
+
+    case 0xB7:
+        // movzbl r32/64,r/m16 (RM): move word to (d/q)word, zero-extend
+        assert((vt == VT_32) || (vt == VT_64));
+        parseModRM(cxt, vt, RT_GG, &o2, &o1, 0);
+        opOverwriteType(&o2, VT_16); // source always 16bit
+        addBinaryOp(r, cxt, IT_MOVZX, vt, &o1, &o2);
         break;
 
     case 0xBC:
@@ -677,7 +684,7 @@ void decode0F(Rewriter* r, DContext* cxt, ValType vt, bool* exit)
         break;
 
     case 0xBE:
-        // movsx r16/32/64,r/m8 (RM). byte to (q/d)word with sign-extension
+        // movsx r16/32/64,r/m8 (RM): byte to (q/d)word with sign-extension
         parseModRM(cxt, vt, RT_GG, &o2, &o1, 0);
         opOverwriteType(&o2, VT_8); // source always 8bit
         addBinaryOp(r, cxt, IT_MOVSX, vt, &o1, &o2);

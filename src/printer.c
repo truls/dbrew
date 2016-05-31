@@ -400,7 +400,7 @@ const char* instrName(InstrType it, int* pOpCount)
     case IT_MOVSX:   n = "movsx";   opCount = 2; break;
     case IT_MOVD:    n = "movd";    opCount = 2; break;
     case IT_MOVQ:    n = "movq";    opCount = 2; break;
-    case IT_MOVZBL:  n = "movzbl";  opCount = 2; break;
+    case IT_MOVZX:   n = "movzx";   opCount = 2; break;
     case IT_NEG:     n = "neg";     opCount = 1; break;
     case IT_NOT:     n = "not";     opCount = 1; break;
     case IT_INC:     n = "inc";     opCount = 1; break;
@@ -500,9 +500,10 @@ char* instr2string(Instr* instr, int align, FunctionConfig* fc)
             typeVisible = true;
         if (opTypeVisible(&(instr->src)))
             typeVisible = true;
-        // special case: conversions (MOVSX)
+        // special case: conversions (MOVSX/MOVZX)
         // if source type not visible, make it so
-        if ((instr->type == IT_MOVSX) && !opTypeVisible(&(instr->src))) {
+        if (((instr->type == IT_MOVSX) ||
+             (instr->type == IT_MOVZX)) && !opTypeVisible(&(instr->src))) {
             typeVisible = false;
             vt = opValType(&(instr->src));
         }
