@@ -1,0 +1,26 @@
+BB f1 (25 instructions):
+                  f1:  48 29 07              sub     %rax,(%rdi)
+                f1+3:  4c 29 0f              sub     %r9,(%rdi)
+                f1+6:  29 07                 sub     %eax,(%rdi)
+                f1+8:  44 29 0f              sub     %r9d,(%rdi)
+               f1+11:  66 29 07              sub     %ax,(%rdi)
+               f1+14:  66 44 29 0f           sub     %r9w,(%rdi)
+               f1+18:  28 07                 sub     %al,(%rdi)
+               f1+20:  44 28 0f              sub     %r9b,(%rdi)
+               f1+23:  48 2b 07              sub     (%rdi),%rax
+               f1+26:  4c 2b 0f              sub     (%rdi),%r9
+               f1+29:  2b 07                 sub     (%rdi),%eax
+               f1+31:  44 2b 0f              sub     (%rdi),%r9d
+               f1+34:  66 2b 07              sub     (%rdi),%ax
+               f1+37:  66 44 2b 0f           sub     (%rdi),%r9w
+               f1+41:  2a 07                 sub     (%rdi),%al
+               f1+43:  44 2a 0f              sub     (%rdi),%r9b
+               f1+46:  2c 10                 sub     $0x10,%al
+               f1+48:  66 2d 00 10           sub     $0x1000,%ax
+               f1+52:  2d 00 ef cd ab        sub     $0xabcdef00,%eax
+               f1+57:  48 2d 00 ef cd 0b     sub     $0xbcdef00,%rax
+               f1+63:  80 28 10              subb    $0x10,(%rax)
+               f1+66:  66 81 28 10 03        subw    $0x310,(%rax)
+               f1+71:  81 28 10 03 00 00     subl    $0x310,(%rax)
+               f1+77:  48 81 28 10 03 00 00  subq    $0x310,(%rax)
+               f1+84:  c3                    ret    
