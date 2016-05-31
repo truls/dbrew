@@ -1,0 +1,3 @@
+BB f1 (2 instructions):
+                  f1:  c9                    leave  
+                f1+1:  c3                    ret    
