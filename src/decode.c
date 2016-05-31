@@ -780,16 +780,25 @@ void decode(Rewriter* r, DContext* cxt, ValType vt, bool* exit)
         addBinaryOp(r, cxt, IT_ADD, vt, getRegOp(vt, Reg_AX), &o1);
         break;
 
-    case 0x09:
-        // or r/m,r 16/32/64 (MR, dst: r/m, src: r)
+    case 0x08: // or r/m8,r8 (MR)
+    case 0x09: // or r/m,r 16/32/64 (MR, dst: r/m, src: r)
+        if (opc == 0x08) vt = VT_8;
         parseModRM(cxt, vt, RT_GG, &o1, &o2, 0);
         addBinaryOp(r, cxt, IT_OR, vt, &o1, &o2);
         break;
 
-    case 0x0B:
-        // or r,r/m 16/32/64 (RM, dst: r, src: r/m)
+    case 0x0A: // or r8,r/m8 (RM)
+    case 0x0B: // or r,r/m 16/32/64 (RM, dst: r, src: r/m)
+        if (opc == 0x0A) vt = VT_8;
         parseModRM(cxt, vt, RT_GG, &o2, &o1, 0);
         addBinaryOp(r, cxt, IT_OR, vt, &o1, &o2);
+        break;
+
+    case 0x0C: // or al,imm8
+    case 0x0D: // or ax/eax/rax,imm16/32/32se (se: sign extended)
+        if (opc == 0x0C) vt = VT_8;
+        parseImm(cxt, vt, &o1, false);
+        addBinaryOp(r, cxt, IT_OR, vt, getRegOp(vt, Reg_AX), &o1);
         break;
 
     case 0x0F:
