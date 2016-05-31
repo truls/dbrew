@@ -152,18 +152,24 @@ bool opIsEqual(Operand* o1, Operand* o2)
     return true;
 }
 
+OpType getGPRegOpType(ValType t)
+{
+    switch(t) {
+    case VT_8:  return OT_Reg8;
+    case VT_16: return OT_Reg16;
+    case VT_32: return OT_Reg32;
+    case VT_64: return OT_Reg64;
+    default: break;
+    }
+    assert(0);
+}
+
 Operand* getRegOp(ValType t, Reg r)
 {
     static Operand o;
 
     if ((r >= Reg_AX) && (r <= Reg_15)) {
-        switch(t) {
-        case VT_8:  o.type = OT_Reg8; break;
-        case VT_16: o.type = OT_Reg16; break;
-        case VT_32: o.type = OT_Reg32; break;
-        case VT_64: o.type = OT_Reg64; break;
-        default: assert(0);
-        }
+        o.type = getGPRegOpType(t);
         o.reg = r;
         return &o;
     }

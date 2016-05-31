@@ -259,7 +259,7 @@ void parseModRM(DContext* cxt, ValType vt, RegTypes rt,
 
 // parse immediate value at current decode context into operand <o>
 static
-void parseImm(DContext* c, ValType vt, Operand* o)
+void parseImm(DContext* c, ValType vt, Operand* o, bool realImm64)
 {
     switch(vt) {
     case VT_8:
@@ -278,10 +278,17 @@ void parseImm(DContext* c, ValType vt, Operand* o)
         c->off += 4;
         break;
     case VT_64:
-        // operand is sign-extended from 32bit
         o->type = OT_Imm64;
-        o->val = (int64_t)(*(int32_t*)(c->fp + c->off));
-        c->off += 4;
+        if (realImm64) {
+            // operand is real 64 immediate
+            o->val = *(uint64_t*)(c->fp + c->off);
+            c->off += 8;
+        }
+        else {
+            // operand is sign-extended from 32bit
+            o->val = (int64_t)(*(int32_t*)(c->fp + c->off));
+            c->off += 4;
+        }
         break;
     default:
         assert(0);
@@ -747,7 +754,7 @@ void decode(Rewriter* r, DContext* cxt, ValType vt, bool* exit)
     case 0x04: // add al,imm8
     case 0x05: // add ax/eax/rax,imm16/32/64
         if (opc == 0x04) vt = VT_8;
-        parseImm(cxt, vt, &o1);
+        parseImm(cxt, vt, &o1, false);
         addBinaryOp(r, cxt, IT_ADD, vt, getRegOp(vt, Reg_AX), &o1);
         break;
 
@@ -785,7 +792,7 @@ void decode(Rewriter* r, DContext* cxt, ValType vt, bool* exit)
     case 0x14: // adc al,imm8
     case 0x15: // adc ax/eax/rax,imm16/32/64
         if (opc == 0x14) vt = VT_8;
-        parseImm(cxt, vt, &o1);
+        parseImm(cxt, vt, &o1, false);
         addBinaryOp(r, cxt, IT_ADC, vt, getRegOp(vt, Reg_AX), &o1);
         break;
 
@@ -818,7 +825,7 @@ void decode(Rewriter* r, DContext* cxt, ValType vt, bool* exit)
     case 0x24: // and al,imm8
     case 0x25: // and eax,imm32
         if (opc == 0x24) vt = VT_8;
-        parseImm(cxt, vt, &o1);
+        parseImm(cxt, vt, &o1, false);
         addBinaryOp(r, cxt, IT_AND, vt, getRegOp(vt, Reg_AX), &o1);
         break;
 
@@ -863,7 +870,7 @@ void decode(Rewriter* r, DContext* cxt, ValType vt, bool* exit)
     case 0x3C: // cmp al,imm8
     case 0x3D: // cmp eax,imm32
         if (opc == 0x3C) vt = VT_8;
-        parseImm(cxt, vt, &o1);
+        parseImm(cxt, vt, &o1, false);
         addBinaryOp(r, cxt, IT_CMP, vt, getRegOp(vt, Reg_AX), &o1);
         break;
 
@@ -901,24 +908,24 @@ void decode(Rewriter* r, DContext* cxt, ValType vt, bool* exit)
         break;
 
     case 0x68: // push imm32
-        parseImm(cxt, VT_32, &o1);
+        parseImm(cxt, VT_32, &o1, false);
         addUnaryOp(r, cxt, IT_PUSH, &o1);
         break;
 
     case 0x69: // imul r,r/m32/64,imm32 (RMI)
         parseModRM(cxt, VT_None, RT_GG, &o2, &o1, 0);
-        parseImm(cxt, VT_32, &o3);
+        parseImm(cxt, VT_32, &o3, false);
         addTernaryOp(r, cxt, IT_IMUL, &o1, &o2, &o3);
         break;
 
     case 0x6A: // push imm8
-        parseImm(cxt, VT_8, &o1);
+        parseImm(cxt, VT_8, &o1, false);
         addUnaryOp(r, cxt, IT_PUSH, &o1);
         break;
 
     case 0x6B: // imul r,r/m32/64,imm8 (RMI)
         parseModRM(cxt, VT_None, RT_GG, &o2, &o1, 0);
-        parseImm(cxt, VT_8, &o3);
+        parseImm(cxt, VT_8, &o3, false);
         addTernaryOp(r, cxt, IT_IMUL, &o1, &o2, &o3);
         break;
 
@@ -979,7 +986,7 @@ void decode(Rewriter* r, DContext* cxt, ValType vt, bool* exit)
         case 7: it = IT_CMP; break; // 80/7: cmp r/m8,imm8
         default: assert(0);
         }
-        parseImm(cxt, vt, &o2);
+        parseImm(cxt, vt, &o2, false);
         addBinaryOp(r, cxt, it, vt, &o1, &o2);
         break;
 
@@ -997,7 +1004,7 @@ void decode(Rewriter* r, DContext* cxt, ValType vt, bool* exit)
         case 7: it = IT_CMP; break; // 81/7: cmp r/m 16/32/64, imm16/32
         default: assert(0);
         }
-        parseImm(cxt, vt, &o2);
+        parseImm(cxt, vt, &o2, false);
         addBinaryOp(r, cxt, it, vt, &o1, &o2);
         break;
 
@@ -1016,7 +1023,7 @@ void decode(Rewriter* r, DContext* cxt, ValType vt, bool* exit)
         case 7: it = IT_CMP; break; // 83/7: cmp r/m 32/64, imm8
         default: assert(0);
         }
-        parseImm(cxt, VT_8, &o2);
+        parseImm(cxt, VT_8, &o2, false);
         addBinaryOp(r, cxt, it, vt, &o1, &o2);
         break;
 
@@ -1033,14 +1040,16 @@ void decode(Rewriter* r, DContext* cxt, ValType vt, bool* exit)
         addBinaryOp(r, cxt, IT_TEST, vt, &o1, &o2);
         break;
 
-    case 0x89:
-        // mov r/m,r 16/32/64 (dst: r/m, src: r)
+    case 0x88: // mov r/m8,r8 (MR)
+    case 0x89: // mov r/m,r 16/32/64 (MR - dst: r/m, src: r)
+        if (opc == 0x88) vt = VT_8;
         parseModRM(cxt, vt, RT_GG, &o1, &o2, 0);
         addBinaryOp(r, cxt, IT_MOV, vt, &o1, &o2);
         break;
 
-    case 0x8B:
-        // mov r,r/m 16/32/64 (dst: r, src: r/m)
+    case 0x8A: // mov r8,r/m8,r8 (RM)
+    case 0x8B: // mov r,r/m 16/32/64 (RM - dst: r, src: r/m)
+        if (opc == 0x8A) vt = VT_8;
         parseModRM(cxt, vt, RT_GG, &o2, &o1, 0);
         addBinaryOp(r, cxt, IT_MOV, vt, &o1, &o2);
         break;
@@ -1069,24 +1078,17 @@ void decode(Rewriter* r, DContext* cxt, ValType vt, bool* exit)
         addSimpleVType(r, cxt, IT_CQTO, vt);
         break;
 
+    case 0xB0: case 0xB1: case 0xB2: case 0xB3:
+    case 0xB4: case 0xB5: case 0xB6: case 0xB7:
+        // MOV r8,imm8
     case 0xB8: case 0xB9: case 0xBA: case 0xBB:
     case 0xBC: case 0xBD: case 0xBE: case 0xBF:
         // MOV r32/64,imm32/64
-        o1.reg = Reg_AX + (opc - 0xB8);
+        if ((opc >= 0xB0) && (opc <= 0xB7)) vt = VT_8;
+        o1.reg = Reg_AX + (opc & 7);
         if (cxt->rex & REX_MASK_B) o1.reg += 8;
-        if (cxt->rex & REX_MASK_W) {
-            vt = VT_64;
-            o1.type = OT_Reg64;
-            // do not use parseImm, which assumes 32bit to be extended
-            o2.type = OT_Imm64;
-            o2.val = *(uint64_t*)(cxt->fp + cxt->off);
-            cxt->off += 8;
-        }
-        else {
-            vt = VT_32;
-            o1.type = OT_Reg32;
-            parseImm(cxt, vt, &o2);
-        }
+        o1.type = getGPRegOpType(vt);
+        parseImm(cxt, vt, &o2, true);
         addBinaryOp(r, cxt, IT_MOV, vt, &o1, &o2);
         break;
 
@@ -1095,19 +1097,19 @@ void decode(Rewriter* r, DContext* cxt, ValType vt, bool* exit)
         switch(digit) {
         case 4:
             // shl r/m 32/64,imm8 (MI) (= sal)
-            parseImm(cxt, VT_8, &o2);
+            parseImm(cxt, VT_8, &o2, false);
             addBinaryOp(r, cxt, IT_SHL, VT_None, &o1, &o2);
             break;
 
         case 5:
             // shr r/m 32/64,imm8 (MI)
-            parseImm(cxt, VT_8, &o2);
+            parseImm(cxt, VT_8, &o2, false);
             addBinaryOp(r, cxt, IT_SHR, VT_None, &o1, &o2);
             break;
 
         case 7:
             // sar r/m 32/64,imm8 (MI)
-            parseImm(cxt, VT_8, &o2);
+            parseImm(cxt, VT_8, &o2, false);
             addBinaryOp(r, cxt, IT_SAR, VT_None, &o1, &o2);
             break;
 
@@ -1123,19 +1125,27 @@ void decode(Rewriter* r, DContext* cxt, ValType vt, bool* exit)
         *exit = true;
         break;
 
-    case 0xC7:
-        parseModRM(cxt, VT_None, RT_GG, &o1, 0, &digit);
+    case 0xC6:
+        vt = VT_8; // all sub-opcodes use 8bit operand type
+        parseModRM(cxt, vt, RT_G, &o1, 0, &digit);
         switch(digit) {
-        case 0:
-            // mov r/m 32/64, imm32
-            vt = (cxt->rex & REX_MASK_W) ? VT_64 : VT_32;
-            parseImm(cxt, VT_32, &o2);
+        case 0: // mov r/m8, imm8
+            parseImm(cxt, vt, &o2, false);
             addBinaryOp(r, cxt, IT_MOV, vt, &o1, &o2);
             break;
+        default: assert(0);
+        }
+        break;
 
-        default:
-            addSimple(r, cxt, IT_Invalid);
+    case 0xC7:
+        // for 16/32/64
+        parseModRM(cxt, vt, RT_G, &o1, 0, &digit);
+        switch(digit) {
+        case 0: // mov r/m 16/32/64, imm16/32/32se (sign extended)
+            parseImm(cxt, vt, &o2, false);
+            addBinaryOp(r, cxt, IT_MOV, vt, &o1, &o2);
             break;
+        default: assert(0);
         }
         break;
 

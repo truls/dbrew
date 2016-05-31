@@ -160,27 +160,20 @@ typedef struct _Instr {
 } Instr;
 
 
-
 ValType opValType(Operand* o);
-
 int opTypeWidth(Operand* o);
-
 bool opIsImm(Operand* o);
-
 bool opIsReg(Operand* o);
-
 bool opIsGPReg(Operand* o);
-
 bool opIsVReg(Operand* o);
-
-
 bool opIsInd(Operand* o);
 
 bool opIsEqual(Operand* o1, Operand* o2);
 
-Operand* getRegOp(ValType t, Reg r);
+OpType getGPRegOpType(ValType t);
 
-Operand* getImmOp(ValType t, uint64_t v);
+Operand* getRegOp(ValType t, Reg r);      // returns pointer to static object
+Operand* getImmOp(ValType t, uint64_t v); // returns pointer to static object
 
 
 void copyOperand(Operand* dst, Operand* src);
