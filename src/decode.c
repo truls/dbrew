@@ -863,7 +863,7 @@ void decode(Rewriter* r, DContext* cxt, ValType vt, bool* exit)
         break;
 
     case 0x24: // and al,imm8
-    case 0x25: // and eax,imm32
+    case 0x25: // and ax/eax/rax,imm16/32/32se (sign extended)
         if (opc == 0x24) vt = VT_8;
         parseImm(cxt, vt, &o1, false);
         addBinaryOp(r, cxt, IT_AND, vt, getRegOp(vt, Reg_AX), &o1);
@@ -881,16 +881,25 @@ void decode(Rewriter* r, DContext* cxt, ValType vt, bool* exit)
         addBinaryOp(r, cxt, IT_SUB, vt, &o1, &o2);
         break;
 
-    case 0x31:
-        // xor r/m,r 16/32/64 (MR, dst: r/m, src: r)
+    case 0x30: // xor r/m8,r8 (MR, dst: r/m, src: r)
+    case 0x31: // xor r/m,r 16/32/64 (MR, dst: r/m, src: r)
+        if (opc == 0x30) vt = VT_8;
         parseModRM(cxt, vt, RT_GG, &o1, &o2, 0);
         addBinaryOp(r, cxt, IT_XOR, vt, &o1, &o2);
         break;
 
-    case 0x33:
-        // xor r,r/m 16/32/64 (RM, dst: r, src: r/m)
+    case 0x32: // xor r8,r/m8 (RM, dst: r, src: r/m)
+    case 0x33: // xor r,r/m 16/32/64 (RM, dst: r, src: r/m)
+        if (opc == 0x32) vt = VT_8;
         parseModRM(cxt, vt, RT_GG, &o2, &o1, 0);
         addBinaryOp(r, cxt, IT_XOR, vt, &o1, &o2);
+        break;
+
+    case 0x34: // xor al,imm8
+    case 0x35: // xor ax/eax/rax,imm16/32/32se (sign extended)
+        if (opc == 0x34) vt = VT_8;
+        parseImm(cxt, vt, &o1, false);
+        addBinaryOp(r, cxt, IT_XOR, vt, getRegOp(vt, Reg_AX), &o1);
         break;
 
     case 0x38: // cmp r/m8,r8 (RM, dst: r, src: r/m)
