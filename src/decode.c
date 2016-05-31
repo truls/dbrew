@@ -349,13 +349,6 @@ void decode0F(Rewriter* r, DContext* cxt, ValType vt, bool* exit)
 
     opc2 = cxt->fp[cxt->off++];
     switch(opc2) {
-    case 0xAF:
-        // imul r 32/64, r/m 32/64 (RM, dst: r)
-        vt = (cxt->rex & REX_MASK_W) ? VT_64 : VT_32;
-        parseModRM(cxt, vt, RT_GG, &o2, &o1, 0);
-        addBinaryOp(r, cxt, IT_IMUL, vt, &o1, &o2);
-        break;
-
     case 0x10:
         switch(cxt->ps) {
         case PS_F3:   // movss xmm1,xmm2/m32 (RM)
@@ -661,6 +654,12 @@ void decode0F(Rewriter* r, DContext* cxt, ValType vt, bool* exit)
         *exit = true;
         break;
 
+    case 0xAF:
+        // imul r,rm 16/32/64 (RM), signed mul (d/q)word by r/m
+        parseModRM(cxt, vt, RT_GG, &o2, &o1, 0);
+        addBinaryOp(r, cxt, IT_IMUL, vt, &o1, &o2);
+        break;
+
     case 0xB6:
         // movzbl r16/32/64,r/m8 (RM): move byte to (d)word, zero-extend
         parseModRM(cxt, vt, RT_GG, &o2, &o1, 0);
@@ -934,9 +933,9 @@ void decode(Rewriter* r, DContext* cxt, ValType vt, bool* exit)
         addUnaryOp(r, cxt, IT_PUSH, &o1);
         break;
 
-    case 0x69: // imul r,r/m32/64,imm32 (RMI)
-        parseModRM(cxt, VT_None, RT_GG, &o2, &o1, 0);
-        parseImm(cxt, VT_32, &o3, false);
+    case 0x69: // imul r,r/m16/32/64,imm16/32 (RMI)
+        parseModRM(cxt, vt, RT_GG, &o2, &o1, 0);
+        parseImm(cxt, vt, &o3, false); // with 64bit use imm32
         addTernaryOp(r, cxt, IT_IMUL, &o1, &o2, &o3);
         break;
 
@@ -945,8 +944,8 @@ void decode(Rewriter* r, DContext* cxt, ValType vt, bool* exit)
         addUnaryOp(r, cxt, IT_PUSH, &o1);
         break;
 
-    case 0x6B: // imul r,r/m32/64,imm8 (RMI)
-        parseModRM(cxt, VT_None, RT_GG, &o2, &o1, 0);
+    case 0x6B: // imul r,r/m16/32/64,imm8 (RMI)
+        parseModRM(cxt, vt, RT_GG, &o2, &o1, 0);
         parseImm(cxt, VT_8, &o3, false);
         addTernaryOp(r, cxt, IT_IMUL, &o1, &o2, &o3);
         break;
@@ -1203,36 +1202,39 @@ void decode(Rewriter* r, DContext* cxt, ValType vt, bool* exit)
         *exit = true;
         break;
 
+    case 0xF6:
+        // source always 8bit
+        vt = VT_8;
+        parseModRM(cxt, vt, RT_GG, &o1, 0, &digit);
+        switch(digit) {
+        case 4: // mul r/m8 (unsigned mul ax by r/m8)
+            addUnaryOp(r, cxt, IT_MUL, &o1); break;
+        case 5: // imul r/m8 (signed mul ax/eax/rax by r/m8)
+            addUnaryOp(r, cxt, IT_IMUL, &o1); break;
+        case 6: // div r/m8 (unsigned div ax by r/m8, rem/quot in ah:al)
+            addUnaryOp(r, cxt, IT_DIV, &o1); break;
+        case 7: // idiv r/m8 (signed div ax by r/m8, rem/quot in ah:al)
+            addUnaryOp(r, cxt, IT_IDIV1, &o1); break;
+        default: assert(0);
+        }
+        break;
+
     case 0xF7:
         parseModRM(cxt, vt, RT_GG, &o1, 0, &digit);
         switch(digit) {
-        case 2:
-            // not r/m 16/32/64
-            addUnaryOp(r, cxt, IT_NOT, &o1);
-            break;
-        case 3:
-            // neg r/m 16/32/64
-            addUnaryOp(r, cxt, IT_NEG, &o1);
-            break;
-        case 4:
-            // mul r/m 16/32/64 (unsigned multiplication ax/eax/rax by r/m)
-            addUnaryOp(r, cxt, IT_MUL, &o1);
-            break;
-        case 5:
-            // imul r/m 16/32/64 (signed multiplication ax/eax/rax by r/m)
-            addUnaryOp(r, cxt, IT_IMUL, &o1);
-            break;
-        case 6:
-            // div r/m 16/32/64 (unsigned divide dx:ax/edx:eax/rdx:rax by r/m)
-            addUnaryOp(r, cxt, IT_DIV, &o1);
-            break;
-        case 7:
-            // idiv r/m 16/32/64 (signed divide dx:ax/edx:eax/rdx:rax by r/m)
-            addUnaryOp(r, cxt, IT_IDIV1, &o1);
-            break;
-        default:
-            addSimple(r, cxt, IT_Invalid);
-            break;
+        case 2: // not r/m 16/32/64
+            addUnaryOp(r, cxt, IT_NOT, &o1); break;
+        case 3: // neg r/m 16/32/64
+            addUnaryOp(r, cxt, IT_NEG, &o1); break;
+        case 4: // mul r/m 16/32/64 (unsigned mul ax/eax/rax by r/m)
+            addUnaryOp(r, cxt, IT_MUL, &o1); break;
+        case 5: // imul r/m 16/32/64 (signed mul ax/eax/rax by r/m)
+            addUnaryOp(r, cxt, IT_IMUL, &o1); break;
+        case 6: // div r/m 16/32/64 (unsigned div dx:ax/edx:eax/rdx:rax by r/m)
+            addUnaryOp(r, cxt, IT_DIV, &o1); break;
+        case 7: // idiv r/m 16/32/64 (signed div dx:ax/edx:eax/rdx:rax by r/m)
+            addUnaryOp(r, cxt, IT_IDIV1, &o1); break;
+        default: assert(0);
         }
         break;
 

@@ -1,0 +1,31 @@
+BB f1 (30 instructions):
+                  f1:  f6 e0                 mul     %al
+                f1+2:  41 f6 e1              mul     %r9b
+                f1+5:  66 f7 e0              mul     %ax
+                f1+8:  f7 e0                 mul     %eax
+               f1+10:  48 f7 e0              mul     %rax
+               f1+13:  f6 e8                 imul    %al
+               f1+15:  41 f6 e9              imul    %r9b
+               f1+18:  66 f7 e8              imul    %ax
+               f1+21:  f7 e8                 imul    %eax
+               f1+23:  48 f7 e8              imul    %rax
+               f1+26:  48 0f af c0           imul    %rax,%rax
+               f1+30:  0f af c0              imul    %eax,%eax
+               f1+33:  66 0f af c0           imul    %ax,%ax
+               f1+37:  48 69 c0 00 01 00 00  imul    $0x100,%rax,%rax
+               f1+44:  69 c0 00 01 00 00     imul    $0x100,%eax,%eax
+               f1+50:  66 69 c0 00 01        imul    $0x100,%ax,%ax
+               f1+55:  48 6b c0 10           imul    $0x10,%rax,%rax
+               f1+59:  6b c0 10              imul    $0x10,%eax,%eax
+               f1+62:  66 6b c0 10           imul    $0x10,%ax,%ax
+               f1+66:  f6 f0                 div     %al
+               f1+68:  41 f6 f1              div     %r9b
+               f1+71:  66 f7 f0              div     %ax
+               f1+74:  f7 f0                 div     %eax
+               f1+76:  48 f7 f0              div     %rax
+               f1+79:  f6 f8                 idiv    %al
+               f1+81:  41 f6 f9              idiv    %r9b
+               f1+84:  66 f7 f8              idiv    %ax
+               f1+87:  f7 f8                 idiv    %eax
+               f1+89:  48 f7 f8              idiv    %rax
+               f1+92:  c3                    ret    
