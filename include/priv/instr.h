@@ -173,7 +173,9 @@ bool opIsInd(Operand* o);
 
 bool opIsEqual(Operand* o1, Operand* o2);
 
+OpType getImmOpType(ValType t);
 OpType getGPRegOpType(ValType t);
+
 void setRegOp(Operand* o, ValType t, Reg r);
 Operand* getRegOp(ValType t, Reg r);      // returns pointer to static object
 Operand* getImmOp(ValType t, uint64_t v); // returns pointer to static object

@@ -35,6 +35,7 @@ Instr* addBinaryOp(Rewriter* r, DContext* c,
                    InstrType it, ValType vt, Operand* o1, Operand* o2);
 
 Instr* addTernaryOp(Rewriter* r, DContext* c,
-                    InstrType it, Operand* o1, Operand* o2, Operand* o3);
+                    InstrType it, ValType vt,
+                    Operand* o1, Operand* o2, Operand* o3);
 
 #endif // DECODE_H

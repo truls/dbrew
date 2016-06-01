@@ -152,6 +152,18 @@ bool opIsEqual(Operand* o1, Operand* o2)
     return true;
 }
 
+OpType getImmOpType(ValType t)
+{
+    switch(t) {
+    case VT_8:  return OT_Imm8;
+    case VT_16: return OT_Imm16;
+    case VT_32: return OT_Imm32;
+    case VT_64: return OT_Imm64;
+    default: break;
+    }
+    assert(0);
+}
+
 OpType getGPRegOpType(ValType t)
 {
     switch(t) {
