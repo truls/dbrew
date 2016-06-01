@@ -32,8 +32,10 @@
 
 // decode context
 struct _DContext {
+    Rewriter* r;
+
     // decoder position
-    uint8_t* fp;
+    uint8_t* f;
     int off;
     uint64_t iaddr; // current instruction start address
 
@@ -42,6 +44,14 @@ struct _DContext {
     int rex; // REX prefix
     PrefixSet ps; // detected prefix set
     OpSegOverride segOv; // segment override prefix
+    ValType vt; // default operand type (derived from prefixes)
+
+    // decoded instruction parts
+    int opc1, opc2;
+
+    // decoding result
+    bool exit;   // control flow change instruction detected
+    char* error; // if not-null, an decoding error was detected
 };
 
 Instr* nextInstr(Rewriter* r, uint64_t a, int len)
@@ -65,7 +75,7 @@ Instr* nextInstr(Rewriter* r, uint64_t a, int len)
 
 Instr* addSimple(Rewriter* r, DContext* c, InstrType it)
 {
-    uint64_t len = (uint64_t)(c->fp + c->off) - c->iaddr;
+    uint64_t len = (uint64_t)(c->f + c->off) - c->iaddr;
     Instr* i = nextInstr(r, c->iaddr, len);
     i->type = it;
     i->form = OF_0;
@@ -75,7 +85,7 @@ Instr* addSimple(Rewriter* r, DContext* c, InstrType it)
 
 Instr* addSimpleVType(Rewriter* r, DContext* c, InstrType it, ValType vt)
 {
-    uint64_t len = (uint64_t)(c->fp + c->off) - c->iaddr;
+    uint64_t len = (uint64_t)(c->f + c->off) - c->iaddr;
     Instr* i = nextInstr(r, c->iaddr, len);
     i->type = it;
     i->vtype = vt;
@@ -86,7 +96,7 @@ Instr* addSimpleVType(Rewriter* r, DContext* c, InstrType it, ValType vt)
 
 Instr* addUnaryOp(Rewriter* r, DContext* c, InstrType it, Operand* o)
 {
-    uint64_t len = (uint64_t)(c->fp + c->off) - c->iaddr;
+    uint64_t len = (uint64_t)(c->f + c->off) - c->iaddr;
     Instr* i = nextInstr(r, c->iaddr, len);
     i->type = it;
     i->form = OF_1;
@@ -104,7 +114,7 @@ Instr* addBinaryOp(Rewriter* r, DContext* c,
         assert(vt == opValType(o1));
     }
 
-    uint64_t len = (uint64_t)(c->fp + c->off) - c->iaddr;
+    uint64_t len = (uint64_t)(c->f + c->off) - c->iaddr;
     Instr* i = nextInstr(r, c->iaddr, len);
     i->type = it;
     i->form = OF_2;
@@ -118,7 +128,7 @@ Instr* addBinaryOp(Rewriter* r, DContext* c,
 Instr* addTernaryOp(Rewriter* r, DContext* c,
                     InstrType it, Operand* o1, Operand* o2, Operand* o3)
 {
-    uint64_t len = (uint64_t)(c->fp + c->off) - c->iaddr;
+    uint64_t len = (uint64_t)(c->f + c->off) - c->iaddr;
     Instr* i = nextInstr(r, c->iaddr, len);
     i->type = it;
     i->form = OF_3;
@@ -161,7 +171,7 @@ void parseModRM(DContext* cxt, ValType vt, RegTypes rt,
     OpType ot;
     int hasDisp8 = 0, hasDisp32 = 0;
 
-    modrm = cxt->fp[cxt->off++];
+    modrm = cxt->f[cxt->off++];
     mod = (modrm & 192) >> 6;
     reg = (modrm & 56) >> 3;
     rm = modrm & 7;
@@ -204,7 +214,7 @@ void parseModRM(DContext* cxt, ValType vt, RegTypes rt,
     scale = 0;
     if (rm == 4) {
         // SIB
-        sib = cxt->fp[cxt->off++];
+        sib = cxt->f[cxt->off++];
         scale = 1 << ((sib & 192) >> 6);
         idx   = (sib & 56) >> 3;
         base  = sib & 7;
@@ -215,11 +225,11 @@ void parseModRM(DContext* cxt, ValType vt, RegTypes rt,
     disp = 0;
     if (hasDisp8) {
         // 8bit disp: sign extend
-        disp = *((signed char*) (cxt->fp + cxt->off));
+        disp = *((signed char*) (cxt->f + cxt->off));
         cxt->off++;
     }
     if (hasDisp32) {
-        disp = *((int32_t*) (cxt->fp + cxt->off));
+        disp = *((int32_t*) (cxt->f + cxt->off));
         cxt->off += 4;
     }
 
@@ -264,29 +274,29 @@ void parseImm(DContext* c, ValType vt, Operand* o, bool realImm64)
     switch(vt) {
     case VT_8:
         o->type = OT_Imm8;
-        o->val = *(c->fp + c->off);
+        o->val = *(c->f + c->off);
         c->off++;
         break;
     case VT_16:
         o->type = OT_Imm16;
-        o->val = *(uint16_t*)(c->fp + c->off);
+        o->val = *(uint16_t*)(c->f + c->off);
         c->off += 2;
         break;
     case VT_32:
         o->type = OT_Imm32;
-        o->val = *(uint32_t*)(c->fp + c->off);
+        o->val = *(uint32_t*)(c->f + c->off);
         c->off += 4;
         break;
     case VT_64:
         o->type = OT_Imm64;
         if (realImm64) {
             // operand is real 64 immediate
-            o->val = *(uint64_t*)(c->fp + c->off);
+            o->val = *(uint64_t*)(c->f + c->off);
             c->off += 8;
         }
         else {
             // operand is sign-extended from 32bit
-            o->val = (int64_t)(*(int32_t*)(c->fp + c->off));
+            o->val = (int64_t)(*(int32_t*)(c->f + c->off));
             c->off += 4;
         }
         break;
@@ -296,14 +306,14 @@ void parseImm(DContext* c, ValType vt, Operand* o, bool realImm64)
 }
 
 static
-void initDContext(DContext* cxt, uint64_t f)
+void initDContext(DContext* cxt, Rewriter* r, uint64_t f)
 {
-    cxt->fp = (uint8_t*) f;
+    cxt->r = r;
+    cxt->f = (uint8_t*) f;
     cxt->off = 0;
-    cxt->rex = 0;
-    cxt->hasRex = false;
-    cxt->segOv = OSO_None;
-    cxt->ps = PS_None;
+
+    cxt->exit = false;
+    cxt->error = 0;
 }
 
 // possible prefixes:
@@ -314,9 +324,16 @@ static
 void decodePrefixes(DContext* cxt)
 {
     // starts a new instruction
-    cxt->iaddr = (uint64_t)(cxt->fp + cxt->off);
+    cxt->iaddr = (uint64_t)(cxt->f + cxt->off);
+    cxt->rex = 0;
+    cxt->hasRex = false;
+    cxt->segOv = OSO_None;
+    cxt->ps = PS_None;
+    cxt->exit = false;
+    cxt->error = 0;
+
     while(1) {
-        uint8_t b = cxt->fp[cxt->off];
+        uint8_t b = cxt->f[cxt->off];
         if ((b >= 0x40) && (b <= 0x4F)) {
             cxt->rex = b & 15;
             cxt->hasRex = true;
@@ -329,25 +346,64 @@ void decodePrefixes(DContext* cxt)
         else if (b == 0x2E) cxt->ps |= PS_2E;
         else {
             // no further prefixes
-            return;
+            break;
         }
         cxt->off++;
     }
+
+    // default value type (for all instrs with 16/32/64)
+    cxt->vt = (cxt->rex & REX_MASK_W) ? VT_64 : VT_32;
+    if (cxt->ps & PS_66) cxt->vt = VT_16;
 }
+
+
+// fast decoding path via opcode tables
+
+typedef void (*decode_handler_t)(DContext*);
+
+static decode_handler_t opcTable[256];
+static decode_handler_t opcTable0F[256];
+
+static
+void addOpc(int opc, decode_handler_t h)
+{
+    assert((opc>=0) && (opc<=255) && (opc != 0x0F));
+    opcTable[opc] = h;
+}
+
+static
+void addOpc0F(int opc, decode_handler_t h)
+{
+    assert((opc>=0) && (opc<=255));
+    opcTable0F[opc] = h;
+}
+
+// single opcode decode handlers
+
+static void decode90(DContext* cxt)
+{
+    // nop
+    addSimple(cxt->r, cxt, IT_NOP);
+}
+
 
 // Decode multi-byte opcode starting with 0x0F.
 // Parameters:
 //  <vt> default operand type, <exit>: set to true for control flow change
 static
-void decode0F(Rewriter* r, DContext* cxt, ValType vt, bool* exit)
+void decode0F(DContext* cxt)
 {
+    Rewriter* r;
+    ValType vt;
     int opc2, digit;
     Operand o1, o2;
     OperandEncoding oe;
     InstrType it;
     Instr* ii;
 
-    opc2 = cxt->fp[cxt->off++];
+    r = cxt->r;
+    vt = cxt->vt;
+    opc2 = cxt->opc2;
     switch(opc2) {
     case 0x10:
         switch(cxt->ps) {
@@ -714,7 +770,7 @@ void decode0F(Rewriter* r, DContext* cxt, ValType vt, bool* exit)
     case 0x8E: // jle/jng rel32
     case 0x8F: // jg/jnle rel32
         o1.type = OT_Imm64;
-        o1.val = (uint64_t) (cxt->fp + cxt->off + 4 + *(int32_t*)(cxt->fp + cxt->off));
+        o1.val = (uint64_t) (cxt->f + cxt->off + 4 + *(int32_t*)(cxt->f + cxt->off));
         cxt->off += 4;
         switch (opc2) {
         case 0x80: it = IT_JO; break;
@@ -738,7 +794,7 @@ void decode0F(Rewriter* r, DContext* cxt, ValType vt, bool* exit)
         it = IT_JO + (opc2 & 0xf);
         ii = addUnaryOp(r, cxt, it, &o1);
         ii->vtype = VT_Implicit; // jump address size is implicit
-        *exit = true;
+        cxt->exit = true;
         break;
 
     case 0xAF:
@@ -842,15 +898,19 @@ void decode0F(Rewriter* r, DContext* cxt, ValType vt, bool* exit)
 // Parameters:
 //  <vt> default operand type, <exit>: set to true for control flow change
 static
-void decode(Rewriter* r, DContext* cxt, ValType vt, bool* exit)
+void decode(DContext* cxt)
 {
+    Rewriter* r;
+    ValType vt;
     int opc, digit;
     Operand o1, o2, o3;
     Reg reg;
     InstrType it;
     Instr* ii;
 
-    opc = cxt->fp[cxt->off++];
+    r = cxt->r;
+    vt = cxt->vt;
+    opc = cxt->opc1;
     switch(opc) {
 
     case 0x00: // add r/m8,r8 (MR, dst: r/m, src: r)
@@ -896,8 +956,8 @@ void decode(Rewriter* r, DContext* cxt, ValType vt, bool* exit)
         break;
 
     case 0x0F:
-        // multi-byte opcode
-        decode0F(r, cxt, vt, exit);
+        // multi-byte opcode, not handled here
+        assert(0);
         break;
 
     case 0x10: // adc r/m8,r8 (MR, dst: r/m, src: r)
@@ -1098,7 +1158,7 @@ void decode(Rewriter* r, DContext* cxt, ValType vt, bool* exit)
     case 0x7E: // jle/jng rel8
     case 0x7F: // jg/jnle rel8
         o1.type = OT_Imm64;
-        o1.val = (uint64_t) (cxt->fp + cxt->off + 1 + *(int8_t*)(cxt->fp + cxt->off));
+        o1.val = (uint64_t) (cxt->f + cxt->off + 1 + *(int8_t*)(cxt->f + cxt->off));
         cxt->off += 1;
         switch (opc) {
         case 0x70: it = IT_JO; break;
@@ -1121,7 +1181,7 @@ void decode(Rewriter* r, DContext* cxt, ValType vt, bool* exit)
         }
         ii = addUnaryOp(r, cxt, it, &o1);
         ii->vtype = VT_Implicit; // jump address size is implicit
-        *exit = true;
+        cxt->exit = true;
         break;
 
     case 0x80: // add/or/... r/m and imm8
@@ -1226,12 +1286,6 @@ void decode(Rewriter* r, DContext* cxt, ValType vt, bool* exit)
         }
         break;
 
-
-    case 0x90:
-        // nop
-        addSimple(r, cxt, IT_NOP);
-        break;
-
     case 0x98:
         // cltq (Intel: cdqe - sign-extend eax to rax)
         addSimpleVType(r, cxt, IT_CLTQ,
@@ -1305,7 +1359,7 @@ void decode(Rewriter* r, DContext* cxt, ValType vt, bool* exit)
     case 0xC3:
         // ret
         addSimple(r, cxt, IT_RET);
-        *exit = true;
+        cxt->exit = true;
         break;
 
     case 0xC6:
@@ -1367,7 +1421,6 @@ void decode(Rewriter* r, DContext* cxt, ValType vt, bool* exit)
         }
         break;
 
-
     case 0xD2:
         vt = VT_8;
         parseModRM(cxt, vt, RT_G, &o1, 0, &digit);
@@ -1403,28 +1456,28 @@ void decode(Rewriter* r, DContext* cxt, ValType vt, bool* exit)
     case 0xE8:
         // call rel32
         o1.type = OT_Imm64;
-        o1.val = (uint64_t) (cxt->fp + cxt->off + 4 + *(int32_t*)(cxt->fp + cxt->off));
+        o1.val = (uint64_t) (cxt->f + cxt->off + 4 + *(int32_t*)(cxt->f + cxt->off));
         cxt->off += 4;
         addUnaryOp(r, cxt, IT_CALL, &o1);
-        *exit = true;
+        cxt->exit = true;
         break;
 
     case 0xE9:
         // jmp rel32: relative, displacement relative to next instruction
         o1.type = OT_Imm64;
-        o1.val = (uint64_t) (cxt->fp + cxt->off + 4 + *(int32_t*)(cxt->fp + cxt->off));
+        o1.val = (uint64_t) (cxt->f + cxt->off + 4 + *(int32_t*)(cxt->f + cxt->off));
         cxt->off += 4;
         addUnaryOp(r, cxt, IT_JMP, &o1);
-        *exit = true;
+        cxt->exit = true;
         break;
 
     case 0xEB:
         // jmp rel8: relative, displacement relative to next instruction
         o1.type = OT_Imm64;
-        o1.val = (uint64_t) (cxt->fp + cxt->off + 1 + *(int8_t*)(cxt->fp + cxt->off));
+        o1.val = (uint64_t) (cxt->f + cxt->off + 1 + *(int8_t*)(cxt->f + cxt->off));
         cxt->off += 1;
         addUnaryOp(r, cxt, IT_JMP, &o1);
-        *exit = true;
+        cxt->exit = true;
         break;
 
     case 0xF6:
@@ -1498,7 +1551,7 @@ void decode(Rewriter* r, DContext* cxt, ValType vt, bool* exit)
             // call r/m64
             assert(vt == VT_64); // only 64bit target allowed in 64bit mode
             addUnaryOp(r, cxt, IT_CALL, &o1);
-            *exit = true;
+            cxt->exit = true;
             break;
 
         case 4:
@@ -1506,7 +1559,7 @@ void decode(Rewriter* r, DContext* cxt, ValType vt, bool* exit)
             assert(cxt->rex == 0);
             opOverwriteType(&o1, VT_64);
             addUnaryOp(r, cxt, IT_JMPI, &o1);
-            *exit = true;
+            cxt->exit = true;
             break;
 
         case 6: // push r/m 16/64
@@ -1530,22 +1583,34 @@ void decode(Rewriter* r, DContext* cxt, ValType vt, bool* exit)
     }
 }
 
+static
+void initDecodeTables(void)
+{
+    static bool done = false;
+    if (done) return;
+
+    for(int i = 0; i<256; i++) {
+        opcTable[i] = 0;
+        opcTable0F[i] = 0;
+    }
+    addOpc(0x90, decode90);
+}
+
 // decode the basic block starting at f (automatically triggered by emulator)
 DBB* dbrew_decode(Rewriter* r, uint64_t f)
 {
     DContext cxt;
-    ValType vt;
-    int i, old_icount;
-    bool exitLoop;
+    decode_handler_t handler;
+    int i, old_icount, opc;
     DBB* dbb;
 
     if (f == 0) return 0; // nothing to decode
     if (r->decBB == 0) initRewriter(r);
+    initDecodeTables();
 
     // already decoded?
     for(i = 0; i < r->decBBCount; i++)
         if (r->decBB[i].addr == f) return &(r->decBB[i]);
-
 
     // start decoding of new BB beginning at f
     assert(r->decBBCount < r->decBBCapacity);
@@ -1561,22 +1626,31 @@ DBB* dbrew_decode(Rewriter* r, uint64_t f)
     if (r->showDecoding)
         printf("Decoding BB %s ...\n", prettyAddress(f, dbb->fc));
 
-    initDContext(&cxt, f);
-    exitLoop = false;
+    initDContext(&cxt, r, f);
 
-    while(!exitLoop) {
+    while(!cxt.exit) {
         decodePrefixes(&cxt);
 
-        // default value type (for all instrs with 16/32/64)
-        vt = (cxt.rex & REX_MASK_W) ? VT_64 : VT_32;
-        if (cxt.ps & PS_66) vt = VT_16;
+        // parse opcode, use opcode tables or switch-case handler
+        opc = cxt.f[cxt.off++];
+        cxt.opc1 = opc;
+        if (opc == 0x0F) {
+            // opcode starting with 0x0F
+            opc = cxt.f[cxt.off++];
+            cxt.opc2 = opc;
+            handler =  opcTable0F[opc];
+            if (handler)
+                (*handler)(&cxt);
+            else
+                decode0F(&cxt);
+            continue;
+        }
 
-        decode(r, &cxt, vt, &exitLoop);
-
-        cxt.rex = 0;
-        cxt.hasRex = false;
-        cxt.segOv = OSO_None;
-        cxt.ps = PS_None;
+        handler =  opcTable[opc];
+        if (handler)
+            (*handler)(&cxt);
+        else
+            decode(&cxt);
     }
 
     assert(dbb->addr == dbb->instr->addr);
