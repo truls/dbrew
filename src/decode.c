@@ -523,9 +523,14 @@ static void reqExit(DContext* c)
 }
 
 
-// generic opcode decode handlers
 
+// opcode-specific decode handlers
+
+
+//
 // handlers for multi-byte opcodes starting with 0x0F
+//
+
 static
 void decode0F_10(DContext* c)
 {
@@ -968,14 +973,6 @@ void decode0F_80(DContext* c)
 }
 
 static
-void decode0F_AF(DContext* c)
-{
-    // imul r,rm 16/32/64 (RM), signed mul (d/q)word by r/m
-    parseModRM(c, c->vt, RT_GG, &c->o2, &c->o1, 0);
-    addBinaryOp(c->r, c, IT_IMUL, c->vt, &c->o1, &c->o2);
-}
-
-static
 void decode0F_B6(DContext* c)
 {
     // movzbl r16/32/64,r/m8 (RM): move byte to (d)word, zero-extend
@@ -992,15 +989,6 @@ void decode0F_B7(DContext* c)
     parseModRM(c, c->vt, RT_GG, &c->o2, &c->o1, 0);
     opOverwriteType(&c->o2, VT_16); // source always 16bit
     addBinaryOp(c->r, c, IT_MOVZX, c->vt, &c->o1, &c->o2);
-}
-
-static
-void decode0F_BC(DContext* c)
-{
-    // bsf r,r/m 32/64 (RM): bit scan forward
-    c->vt = (c->rex & REX_MASK_W) ? VT_64 : VT_32;
-    parseModRM(c, c->vt, RT_GG, &c->o2, &c->o1, 0);
-    addBinaryOp(c->r, c, IT_BSF, c->vt, &c->o1, &c->o2);
 }
 
 static
@@ -1025,9 +1013,9 @@ void decode0F_BF(DContext* c)
 static
 void decode0F_D4(DContext* c)
 {
-    // paddq mm1, mm2/m64 (RM)
+    // paddq mm1,mm2/m64 (RM)
     // - add quadword integer mm2/m64 to mm1
-    // paddq xmm1, xmm2/m64 (RM)
+    // paddq xmm1,xmm2/m64 (RM)
     // - add packed quadword xmm2/m128 to xmm1
     c->vt = (c->ps & PS_66) ? VT_128 : VT_64;
     parseModRM(c, c->vt, RT_VV, &c->o2, &c->o1, 0);
@@ -1071,7 +1059,7 @@ void decode0F_DA(DContext* c)
 static
 void decode0F_EF(DContext* c)
 {
-    // pxor xmm1, xmm2/m 64/128 (RM)
+    // pxor xmm1,xmm2/m 64/128 (RM)
     c->vt = (c->ps & PS_66) ? VT_128 : VT_64;
     parseModRM(c, c->vt, RT_VV, &c->o2, &c->o1, 0);
     c->ii = addBinaryOp(c->r, c, IT_PXOR, VT_Implicit, &c->o1, &c->o2);
@@ -1080,7 +1068,9 @@ void decode0F_EF(DContext* c)
 }
 
 
-// more complex handlers for single-byte opcodes
+//
+// handlers for single-byte opcodes
+//
 
 static
 void decode_50(DContext* c)
@@ -1830,6 +1820,8 @@ void initDecodeTables(void)
     setOpcH(0x0F28, decode0F_28);
     setOpcH(0x0F29, decode0F_29);
     setOpcH(0x0F2E, decode0F_2E);
+
+    // 0x0F40-0x0F4F: cmovcc r,r/m 16/32/64
     setOpcH(0x0F40, decode0F_40);
     setOpcH(0x0F41, decode0F_40);
     setOpcH(0x0F42, decode0F_40);
@@ -1846,6 +1838,7 @@ void initDecodeTables(void)
     setOpcH(0x0F4D, decode0F_40);
     setOpcH(0x0F4E, decode0F_40);
     setOpcH(0x0F4F, decode0F_40);
+
     setOpcH(0x0F57, decode0F_57);
     setOpcH(0x0F58, decode0F_58);
     setOpcH(0x0F59, decode0F_59);
@@ -1855,6 +1848,8 @@ void initDecodeTables(void)
     setOpcH(0x0F74, decode0F_74);
     setOpcH(0x0F7E, decode0F_7E);
     setOpcH(0x0F7F, decode0F_7F);
+
+    // 0x0F80-0F8F: jcc rel32
     setOpcH(0x0F80, decode0F_80);
     setOpcH(0x0F81, decode0F_80);
     setOpcH(0x0F82, decode0F_80);
@@ -1864,23 +1859,30 @@ void initDecodeTables(void)
     setOpcH(0x0F86, decode0F_80);
     setOpcH(0x0F87, decode0F_80);
     setOpcH(0x0F88, decode0F_80);
+    setOpcH(0x0F89, decode0F_80);
     setOpcH(0x0F8A, decode0F_80);
     setOpcH(0x0F8B, decode0F_80);
     setOpcH(0x0F8C, decode0F_80);
     setOpcH(0x0F8D, decode0F_80);
     setOpcH(0x0F8E, decode0F_80);
     setOpcH(0x0F8F, decode0F_80);
-    setOpcH(0x0FAF, decode0F_AF);
-    setOpcH(0x0FB6, decode0F_B6);
-    setOpcH(0x0FB7, decode0F_B7);
-    setOpcH(0x0FBC, decode0F_BC);
-    setOpcH(0x0FBE, decode0F_BE);
-    setOpcH(0x0FBF, decode0F_BF);
-    setOpcH(0x0FD4, decode0F_D4);
-    setOpcH(0x0FD6, decode0F_D6);
-    setOpcH(0x0FD7, decode0F_D7);
-    setOpcH(0x0FDA, decode0F_DA);
-    setOpcH(0x0FEF, decode0F_EF);
+
+    // 0x0FAF: imul r,rm16/32/64 (RM), signed mul (d/q)word by r/m
+    setOpc(0x0FAF, IT_IMUL, VT_Default, parseRM, addBInstr, 0);
+
+    setOpcH(0x0FB6, decode0F_B6); // movzbl r16/32/64,r/m8 (RM)
+    setOpcH(0x0FB7, decode0F_B7); // movzbl r32/64,r/m16 (RM)
+
+    // 0x0FBC: bsf r,r/m 16/32/64 (RM): bit scan forward
+    setOpc(0x0FBC, IT_BSF, VT_Default, parseRM, addBInstr, 0);
+
+    setOpcH(0x0FBE, decode0F_BE); // movsx r16/32/64,r/m8 (RM)
+    setOpcH(0x0FBF, decode0F_BF); // movsx r32/64,r/m16 (RM)
+    setOpcH(0x0FD4, decode0F_D4); // paddq xmm1,xmm2/m 64/128 (RM)
+    setOpcH(0x0FD6, decode0F_D6); // movq xmm2/m64,xmm1 (MR)
+    setOpcH(0x0FD7, decode0F_D7); // pmovmskb r,xmm 64/128 (RM)
+    setOpcH(0x0FDA, decode0F_DA); // pminub xmm,xmm/m 64/128 (RM)
+    setOpcH(0x0FEF, decode0F_EF); // pxor xmm1,xmm2/m 64/128 (RM)
 }
 
 // decode the basic block starting at f (automatically triggered by emulator)
