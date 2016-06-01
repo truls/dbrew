@@ -81,8 +81,9 @@ typedef enum _InstrType {
 } InstrType;
 
 typedef enum _ValType {
-    // implicit: width given by opcode, use with Instr.vtype
-    VT_None = 0, VT_Implicit,
+    VT_None = 0,
+    VT_Default,  // default operand type, used in decoder
+    VT_Implicit, // width given by opcode, use with Instr.vtype
     VT_8, VT_16, VT_32, VT_64, VT_128, VT_256,
     //
     VT_Max

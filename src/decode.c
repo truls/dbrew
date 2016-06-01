@@ -357,38 +357,119 @@ void decodePrefixes(DContext* cxt)
         }
         cxt->off++;
     }
-
-    // default value type (for all instrs with 16/32/64)
-    cxt->vt = (cxt->rex & REX_MASK_W) ? VT_64 : VT_32;
-    if (cxt->ps & PS_66) cxt->vt = VT_16;
 }
 
+/**
+ * Decoding handlers called via opcode tables
+ *
+ * For each entry in an opcode table, up to 3 handlers can be called.
+ */
+typedef void (*DecHandler)(DContext*);
 
-// decoding via opcode tables
+typedef struct _OpcEntry OpcEntry;
+struct _OpcEntry {
+    DecHandler h1, h2, h3;
 
-typedef void (*decode_handler_t)(DContext*);
+    ValType vt;    // default or specific operand type?
+    InstrType it;  // preset for it in DContext
+};
 
-static decode_handler_t opcTable[256];
-static decode_handler_t opcTable0F[256];
+static OpcEntry opcTable[256];
+static OpcEntry opcTable0F[256];
 
 static
-void addOpc(int opc, decode_handler_t h)
+OpcEntry* setOpc(int opc,
+                 DecHandler h1, DecHandler h2, DecHandler h3,
+                 ValType vt, InstrType it)
 {
-    assert((opc>=0) && (opc<=255) && (opc != 0x0F));
-    opcTable[opc] = h;
+    OpcEntry* e;
+    if ((opc>=0) && (opc<=0xFF)) {
+        assert(opc != 0x0F);
+        e = &(opcTable[opc]);
+    }
+    else if ((opc>=0x0F00) && (opc<=0x0FFF)) {
+        e = &(opcTable0F[opc - 0x0F00]);
+    }
+    else assert(0);
+
+    e->h1 = h1;
+    e->h2 = h2;
+    e->h3 = h3;
+    e->vt = vt;
+    e->it = it;
+
+    return e;
 }
 
 static
-void addOpc0F(int opc, decode_handler_t h)
+OpcEntry* setOpcH(int opc, DecHandler h)
 {
-    assert((opc>=0) && (opc<=255));
-    opcTable0F[opc] = h;
+    return setOpc(opc, h, 0, 0, VT_Default, IT_None);
 }
 
-// opcode decode handlers
+static
+void processOpcEntry(OpcEntry* e, DContext* c)
+{
+    c->it = e->it;
+    if (e->vt == VT_Default) {
+        // derive type from prefixes
+        c->vt = (c->rex & REX_MASK_W) ? VT_64 : VT_32;
+        if (c->ps & PS_66) c->vt = VT_16;
+    }
+    else
+        c->vt = e->vt;
+
+    if (e->h1 == 0) {
+        // invalid opcode
+        addSimple(c->r, c, IT_Invalid);
+        return;
+    }
+    (e->h1)(c);
+    if (e->h2 == 0) return;
+    (e->h2)(c);
+    if (e->h3 == 0) return;
+    (e->h3)(c);
+}
+
+// encoding parser handlers
+
+// RM encoding for 2 GP registers
+static void parseRM(DContext* c)
+{
+    parseModRM(c, c->vt, RT_GG, &c->o2, &c->o1, 0);
+}
+
+// MR encoding for 2 GP registers
+static void parseMR(DContext* c)
+{
+    parseModRM(c, c->vt, RT_GG, &c->o1, &c->o2, 0);
+}
+
+// parse immediate into op 1 (for 64bit with imm32 signed extension)
+static void parseI1(DContext* c)
+{
+    parseImm(c, c->vt, &c->o1, false);
+}
+
+
+// instruction append handlers
+
+// append unary instruction
+static void addUInstr(DContext* c)
+{
+    addUnaryOp(c->r, c, c->it, &c->o1);
+}
+
+// append binary instruction
+static void addBInstr(DContext* c)
+{
+    addBinaryOp(c->r, c, c->it, c->vt, &c->o1, &c->o2);
+}
+
+
+// generic opcode decode handlers
 
 // handlers for multi-byte opcodes starting with 0x0F
-
 static
 void decode0F_10(DContext* c)
 {
@@ -1496,8 +1577,6 @@ void decode_C0(DContext* c)
         addSimple(c->r, c, IT_Invalid);
         break;
     }
-
-
 }
 
 static
@@ -1779,226 +1858,221 @@ void initDecodeTables(void)
     if (done) return;
 
     for(int i = 0; i<256; i++) {
-        opcTable[i] = 0;
-        opcTable0F[i] = 0;
+        opcTable[i].h1 = 0;
+        opcTable0F[i].h1 = 0;
     }
 
-    addOpc0F(0x10, decode0F_10);
-    addOpc0F(0x11, decode0F_11);
-    addOpc0F(0x12, decode0F_12);
-    addOpc0F(0x13, decode0F_13);
-    addOpc0F(0x14, decode0F_14);
-    addOpc0F(0x15, decode0F_15);
-    addOpc0F(0x16, decode0F_16);
-    addOpc0F(0x17, decode0F_17);
-    addOpc0F(0x1F, decode0F_1F);
-    addOpc0F(0x28, decode0F_28);
-    addOpc0F(0x29, decode0F_29);
-    addOpc0F(0x2E, decode0F_2E);
+    setOpcH(0x00, decode_00);
+    setOpcH(0x01, decode_00);
+    setOpcH(0x02, decode_02);
+    setOpcH(0x03, decode_02);
+    setOpcH(0x04, decode_04);
+    setOpcH(0x05, decode_04);
+    setOpcH(0x08, decode_08);
+    setOpcH(0x09, decode_08);
+    setOpcH(0x0A, decode_0A);
+    setOpcH(0x0B, decode_0A);
+    setOpcH(0x0C, decode_0C);
+    setOpcH(0x0D, decode_0C);
+    setOpcH(0x10, decode_10);
+    setOpcH(0x11, decode_10);
+    setOpcH(0x12, decode_12);
+    setOpcH(0x13, decode_12);
+    setOpcH(0x14, decode_14);
+    setOpcH(0x15, decode_14);
+    setOpcH(0x18, decode_18);
+    setOpcH(0x19, decode_18);
+    setOpcH(0x1A, decode_1A);
+    setOpcH(0x1B, decode_1A);
+    setOpcH(0x1C, decode_1C);
+    setOpcH(0x1D, decode_1C);
+    setOpcH(0x20, decode_20);
+    setOpcH(0x21, decode_20);
+    setOpcH(0x22, decode_22);
+    setOpcH(0x23, decode_22);
+    setOpcH(0x24, decode_24);
+    setOpcH(0x25, decode_24);
+    setOpcH(0x28, decode_28);
+    setOpcH(0x29, decode_28);
+    setOpcH(0x2A, decode_2A);
+    setOpcH(0x2B, decode_2A);
+    setOpcH(0x2C, decode_2C);
+    setOpcH(0x2D, decode_2C);
+    setOpcH(0x30, decode_30);
+    setOpcH(0x31, decode_30);
+    setOpcH(0x32, decode_32);
+    setOpcH(0x33, decode_32);
+    setOpcH(0x34, decode_34);
+    setOpcH(0x35, decode_34);
+    setOpcH(0x38, decode_38);
+    setOpcH(0x39, decode_38);
+    setOpcH(0x3A, decode_3A);
+    setOpcH(0x3B, decode_3A);
+    setOpcH(0x3C, decode_3C);
+    setOpcH(0x3D, decode_3C);
 
-    addOpc0F(0x40, decode0F_40);
-    addOpc0F(0x41, decode0F_40);
-    addOpc0F(0x42, decode0F_40);
-    addOpc0F(0x43, decode0F_40);
-    addOpc0F(0x44, decode0F_40);
-    addOpc0F(0x45, decode0F_40);
-    addOpc0F(0x46, decode0F_40);
-    addOpc0F(0x47, decode0F_40);
-    addOpc0F(0x48, decode0F_40);
-    addOpc0F(0x49, decode0F_40);
-    addOpc0F(0x4A, decode0F_40);
-    addOpc0F(0x4B, decode0F_40);
-    addOpc0F(0x4C, decode0F_40);
-    addOpc0F(0x4D, decode0F_40);
-    addOpc0F(0x4E, decode0F_40);
-    addOpc0F(0x4F, decode0F_40);
+    setOpcH(0x50, decode_50);
+    setOpcH(0x51, decode_50);
+    setOpcH(0x52, decode_50);
+    setOpcH(0x53, decode_50);
+    setOpcH(0x54, decode_50);
+    setOpcH(0x55, decode_50);
+    setOpcH(0x56, decode_50);
+    setOpcH(0x57, decode_50);
+    setOpcH(0x58, decode_58);
+    setOpcH(0x59, decode_58);
+    setOpcH(0x5A, decode_58);
+    setOpcH(0x5B, decode_58);
+    setOpcH(0x5C, decode_58);
+    setOpcH(0x5D, decode_58);
+    setOpcH(0x5E, decode_58);
+    setOpcH(0x5F, decode_58);
 
-    addOpc0F(0x57, decode0F_57);
-    addOpc0F(0x58, decode0F_58);
-    addOpc0F(0x59, decode0F_59);
-    addOpc0F(0x5C, decode0F_5C);
-    addOpc0F(0x6E, decode0F_6E);
-    addOpc0F(0x6F, decode0F_6F);
-    addOpc0F(0x74, decode0F_74);
-    addOpc0F(0x7E, decode0F_7E);
-    addOpc0F(0x7F, decode0F_7F);
+    setOpcH(0x63, decode_63);
+    setOpcH(0x68, decode_68);
+    setOpcH(0x69, decode_69);
+    setOpcH(0x6A, decode_6A);
+    setOpcH(0x6B, decode_6B);
 
-    addOpc0F(0x80, decode0F_80);
-    addOpc0F(0x81, decode0F_80);
-    addOpc0F(0x82, decode0F_80);
-    addOpc0F(0x83, decode0F_80);
-    addOpc0F(0x84, decode0F_80);
-    addOpc0F(0x85, decode0F_80);
-    addOpc0F(0x86, decode0F_80);
-    addOpc0F(0x87, decode0F_80);
-    addOpc0F(0x88, decode0F_80);
-    addOpc0F(0x8A, decode0F_80);
-    addOpc0F(0x8B, decode0F_80);
-    addOpc0F(0x8C, decode0F_80);
-    addOpc0F(0x8D, decode0F_80);
-    addOpc0F(0x8E, decode0F_80);
-    addOpc0F(0x8F, decode0F_80);
+    setOpcH(0x70, decode_70);
+    setOpcH(0x71, decode_70);
+    setOpcH(0x72, decode_70);
+    setOpcH(0x73, decode_70);
+    setOpcH(0x74, decode_70);
+    setOpcH(0x75, decode_70);
+    setOpcH(0x76, decode_70);
+    setOpcH(0x77, decode_70);
+    setOpcH(0x78, decode_70);
+    setOpcH(0x79, decode_70);
+    setOpcH(0x7A, decode_70);
+    setOpcH(0x7B, decode_70);
+    setOpcH(0x7C, decode_70);
+    setOpcH(0x7D, decode_70);
+    setOpcH(0x7E, decode_70);
+    setOpcH(0x7F, decode_70);
 
-    addOpc0F(0xAF, decode0F_AF);
-    addOpc0F(0xB6, decode0F_B6);
-    addOpc0F(0xB7, decode0F_B7);
-    addOpc0F(0xBC, decode0F_BC);
-    addOpc0F(0xBE, decode0F_BE);
-    addOpc0F(0xBF, decode0F_BF);
-    addOpc0F(0xD4, decode0F_D4);
-    addOpc0F(0xD6, decode0F_D6);
-    addOpc0F(0xD7, decode0F_D7);
-    addOpc0F(0xDA, decode0F_DA);
-    addOpc0F(0xEF, decode0F_EF);
+    setOpcH(0x80, decode_80);
+    setOpcH(0x81, decode_81);
+    setOpcH(0x83, decode_83);
+    setOpcH(0x84, decode_84);
+    setOpcH(0x85, decode_84);
+    setOpcH(0x88, decode_88);
+    setOpcH(0x89, decode_88);
+    setOpcH(0x8A, decode_8A);
+    setOpcH(0x8B, decode_8A);
+    setOpcH(0x8D, decode_8D);
+    setOpcH(0x8F, decode_8F);
 
-    addOpc(0x00, decode_00);
-    addOpc(0x01, decode_00);
-    addOpc(0x02, decode_02);
-    addOpc(0x03, decode_02);
-    addOpc(0x04, decode_04);
-    addOpc(0x05, decode_04);
-    addOpc(0x08, decode_08);
-    addOpc(0x09, decode_08);
-    addOpc(0x0A, decode_0A);
-    addOpc(0x0B, decode_0A);
-    addOpc(0x0C, decode_0C);
-    addOpc(0x0D, decode_0C);
-    addOpc(0x10, decode_10);
-    addOpc(0x11, decode_10);
-    addOpc(0x12, decode_12);
-    addOpc(0x13, decode_12);
-    addOpc(0x14, decode_14);
-    addOpc(0x15, decode_14);
-    addOpc(0x18, decode_18);
-    addOpc(0x19, decode_18);
-    addOpc(0x1A, decode_1A);
-    addOpc(0x1B, decode_1A);
-    addOpc(0x1C, decode_1C);
-    addOpc(0x1D, decode_1C);
-    addOpc(0x20, decode_20);
-    addOpc(0x21, decode_20);
-    addOpc(0x22, decode_22);
-    addOpc(0x23, decode_22);
-    addOpc(0x24, decode_24);
-    addOpc(0x25, decode_24);
-    addOpc(0x28, decode_28);
-    addOpc(0x29, decode_28);
-    addOpc(0x2A, decode_2A);
-    addOpc(0x2B, decode_2A);
-    addOpc(0x2C, decode_2C);
-    addOpc(0x2D, decode_2C);
-    addOpc(0x30, decode_30);
-    addOpc(0x31, decode_30);
-    addOpc(0x32, decode_32);
-    addOpc(0x33, decode_32);
-    addOpc(0x34, decode_34);
-    addOpc(0x35, decode_34);
-    addOpc(0x38, decode_38);
-    addOpc(0x39, decode_38);
-    addOpc(0x3A, decode_3A);
-    addOpc(0x3B, decode_3A);
-    addOpc(0x3C, decode_3C);
-    addOpc(0x3D, decode_3C);
+    setOpcH(0x90, decode_90);
+    setOpcH(0x98, decode_98);
+    setOpcH(0x99, decode_99);
+    setOpcH(0xA8, decode_A8);
+    setOpcH(0xA9, decode_A8);
 
-    addOpc(0x50, decode_50);
-    addOpc(0x51, decode_50);
-    addOpc(0x52, decode_50);
-    addOpc(0x53, decode_50);
-    addOpc(0x54, decode_50);
-    addOpc(0x55, decode_50);
-    addOpc(0x56, decode_50);
-    addOpc(0x57, decode_50);
-    addOpc(0x58, decode_58);
-    addOpc(0x59, decode_58);
-    addOpc(0x5A, decode_58);
-    addOpc(0x5B, decode_58);
-    addOpc(0x5C, decode_58);
-    addOpc(0x5D, decode_58);
-    addOpc(0x5E, decode_58);
-    addOpc(0x5F, decode_58);
+    setOpcH(0xB0, decode_B0);
+    setOpcH(0xB1, decode_B0);
+    setOpcH(0xB2, decode_B0);
+    setOpcH(0xB3, decode_B0);
+    setOpcH(0xB4, decode_B0);
+    setOpcH(0xB5, decode_B0);
+    setOpcH(0xB6, decode_B0);
+    setOpcH(0xB7, decode_B0);
+    setOpcH(0xB8, decode_B0);
+    setOpcH(0xB9, decode_B0);
+    setOpcH(0xBA, decode_B0);
+    setOpcH(0xBB, decode_B0);
+    setOpcH(0xBC, decode_B0);
+    setOpcH(0xBD, decode_B0);
+    setOpcH(0xBE, decode_B0);
+    setOpcH(0xBF, decode_B0);
 
-    addOpc(0x63, decode_63);
-    addOpc(0x68, decode_68);
-    addOpc(0x69, decode_69);
-    addOpc(0x6A, decode_6A);
-    addOpc(0x6B, decode_6B);
+    setOpcH(0xC0, decode_C0);
+    setOpcH(0xC1, decode_C1);
+    setOpcH(0xC3, decode_C3);
+    setOpcH(0xC6, decode_C6);
+    setOpcH(0xC7, decode_C7);
+    setOpcH(0xC9, decode_C9);
+    setOpcH(0xD0, decode_D0);
+    setOpcH(0xD1, decode_D1);
+    setOpcH(0xD2, decode_D2);
+    setOpcH(0xD3, decode_D3);
+    setOpcH(0xE8, decode_E8);
+    setOpcH(0xE9, decode_E9);
+    setOpcH(0xEB, decode_EB);
+    setOpcH(0xF6, decode_F6);
+    setOpcH(0xF7, decode_F7);
+    setOpcH(0xFE, decode_FE);
+    setOpcH(0xFF, decode_FF);
 
-    addOpc(0x70, decode_70);
-    addOpc(0x71, decode_70);
-    addOpc(0x72, decode_70);
-    addOpc(0x73, decode_70);
-    addOpc(0x74, decode_70);
-    addOpc(0x75, decode_70);
-    addOpc(0x76, decode_70);
-    addOpc(0x77, decode_70);
-    addOpc(0x78, decode_70);
-    addOpc(0x79, decode_70);
-    addOpc(0x7A, decode_70);
-    addOpc(0x7B, decode_70);
-    addOpc(0x7C, decode_70);
-    addOpc(0x7D, decode_70);
-    addOpc(0x7E, decode_70);
-    addOpc(0x7F, decode_70);
-
-    addOpc(0x80, decode_80);
-    addOpc(0x81, decode_81);
-    addOpc(0x83, decode_83);
-    addOpc(0x84, decode_84);
-    addOpc(0x85, decode_84);
-    addOpc(0x88, decode_88);
-    addOpc(0x89, decode_88);
-    addOpc(0x8A, decode_8A);
-    addOpc(0x8B, decode_8A);
-    addOpc(0x8D, decode_8D);
-    addOpc(0x8F, decode_8F);
-
-    addOpc(0x90, decode_90);
-    addOpc(0x98, decode_98);
-    addOpc(0x99, decode_99);
-    addOpc(0xA8, decode_A8);
-    addOpc(0xA9, decode_A8);
-
-    addOpc(0xB0, decode_B0);
-    addOpc(0xB1, decode_B0);
-    addOpc(0xB2, decode_B0);
-    addOpc(0xB3, decode_B0);
-    addOpc(0xB4, decode_B0);
-    addOpc(0xB5, decode_B0);
-    addOpc(0xB6, decode_B0);
-    addOpc(0xB7, decode_B0);
-    addOpc(0xB8, decode_B0);
-    addOpc(0xB9, decode_B0);
-    addOpc(0xBA, decode_B0);
-    addOpc(0xBB, decode_B0);
-    addOpc(0xBC, decode_B0);
-    addOpc(0xBD, decode_B0);
-    addOpc(0xBE, decode_B0);
-    addOpc(0xBF, decode_B0);
-
-    addOpc(0xC0, decode_C0);
-    addOpc(0xC1, decode_C1);
-    addOpc(0xC3, decode_C3);
-    addOpc(0xC6, decode_C6);
-    addOpc(0xC7, decode_C7);
-    addOpc(0xC9, decode_C9);
-    addOpc(0xD0, decode_D0);
-    addOpc(0xD1, decode_D1);
-    addOpc(0xD2, decode_D2);
-    addOpc(0xD3, decode_D3);
-    addOpc(0xE8, decode_E8);
-    addOpc(0xE9, decode_E9);
-    addOpc(0xEB, decode_EB);
-    addOpc(0xF6, decode_F6);
-    addOpc(0xF7, decode_F7);
-    addOpc(0xFE, decode_FE);
-    addOpc(0xFF, decode_FF);
+    setOpcH(0x0F10, decode0F_10);
+    setOpcH(0x0F11, decode0F_11);
+    setOpcH(0x0F12, decode0F_12);
+    setOpcH(0x0F13, decode0F_13);
+    setOpcH(0x0F14, decode0F_14);
+    setOpcH(0x0F15, decode0F_15);
+    setOpcH(0x0F16, decode0F_16);
+    setOpcH(0x0F17, decode0F_17);
+    setOpcH(0x0F1F, decode0F_1F);
+    setOpcH(0x0F28, decode0F_28);
+    setOpcH(0x0F29, decode0F_29);
+    setOpcH(0x0F2E, decode0F_2E);
+    setOpcH(0x0F40, decode0F_40);
+    setOpcH(0x0F41, decode0F_40);
+    setOpcH(0x0F42, decode0F_40);
+    setOpcH(0x0F43, decode0F_40);
+    setOpcH(0x0F44, decode0F_40);
+    setOpcH(0x0F45, decode0F_40);
+    setOpcH(0x0F46, decode0F_40);
+    setOpcH(0x0F47, decode0F_40);
+    setOpcH(0x0F48, decode0F_40);
+    setOpcH(0x0F49, decode0F_40);
+    setOpcH(0x0F4A, decode0F_40);
+    setOpcH(0x0F4B, decode0F_40);
+    setOpcH(0x0F4C, decode0F_40);
+    setOpcH(0x0F4D, decode0F_40);
+    setOpcH(0x0F4E, decode0F_40);
+    setOpcH(0x0F4F, decode0F_40);
+    setOpcH(0x0F57, decode0F_57);
+    setOpcH(0x0F58, decode0F_58);
+    setOpcH(0x0F59, decode0F_59);
+    setOpcH(0x0F5C, decode0F_5C);
+    setOpcH(0x0F6E, decode0F_6E);
+    setOpcH(0x0F6F, decode0F_6F);
+    setOpcH(0x0F74, decode0F_74);
+    setOpcH(0x0F7E, decode0F_7E);
+    setOpcH(0x0F7F, decode0F_7F);
+    setOpcH(0x0F80, decode0F_80);
+    setOpcH(0x0F81, decode0F_80);
+    setOpcH(0x0F82, decode0F_80);
+    setOpcH(0x0F83, decode0F_80);
+    setOpcH(0x0F84, decode0F_80);
+    setOpcH(0x0F85, decode0F_80);
+    setOpcH(0x0F86, decode0F_80);
+    setOpcH(0x0F87, decode0F_80);
+    setOpcH(0x0F88, decode0F_80);
+    setOpcH(0x0F8A, decode0F_80);
+    setOpcH(0x0F8B, decode0F_80);
+    setOpcH(0x0F8C, decode0F_80);
+    setOpcH(0x0F8D, decode0F_80);
+    setOpcH(0x0F8E, decode0F_80);
+    setOpcH(0x0F8F, decode0F_80);
+    setOpcH(0x0FAF, decode0F_AF);
+    setOpcH(0x0FB6, decode0F_B6);
+    setOpcH(0x0FB7, decode0F_B7);
+    setOpcH(0x0FBC, decode0F_BC);
+    setOpcH(0x0FBE, decode0F_BE);
+    setOpcH(0x0FBF, decode0F_BF);
+    setOpcH(0x0FD4, decode0F_D4);
+    setOpcH(0x0FD6, decode0F_D6);
+    setOpcH(0x0FD7, decode0F_D7);
+    setOpcH(0x0FDA, decode0F_DA);
+    setOpcH(0x0FEF, decode0F_EF);
 }
 
 // decode the basic block starting at f (automatically triggered by emulator)
 DBB* dbrew_decode(Rewriter* r, uint64_t f)
 {
     DContext cxt;
-    decode_handler_t handler;
     int i, old_icount, opc;
     DBB* dbb;
 
@@ -2029,26 +2103,17 @@ DBB* dbrew_decode(Rewriter* r, uint64_t f)
     while(!cxt.exit) {
         decodePrefixes(&cxt);
 
-        // parse opcode, use opcode tables or switch-case handler
+        // parse opcode by running handlers defined in opcode tables
         opc = cxt.f[cxt.off++];
         cxt.opc1 = opc;
         if (opc == 0x0F) {
             // opcode starting with 0x0F
             opc = cxt.f[cxt.off++];
             cxt.opc2 = opc;
-            handler =  opcTable0F[opc];
-            if (handler)
-                (*handler)(&cxt);
-            else
-                addSimple(r, &cxt, IT_Invalid);
+            processOpcEntry(&(opcTable0F[opc]), &cxt);
             continue;
         }
-
-        handler =  opcTable[opc];
-        if (handler)
-            (*handler)(&cxt);
-        else
-            addSimple(r, &cxt, IT_Invalid);
+        processOpcEntry(&(opcTable[opc]), &cxt);
     }
 
     assert(dbb->addr == dbb->instr->addr);
