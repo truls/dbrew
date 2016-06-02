@@ -786,7 +786,7 @@ void decode0F_16(DContext* c)
         c->it = IT_MOVHPS; break;
     default: assert(0);
     }
-    parseModRM(c, VT_64, RT_VV, &c->o2, &c->o1, 0);
+    parseModRM(c, VT_128, RT_VV, &c->o2, &c->o1, 0);
     c->ii = addBinaryOp(c->r, c, c->it, VT_Implicit, &c->o1, &c->o2);
     attachPassthrough(c->ii, c->ps, OE_RM, SC_None, 0x0F, 0x16, -1);
 }
