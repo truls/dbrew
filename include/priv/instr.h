@@ -172,7 +172,7 @@ typedef struct _Instr {
     // annotation for pass-through (not used when ptLen == 0)
     int ptLen;
     PrefixSet ptPSet;
-    unsigned char ptOpc[4];
+    uint8_t ptOpc[3];
     OperandEncoding ptEnc;
     StateChange ptSChange;
 

@@ -291,7 +291,7 @@ void opOverwriteType(Operand* o, ValType vt)
     if (opIsImm(o)) {
         switch(vt) {
         case VT_8:   o->type = OT_Imm8; break;
-        case VT_16:  o->type = OT_Imm8; break;
+        case VT_16:  o->type = OT_Imm16; break;
         case VT_32:  o->type = OT_Imm32; break;
         case VT_64:  o->type = OT_Imm64; break;
         default: assert(0);
@@ -451,13 +451,13 @@ void attachPassthrough(Instr* i, PrefixSet set,
     i->ptEnc = enc;
     i->ptSChange = sc;
     i->ptPSet = set;
-    assert(b1>=0);
+    assert(b1 >= 0);
     i->ptLen++;
-    i->ptOpc[0] = (unsigned char) b1;
+    i->ptOpc[0] = (uint8_t) b1;
     if (b2 < 0) return;
     i->ptLen++;
-    i->ptOpc[1] = (unsigned char) b2;
+    i->ptOpc[1] = (uint8_t) b2;
     if (b3 < 0) return;
     i->ptLen++;
-    i->ptOpc[2] = (unsigned char) b3;
+    i->ptOpc[2] = (uint8_t) b3;
 }
