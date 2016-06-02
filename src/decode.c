@@ -378,39 +378,136 @@ void decodePrefixes(DContext* cxt)
  */
 typedef void (*DecHandler)(DContext*);
 
+typedef enum _OpcType {
+    OT_Invalid,
+    OT_Single,  // opcode for 1 instructions
+    OT_Four,    // opcode for 4 instr (no prefix, 66, F3, F2)
+    OT_Group    // opcode for 8 instructions
+} OpcType;
+
+// offsets for OT_Four
+#define PREF_NONE 0
+#define PREF_66   1
+#define PREF_F3   2
+#define PREF_F2   3
+
+typedef struct _OpcInfo OpcInfo;
+struct _OpcInfo {
+    OpcType t;
+    int eStart;  // offset into opcEntry table
+};
+
 typedef struct _OpcEntry OpcEntry;
 struct _OpcEntry {
     DecHandler h1, h2, h3;
-
     ValType vt;    // default or specific operand type?
     InstrType it;  // preset for it in DContext
 };
 
-static OpcEntry opcTable[256];
-static OpcEntry opcTable0F[256];
+static OpcInfo opcTable[256];
+static OpcInfo opcTable0F[256];
 
+#define OPCENTRY_SIZE 1000
+static OpcEntry opcEntry[OPCENTRY_SIZE];
+
+// set type for opcode, allocate space in opcEntry table
+// if type already set, only check
+// returns start offset into opcEntry table
 static
-OpcEntry* setOpc(int opc, InstrType it, ValType vt,
-                 DecHandler h1, DecHandler h2, DecHandler h3)
+int setOpcInfo(int opc, OpcType t)
 {
-    OpcEntry* e;
+    static int used = 0; // use count of opcEntry table
+    OpcInfo* oi;
+
     if ((opc>=0) && (opc<=0xFF)) {
         assert(opc != 0x0F);
-        e = &(opcTable[opc]);
+        oi = &(opcTable[opc]);
     }
     else if ((opc>=0x0F00) && (opc<=0x0FFF)) {
-        e = &(opcTable0F[opc - 0x0F00]);
+        oi = &(opcTable0F[opc - 0x0F00]);
     }
     else assert(0);
 
+    if (oi->t == OT_Invalid) {
+        // opcode not seen yet
+        oi->t = t;
+        oi->eStart = used;
+        switch(t) {
+        case OT_Single: used += 1; break;
+        case OT_Four:   used += 4; break;
+        case OT_Group:  used += 8; break;
+        default: assert(0);
+        }
+        assert(used <= OPCENTRY_SIZE);
+        for(int i = oi->eStart; i < used; i++)
+            opcEntry[i].h1 = 0;
+    }
+    else
+        assert(oi->t == t);
+
+    return oi->eStart;
+}
+
+static
+OpcEntry* getOpcEntry(int opc, OpcType t, int off)
+{
+    int count;
+    int start = setOpcInfo(opc, t);
+    switch(t) {
+    case OT_Single: count = 1; break;
+    case OT_Four:   count = 4; break;
+    case OT_Group:  count = 8; break;
+    default: assert(0);
+    }
+    assert((off >= 0) && (off<count));
+    return &(opcEntry[start+off]);
+}
+
+static
+void initOpcEntry(OpcEntry* e, InstrType it, ValType vt,
+                  DecHandler h1, DecHandler h2, DecHandler h3)
+{
     e->h1 = h1;
     e->h2 = h2;
     e->h3 = h3;
     e->vt = vt;
     e->it = it;
+}
 
+
+static
+OpcEntry* setOpc(int opc, InstrType it, ValType vt,
+                 DecHandler h1, DecHandler h2, DecHandler h3)
+{
+    OpcEntry* e = getOpcEntry(opc, OT_Single, 0);
+    initOpcEntry(e, it, vt, h1, h2, h3);
     return e;
 }
+
+// set handler for opcodes with instruction depending on 66/F2/f3 prefix
+// use PREF_XXX for <off>
+static
+OpcEntry* setOpcP(int opc, int off,
+                  InstrType it, ValType vt,
+                  DecHandler h1, DecHandler h2, DecHandler h3)
+{
+    OpcEntry* e = getOpcEntry(opc, OT_Four, off);
+    initOpcEntry(e, it, vt, h1, h2, h3);
+    return e;
+}
+
+// set handler for opcodes using a sub-opcode group
+// use the digit sub-opcode for <off>
+static
+OpcEntry* setOpcG(int opc, int off,
+                  InstrType it, ValType vt,
+                  DecHandler h1, DecHandler h2, DecHandler h3)
+{
+    OpcEntry* e = getOpcEntry(opc, OT_Group, off);
+    initOpcEntry(e, it, vt, h1, h2, h3);
+    return e;
+}
+
 
 static
 OpcEntry* setOpcH(int opc, DecHandler h)
@@ -419,8 +516,30 @@ OpcEntry* setOpcH(int opc, DecHandler h)
 }
 
 static
-void processOpcEntry(OpcEntry* e, DContext* c)
+void processOpc(OpcInfo* oi, DContext* c)
 {
+    OpcEntry* e;
+    int off = 0;
+
+    switch(oi->t) {
+    case OT_Single:
+        break;
+    case OT_Four:
+        switch(c->ps) {
+        case PS_None: off = 0; break;
+        case PS_66:   off = 1; break;
+        case PS_F3:   off = 2; break;
+        case PS_F2:   off = 3; break;
+        default: assert(0);
+        }
+        break;
+    case OT_Group:
+        off = (c->f[c->off] & 56) >> 3; // digit
+        break;
+    default: assert(0);
+    }
+    e = &(opcEntry[oi->eStart+off]);
+
     c->it = e->it;
     if (e->vt == VT_Default) {
         // derive type from prefixes
@@ -1560,11 +1679,13 @@ static
 void initDecodeTables(void)
 {
     static bool done = false;
+    // initialize only once
     if (done) return;
+    done = true;
 
     for(int i = 0; i<256; i++) {
-        opcTable[i].h1 = 0;
-        opcTable0F[i].h1 = 0;
+        opcTable[i].t   = OT_Invalid;
+        opcTable0F[i].t = OT_Invalid;
     }
 
     // 0x00: add r/m8,r8 (MR, dst: r/m, src: r)
@@ -1926,10 +2047,10 @@ DBB* dbrew_decode(Rewriter* r, uint64_t f)
             // opcode starting with 0x0F
             opc = cxt.f[cxt.off++];
             cxt.opc2 = opc;
-            processOpcEntry(&(opcTable0F[opc]), &cxt);
+            processOpc(&(opcTable0F[opc]), &cxt);
             continue;
         }
-        processOpcEntry(&(opcTable[opc]), &cxt);
+        processOpc(&(opcTable[opc]), &cxt);
     }
 
     assert(dbb->addr == dbb->instr->addr);
