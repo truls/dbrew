@@ -1,0 +1,94 @@
+BB f1 (93 instructions):
+                  f1:  f3 0f 58 c1           addss   %xmm1,%xmm0
+                f1+4:  f2 0f 58 c1           addsd   %xmm1,%xmm0
+                f1+8:  41 0f 58 c7           addps   %xmm15,%xmm0
+               f1+12:  66 0f 58 c1           addpd   %xmm1,%xmm0
+               f1+16:  f3 0f 58 00           addss   (%rax),%xmm0
+               f1+20:  f2 0f 58 00           addsd   (%rax),%xmm0
+               f1+24:  0f 58 00              addps   (%rax),%xmm0
+               f1+27:  66 0f 58 00           addpd   (%rax),%xmm0
+               f1+31:  f2 41 0f d0 c7        addsubps %xmm15,%xmm0
+               f1+36:  66 0f d0 c1           addsubpd %xmm1,%xmm0
+               f1+40:  f2 0f d0 00           addsubps (%rax),%xmm0
+               f1+44:  66 0f d0 00           addsubpd (%rax),%xmm0
+               f1+48:  f3 0f 5c c1           subss   %xmm1,%xmm0
+               f1+52:  f2 0f 5c c1           subsd   %xmm1,%xmm0
+               f1+56:  41 0f 5c c7           subps   %xmm15,%xmm0
+               f1+60:  66 0f 5c c1           subpd   %xmm1,%xmm0
+               f1+64:  f3 0f 5c 00           subss   (%rax),%xmm0
+               f1+68:  f2 0f 5c 00           subsd   (%rax),%xmm0
+               f1+72:  0f 5c 00              subps   (%rax),%xmm0
+               f1+75:  66 0f 5c 00           subpd   (%rax),%xmm0
+               f1+79:  f2 41 0f 7c c7        haddps  %xmm15,%xmm0
+               f1+84:  66 0f 7c c1           haddpd  %xmm1,%xmm0
+               f1+88:  f2 0f 7c 00           haddps  (%rax),%xmm0
+               f1+92:  66 0f 7c 00           haddpd  (%rax),%xmm0
+               f1+96:  f2 41 0f 7d c7        hsubps  %xmm15,%xmm0
+              f1+101:  66 0f 7d c1           hsubpd  %xmm1,%xmm0
+              f1+105:  f2 0f 7d 00           hsubps  (%rax),%xmm0
+              f1+109:  66 0f 7d 00           hsubpd  (%rax),%xmm0
+              f1+113:  f3 0f 59 c1           mulss   %xmm1,%xmm0
+              f1+117:  f2 0f 59 c1           mulsd   %xmm1,%xmm0
+              f1+121:  41 0f 59 c7           mulps   %xmm15,%xmm0
+              f1+125:  66 0f 59 c1           mulpd   %xmm1,%xmm0
+              f1+129:  f3 0f 59 00           mulss   (%rax),%xmm0
+              f1+133:  f2 0f 59 00           mulsd   (%rax),%xmm0
+              f1+137:  0f 59 00              mulps   (%rax),%xmm0
+              f1+140:  66 0f 59 00           mulpd   (%rax),%xmm0
+              f1+144:  f3 0f 5e c1           divss   %xmm1,%xmm0
+              f1+148:  f2 0f 5e c1           divsd   %xmm1,%xmm0
+              f1+152:  41 0f 5e c7           divps   %xmm15,%xmm0
+              f1+156:  66 0f 5e c1           divpd   %xmm1,%xmm0
+              f1+160:  f3 0f 5e 00           divss   (%rax),%xmm0
+              f1+164:  f2 0f 5e 00           divsd   (%rax),%xmm0
+              f1+168:  0f 5e 00              divps   (%rax),%xmm0
+              f1+171:  66 0f 5e 00           divpd   (%rax),%xmm0
+              f1+175:  f3 0f 53 c1           rcpss   %xmm1,%xmm0
+              f1+179:  41 0f 53 c7           rcpps   %xmm15,%xmm0
+              f1+183:  f3 0f 53 00           rcpss   (%rax),%xmm0
+              f1+187:  0f 53 00              rcpps   (%rax),%xmm0
+              f1+190:  f3 0f 51 c1           sqrtss  %xmm1,%xmm0
+              f1+194:  f2 0f 51 c1           sqrtsd  %xmm1,%xmm0
+              f1+198:  41 0f 51 c7           sqrtps  %xmm15,%xmm0
+              f1+202:  66 0f 51 c1           sqrtpd  %xmm1,%xmm0
+              f1+206:  f3 0f 51 00           sqrtss  (%rax),%xmm0
+              f1+210:  f2 0f 51 00           sqrtsd  (%rax),%xmm0
+              f1+214:  0f 51 00              sqrtps  (%rax),%xmm0
+              f1+217:  66 0f 51 00           sqrtpd  (%rax),%xmm0
+              f1+221:  f3 0f 52 c1           rsqrtss %xmm1,%xmm0
+              f1+225:  41 0f 52 c7           rsqrtps %xmm15,%xmm0
+              f1+229:  f3 0f 52 00           rsqrtss (%rax),%xmm0
+              f1+233:  0f 52 00              rsqrtps (%rax),%xmm0
+              f1+236:  f3 0f 5f c1           maxss   %xmm1,%xmm0
+              f1+240:  f2 0f 5f c1           maxsd   %xmm1,%xmm0
+              f1+244:  41 0f 5f c7           maxps   %xmm15,%xmm0
+              f1+248:  66 0f 5f c1           maxpd   %xmm1,%xmm0
+              f1+252:  f3 0f 5f 00           maxss   (%rax),%xmm0
+              f1+256:  f2 0f 5f 00           maxsd   (%rax),%xmm0
+              f1+260:  0f 5f 00              maxps   (%rax),%xmm0
+              f1+263:  66 0f 5f 00           maxpd   (%rax),%xmm0
+              f1+267:  f3 0f 5d c1           minss   %xmm1,%xmm0
+              f1+271:  f2 0f 5d c1           minsd   %xmm1,%xmm0
+              f1+275:  41 0f 5d c7           minps   %xmm15,%xmm0
+              f1+279:  66 0f 5d c1           minpd   %xmm1,%xmm0
+              f1+283:  f3 0f 5d 00           minss   (%rax),%xmm0
+              f1+287:  f2 0f 5d 00           minsd   (%rax),%xmm0
+              f1+291:  0f 5d 00              minps   (%rax),%xmm0
+              f1+294:  66 0f 5d 00           minpd   (%rax),%xmm0
+              f1+298:  41 0f 57 c7           xorps   %xmm15,%xmm0
+              f1+302:  66 0f 57 c1           xorpd   %xmm1,%xmm0
+              f1+306:  0f 57 00              xorps   (%rax),%xmm0
+              f1+309:  66 0f 57 00           xorpd   (%rax),%xmm0
+              f1+313:  41 0f 56 c7           orps    %xmm15,%xmm0
+              f1+317:  66 0f 56 c1           orpd    %xmm1,%xmm0
+              f1+321:  0f 56 00              orps    (%rax),%xmm0
+              f1+324:  66 0f 56 00           orpd    (%rax),%xmm0
+              f1+328:  41 0f 54 c7           andps   %xmm15,%xmm0
+              f1+332:  66 0f 54 c1           andpd   %xmm1,%xmm0
+              f1+336:  0f 54 00              andps   (%rax),%xmm0
+              f1+339:  66 0f 54 00           andpd   (%rax),%xmm0
+              f1+343:  41 0f 55 c7           andnps  %xmm15,%xmm0
+              f1+347:  66 0f 55 c1           andnpd  %xmm1,%xmm0
+              f1+351:  0f 55 00              andnps  (%rax),%xmm0
+              f1+354:  66 0f 55 00           andnpd  (%rax),%xmm0
+              f1+358:  c3                    ret    

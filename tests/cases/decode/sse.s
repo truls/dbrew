@@ -50,31 +50,6 @@ f1:
     unpckhps xmm0, xmm1
     unpckhps xmm0, [rdi]
 
-    addss xmm0, xmm1
-    addsd xmm0, xmm1
-    addps xmm0, xmm1
-    addpd xmm0, xmm1
-    addss xmm0, [rax]
-    addsd xmm0, [rax]
-    addps xmm0, [rax]
-    addpd xmm0, [rax]
-    subss xmm0, xmm1
-    subsd xmm0, xmm1
-    subps xmm0, xmm1
-    subpd xmm0, xmm1
-    subss xmm0, [rax]
-    subsd xmm0, [rax]
-    subps xmm0, [rax]
-    subpd xmm0, [rax]
-    mulss xmm0, xmm1
-    mulsd xmm0, xmm1
-    mulps xmm0, xmm1
-    mulpd xmm0, xmm1
-    mulss xmm0, [rax]
-    mulsd xmm0, [rax]
-    mulps xmm0, [rax]
-    mulpd xmm0, [rax]
-
     paddq xmm0, xmm1
     paddq xmm0, [rax]
 

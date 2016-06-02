@@ -1,4 +1,4 @@
-BB f1 (71 instructions):
+BB f1 (47 instructions):
                   f1:  66 48 0f 7e c0        movq    %xmm0,%rax
                 f1+5:  66 48 0f 7e fe        movq    %xmm7,%rsi
                f1+10:  66 4c 0f 7e f8        movq    %xmm15,%rax
@@ -43,30 +43,6 @@ BB f1 (71 instructions):
               f1+166:  66 0f 15 07           unpckhpd (%rdi),%xmm0
               f1+170:  0f 15 c1              unpckhps %xmm1,%xmm0
               f1+173:  0f 15 07              unpckhps (%rdi),%xmm0
-              f1+176:  f3 0f 58 c1           addss   %xmm1,%xmm0
-              f1+180:  f2 0f 58 c1           addsd   %xmm1,%xmm0
-              f1+184:  0f 58 c1              addps   %xmm1,%xmm0
-              f1+187:  66 0f 58 c1           addpd   %xmm1,%xmm0
-              f1+191:  f3 0f 58 00           addss   (%rax),%xmm0
-              f1+195:  f2 0f 58 00           addsd   (%rax),%xmm0
-              f1+199:  0f 58 00              addps   (%rax),%xmm0
-              f1+202:  66 0f 58 00           addpd   (%rax),%xmm0
-              f1+206:  f3 0f 5c c1           subss   %xmm1,%xmm0
-              f1+210:  f2 0f 5c c1           subsd   %xmm1,%xmm0
-              f1+214:  0f 5c c1              subps   %xmm1,%xmm0
-              f1+217:  66 0f 5c c1           subpd   %xmm1,%xmm0
-              f1+221:  f3 0f 5c 00           subss   (%rax),%xmm0
-              f1+225:  f2 0f 5c 00           subsd   (%rax),%xmm0
-              f1+229:  0f 5c 00              subps   (%rax),%xmm0
-              f1+232:  66 0f 5c 00           subpd   (%rax),%xmm0
-              f1+236:  f3 0f 59 c1           mulss   %xmm1,%xmm0
-              f1+240:  f2 0f 59 c1           mulsd   %xmm1,%xmm0
-              f1+244:  0f 59 c1              mulps   %xmm1,%xmm0
-              f1+247:  66 0f 59 c1           mulpd   %xmm1,%xmm0
-              f1+251:  f3 0f 59 00           mulss   (%rax),%xmm0
-              f1+255:  f2 0f 59 00           mulsd   (%rax),%xmm0
-              f1+259:  0f 59 00              mulps   (%rax),%xmm0
-              f1+262:  66 0f 59 00           mulpd   (%rax),%xmm0
-              f1+266:  66 0f d4 c1           paddq   %xmm1,%xmm0
-              f1+270:  66 0f d4 00           paddq   (%rax),%xmm0
-              f1+274:  c3                    ret    
+              f1+176:  66 0f d4 c1           paddq   %xmm1,%xmm0
+              f1+180:  66 0f d4 00           paddq   (%rax),%xmm0
+              f1+184:  c3                    ret    
