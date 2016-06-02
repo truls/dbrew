@@ -532,6 +532,10 @@ void processOpc(OpcInfo* oi, DContext* c)
     int off = 0;
 
     switch(oi->t) {
+    case OT_Invalid:
+        // invalid opcode
+        addSimple(c->r, c, IT_Invalid);
+        return;
     case OT_Single:
         break;
     case OT_Four:
@@ -559,11 +563,7 @@ void processOpc(OpcInfo* oi, DContext* c)
     else
         c->vt = e->vt;
 
-    if (e->h1 == 0) {
-        // invalid opcode
-        addSimple(c->r, c, IT_Invalid);
-        return;
-    }
+    assert(e->h1 != 0);
     (e->h1)(c);
     if (e->h2 == 0) return;
     (e->h2)(c);
@@ -720,7 +720,7 @@ void decode0F_12(DContext* c)
     case PS_No:
         // movlps xmm,m64 (RM) - mov 2SP FP from m64 to low quadword of xmm
         c->it = IT_MOVLPS; break;
-    default: assert(0);
+    default: addSimple(c->r, c, IT_Invalid); return;
     }
     parseModRM(c, VT_64, RT_VV, &c->o2, &c->o1, 0);
     c->ii = addBinaryOp(c->r, c, c->it, VT_Implicit, &c->o1, &c->o2);
@@ -737,7 +737,7 @@ void decode0F_13(DContext* c)
     case PS_No:
         // movlps m64,xmm (MR) - mov 2SP FP from low quadword of xmm to m64
         c->it = IT_MOVLPS; break;
-    default: assert(0);
+    default: addSimple(c->r, c, IT_Invalid); return;
     }
     parseModRM(c, VT_64, RT_VV, &c->o1, &c->o2, 0);
     c->ii = addBinaryOp(c->r, c, c->it, VT_Implicit, &c->o1, &c->o2);
@@ -752,7 +752,7 @@ void decode0F_14(DContext* c)
         c->it = IT_UNPCKLPD; break;
     case PS_No: // unpcklps xmm1,xmm2/m128 (RM)
         c->it = IT_UNPCKLPS; break;
-    default: assert(0);
+    default: addSimple(c->r, c, IT_Invalid); return;
     }
     parseModRM(c, VT_128, RT_VV, &c->o2, &c->o1, 0);
     c->ii = addBinaryOp(c->r, c, c->it, VT_Implicit, &c->o1, &c->o2);
@@ -767,7 +767,7 @@ void decode0F_15(DContext* c)
         c->it = IT_UNPCKHPD; break;
     case PS_No: // unpckhps xmm1,xmm2/m128 (RM)
         c->it = IT_UNPCKHPS; break;
-    default: assert(0);
+    default: addSimple(c->r, c, IT_Invalid); return;
     }
     parseModRM(c, VT_128, RT_VV, &c->o2, &c->o1, 0);
     c->ii = addBinaryOp(c->r, c, c->it, VT_Implicit, &c->o1, &c->o2);
@@ -784,7 +784,7 @@ void decode0F_16(DContext* c)
     case PS_No:
         // movhps xmm,m64 (RM) - mov 2SP FP from m64 to high quadword of xmm
         c->it = IT_MOVHPS; break;
-    default: assert(0);
+    default: addSimple(c->r, c, IT_Invalid); return;
     }
     parseModRM(c, VT_128, RT_VV, &c->o2, &c->o1, 0);
     c->ii = addBinaryOp(c->r, c, c->it, VT_Implicit, &c->o1, &c->o2);
@@ -801,7 +801,7 @@ void decode0F_17(DContext* c)
     case PS_No:
         // movhps m64,xmm (MR) - mov 2SP FP from high quadword of xmm to m64
         c->it = IT_MOVHPS; break;
-    default: assert(0);
+    default: addSimple(c->r, c, IT_Invalid); return;
     }
     parseModRM(c, VT_64, RT_VV, &c->o1, &c->o2, 0);
     c->ii = addBinaryOp(c->r, c, c->it, VT_Implicit, &c->o1, &c->o2);
@@ -834,7 +834,7 @@ void decode0F_28(DContext* c)
         c->vt = VT_128; c->it = IT_MOVAPS; break;
     case PS_66:   // movapd xmm1,xmm2/m128 (RM)
         c->vt = VT_128; c->it = IT_MOVAPD; break;
-    default: assert(0);
+    default: addSimple(c->r, c, IT_Invalid); return;
     }
     parseModRM(c, c->vt, RT_VV, &c->o2, &c->o1, 0);
     c->ii = addBinaryOp(c->r, c, c->it, VT_Implicit, &c->o1, &c->o2);
@@ -849,7 +849,7 @@ void decode0F_29(DContext* c)
         c->vt = VT_128; c->it = IT_MOVAPS; break;
     case PS_66:   // movapd xmm2/m128,xmm1 (MR)
         c->vt = VT_128; c->it = IT_MOVAPD; break;
-    default: assert(0);
+    default: addSimple(c->r, c, IT_Invalid); return;
     }
     parseModRM(c, c->vt, RT_VV, &c->o1, &c->o2, 0);
     c->ii = addBinaryOp(c->r, c, c->it, VT_Implicit, &c->o1, &c->o2);
@@ -929,7 +929,7 @@ void decode0F_58(DContext* c)
         c->vt = VT_128; c->it = IT_ADDPS; break;
     case PS_66:   // addpd xmm1,xmm2/m128 (RM)
         c->vt = VT_128; c->it = IT_ADDPD; break;
-    default: assert(0);
+    default: addSimple(c->r, c, IT_Invalid); return;
     }
     parseModRM(c, c->vt, RT_VV, &c->o2, &c->o1, 0);
     c->ii = addBinaryOp(c->r, c, c->it, VT_Implicit, &c->o1, &c->o2);
@@ -948,7 +948,7 @@ void decode0F_59(DContext* c)
         c->vt = VT_128; c->it = IT_MULPS; break;
     case PS_66:   // mulpd xmm1,xmm2/m128 (RM)
         c->vt = VT_128; c->it = IT_MULPD; break;
-    default: assert(0);
+    default: addSimple(c->r, c, IT_Invalid); return;
     }
     parseModRM(c, c->vt, RT_VV, &c->o2, &c->o1, 0);
     c->ii = addBinaryOp(c->r, c, c->it, VT_Implicit, &c->o1, &c->o2);
@@ -967,7 +967,7 @@ void decode0F_5C(DContext* c)
         c->vt = VT_128; c->it = IT_SUBPS; break;
     case PS_66:   // subpd xmm1,xmm2/m128 (RM)
         c->vt = VT_128; c->it = IT_SUBPD; break;
-    default: assert(0);
+    default: addSimple(c->r, c, IT_Invalid); return;
     }
     parseModRM(c, c->vt, RT_VV, &c->o2, &c->o1, 0);
     c->ii = addBinaryOp(c->r, c, c->it, VT_Implicit, &c->o1, &c->o2);
@@ -983,7 +983,7 @@ void decode0F_6E(DContext* c)
         c->it = (c->rex & REX_MASK_W) ? IT_MOVQ : IT_MOVD;
         parseModRM(c, c->vt, RT_GV, &c->o2, &c->o1, 0);
     } else {
-        assert(0);
+        addSimple(c->r, c, IT_Invalid);
     }
     c->ii = addBinaryOp(c->r, c, c->it, VT_Implicit, &c->o1, &c->o2);
     attachPassthrough(c->ii, c->ps, OE_RM, SC_dstDyn, 0x0F, 0x6E, -1);
@@ -1002,7 +1002,7 @@ void decode0F_6F(DContext* c)
     case PS_No:
         // movq mm1,mm2/m64 (RM): Move quadword from mm/m64 to mm.
         c->vt = VT_64;  c->it = IT_MOVQ; break;
-    default: assert(0);
+    default: addSimple(c->r, c, IT_Invalid); return;
     }
     parseModRM(c, c->vt, RT_VV, &c->o2, &c->o1, 0);
     c->ii = addBinaryOp(c->r, c, c->it, VT_Implicit, &c->o1, &c->o2);
@@ -1016,7 +1016,7 @@ void decode0F_74(DContext* c)
     switch(c->ps) {
     case PS_66:   c->vt = VT_128; break;
     case PS_No: c->vt = VT_64; break;
-    default: assert(0);
+    default: addSimple(c->r, c, IT_Invalid); return;
     }
     parseModRM(c, c->vt, RT_VV, &c->o2, &c->o1, 0);
     c->ii = addBinaryOp(c->r, c, IT_PCMPEQB, VT_Implicit, &c->o1, &c->o2);
@@ -1041,7 +1041,7 @@ void decode0F_7E(DContext* c)
         c->it = IT_MOVQ;
         parseModRM(c, c->vt, RT_VV, &c->o2, &c->o1, 0);
         break;
-    default: assert(0);
+    default: addSimple(c->r, c, IT_Invalid); return;
     }
     c->ii = addBinaryOp(c->r, c, c->it, VT_Implicit, &c->o1, &c->o2);
     attachPassthrough(c->ii, c->ps, c->oe, SC_dstDyn, 0x0F, 0x7E, -1);
@@ -1059,7 +1059,7 @@ void decode0F_7F(DContext* c)
         // movdqa xmm2/m128,xmm1 (MR)
         // - move aligned double quadword from xmm1 to xmm2/m128.
         c->vt = VT_128; c->it = IT_MOVDQA; break;
-    default: assert(0);
+    default: addSimple(c->r, c, IT_Invalid); return;
     }
     parseModRM(c, c->vt, RT_VV, &c->o1, &c->o2, 0);
     c->ii = addBinaryOp(c->r, c, c->it, VT_Implicit, &c->o1, &c->o2);
@@ -1399,7 +1399,7 @@ void decode_C6(DContext* c)
         parseImm(c, c->vt, &c->o2, false);
         addBinaryOp(c->r, c, IT_MOV, c->vt, &c->o1, &c->o2);
         break;
-    default: assert(0);
+    default: addSimple(c->r, c, IT_Invalid); break;
     }
 }
 
@@ -1413,7 +1413,7 @@ void decode_C7(DContext* c)
         parseImm(c, c->vt, &c->o2, false);
         addBinaryOp(c->r, c, IT_MOV, c->vt, &c->o1, &c->o2);
         break;
-    default: assert(0);
+    default: addSimple(c->r, c, IT_Invalid); break;
     }
 }
 
@@ -1543,7 +1543,7 @@ void decode_F6(DContext* c)
         addUnaryOp(c->r, c, IT_DIV, &c->o1); break;
     case 7: // idiv r/m8 (signed div ax by r/m8, rem/quot in ah:al)
         addUnaryOp(c->r, c, IT_IDIV1, &c->o1); break;
-    default: assert(0);
+    default: addSimple(c->r, c, IT_Invalid); break;
     }
 }
 
@@ -1568,7 +1568,7 @@ void decode_F7(DContext* c)
         addUnaryOp(c->r, c, IT_DIV, &c->o1); break;
     case 7: // idiv r/m 16/32/64 (signed div dx:ax/edx:eax/rdx:rax by r/m)
         addUnaryOp(c->r, c, IT_IDIV1, &c->o1); break;
-    default: assert(0);
+    default: addSimple(c->r, c, IT_Invalid); break;
     }
 }
 
@@ -1582,7 +1582,7 @@ void decode_FE(DContext* c)
         addUnaryOp(c->r, c, IT_INC, &c->o1); break;
     case 1: // dec r/m8
         addUnaryOp(c->r, c, IT_DEC, &c->o1); break;
-    default: assert(0);
+    default: addSimple(c->r, c, IT_Invalid); break;
     }
 }
 
