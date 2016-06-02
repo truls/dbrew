@@ -501,23 +501,28 @@ OpcEntry* setOpcP(int opc, PrefixSet ps,
     return e;
 }
 
-// set handler for opcodes using a sub-opcode group
-// use the digit sub-opcode for <off>
-static
-OpcEntry* setOpcG(int opc, int off,
-                  InstrType it, ValType vt,
-                  DecHandler h1, DecHandler h2, DecHandler h3)
-{
-    OpcEntry* e = getOpcEntry(opc, OT_Group, off);
-    initOpcEntry(e, it, vt, h1, h2, h3);
-    return e;
-}
-
-
 static
 OpcEntry* setOpcH(int opc, DecHandler h)
 {
     return setOpc(opc, IT_None, VT_Default, h, 0, 0);
+}
+
+// set handler for opcodes using a sub-opcode group
+// use the digit sub-opcode for <off>
+static
+OpcEntry* setOpcG(int opc, int digit,
+                  InstrType it, ValType vt,
+                  DecHandler h1, DecHandler h2, DecHandler h3)
+{
+    OpcEntry* e = getOpcEntry(opc, OT_Group, digit);
+    initOpcEntry(e, it, vt, h1, h2, h3);
+    return e;
+}
+
+static
+OpcEntry* setOpcGH(int opc, int digit, DecHandler h)
+{
+    return setOpcG(opc, digit, IT_None, VT_Default, h, 0, 0);
 }
 
 static
@@ -567,6 +572,12 @@ void processOpc(OpcInfo* oi, DContext* c)
 }
 
 // operand processing handlers
+
+// put M of RM encoding in op 1
+static void parseM1(DContext* c)
+{
+    parseModRM(c, c->vt, RT_G, &c->o1, 0, 0);
+}
 
 // RM encoding for 2 GP registers
 static void parseRM(DContext* c)
@@ -628,6 +639,22 @@ static void setO1RegA(DContext* c)
     setRegOp(&c->o1, c->vt, Reg_AX);
 }
 
+// M in op 1, Imm in op 2 (64bit with imm32 signed extension)
+static void parseMI(DContext* c)
+{
+    parseModRM(c, c->vt, RT_G, &c->o1, 0, 0);
+    parseImm(c, c->vt, &c->o2, false);
+}
+
+// M in op 1, Imm in op 2 (64bit with imm32 signed extension)
+static void parseMI_8se(DContext* c)
+{
+    parseModRM(c, c->vt, RT_G, &c->o1, 0, 0);
+    parseImm(c, VT_8, &c->o2, false);
+    // sign-extend op2 to required type: 8->64 works for all
+    c->o2.val = (int64_t)(int8_t)c->o2.val;
+    c->o2.type = getImmOpType(c->vt);
+}
 
 // instruction append handlers
 
@@ -1270,70 +1297,6 @@ void decode_70(DContext* c)
 }
 
 static
-void decode_80(DContext* c)
-{
-    // add/or/... r/m8,imm8
-    c->vt = VT_8;
-    parseModRM(c, c->vt, RT_GG, &c->o1, 0, &c->digit);
-    switch(c->digit) {
-    case 0: c->it = IT_ADD; break; // 80/0: add r/m8,imm8
-    case 1: c->it = IT_OR;  break; // 80/1: or  r/m8,imm8
-    case 2: c->it = IT_ADC; break; // 80/2: adc r/m8,imm8
-    case 3: c->it = IT_SBB; break; // 80/3: sbb r/m8,imm8
-    case 4: c->it = IT_AND; break; // 80/4: and r/m8,imm8
-    case 5: c->it = IT_SUB; break; // 80/5: sub r/m8,imm8
-    case 6: c->it = IT_XOR; break; // 80/6: xor r/m8,imm8
-    case 7: c->it = IT_CMP; break; // 80/7: cmp r/m8,imm8
-    default: assert(0);
-    }
-    parseImm(c, c->vt, &c->o2, false);
-    addBinaryOp(c->r, c, c->it, c->vt, &c->o1, &c->o2);
-}
-
-static
-void decode_81(DContext* c)
-{
-    // default value type 16/32/64, imm16/32/32se (se: sign extended)
-    parseModRM(c, c->vt, RT_GG, &c->o1, 0, &c->digit);
-    switch(c->digit) {
-    case 0: c->it = IT_ADD; break; // 81/0: add r/m 16/32/64, imm16/32/32se
-    case 1: c->it = IT_OR;  break; // 81/1: or  r/m 16/32/64, imm16/32/32se
-    case 2: c->it = IT_ADC; break; // 81/2: adc r/m 16/32/64, imm16/32/32se
-    case 3: c->it = IT_SBB; break; // 81/3: sbb r/m 16/32/64, imm16/32/32se
-    case 4: c->it = IT_AND; break; // 81/4: and r/m 16/32/64, imm16/32/32se
-    case 5: c->it = IT_SUB; break; // 81/5: sub r/m 16/32/64, imm16/32/32se
-    case 6: c->it = IT_XOR; break; // 81/6: xor r/m 16/32/64, imm16/32/32se
-    case 7: c->it = IT_CMP; break; // 81/7: cmp r/m 16/32/64, imm16/32/32se
-    default: assert(0);
-    }
-    parseImm(c, c->vt, &c->o2, false);
-    addBinaryOp(c->r, c, c->it, c->vt, &c->o1, &c->o2);
-}
-
-static
-void decode_83(DContext* c)
-{
-    parseModRM(c, c->vt, RT_GG, &c->o1, 0, &c->digit);
-    // add/or/... r/m16/32/64,imm8se (sign-extended)
-    switch(c->digit) {
-    case 0: c->it = IT_ADD; break; // 83/0: add r/m 16/32/64, imm8se
-    case 1: c->it = IT_OR;  break; // 83/1: or  r/m 16/32/64, imm8se
-    case 2: c->it = IT_ADC; break; // 83/2: adc r/m 16/32/64, imm8se
-    case 3: c->it = IT_SBB; break; // 83/3: sbb r/m 16/32/64, imm8se
-    case 4: c->it = IT_AND; break; // 83/4: and r/m 16/32/64, imm8se
-    case 5: c->it = IT_SUB; break; // 83/5: sub r/m 16/32/64, imm8se
-    case 6: c->it = IT_XOR; break; // 83/6: xor r/m 16/32/64, imm8se
-    case 7: c->it = IT_CMP; break; // 83/7: cmp r/m 16/32/64, imm8se
-    default: assert(0);
-    }
-    parseImm(c, VT_8, &c->o2, false);
-    // sign-extend op2 to required type: 8->64 works for all
-    c->o2.val = (int64_t)(int8_t)c->o2.val;
-    c->o2.type = getImmOpType(c->vt);
-    addBinaryOp(c->r, c, c->it, c->vt, &c->o1, &c->o2);
-}
-
-static
 void decode_8D(DContext* c)
 {
     // lea r16/32/64,m (RM)
@@ -1343,23 +1306,16 @@ void decode_8D(DContext* c)
 }
 
 static
-void decode_8F(DContext* c)
+void decode_8F_0(DContext* c)
 {
-    parseModRM(c, c->vt, RT_G, &c->o1, 0, &c->digit);
-    switch(c->digit) {
-    case 0: // pop r/m 16/64
-        // default operand type is 64, not 32
-        if (c->vt == VT_32)
-            opOverwriteType(&c->o1, VT_64);
-        else
-            assert(c->vt == VT_16);
-        addUnaryOp(c->r, c, IT_POP, &c->o1);
-        break;
-
-    default:
-        addSimple(c->r, c, IT_Invalid);
-        break;
-    }
+    // pop r/m 16/64
+    parseModRM(c, c->vt, RT_G, &c->o1, 0, 0);
+    // default operand type is 64, not 32
+    if (c->vt == VT_32)
+        opOverwriteType(&c->o1, VT_64);
+    else
+        assert(c->vt == VT_16);
+    addUnaryOp(c->r, c, IT_POP, &c->o1);
 }
 
 static
@@ -1839,12 +1795,33 @@ void initDecodeTables(void)
     setOpcH(0x7F, decode_70);
 
     // Immediate Grp 1
-    // 0x80: add/or/... r/m8,imm8
-    // 0x81: add/or/... r/m16/32/64,imm16/32/32se
-    // 0x83: add/or/... r/m16/32/64,imm8se
-    setOpcH(0x80, decode_80);
-    setOpcH(0x81, decode_81);
-    setOpcH(0x83, decode_83);
+    // 0x80: add/or/... r/m8,imm8 (MI)
+    // 0x81: add/or/... r/m16/32/64,imm16/32/32se (MI)
+    // 0x83: add/or/... r/m16/32/64,imm8se (MI)
+    setOpcG(0x80, 0, IT_ADD, VT_8,       parseMI, addBInstr, 0);
+    setOpcG(0x80, 1, IT_OR , VT_8,       parseMI, addBInstr, 0);
+    setOpcG(0x80, 2, IT_ADC, VT_8,       parseMI, addBInstr, 0);
+    setOpcG(0x80, 3, IT_SBB, VT_8,       parseMI, addBInstr, 0);
+    setOpcG(0x80, 4, IT_AND, VT_8,       parseMI, addBInstr, 0);
+    setOpcG(0x80, 5, IT_SUB, VT_8,       parseMI, addBInstr, 0);
+    setOpcG(0x80, 6, IT_XOR, VT_8,       parseMI, addBInstr, 0);
+    setOpcG(0x80, 7, IT_CMP, VT_8,       parseMI, addBInstr, 0);
+    setOpcG(0x81, 0, IT_ADD, VT_Default, parseMI, addBInstr, 0);
+    setOpcG(0x81, 1, IT_OR , VT_Default, parseMI, addBInstr, 0);
+    setOpcG(0x81, 2, IT_ADC, VT_Default, parseMI, addBInstr, 0);
+    setOpcG(0x81, 3, IT_SBB, VT_Default, parseMI, addBInstr, 0);
+    setOpcG(0x81, 4, IT_AND, VT_Default, parseMI, addBInstr, 0);
+    setOpcG(0x81, 5, IT_SUB, VT_Default, parseMI, addBInstr, 0);
+    setOpcG(0x81, 6, IT_XOR, VT_Default, parseMI, addBInstr, 0);
+    setOpcG(0x81, 7, IT_CMP, VT_Default, parseMI, addBInstr, 0);
+    setOpcG(0x83, 0, IT_ADD, VT_Default, parseMI_8se, addBInstr, 0);
+    setOpcG(0x83, 1, IT_OR , VT_Default, parseMI_8se, addBInstr, 0);
+    setOpcG(0x83, 2, IT_ADC, VT_Default, parseMI_8se, addBInstr, 0);
+    setOpcG(0x83, 3, IT_SBB, VT_Default, parseMI_8se, addBInstr, 0);
+    setOpcG(0x83, 4, IT_AND, VT_Default, parseMI_8se, addBInstr, 0);
+    setOpcG(0x83, 5, IT_SUB, VT_Default, parseMI_8se, addBInstr, 0);
+    setOpcG(0x83, 6, IT_XOR, VT_Default, parseMI_8se, addBInstr, 0);
+    setOpcG(0x83, 7, IT_CMP, VT_Default, parseMI_8se, addBInstr, 0);
 
     // 0x84: test r/m8,r8 (MR) - r/m8 "and" r8, set SF, ZF, PF
     // 0x85: test r/m,r16/32/64 (MR)
@@ -1862,8 +1839,8 @@ void initDecodeTables(void)
 
     // 0x8D: lea r16/32/64,m (RM)
     setOpcH(0x8D, decode_8D);
-    // 0x8F: Grp1A
-    setOpcH(0x8F, decode_8F);
+    // 0x8F/0: pop r/m 16/64 (M) Grp1A
+    setOpcGH(0x8F, 0, decode_8F_0);
     // 0x90: nop
     setOpc(0x90, IT_NOP, VT_None, addSInstr, 0, 0);
 
