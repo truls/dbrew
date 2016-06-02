@@ -120,7 +120,7 @@ typedef enum _OperandEncoding {
 } OperandEncoding;
 
 typedef enum _PrefixSet {
-    PS_None = 0,
+    PS_No = 0,
     PS_66 = 2,
     PS_F2 = 4,
     PS_F3 = 8,

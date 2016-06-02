@@ -347,7 +347,10 @@ void decodePrefixes(DContext* cxt)
     cxt->rex = 0;
     cxt->hasRex = false;
     cxt->segOv = OSO_None;
-    cxt->ps = PS_None;
+    cxt->ps = PS_No;
+
+    cxt->opc1 = -1;
+    cxt->opc2 = -1;
     cxt->exit = false;
     cxt->error = 0;
 
@@ -384,12 +387,6 @@ typedef enum _OpcType {
     OT_Four,    // opcode for 4 instr (no prefix, 66, F3, F2)
     OT_Group    // opcode for 8 instructions
 } OpcType;
-
-// offsets for OT_Four
-#define PREF_NONE 0
-#define PREF_66   1
-#define PREF_F3   2
-#define PREF_F2   3
 
 typedef struct _OpcInfo OpcInfo;
 struct _OpcInfo {
@@ -485,12 +482,20 @@ OpcEntry* setOpc(int opc, InstrType it, ValType vt,
 }
 
 // set handler for opcodes with instruction depending on 66/F2/f3 prefix
-// use PREF_XXX for <off>
 static
-OpcEntry* setOpcP(int opc, int off,
+OpcEntry* setOpcP(int opc, PrefixSet ps,
                   InstrType it, ValType vt,
                   DecHandler h1, DecHandler h2, DecHandler h3)
 {
+    int off;
+    switch(ps) {
+    case PS_No: off = 0; break;
+    case PS_66:   off = 1; break;
+    case PS_F3:   off = 2; break;
+    case PS_F2:   off = 3; break;
+    default: assert(0);
+    }
+
     OpcEntry* e = getOpcEntry(opc, OT_Four, off);
     initOpcEntry(e, it, vt, h1, h2, h3);
     return e;
@@ -526,7 +531,7 @@ void processOpc(OpcInfo* oi, DContext* c)
         break;
     case OT_Four:
         switch(c->ps) {
-        case PS_None: off = 0; break;
+        case PS_No: off = 0; break;
         case PS_66:   off = 1; break;
         case PS_F3:   off = 2; break;
         case PS_F2:   off = 3; break;
@@ -575,6 +580,21 @@ static void parseMR(DContext* c)
     parseModRM(c, c->vt, RT_GG, &c->o1, &c->o2, 0);
 }
 
+// RM encoding for 2 vector registers, remember encoding for pass-through
+static void parseRMVV(DContext* c)
+{
+    parseModRM(c, c->vt, RT_VV, &c->o2, &c->o1, 0);
+    c->oe = OE_RM;
+}
+
+// MR encoding for 2 vector registers, remember encoding for pass-through
+static void parseMRVV(DContext* c)
+{
+    parseModRM(c, c->vt, RT_VV, &c->o1, &c->o2, 0);
+    c->oe = OE_MR;
+}
+
+
 // parse immediate into op 1 (for 64bit with imm32 signed extension)
 static void parseI1(DContext* c)
 {
@@ -614,25 +634,32 @@ static void setO1RegA(DContext* c)
 // append simple instruction without operands
 static void addSInstr(DContext* c)
 {
-    addSimple(c->r, c, c->it);
+    c->ii = addSimple(c->r, c, c->it);
 }
 
 // append unary instruction
 static void addUInstr(DContext* c)
 {
-    addUnaryOp(c->r, c, c->it, &c->o1);
+    c->ii = addUnaryOp(c->r, c, c->it, &c->o1);
 }
 
 // append binary instruction
 static void addBInstr(DContext* c)
 {
-    addBinaryOp(c->r, c, c->it, c->vt, &c->o1, &c->o2);
+    c->ii = addBinaryOp(c->r, c, c->it, c->vt, &c->o1, &c->o2);
 }
+
+// append binary instruction with implicit type (depends on instr name)
+static void addBInsImp(DContext* c)
+{
+    c->ii = addBinaryOp(c->r, c, c->it, VT_Implicit, &c->o1, &c->o2);
+}
+
 
 // append ternary instruction
 static void addTInstr(DContext* c)
 {
-    addTernaryOp(c->r, c, c->it, c->vt, &c->o1, &c->o2, &c->o3);
+    c->ii = addTernaryOp(c->r, c, c->it, c->vt, &c->o1, &c->o2, &c->o3);
 }
 
 // request exit from decoder
@@ -641,7 +668,12 @@ static void reqExit(DContext* c)
     c->exit = true;
 }
 
-
+// attach pass-through information
+static void attach(DContext* c)
+{
+    attachPassthrough(c->ii, c->ps, c->oe, SC_None,
+                      c->opc1, c->opc2, -1);
+}
 
 // opcode-specific decode handlers
 
@@ -650,43 +682,6 @@ static void reqExit(DContext* c)
 // handlers for multi-byte opcodes starting with 0x0F
 //
 
-static
-void decode0F_10(DContext* c)
-{
-    switch(c->ps) {
-    case PS_F3:   // movss xmm1,xmm2/m32 (RM)
-        c->vt = VT_32;  c->it = IT_MOVSS; break;
-    case PS_F2:   // movsd xmm1,xmm2/m64 (RM)
-        c->vt = VT_64;  c->it = IT_MOVSD; break;
-    case PS_None: // movups xmm1,xmm2/m128 (RM)
-        c->vt = VT_128; c->it = IT_MOVUPS; break;
-    case PS_66:   // movupd xmm1,xmm2/m128 (RM)
-        c->vt = VT_128; c->it = IT_MOVUPD; break;
-    default: assert(0);
-    }
-    parseModRM(c, c->vt, RT_VV, &c->o2, &c->o1, 0);
-    c->ii = addBinaryOp(c->r, c, c->it, VT_Implicit, &c->o1, &c->o2);
-    attachPassthrough(c->ii, c->ps, OE_RM, SC_None, 0x0F, 0x10, -1);
-}
-
-static
-void decode0F_11(DContext* c)
-{
-    switch(c->ps) {
-    case PS_F3:   // movss xmm1/m32,xmm2 (MR)
-        c->vt = VT_32;  c->it = IT_MOVSS; break;
-    case PS_F2:   // movsd xmm1/m64,xmm2 (MR)
-        c->vt = VT_64;  c->it = IT_MOVSD; break;
-    case PS_None: // movups xmm1/m128,xmm2 (MR)
-        c->vt = VT_128; c->it = IT_MOVUPS; break;
-    case PS_66:   // movupd xmm1/m128,xmm2 (MR)
-        c->vt = VT_128; c->it = IT_MOVUPD; break;
-    default: assert(0);
-    }
-    parseModRM(c, c->vt, RT_VV, &c->o1, &c->o2, 0);
-    c->ii = addBinaryOp(c->r, c, c->it, VT_Implicit, &c->o1, &c->o2);
-    attachPassthrough(c->ii, c->ps, OE_MR, SC_None, 0x0F, 0x11, -1);
-}
 
 static
 void decode0F_12(DContext* c)
@@ -695,7 +690,7 @@ void decode0F_12(DContext* c)
     case PS_66:
         // movlpd xmm,m64 (RM) - mov DP FP from m64 to low quadword of xmm
         c->it = IT_MOVLPD; break;
-    case PS_None:
+    case PS_No:
         // movlps xmm,m64 (RM) - mov 2SP FP from m64 to low quadword of xmm
         c->it = IT_MOVLPS; break;
     default: assert(0);
@@ -712,7 +707,7 @@ void decode0F_13(DContext* c)
     case PS_66:
         // movlpd m64,xmm (MR) - mov DP FP from low quadword of xmm to m64
         c->it = IT_MOVLPD; break;
-    case PS_None:
+    case PS_No:
         // movlps m64,xmm (MR) - mov 2SP FP from low quadword of xmm to m64
         c->it = IT_MOVLPS; break;
     default: assert(0);
@@ -728,7 +723,7 @@ void decode0F_14(DContext* c)
     switch(c->ps) {
     case PS_66:   // unpcklpd xmm1,xmm2/m128 (RM)
         c->it = IT_UNPCKLPD; break;
-    case PS_None: // unpcklps xmm1,xmm2/m128 (RM)
+    case PS_No: // unpcklps xmm1,xmm2/m128 (RM)
         c->it = IT_UNPCKLPS; break;
     default: assert(0);
     }
@@ -743,7 +738,7 @@ void decode0F_15(DContext* c)
     switch(c->ps) {
     case PS_66:   // unpckhpd xmm1,xmm2/m128 (RM)
         c->it = IT_UNPCKHPD; break;
-    case PS_None: // unpckhps xmm1,xmm2/m128 (RM)
+    case PS_No: // unpckhps xmm1,xmm2/m128 (RM)
         c->it = IT_UNPCKHPS; break;
     default: assert(0);
     }
@@ -759,7 +754,7 @@ void decode0F_16(DContext* c)
     case PS_66:
         // movhpd xmm,m64 (RM) - mov DP FP from m64 to high quadword of xmm
         c->it = IT_MOVHPD; break;
-    case PS_None:
+    case PS_No:
         // movhps xmm,m64 (RM) - mov 2SP FP from m64 to high quadword of xmm
         c->it = IT_MOVHPS; break;
     default: assert(0);
@@ -776,7 +771,7 @@ void decode0F_17(DContext* c)
     case PS_66:
         // movhpd m64,xmm (MR) - mov DP FP from high quadword of xmm to m64
         c->it = IT_MOVHPD; break;
-    case PS_None:
+    case PS_No:
         // movhps m64,xmm (MR) - mov 2SP FP from high quadword of xmm to m64
         c->it = IT_MOVHPS; break;
     default: assert(0);
@@ -808,7 +803,7 @@ static
 void decode0F_28(DContext* c)
 {
     switch(c->ps) {
-    case PS_None: // movaps xmm1,xmm2/m128 (RM)
+    case PS_No: // movaps xmm1,xmm2/m128 (RM)
         c->vt = VT_128; c->it = IT_MOVAPS; break;
     case PS_66:   // movapd xmm1,xmm2/m128 (RM)
         c->vt = VT_128; c->it = IT_MOVAPD; break;
@@ -823,7 +818,7 @@ static
 void decode0F_29(DContext* c)
 {
     switch(c->ps) {
-    case PS_None: // movaps xmm2/m128,xmm1 (MR)
+    case PS_No: // movaps xmm2/m128,xmm1 (MR)
         c->vt = VT_128; c->it = IT_MOVAPS; break;
     case PS_66:   // movapd xmm2/m128,xmm1 (MR)
         c->vt = VT_128; c->it = IT_MOVAPD; break;
@@ -892,7 +887,7 @@ void decode0F_57(DContext* c)
     // xorps xmm1,xmm2/m64 (RM)
     parseModRM(c, VT_128, RT_VV, &c->o2, &c->o1, 0);
     c->ii = addBinaryOp(c->r, c, IT_XORPS, VT_Implicit, &c->o1, &c->o2);
-    attachPassthrough(c->ii, PS_None, OE_RM, SC_None, 0x0F, 0x57, -1);
+    attachPassthrough(c->ii, PS_No, OE_RM, SC_None, 0x0F, 0x57, -1);
 }
 
 static
@@ -903,7 +898,7 @@ void decode0F_58(DContext* c)
         c->vt = VT_32;  c->it = IT_ADDSS; break;
     case PS_F2:   // addsd xmm1,xmm2/m64 (RM)
         c->vt = VT_64;  c->it = IT_ADDSD; break;
-    case PS_None: // addps xmm1,xmm2/m128 (RM)
+    case PS_No: // addps xmm1,xmm2/m128 (RM)
         c->vt = VT_128; c->it = IT_ADDPS; break;
     case PS_66:   // addpd xmm1,xmm2/m128 (RM)
         c->vt = VT_128; c->it = IT_ADDPD; break;
@@ -922,7 +917,7 @@ void decode0F_59(DContext* c)
         c->vt = VT_32;  c->it = IT_MULSS; break;
     case PS_F2:   // mulsd xmm1,xmm2/m64 (RM)
         c->vt = VT_64;  c->it = IT_MULSD; break;
-    case PS_None: // mulps xmm1,xmm2/m128 (RM)
+    case PS_No: // mulps xmm1,xmm2/m128 (RM)
         c->vt = VT_128; c->it = IT_MULPS; break;
     case PS_66:   // mulpd xmm1,xmm2/m128 (RM)
         c->vt = VT_128; c->it = IT_MULPD; break;
@@ -941,7 +936,7 @@ void decode0F_5C(DContext* c)
         c->vt = VT_32;  c->it = IT_SUBSS; break;
     case PS_F2:   // subsd xmm1,xmm2/m64 (RM)
         c->vt = VT_64;  c->it = IT_SUBSD; break;
-    case PS_None: // subps xmm1,xmm2/m128 (RM)
+    case PS_No: // subps xmm1,xmm2/m128 (RM)
         c->vt = VT_128; c->it = IT_SUBPS; break;
     case PS_66:   // subpd xmm1,xmm2/m128 (RM)
         c->vt = VT_128; c->it = IT_SUBPD; break;
@@ -977,7 +972,7 @@ void decode0F_6F(DContext* c)
     case PS_66:
         // movdqa xmm1,xmm2/m128 (RM): move aligned dqw xmm2 -> xmm1
         c->vt = VT_128; c->it = IT_MOVDQA; break;
-    case PS_None:
+    case PS_No:
         // movq mm1,mm2/m64 (RM): Move quadword from mm/m64 to mm.
         c->vt = VT_64;  c->it = IT_MOVQ; break;
     default: assert(0);
@@ -993,7 +988,7 @@ void decode0F_74(DContext* c)
     // pcmpeqb mm,mm/m 64/128 (RM): compare packed bytes
     switch(c->ps) {
     case PS_66:   c->vt = VT_128; break;
-    case PS_None: c->vt = VT_64; break;
+    case PS_No: c->vt = VT_64; break;
     default: assert(0);
     }
     parseModRM(c, c->vt, RT_VV, &c->o2, &c->o1, 0);
@@ -1929,8 +1924,24 @@ void initDecodeTables(void)
     setOpcH(0xFE, decode_FE);
     setOpcH(0xFF, decode_FF);
 
-    setOpcH(0x0F10, decode0F_10);
-    setOpcH(0x0F11, decode0F_11);
+    // 0x0F10/No: movups xmm1,xmm2/m128 (RM)
+    // 0x0F10/66: movupd xmm1,xmm2/m128 (RM)
+    // 0x0F10/F3: movss xmm1,xmm2/m32 (RM)
+    // 0x0F10/F2: movsd xmm1,xmm2/m64 (RM)
+    setOpcP(0x0F10, PS_No, IT_MOVUPS, VT_128, parseRMVV, addBInsImp, attach);
+    setOpcP(0x0F10, PS_66, IT_MOVUPD, VT_128, parseRMVV, addBInsImp, attach);
+    setOpcP(0x0F10, PS_F3, IT_MOVSS,  VT_32,  parseRMVV, addBInsImp, attach);
+    setOpcP(0x0F10, PS_F2, IT_MOVSD,  VT_64,  parseRMVV, addBInsImp, attach);
+
+    // 0x0F10/No: movups xmm1/m128,xmm2 (MR)
+    // 0x0F10/66: movupd xmm1/m128,xmm2 (MR)
+    // 0x0F10/F3: movss xmm1/m32,xmm2 (MR)
+    // 0x0F10/F2: movsd xmm1/m64,xmm2 (MR)
+    setOpcP(0x0F11, PS_No, IT_MOVUPS, VT_128, parseMRVV, addBInsImp, attach);
+    setOpcP(0x0F11, PS_66, IT_MOVUPD, VT_128, parseMRVV, addBInsImp, attach);
+    setOpcP(0x0F11, PS_F3, IT_MOVSS,  VT_32,  parseMRVV, addBInsImp, attach);
+    setOpcP(0x0F11, PS_F2, IT_MOVSD,  VT_64,  parseMRVV, addBInsImp, attach);
+
     setOpcH(0x0F12, decode0F_12);
     setOpcH(0x0F13, decode0F_13);
     setOpcH(0x0F14, decode0F_14);
