@@ -208,6 +208,7 @@ ll_generate_instruction(Instr* instr, LLState* state)
     LLVMValueRef result;
 
     LLVMTypeRef i8 = LLVMInt8TypeInContext(state->context);
+    LLVMTypeRef i32 = LLVMInt32TypeInContext(state->context);
     LLVMTypeRef i64 = LLVMInt64TypeInContext(state->context);
     LLVMTypeRef pi8 = LLVMPointerType(i8, 0);
     LLVMTypeRef pi64 = LLVMPointerType(i64, 0);
@@ -241,7 +242,7 @@ ll_generate_instruction(Instr* instr, LLState* state)
             operand1 = ll_operand_load(OP_SI, ALIGN_MAXIMUM, &instr->src, state);
             ll_operand_store(OP_SI, ALIGN_MAXIMUM, &instr->dst, REG_DEFAULT, operand1, state);
             break;
-        case IT_MOVZBL:
+        case IT_MOVZX:
             operand1 = ll_operand_load(OP_SI, ALIGN_MAXIMUM, &instr->src, state);
             result = LLVMBuildZExtOrBitCast(state->builder, operand1, LLVMIntTypeInContext(state->context, opTypeWidth(&instr->dst)), "");
             ll_operand_store(OP_SI, ALIGN_MAXIMUM, &instr->dst, REG_DEFAULT, result, state);
@@ -606,29 +607,29 @@ ll_generate_instruction(Instr* instr, LLState* state)
             operand1 = ll_operand_load(OP_VF64, ALIGN_MAXIMUM, &instr->src, state);
             ll_operand_store(OP_VF64, ALIGN_MAXIMUM, &instr->dst, REG_KEEP_UPPER, operand1, state);
             break;
-        // case IT_MOVLPS:
-        //     operand1 = ll_operand_load(OP_VF32, ALIGN_MAXIMUM, &instr->src, state);
-        //     ll_operand_store(OP_VF32, ALIGN_MAXIMUM, &instr->dst, REG_KEEP_UPPER, operand1, state);
-        //     break;
-        // case IT_MOVLPD:
-        //     operand1 = ll_operand_load(OP_VF64, ALIGN_MAXIMUM, &instr->src, state);
-        //     ll_operand_store(OP_VF64, ALIGN_MAXIMUM, &instr->dst, REG_KEEP_UPPER, operand1, state);
-        //     break;
-        // case IT_MOVHPS:
-        //     {
-        //         LLVMValueRef maskElements[4];
-        //         maskElements[0] = LLVMConstInt(i32, 0, false);
-        //         maskElements[1] = LLVMConstInt(i32, 1, false);
-        //         maskElements[2] = LLVMConstInt(i32, 4, false);
-        //         maskElements[3] = LLVMConstInt(i32, 5, false);
-        //         LLVMValueRef mask = LLVMConstVector(maskElements, 4);
+        case IT_MOVLPS:
+            operand1 = ll_operand_load(OP_VF32, ALIGN_MAXIMUM, &instr->src, state);
+            ll_operand_store(OP_VF32, ALIGN_MAXIMUM, &instr->dst, REG_KEEP_UPPER, operand1, state);
+            break;
+        case IT_MOVLPD:
+            operand1 = ll_operand_load(OP_VF64, ALIGN_MAXIMUM, &instr->src, state);
+            ll_operand_store(OP_VF64, ALIGN_MAXIMUM, &instr->dst, REG_KEEP_UPPER, operand1, state);
+            break;
+        case IT_MOVHPS:
+            {
+                LLVMValueRef maskElements[4];
+                maskElements[0] = LLVMConstInt(i32, 0, false);
+                maskElements[1] = LLVMConstInt(i32, 1, false);
+                maskElements[2] = LLVMConstInt(i32, 4, false);
+                maskElements[3] = LLVMConstInt(i32, 5, false);
+                LLVMValueRef mask = LLVMConstVector(maskElements, 4);
 
-        //         operand1 = ll_operand_load(OP_VF32, ALIGN_MAXIMUM, &instr->dst, state);
-        //         operand2 = ll_operand_load(OP_VF32, ALIGN_MAXIMUM, &instr->src, state);
-        //         result = LLVMBuildShuffleVector(state->builder, operand1, operand2, mask, "");
-        //         ll_operand_store(OP_VF32, ALIGN_MAXIMUM, &instr->dst, REG_KEEP_UPPER, result, state);
-        //     }
-        //     break;
+                operand1 = ll_operand_load(OP_VF32, ALIGN_MAXIMUM, &instr->dst, state);
+                operand2 = ll_operand_load(OP_VF32, ALIGN_MAXIMUM, &instr->src, state);
+                result = LLVMBuildShuffleVector(state->builder, operand1, operand2, mask, "");
+                ll_operand_store(OP_VF32, ALIGN_MAXIMUM, &instr->dst, REG_KEEP_UPPER, result, state);
+            }
+            break;
         case IT_ADDSS:
             operand1 = ll_operand_load(OP_SF, ALIGN_MAXIMUM, &instr->dst, state);
             operand2 = ll_operand_load(OP_SF, ALIGN_MAXIMUM, &instr->src, state);
@@ -716,34 +717,34 @@ ll_generate_instruction(Instr* instr, LLState* state)
             }
             ll_operand_store(OP_VI64, ALIGN_MAXIMUM, &instr->dst, REG_KEEP_UPPER, result, state);
             break;
-        // case IT_UNPCKLPS:
-        //     {
-        //         LLVMValueRef maskElements[4];
-        //         maskElements[0] = LLVMConstInt(i32, 0, false);
-        //         maskElements[1] = LLVMConstInt(i32, 4, false);
-        //         maskElements[2] = LLVMConstInt(i32, 1, false);
-        //         maskElements[3] = LLVMConstInt(i32, 5, false);
-        //         LLVMValueRef mask = LLVMConstVector(maskElements, 4);
+        case IT_UNPCKLPS:
+            {
+                LLVMValueRef maskElements[4];
+                maskElements[0] = LLVMConstInt(i32, 0, false);
+                maskElements[1] = LLVMConstInt(i32, 4, false);
+                maskElements[2] = LLVMConstInt(i32, 1, false);
+                maskElements[3] = LLVMConstInt(i32, 5, false);
+                LLVMValueRef mask = LLVMConstVector(maskElements, 4);
 
-        //         operand1 = ll_operand_load(OP_VF32, ALIGN_MAXIMUM, &instr->dst, state);
-        //         operand2 = ll_operand_load(OP_VF32, ALIGN_MAXIMUM, &instr->src, state);
-        //         result = LLVMBuildShuffleVector(state->builder, operand1, operand2, mask, "");
-        //         ll_operand_store(OP_VF32, ALIGN_MAXIMUM, &instr->dst, REG_KEEP_UPPER, result, state);
-        //     }
-        //     break;
-        // case IT_UNPCKLPD:
-        //     {
-        //         LLVMValueRef maskElements[2];
-        //         maskElements[0] = LLVMConstInt(i32, 0, false);
-        //         maskElements[1] = LLVMConstInt(i32, 2, false);
-        //         LLVMValueRef mask = LLVMConstVector(maskElements, 2);
+                operand1 = ll_operand_load(OP_VF32, ALIGN_MAXIMUM, &instr->dst, state);
+                operand2 = ll_operand_load(OP_VF32, ALIGN_MAXIMUM, &instr->src, state);
+                result = LLVMBuildShuffleVector(state->builder, operand1, operand2, mask, "");
+                ll_operand_store(OP_VF32, ALIGN_MAXIMUM, &instr->dst, REG_KEEP_UPPER, result, state);
+            }
+            break;
+        case IT_UNPCKLPD:
+            {
+                LLVMValueRef maskElements[2];
+                maskElements[0] = LLVMConstInt(i32, 0, false);
+                maskElements[1] = LLVMConstInt(i32, 2, false);
+                LLVMValueRef mask = LLVMConstVector(maskElements, 2);
 
-        //         operand1 = ll_operand_load(OP_VF64, ALIGN_MAXIMUM, &instr->dst, state);
-        //         operand2 = ll_operand_load(OP_VF64, ALIGN_MAXIMUM, &instr->src, state);
-        //         result = LLVMBuildShuffleVector(state->builder, operand1, operand2, mask, "");
-        //         ll_operand_store(OP_VF64, ALIGN_MAXIMUM, &instr->dst, REG_KEEP_UPPER, result, state);
-        //     }
-        //     break;
+                operand1 = ll_operand_load(OP_VF64, ALIGN_MAXIMUM, &instr->dst, state);
+                operand2 = ll_operand_load(OP_VF64, ALIGN_MAXIMUM, &instr->src, state);
+                result = LLVMBuildShuffleVector(state->builder, operand1, operand2, mask, "");
+                ll_operand_store(OP_VF64, ALIGN_MAXIMUM, &instr->dst, REG_KEEP_UPPER, result, state);
+            }
+            break;
 
 
         ////////////////////////////////////////////////////////////////////////
@@ -784,6 +785,9 @@ ll_generate_instruction(Instr* instr, LLState* state)
         case IT_DIV:
         case IT_UCOMISD:
         case IT_MOVDQU:
+        case IT_MOVHPD:
+        case IT_UNPCKHPS:
+        case IT_UNPCKHPD:
         case IT_PMINUB:
         case IT_PADDQ:
         case IT_MOVDQA:
