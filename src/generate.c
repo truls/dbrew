@@ -208,7 +208,7 @@ uint8_t* calcModRM(Operand* o1, Operand* o2,
         r2 = GPRegEncoding(o2->reg);
     }
     else if (opIsVReg(o2)) {
-        assert(opIsVReg(o1) || opIsInd(o1));
+        assert(opIsReg(o1) || opIsInd(o1));
         r2 = VRegEncoding(o2->reg);
     }
     else assert(0);
@@ -244,6 +244,7 @@ int genModRM(uint8_t* buf, int opc, int opc2,
 
     rmBuf = calcModRM(o1, o2, &rex, &so, &len);
     if (vt == VT_Implicit) rex &= ~REX_MASK_W;
+    if (vt == VT_Implicit_REXW) rex |= REX_MASK_W;
     o += genPrefix(buf, rex, so);
     buf[o++] = (uint8_t) opc;
     if (opc2 >=0)
@@ -1259,11 +1260,16 @@ static
 int genPassThrough(uint8_t* buf, Instr* instr)
 {
     int o = 0;
+    ValType vt = instr->vtype;
 
     assert(instr->ptLen > 0);
     if (instr->ptPSet & PS_66) buf[o++] = 0x66;
     if (instr->ptPSet & PS_F2) buf[o++] = 0xF2;
     if (instr->ptPSet & PS_F3) buf[o++] = 0xF3;
+    if (instr->ptPSet & PS_REXW) {
+        assert(vt == VT_Implicit);
+        vt = VT_Implicit_REXW;
+    }
 
     // FIXME: REX prefix pass-through: combine with RM encoding changes
 
@@ -1273,12 +1279,12 @@ int genPassThrough(uint8_t* buf, Instr* instr)
     switch(instr->ptEnc) {
     case OE_MR:
         o += genModRM(buf+o, instr->ptOpc[0], instr->ptOpc[1],
-                &(instr->dst), &(instr->src), instr->vtype);
+                &(instr->dst), &(instr->src), vt);
         break;
 
     case OE_RM:
         o += genModRM(buf+o, instr->ptOpc[0], instr->ptOpc[1],
-                &(instr->src), &(instr->dst), instr->vtype);
+                &(instr->src), &(instr->dst), vt);
         break;
 
     default: assert(0);

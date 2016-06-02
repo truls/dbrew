@@ -920,6 +920,7 @@ void decode0F_6E(DContext* c)
         addSimple(c->r, c, IT_Invalid);
     }
     c->ii = addBinaryOp(c->r, c, c->it, VT_Implicit, &c->o1, &c->o2);
+    if (c->rex & REX_MASK_W) c->ps |= PS_REXW; // pass-through REX_W setting
     attachPassthrough(c->ii, c->ps, OE_RM, SC_dstDyn, 0x0F, 0x6E, -1);
 }
 
@@ -978,6 +979,7 @@ void decode0F_7E(DContext* c)
     default: addSimple(c->r, c, IT_Invalid); return;
     }
     c->ii = addBinaryOp(c->r, c, c->it, VT_Implicit, &c->o1, &c->o2);
+    if (c->rex & REX_MASK_W) c->ps |= PS_REXW; // pass-through REX_W setting
     attachPassthrough(c->ii, c->ps, c->oe, SC_dstDyn, 0x0F, 0x7E, -1);
 }
 

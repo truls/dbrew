@@ -101,7 +101,8 @@ typedef enum _InstrType {
 typedef enum _ValType {
     VT_None = 0,
     VT_Default,  // default operand type, used in decoder
-    VT_Implicit, // width given by opcode, use with Instr.vtype
+    VT_Implicit, // type depends only on opcode, used with Instr.vtype
+    VT_Implicit_REXW, // only used for pass-through, op-independent REXW
     VT_8, VT_16, VT_32, VT_64, VT_128, VT_256,
     //
     VT_Max
@@ -144,7 +145,8 @@ typedef enum _PrefixSet {
     PS_66 = 2,
     PS_F2 = 4,
     PS_F3 = 8,
-    PS_2E = 16
+    PS_2E = 16,
+    PS_REXW = 32  // only used for pass-through
 } PrefixSet;
 
 typedef enum _OperandForm {
