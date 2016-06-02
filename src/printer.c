@@ -165,6 +165,7 @@ const char* regName(Reg r, OpType t)
         case Reg_15: return "r15";
         case Reg_IP: return "rip";
 
+        // FIXME: difference between 64bit MMX vs 64bit SSE2: mmX vs xmmX
         case Reg_X0:  return "xmm0";
         case Reg_X1:  return "xmm1";
         case Reg_X2:  return "xmm2";

@@ -501,6 +501,14 @@ OpcEntry* setOpcP(int opc, PrefixSet ps,
     return e;
 }
 
+// set specific handler for opcode with given prefix
+static
+OpcEntry* setOpcPH(int opc, PrefixSet ps, DecHandler h)
+{
+    return setOpcP(opc, ps, IT_None, VT_Default, h, 0, 0);
+}
+
+// set specific handler for given opcode
 static
 OpcEntry* setOpcH(int opc, DecHandler h)
 {
@@ -519,11 +527,13 @@ OpcEntry* setOpcG(int opc, int digit,
     return e;
 }
 
+// set specific handler for opcode with sub-opcode digit
 static
 OpcEntry* setOpcGH(int opc, int digit, DecHandler h)
 {
     return setOpcG(opc, digit, IT_None, VT_Default, h, 0, 0);
 }
+
 
 static
 void processOpc(OpcInfo* oi, DContext* c)
@@ -909,47 +919,24 @@ void decode0F_40(DContext* c)
 }
 
 static
-void decode0F_6E(DContext* c)
+void decode0F_6E_P66(DContext* c)
 {
-    if (c->ps == PS_66) {
-        // movd/q xmm,r/m 32/64 (RM)
-        c->vt = (c->rex & REX_MASK_W) ? VT_64 : VT_32;
-        c->it = (c->rex & REX_MASK_W) ? IT_MOVQ : IT_MOVD;
-        parseModRM(c, c->vt, RT_GV, &c->o2, &c->o1, 0);
-    } else {
-        addSimple(c->r, c, IT_Invalid);
-    }
+    // movd/q xmm,r/m 32/64 (RM)
+    c->vt = (c->rex & REX_MASK_W) ? VT_64 : VT_32;
+    c->it = (c->rex & REX_MASK_W) ? IT_MOVQ : IT_MOVD;
+    parseModRM(c, c->vt, RT_GV, &c->o2, &c->o1, 0);
     c->ii = addBinaryOp(c->r, c, c->it, VT_Implicit, &c->o1, &c->o2);
     if (c->rex & REX_MASK_W) c->ps |= PS_REXW; // pass-through REX_W setting
     attachPassthrough(c->ii, c->ps, OE_RM, SC_dstDyn, 0x0F, 0x6E, -1);
 }
 
-static
-void decode0F_6F(DContext* c)
-{
-    switch(c->ps) {
-    case PS_F3:
-        // movdqu xmm1,xmm2/m128 (RM): move unaligned dqw xmm2 -> xmm1
-        c->vt = VT_128; c->it = IT_MOVDQU; break;
-    case PS_66:
-        // movdqa xmm1,xmm2/m128 (RM): move aligned dqw xmm2 -> xmm1
-        c->vt = VT_128; c->it = IT_MOVDQA; break;
-    case PS_No:
-        // movq mm1,mm2/m64 (RM): Move quadword from mm/m64 to mm.
-        c->vt = VT_64;  c->it = IT_MOVQ; break;
-    default: addSimple(c->r, c, IT_Invalid); return;
-    }
-    parseModRM(c, c->vt, RT_VV, &c->o2, &c->o1, 0);
-    c->ii = addBinaryOp(c->r, c, c->it, VT_Implicit, &c->o1, &c->o2);
-    attachPassthrough(c->ii, c->ps, OE_RM, SC_None, 0x0F, 0x6F, -1);
-}
 
 static
 void decode0F_74(DContext* c)
 {
     // pcmpeqb mm,mm/m 64/128 (RM): compare packed bytes
     switch(c->ps) {
-    case PS_66:   c->vt = VT_128; break;
+    case PS_66: c->vt = VT_128; break;
     case PS_No: c->vt = VT_64; break;
     default: addSimple(c->r, c, IT_Invalid); return;
     }
@@ -1977,8 +1964,20 @@ void initDecodeTables(void)
     setOpcP(0x0F5F, PS_No, IT_MAXPS, VT_128, parseRMVV, addBInsImp, attach);
     setOpcP(0x0F5F, PS_66, IT_MAXPD, VT_128, parseRMVV, addBInsImp, attach);
 
-    setOpcH(0x0F6E, decode0F_6E);
-    setOpcH(0x0F6F, decode0F_6F);
+    // 0x0F6E/66: movd/q xmm,r/m 32/64 (RM)
+    setOpcPH(0x0F6E, PS_66, decode0F_6E_P66);
+
+    // 0x0F6F/F3: movdqu xmm1,xmm2/m128 (RM)
+    // 0x0F6F/66: movdqa xmm1,xmm2/m128 (RM)
+    // 0x0F6F/No: movq mm1,mm2/m64 (RM)
+    setOpcP(0x0F6F, PS_F3, IT_MOVDQU, VT_128, parseRMVV, addBInsImp, attach);
+    setOpcP(0x0F6F, PS_66, IT_MOVDQA, VT_128, parseRMVV, addBInsImp, attach);
+    setOpcP(0x0F6F, PS_No, IT_MOVQ,   VT_64,  parseRMVV, addBInsImp, attach);
+
+    // 0x0F74/No: pcmpeqb mm,mm/m64 (RM)
+    // 0x0F74/66: pcmpeqb mm,mm/m128 (RM)
+    //setOpcP(0x0F74, PS_No, IT_PCMPEQB, VT_64,  parseRMVV, addBInsImp, attach);
+    //setOpcP(0x0F74, PS_66, IT_PCMPEQB, VT_128, parseRMVV, addBInsImp, attach);
     setOpcH(0x0F74, decode0F_74);
 
     // 0x0F7C/66: haddpd xmm1,xmm2/m128 (RM)

@@ -26,6 +26,8 @@ f1:
     movapd [rdi], xmm0
     movq xmm0, xmm1
     movq [rdx], xmm1
+    movq xmm0, [rdx]
+    movq mm0, [rdx]
     movdqu xmm0, [rdx]
     movdqu [rdx], xmm0
     movdqa xmm0, [rdx]
