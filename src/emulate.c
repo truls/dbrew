@@ -1108,6 +1108,12 @@ void getOpValue(EmuValue* v, EmuState* es, Operand* o)
         v->state = es->reg_state[o->reg];
         return;
 
+    case OT_Reg16:
+        v->type = VT_16;
+        v->val = (uint16_t) es->reg[o->reg];
+        v->state = es->reg_state[o->reg];
+        return;
+
     case OT_Reg32:
         v->type = VT_32;
         v->val = (uint32_t) es->reg[o->reg];
@@ -1151,6 +1157,16 @@ void setOpValue(EmuValue* v, EmuState* es, Operand* o)
 
     assert(v->type == opValType(o));
     switch(o->type) {
+    case OT_Reg8:
+        es->reg[o->reg] = (uint8_t) v->val;
+        es->reg_state[o->reg] = v->state;
+        return;
+
+    case OT_Reg16:
+        es->reg[o->reg] = (uint16_t) v->val;
+        es->reg_state[o->reg] = v->state;
+        return;
+
     case OT_Reg32:
         es->reg[o->reg] = (uint32_t) v->val;
         es->reg_state[o->reg] = v->state;
@@ -2199,6 +2215,26 @@ uint64_t emulateInstr(Rewriter* r, EmuState* es, Instr* instr)
         getOpValue(&v2, es, &(instr->src));
 
         switch(opValType(&(instr->dst))) {
+        case VT_8:
+            switch (instr->type) {
+            case IT_SHL: v1.val = (uint8_t) (v1.val << (v2.val & 7)); break;
+            case IT_SHR: v1.val = (uint8_t) (v1.val >> (v2.val & 7)); break;
+            case IT_SAR:
+                v1.val = (uint8_t) ((int8_t)v1.val >> (v2.val & 7)); break;
+            default: assert(0);
+            }
+            break;
+
+        case VT_16:
+            switch (instr->type) {
+            case IT_SHL: v1.val = (uint16_t) (v1.val << (v2.val & 15)); break;
+            case IT_SHR: v1.val = (uint16_t) (v1.val >> (v2.val & 15)); break;
+            case IT_SAR:
+                v1.val = (uint16_t) ((int16_t)v1.val >> (v2.val & 15)); break;
+            default: assert(0);
+            }
+            break;
+
         case VT_32:
             switch (instr->type) {
             case IT_SHL: v1.val = (uint32_t) (v1.val << (v2.val & 31)); break;

@@ -1,0 +1,27 @@
+>>> Testcase known par = 1.
+Saving current emulator state: new with esID 0
+Capture 'H-call' (into test|0 + 0)
+Processing BB (test|0)
+Emulation Static State (esID 0, call depth 0):
+  Registers: %rsp (R 0), %rdi (0x1)
+  Flags: (none)
+  Stack: (none)
+Decoding BB test ...
+                test:  c1 e7 05              shl     $0x5,%edi
+              test+3:  48 89 f8              mov     %rdi,%rax
+              test+6:  c3                    ret    
+Emulate 'test: shl $0x5,%edi'
+Emulate 'test+3: mov %rdi,%rax'
+Emulate 'test+6: ret'
+Capture 'H-ret' (into test|0 + 1)
+Capture 'mov $0x20,%rax' (into test|0 + 2)
+Capture 'ret' (into test|0 + 3)
+OPT!!
+Generating code for BB test|0 (4 instructions)
+  I 0 : H-call                           (test|0)+0 
+  I 1 : H-ret                            (test|0)+0 
+  I 2 : mov     $0x20,%rax               (test|0)+0  48 c7 c0 20 00 00 00
+  I 3 : ret                              (test|0)+7  c3
+BB gen (2 instructions):
+                 gen:  48 c7 c0 20 00 00 00  mov     $0x20,%rax
+               gen+7:  c3                    ret    
