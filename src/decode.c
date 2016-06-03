@@ -43,6 +43,7 @@ struct _DContext {
     Rewriter* r;
 
     // decoder position
+    DBB* dbb;
     uint8_t* f;
     int off;
     uint64_t iaddr; // current instruction start address
@@ -329,10 +330,11 @@ void parseImm(DContext* c, ValType vt, Operand* o, bool realImm64)
 }
 
 static
-void initDContext(DContext* cxt, Rewriter* r, uint64_t f)
+void initDContext(DContext* cxt, Rewriter* r, DBB* dbb)
 {
     cxt->r = r;
-    cxt->f = (uint8_t*) f;
+    cxt->dbb = dbb;
+    cxt->f = (uint8_t*) dbb->addr;
     cxt->off = 0;
 
     cxt->exit = false;
@@ -395,6 +397,7 @@ typedef enum _OpcType {
 typedef struct _OpcInfo OpcInfo;
 struct _OpcInfo {
     OpcType t;
+    int opc;
     int eStart;  // offset into opcEntry table
 };
 
@@ -432,6 +435,7 @@ int setOpcInfo(int opc, OpcType t)
     if (oi->t == OT_Invalid) {
         // opcode not seen yet
         oi->t = t;
+        oi->opc = opc;
         oi->eStart = used;
         switch(t) {
         case OT_Single: used += 1; break;
@@ -2076,7 +2080,7 @@ DBB* dbrew_decode(Rewriter* r, uint64_t f)
     if (r->showDecoding)
         printf("Decoding BB %s ...\n", prettyAddress(f, dbb->fc));
 
-    initDContext(&cxt, r, f);
+    initDContext(&cxt, r, dbb);
 
     while(!cxt.exit) {
         decodePrefixes(&cxt);
@@ -2089,9 +2093,14 @@ DBB* dbrew_decode(Rewriter* r, uint64_t f)
             opc = cxt.f[cxt.off++];
             cxt.opc2 = opc;
             processOpc(&(opcTable0F[opc]), &cxt);
-            continue;
         }
-        processOpc(&(opcTable[opc]), &cxt);
+        else
+          processOpc(&(opcTable[opc]), &cxt);
+         if (isErrorSet(&(cxt.error.e))) {
+             // current "fall-back": output error, stop decoding
+             logError(&(cxt.error.e), (char*) "Stopped decoding");
+             break;
+         }
     }
 
     assert(dbb->addr == dbb->instr->addr);

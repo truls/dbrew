@@ -52,6 +52,7 @@ typedef struct _Error {
 } Error;
 
 void setErrorNone(Error* e);
+bool isErrorSet(Error*);
 void setError(Error* e, Rewriter* r, char* d);
 const char* errorString(Error*);
 // add error to some log, with further description (e.g. recover action)

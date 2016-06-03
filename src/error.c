@@ -30,6 +30,11 @@ void setErrorNone(Error* e)
     e->et = ET_NoError;
 }
 
+bool isErrorSet(Error* e)
+{
+    return (e->et != ET_NoError);
+}
+
 void setError(Error* e, Rewriter* r, char* d)
 {
     e->et = ET_Unknown;
