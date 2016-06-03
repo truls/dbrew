@@ -100,11 +100,14 @@ typedef enum _InstrType {
 
 typedef enum _ValType {
     VT_None = 0,
-    VT_Default,  // default operand type, used in decoder
-    VT_Implicit, // type depends only on opcode, used with Instr.vtype
-    VT_Implicit_REXW, // only used for pass-through, op-independent REXW
     VT_8, VT_16, VT_32, VT_64, VT_128, VT_256,
-    //
+
+    // used in decoder and printer
+    VT_Implicit, // type depends only on opcode, with Instr.vtype
+    // only for decoder
+    VT_Def,           // default op type (32, 64 with RexW, 16 with Pr66)
+    VT_Implicit_REXW, // for pass-through: op-independent RexW marker
+
     VT_Max
 } ValType;
 

@@ -19,8 +19,11 @@
 
 /* For now, decoder only does x86-64
  *
+ * Opcode handlers are registered once and put into opcode tables.
+ *
  * FIXME:
- * for 8bit regs, we do not support/assert on use of AH/BH/CH/DH
+ * - for 8bit regs, we do not support/assert on use of AH/BH/CH/DH
+ * - difference between 64bit MMX and 64 SSE regs (?)
 */
 
 #include "decode.h"
@@ -505,14 +508,14 @@ OpcEntry* setOpcP(int opc, PrefixSet ps,
 static
 OpcEntry* setOpcPH(int opc, PrefixSet ps, DecHandler h)
 {
-    return setOpcP(opc, ps, IT_None, VT_Default, h, 0, 0);
+    return setOpcP(opc, ps, IT_None, VT_Def, h, 0, 0);
 }
 
 // set specific handler for given opcode
 static
 OpcEntry* setOpcH(int opc, DecHandler h)
 {
-    return setOpc(opc, IT_None, VT_Default, h, 0, 0);
+    return setOpc(opc, IT_None, VT_Def, h, 0, 0);
 }
 
 // set handler for opcodes using a sub-opcode group
@@ -531,7 +534,7 @@ OpcEntry* setOpcG(int opc, int digit,
 static
 OpcEntry* setOpcGH(int opc, int digit, DecHandler h)
 {
-    return setOpcG(opc, digit, IT_None, VT_Default, h, 0, 0);
+    return setOpcG(opc, digit, IT_None, VT_Def, h, 0, 0);
 }
 
 
@@ -565,7 +568,7 @@ void processOpc(OpcInfo* oi, DContext* c)
     e = &(opcEntry[oi->eStart+off]);
 
     c->it = e->it;
-    if (e->vt == VT_Default) {
+    if (e->vt == VT_Def) {
         // derive type from prefixes
         c->vt = (c->rex & REX_MASK_W) ? VT_64 : VT_32;
         if (c->ps & PS_66) c->vt = VT_16;
@@ -1566,12 +1569,12 @@ void initDecodeTables(void)
     // 0x03: add r,r/m 16/32/64 (RM, dst: r, src: r/m)
     // 0x04: add al,imm8 (I)
     // 0x05: add ax/eax/rax,imm16/32/32se (I) - (se: sign extended)
-    setOpc(0x00, IT_ADD, VT_8,       parseMR, addBInstr, 0);
-    setOpc(0x01, IT_ADD, VT_Default, parseMR, addBInstr, 0);
-    setOpc(0x02, IT_ADD, VT_8,       parseRM, addBInstr, 0);
-    setOpc(0x03, IT_ADD, VT_Default, parseRM, addBInstr, 0);
-    setOpc(0x04, IT_ADD, VT_8,       setO1RegA, parseI2, addBInstr);
-    setOpc(0x05, IT_ADD, VT_Default, setO1RegA, parseI2, addBInstr);
+    setOpc(0x00, IT_ADD, VT_8,   parseMR, addBInstr, 0);
+    setOpc(0x01, IT_ADD, VT_Def, parseMR, addBInstr, 0);
+    setOpc(0x02, IT_ADD, VT_8,   parseRM, addBInstr, 0);
+    setOpc(0x03, IT_ADD, VT_Def, parseRM, addBInstr, 0);
+    setOpc(0x04, IT_ADD, VT_8,   setO1RegA, parseI2, addBInstr);
+    setOpc(0x05, IT_ADD, VT_Def, setO1RegA, parseI2, addBInstr);
 
     // 0x08: or r/m8,r8 (MR, dst: r/m, src: r)
     // 0x09: or r/m,r 16/32/64 (MR, dst: r/m, src: r)
@@ -1579,12 +1582,12 @@ void initDecodeTables(void)
     // 0x0B: or r,r/m 16/32/64 (RM, dst: r, src: r/m)
     // 0x0C: or al,imm8 (I)
     // 0x0D: or ax/eax/rax,imm16/32/32se (I) - (se: sign extended)
-    setOpc(0x08, IT_OR, VT_8,       parseMR, addBInstr, 0);
-    setOpc(0x09, IT_OR, VT_Default, parseMR, addBInstr, 0);
-    setOpc(0x0A, IT_OR, VT_8,       parseRM, addBInstr, 0);
-    setOpc(0x0B, IT_OR, VT_Default, parseRM, addBInstr, 0);
-    setOpc(0x0C, IT_OR, VT_8,       setO1RegA, parseI2, addBInstr);
-    setOpc(0x0D, IT_OR, VT_Default, setO1RegA, parseI2, addBInstr);
+    setOpc(0x08, IT_OR, VT_8,   parseMR, addBInstr, 0);
+    setOpc(0x09, IT_OR, VT_Def, parseMR, addBInstr, 0);
+    setOpc(0x0A, IT_OR, VT_8,   parseRM, addBInstr, 0);
+    setOpc(0x0B, IT_OR, VT_Def, parseRM, addBInstr, 0);
+    setOpc(0x0C, IT_OR, VT_8,   setO1RegA, parseI2, addBInstr);
+    setOpc(0x0D, IT_OR, VT_Def, setO1RegA, parseI2, addBInstr);
 
     // 0x10: adc r/m8,r8 (MR, dst: r/m, src: r)
     // 0x11: adc r/m,r 16/32/64 (MR, dst: r/m, src: r)
@@ -1592,12 +1595,12 @@ void initDecodeTables(void)
     // 0x13: adc r,r/m 16/32/64 (RM, dst: r, src: r/m)
     // 0x14: adc al,imm8 (I)
     // 0x15: adc ax/eax/rax,imm16/32/32se (I) - (se: sign extended)
-    setOpc(0x10, IT_ADC, VT_8,       parseMR, addBInstr, 0);
-    setOpc(0x11, IT_ADC, VT_Default, parseMR, addBInstr, 0);
-    setOpc(0x12, IT_ADC, VT_8,       parseRM, addBInstr, 0);
-    setOpc(0x13, IT_ADC, VT_Default, parseRM, addBInstr, 0);
-    setOpc(0x14, IT_ADC, VT_8,       setO1RegA, parseI2, addBInstr);
-    setOpc(0x15, IT_ADC, VT_Default, setO1RegA, parseI2, addBInstr);
+    setOpc(0x10, IT_ADC, VT_8,   parseMR, addBInstr, 0);
+    setOpc(0x11, IT_ADC, VT_Def, parseMR, addBInstr, 0);
+    setOpc(0x12, IT_ADC, VT_8,   parseRM, addBInstr, 0);
+    setOpc(0x13, IT_ADC, VT_Def, parseRM, addBInstr, 0);
+    setOpc(0x14, IT_ADC, VT_8,   setO1RegA, parseI2, addBInstr);
+    setOpc(0x15, IT_ADC, VT_Def, setO1RegA, parseI2, addBInstr);
 
     // 0x18: sbb r/m8,r8 (MR, dst: r/m, src: r)
     // 0x19: sbb r/m,r 16/32/64 (MR, dst: r/m, src: r)
@@ -1605,12 +1608,12 @@ void initDecodeTables(void)
     // 0x1B: sbb r,r/m 16/32/64 (RM, dst: r, src: r/m)
     // 0x1C: sbb al,imm8 (I)
     // 0x1D: sbb ax/eax/rax,imm16/32/32se (I) - (se: sign extended)
-    setOpc(0x18, IT_SBB, VT_8,       parseMR, addBInstr, 0);
-    setOpc(0x19, IT_SBB, VT_Default, parseMR, addBInstr, 0);
-    setOpc(0x1A, IT_SBB, VT_8,       parseRM, addBInstr, 0);
-    setOpc(0x1B, IT_SBB, VT_Default, parseRM, addBInstr, 0);
-    setOpc(0x1C, IT_SBB, VT_8,       setO1RegA, parseI2, addBInstr);
-    setOpc(0x1D, IT_SBB, VT_Default, setO1RegA, parseI2, addBInstr);
+    setOpc(0x18, IT_SBB, VT_8,   parseMR, addBInstr, 0);
+    setOpc(0x19, IT_SBB, VT_Def, parseMR, addBInstr, 0);
+    setOpc(0x1A, IT_SBB, VT_8,   parseRM, addBInstr, 0);
+    setOpc(0x1B, IT_SBB, VT_Def, parseRM, addBInstr, 0);
+    setOpc(0x1C, IT_SBB, VT_8,   setO1RegA, parseI2, addBInstr);
+    setOpc(0x1D, IT_SBB, VT_Def, setO1RegA, parseI2, addBInstr);
 
     // 0x20: and r/m8,r8 (MR, dst: r/m, src: r)
     // 0x21: and r/m,r 16/32/64 (MR, dst: r/m, src: r)
@@ -1618,12 +1621,12 @@ void initDecodeTables(void)
     // 0x23: and r,r/m 16/32/64 (RM, dst: r, src: r/m)
     // 0x24: and al,imm8 (I)
     // 0x25: and ax/eax/rax,imm16/32/32se (I) - (se: sign extended)
-    setOpc(0x20, IT_AND, VT_8,       parseMR, addBInstr, 0);
-    setOpc(0x21, IT_AND, VT_Default, parseMR, addBInstr, 0);
-    setOpc(0x22, IT_AND, VT_8,       parseRM, addBInstr, 0);
-    setOpc(0x23, IT_AND, VT_Default, parseRM, addBInstr, 0);
-    setOpc(0x24, IT_AND, VT_8,       setO1RegA, parseI2, addBInstr);
-    setOpc(0x25, IT_AND, VT_Default, setO1RegA, parseI2, addBInstr);
+    setOpc(0x20, IT_AND, VT_8,   parseMR, addBInstr, 0);
+    setOpc(0x21, IT_AND, VT_Def, parseMR, addBInstr, 0);
+    setOpc(0x22, IT_AND, VT_8,   parseRM, addBInstr, 0);
+    setOpc(0x23, IT_AND, VT_Def, parseRM, addBInstr, 0);
+    setOpc(0x24, IT_AND, VT_8,   setO1RegA, parseI2, addBInstr);
+    setOpc(0x25, IT_AND, VT_Def, setO1RegA, parseI2, addBInstr);
 
     // 0x28: sub r/m8,r8 (MR, dst: r/m, src: r)
     // 0x29: sub r/m,r 16/32/64 (MR, dst: r/m, src: r)
@@ -1631,12 +1634,12 @@ void initDecodeTables(void)
     // 0x2B: sub r,r/m 16/32/64 (RM, dst: r, src: r/m)
     // 0x2C: sub al,imm8 (I)
     // 0x2D: sub ax/eax/rax,imm16/32/32se (I) - (se: sign extended)
-    setOpc(0x28, IT_SUB, VT_8,       parseMR, addBInstr, 0);
-    setOpc(0x29, IT_SUB, VT_Default, parseMR, addBInstr, 0);
-    setOpc(0x2A, IT_SUB, VT_8,       parseRM, addBInstr, 0);
-    setOpc(0x2B, IT_SUB, VT_Default, parseRM, addBInstr, 0);
-    setOpc(0x2C, IT_SUB, VT_8,       setO1RegA, parseI2, addBInstr);
-    setOpc(0x2D, IT_SUB, VT_Default, setO1RegA, parseI2, addBInstr);
+    setOpc(0x28, IT_SUB, VT_8,   parseMR, addBInstr, 0);
+    setOpc(0x29, IT_SUB, VT_Def, parseMR, addBInstr, 0);
+    setOpc(0x2A, IT_SUB, VT_8,   parseRM, addBInstr, 0);
+    setOpc(0x2B, IT_SUB, VT_Def, parseRM, addBInstr, 0);
+    setOpc(0x2C, IT_SUB, VT_8,   setO1RegA, parseI2, addBInstr);
+    setOpc(0x2D, IT_SUB, VT_Def, setO1RegA, parseI2, addBInstr);
 
     // 0x30: xor r/m8,r8 (MR, dst: r/m, src: r)
     // 0x31: xor r/m,r 16/32/64 (MR, dst: r/m, src: r)
@@ -1644,12 +1647,12 @@ void initDecodeTables(void)
     // 0x33: xor r,r/m 16/32/64 (RM, dst: r, src: r/m)
     // 0x34: xor al,imm8 (I)
     // 0x35: xor ax/eax/rax,imm16/32/32se (I) - (se: sign extended)
-    setOpc(0x30, IT_XOR, VT_8,       parseMR, addBInstr, 0);
-    setOpc(0x31, IT_XOR, VT_Default, parseMR, addBInstr, 0);
-    setOpc(0x32, IT_XOR, VT_8,       parseRM, addBInstr, 0);
-    setOpc(0x33, IT_XOR, VT_Default, parseRM, addBInstr, 0);
-    setOpc(0x34, IT_XOR, VT_8,       setO1RegA, parseI2, addBInstr);
-    setOpc(0x35, IT_XOR, VT_Default, setO1RegA, parseI2, addBInstr);
+    setOpc(0x30, IT_XOR, VT_8,   parseMR, addBInstr, 0);
+    setOpc(0x31, IT_XOR, VT_Def, parseMR, addBInstr, 0);
+    setOpc(0x32, IT_XOR, VT_8,   parseRM, addBInstr, 0);
+    setOpc(0x33, IT_XOR, VT_Def, parseRM, addBInstr, 0);
+    setOpc(0x34, IT_XOR, VT_8,   setO1RegA, parseI2, addBInstr);
+    setOpc(0x35, IT_XOR, VT_Def, setO1RegA, parseI2, addBInstr);
 
     // 0x38: cmp r/m8,r8 (MR, dst: r/m, src: r)
     // 0x39: cmp r/m,r 16/32/64 (MR, dst: r/m, src: r)
@@ -1657,12 +1660,12 @@ void initDecodeTables(void)
     // 0x3B: cmp r,r/m 16/32/64 (RM, dst: r, src: r/m)
     // 0x3C: cmp al,imm8 (I)
     // 0x3D: cmp ax/eax/rax,imm16/32/32se (I) - (se: sign extended)
-    setOpc(0x38, IT_CMP, VT_8,       parseMR, addBInstr, 0);
-    setOpc(0x39, IT_CMP, VT_Default, parseMR, addBInstr, 0);
-    setOpc(0x3A, IT_CMP, VT_8,       parseRM, addBInstr, 0);
-    setOpc(0x3B, IT_CMP, VT_Default, parseRM, addBInstr, 0);
-    setOpc(0x3C, IT_CMP, VT_8,       setO1RegA, parseI2, addBInstr);
-    setOpc(0x3D, IT_CMP, VT_Default, setO1RegA, parseI2, addBInstr);
+    setOpc(0x38, IT_CMP, VT_8,   parseMR, addBInstr, 0);
+    setOpc(0x39, IT_CMP, VT_Def, parseMR, addBInstr, 0);
+    setOpc(0x3A, IT_CMP, VT_8,   parseRM, addBInstr, 0);
+    setOpc(0x3B, IT_CMP, VT_Def, parseRM, addBInstr, 0);
+    setOpc(0x3C, IT_CMP, VT_8,   setO1RegA, parseI2, addBInstr);
+    setOpc(0x3D, IT_CMP, VT_Def, setO1RegA, parseI2, addBInstr);
 
     // 0x50-57: push r16/r64
     setOpcH(0x50, decode_50);
@@ -1694,8 +1697,8 @@ void initDecodeTables(void)
 
     // 0x69: imul r,r/m16/32/64,imm16/32/32se (RMI)
     // 0x6B: imul r,r/m16/32/64,imm8se (RMI)
-    setOpc(0x69, IT_IMUL, VT_Default,  parseRM, parseI3, addTInstr);
-    setOpc(0x6B, IT_IMUL, VT_Default,  parseRM, parseI3_8se, addTInstr);
+    setOpc(0x69, IT_IMUL, VT_Def,  parseRM, parseI3, addTInstr);
+    setOpc(0x6B, IT_IMUL, VT_Def,  parseRM, parseI3_8se, addTInstr);
 
     // 0x70-7F: jcc rel8
     setOpcH(0x70, decode_70);
@@ -1727,36 +1730,36 @@ void initDecodeTables(void)
     setOpcG(0x80, 5, IT_SUB, VT_8,       parseMI, addBInstr, 0);
     setOpcG(0x80, 6, IT_XOR, VT_8,       parseMI, addBInstr, 0);
     setOpcG(0x80, 7, IT_CMP, VT_8,       parseMI, addBInstr, 0);
-    setOpcG(0x81, 0, IT_ADD, VT_Default, parseMI, addBInstr, 0);
-    setOpcG(0x81, 1, IT_OR , VT_Default, parseMI, addBInstr, 0);
-    setOpcG(0x81, 2, IT_ADC, VT_Default, parseMI, addBInstr, 0);
-    setOpcG(0x81, 3, IT_SBB, VT_Default, parseMI, addBInstr, 0);
-    setOpcG(0x81, 4, IT_AND, VT_Default, parseMI, addBInstr, 0);
-    setOpcG(0x81, 5, IT_SUB, VT_Default, parseMI, addBInstr, 0);
-    setOpcG(0x81, 6, IT_XOR, VT_Default, parseMI, addBInstr, 0);
-    setOpcG(0x81, 7, IT_CMP, VT_Default, parseMI, addBInstr, 0);
-    setOpcG(0x83, 0, IT_ADD, VT_Default, parseMI_8se, addBInstr, 0);
-    setOpcG(0x83, 1, IT_OR , VT_Default, parseMI_8se, addBInstr, 0);
-    setOpcG(0x83, 2, IT_ADC, VT_Default, parseMI_8se, addBInstr, 0);
-    setOpcG(0x83, 3, IT_SBB, VT_Default, parseMI_8se, addBInstr, 0);
-    setOpcG(0x83, 4, IT_AND, VT_Default, parseMI_8se, addBInstr, 0);
-    setOpcG(0x83, 5, IT_SUB, VT_Default, parseMI_8se, addBInstr, 0);
-    setOpcG(0x83, 6, IT_XOR, VT_Default, parseMI_8se, addBInstr, 0);
-    setOpcG(0x83, 7, IT_CMP, VT_Default, parseMI_8se, addBInstr, 0);
+    setOpcG(0x81, 0, IT_ADD, VT_Def, parseMI, addBInstr, 0);
+    setOpcG(0x81, 1, IT_OR , VT_Def, parseMI, addBInstr, 0);
+    setOpcG(0x81, 2, IT_ADC, VT_Def, parseMI, addBInstr, 0);
+    setOpcG(0x81, 3, IT_SBB, VT_Def, parseMI, addBInstr, 0);
+    setOpcG(0x81, 4, IT_AND, VT_Def, parseMI, addBInstr, 0);
+    setOpcG(0x81, 5, IT_SUB, VT_Def, parseMI, addBInstr, 0);
+    setOpcG(0x81, 6, IT_XOR, VT_Def, parseMI, addBInstr, 0);
+    setOpcG(0x81, 7, IT_CMP, VT_Def, parseMI, addBInstr, 0);
+    setOpcG(0x83, 0, IT_ADD, VT_Def, parseMI_8se, addBInstr, 0);
+    setOpcG(0x83, 1, IT_OR , VT_Def, parseMI_8se, addBInstr, 0);
+    setOpcG(0x83, 2, IT_ADC, VT_Def, parseMI_8se, addBInstr, 0);
+    setOpcG(0x83, 3, IT_SBB, VT_Def, parseMI_8se, addBInstr, 0);
+    setOpcG(0x83, 4, IT_AND, VT_Def, parseMI_8se, addBInstr, 0);
+    setOpcG(0x83, 5, IT_SUB, VT_Def, parseMI_8se, addBInstr, 0);
+    setOpcG(0x83, 6, IT_XOR, VT_Def, parseMI_8se, addBInstr, 0);
+    setOpcG(0x83, 7, IT_CMP, VT_Def, parseMI_8se, addBInstr, 0);
 
     // 0x84: test r/m8,r8 (MR) - r/m8 "and" r8, set SF, ZF, PF
     // 0x85: test r/m,r16/32/64 (MR)
-    setOpc(0x84, IT_TEST, VT_8,       parseMR, addBInstr, 0);
-    setOpc(0x85, IT_TEST, VT_Default, parseMR, addBInstr, 0);
+    setOpc(0x84, IT_TEST, VT_8,   parseMR, addBInstr, 0);
+    setOpc(0x85, IT_TEST, VT_Def, parseMR, addBInstr, 0);
 
     // 0x88: mov r/m8,r8 (MR)
     // 0x89: mov r/m,r16/32/64 (MR)
     // 0x8A: mov r8,r/m8,r8 (RM)
     // 0x8B: mov r,r/m16/32/64 (RM)
-    setOpc(0x88, IT_MOV, VT_8,       parseMR, addBInstr, 0);
-    setOpc(0x89, IT_MOV, VT_Default, parseMR, addBInstr, 0);
-    setOpc(0x8A, IT_MOV, VT_8,       parseRM, addBInstr, 0);
-    setOpc(0x8B, IT_MOV, VT_Default, parseRM, addBInstr, 0);
+    setOpc(0x88, IT_MOV, VT_8,   parseMR, addBInstr, 0);
+    setOpc(0x89, IT_MOV, VT_Def, parseMR, addBInstr, 0);
+    setOpc(0x8A, IT_MOV, VT_8,   parseRM, addBInstr, 0);
+    setOpc(0x8B, IT_MOV, VT_Def, parseRM, addBInstr, 0);
 
     // 0x8D: lea r16/32/64,m (RM)
     setOpcH(0x8D, decode_8D);
@@ -1770,8 +1773,8 @@ void initDecodeTables(void)
 
     // 0xA8: test al,imm8
     // 0xA9: test ax/eax/rax,imm16/32/32se
-    setOpc(0xA8, IT_TEST, VT_8,       setO1RegA, parseI2, addBInstr);
-    setOpc(0xA9, IT_TEST, VT_Default, setO1RegA, parseI2, addBInstr);
+    setOpc(0xA8, IT_TEST, VT_8,   setO1RegA, parseI2, addBInstr);
+    setOpc(0xA9, IT_TEST, VT_Def, setO1RegA, parseI2, addBInstr);
 
     // 0xB0-B7: mov r8,imm8
     // 0xB8-BF: mov r32/64,imm32/64
@@ -2010,13 +2013,13 @@ void initDecodeTables(void)
     setOpcH(0x0F8F, decode0F_80);
 
     // 0x0FAF: imul r,rm16/32/64 (RM), signed mul (d/q)word by r/m
-    setOpc(0x0FAF, IT_IMUL, VT_Default, parseRM, addBInstr, 0);
+    setOpc(0x0FAF, IT_IMUL, VT_Def, parseRM, addBInstr, 0);
 
     setOpcH(0x0FB6, decode0F_B6); // movzbl r16/32/64,r/m8 (RM)
     setOpcH(0x0FB7, decode0F_B7); // movzbl r32/64,r/m16 (RM)
 
     // 0x0FBC: bsf r,r/m 16/32/64 (RM): bit scan forward
-    setOpc(0x0FBC, IT_BSF, VT_Default, parseRM, addBInstr, 0);
+    setOpc(0x0FBC, IT_BSF, VT_Def, parseRM, addBInstr, 0);
 
     setOpcH(0x0FBE, decode0F_BE); // movsx r16/32/64,r/m8 (RM)
     setOpcH(0x0FBF, decode0F_BF); // movsx r32/64,r/m16 (RM)
