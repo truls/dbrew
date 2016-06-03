@@ -36,6 +36,7 @@
 #include "common.h"
 #include "printer.h"
 #include "engine.h"
+#include "error.h"
 
 // decode context
 struct _DContext {
@@ -65,7 +66,7 @@ struct _DContext {
 
     // decoding result
     bool exit;   // control flow change instruction detected
-    char* error; // if not-null, an decoding error was detected
+    DecodeError error; // if not-null, an decoding error was detected
 };
 
 Instr* nextInstr(Rewriter* r, uint64_t a, int len)
@@ -335,7 +336,7 @@ void initDContext(DContext* cxt, Rewriter* r, uint64_t f)
     cxt->off = 0;
 
     cxt->exit = false;
-    cxt->error = 0;
+    setErrorNone((Error*) &(cxt->error));
 }
 
 // possible prefixes:
@@ -355,7 +356,7 @@ void decodePrefixes(DContext* cxt)
     cxt->opc1 = -1;
     cxt->opc2 = -1;
     cxt->exit = false;
-    cxt->error = 0;
+    assert(cxt->error.e.et == ET_NoError);
 
     while(1) {
         uint8_t b = cxt->f[cxt->off];
@@ -537,6 +538,16 @@ OpcEntry* setOpcGH(int opc, int digit, DecHandler h)
     return setOpcG(opc, digit, IT_None, VT_Def, h, 0, 0);
 }
 
+static
+void markDecodeError(DContext* c, int opc)
+{
+    static char buf[64];
+
+    sprintf(buf, "invalid opcode %d", opc);
+    addSimple(c->r, c, IT_Invalid);
+    setDecodeError(&(c->error), c->r, buf, ET_BadOpcode, 0, c->off);
+}
+
 
 static
 void processOpc(OpcInfo* oi, DContext* c)
@@ -547,7 +558,7 @@ void processOpc(OpcInfo* oi, DContext* c)
     switch(oi->t) {
     case OT_Invalid:
         // invalid opcode
-        addSimple(c->r, c, IT_Invalid);
+        markDecodeError(c, 0);
         return;
     case OT_Single:
         break;

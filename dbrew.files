@@ -4,6 +4,7 @@ include/priv/decode.h
 include/priv/engine.h
 include/priv/emulate.h
 include/priv/expr.h
+include/priv/error.h
 include/priv/generate.h
 include/priv/instr.h
 include/priv/printer.h
@@ -13,6 +14,7 @@ src/buffers.c
 src/dbrew.c
 src/decode.c
 src/emulate.c
+src/error.c
 src/expr.c
 src/generate.c
 src/instr.c
