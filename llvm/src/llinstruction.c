@@ -776,6 +776,44 @@ ll_generate_instruction(Instr* instr, LLState* state)
         case IT_JG:
             break;
 
+        case IT_DIVSS:
+        case IT_DIVSD:
+        case IT_DIVPS:
+        case IT_DIVPD:
+        case IT_XORPD:
+        case IT_ORPS:
+        case IT_ORPD:
+        case IT_ANDPS:
+        case IT_ANDPD:
+        case IT_ANDNPS:
+        case IT_ANDNPD:
+        case IT_MAXSS:
+        case IT_MAXSD:
+        case IT_MAXPS:
+        case IT_MAXPD:
+        case IT_MINSS:
+        case IT_MINSD:
+        case IT_MINPS:
+        case IT_MINPD:
+        case IT_SQRTSS:
+        case IT_SQRTSD:
+        case IT_SQRTPS:
+        case IT_SQRTPD:
+        case IT_COMISS:
+        case IT_COMISD:
+        case IT_UCOMISS:
+        case IT_ADDSUBPS:
+        case IT_ADDSUBPD:
+        case IT_HADDPS:
+        case IT_HADDPD:
+        case IT_HSUBPS:
+        case IT_HSUBPD:
+        case IT_RCPSS:
+        case IT_RCPPS:
+        case IT_RSQRTSS:
+        case IT_RSQRTPS:
+        case IT_PCMPEQW:
+        case IT_PCMPEQD:
         case IT_CQTO:
         case IT_SBB:
         case IT_IDIV1:
