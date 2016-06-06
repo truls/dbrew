@@ -27,6 +27,7 @@
 #include <string.h>
 #include <llvm-c/Analysis.h>
 #include <llvm-c/Core.h>
+#include <llvm-c/Support.h>
 
 #include <llfunction.h>
 #include <llfunction-internal.h>

@@ -22,12 +22,15 @@ WFLAGS=$(WFLAGS_BASE)
 WFLAGS_CXX=$(WFLAGS_CXX_BASE)
 endif
 
-CFLAGS=`$(LLVM_CONFIG) --cflags` -O0 -g -std=c99 -Iinclude -I../include/priv \
+CFLAGS=`$(LLVM_CONFIG) --cppflags` -O0 -g -std=c99 -Iinclude -I../include/priv \
        -I../include $(WFLAGS)
-CXXFLAGS=`$(LLVM_CONFIG) --cxxflags` -O0 -g -std=c++11 -Iinclude $(WFLAGS_CXX)
+CXXFLAGS=`$(LLVM_CONFIG) --cppflags` -O0 -g -std=c++11 -Iinclude $(WFLAGS_CXX)
 LDFLAGS = `$(LLVM_CONFIG) --ldflags` -g
-LDLIBS = -lLLVM-3.7
-#`llvm-config --libs core analysis mcjit executionengine`
+
+# TODO: Switch back to shared library. This is *so* slow and large...
+LDLIBS = `$(LLVM_CONFIG) --libs` -lstdc++ -lm -lz -ldl -lpthread -ltinfo
+# `$(LLVM_CONFIG) --system-libs`
+# LDLIBS = -lLLVM-3.7
 
 SRCS_C = $(wildcard src/*.c)
 SRCS_CXX = $(wildcard src/*.cc)

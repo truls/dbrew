@@ -92,7 +92,9 @@ ll_engine_init(void)
 
     if (error)
     {
-        critical("Could not setup execution engine: %s", outerr);
+        printf("CRITICAL Could not setup execution engine: %s", outerr);
+
+        LLVMDisposeMessage(outerr);
 
         free(state);
 
