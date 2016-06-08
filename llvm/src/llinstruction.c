@@ -711,8 +711,39 @@ ll_generate_instruction(Instr* instr, LLState* state)
             result = LLVMBuildFMul(state->builder, operand1, operand2, "");
             ll_operand_store(OP_VF64, ALIGN_MAXIMUM, &instr->dst, REG_KEEP_UPPER, result, state);
             break;
-        case IT_PXOR:
         case IT_XORPS:
+            if (opIsEqual(&instr->dst, &instr->src))
+            {
+                LLVMValueRef zeroElements[4];
+                for (int i = 0; i < 4; i++)
+                    zeroElements[i] = LLVMConstReal(LLVMFloatTypeInContext(state->context), 0);
+                result = LLVMConstVector(zeroElements, 4);
+            }
+            else
+            {
+                operand1 = ll_operand_load(OP_VF32, ALIGN_MAXIMUM, &instr->dst, state);
+                operand2 = ll_operand_load(OP_VF32, ALIGN_MAXIMUM, &instr->src, state);
+                result = LLVMBuildXor(state->builder, operand1, operand2, "");
+            }
+            ll_operand_store(OP_VF32, ALIGN_MAXIMUM, &instr->dst, REG_KEEP_UPPER, result, state);
+            break;
+        case IT_XORPD:
+            if (opIsEqual(&instr->dst, &instr->src))
+            {
+                LLVMValueRef zeroElements[2];
+                for (int i = 0; i < 2; i++)
+                    zeroElements[i] = LLVMConstReal(LLVMDoubleTypeInContext(state->context), 0);
+                result = LLVMConstVector(zeroElements, 2);
+            }
+            else
+            {
+                operand1 = ll_operand_load(OP_VF64, ALIGN_MAXIMUM, &instr->dst, state);
+                operand2 = ll_operand_load(OP_VF64, ALIGN_MAXIMUM, &instr->src, state);
+                result = LLVMBuildXor(state->builder, operand1, operand2, "");
+            }
+            ll_operand_store(OP_VF64, ALIGN_MAXIMUM, &instr->dst, REG_KEEP_UPPER, result, state);
+            break;
+        case IT_PXOR:
             // TODO: Figure out whether these are equivalent.
             if (opIsEqual(&instr->dst, &instr->src))
             {
@@ -789,7 +820,6 @@ ll_generate_instruction(Instr* instr, LLState* state)
         case IT_DIVSD:
         case IT_DIVPS:
         case IT_DIVPD:
-        case IT_XORPD:
         case IT_ORPS:
         case IT_ORPD:
         case IT_ANDPS:
