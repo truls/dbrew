@@ -47,9 +47,9 @@ struct LLConfig {
     // FunctionSignature sign;
 
     /**
-     * \brief Bitwise combination of parameters which have the attribute noalias
+     * \brief Bitwise representation of the function signature
      **/
-    size_t noaliasParams;
+    size_t signature;
 };
 
 typedef struct LLConfig LLConfig;

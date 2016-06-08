@@ -19,9 +19,10 @@ test:
     .align 8
     .globl testCase
 testCase:
-    .quad 3
+    .quad 4
     .quad test
     .quad TEST_DRIVER_INT_ARRAY
+    .quad 0121
 
 addend1:
     .quad 10

@@ -35,6 +35,7 @@
 #include <llbasicblock-internal.h>
 #include <llcommon.h>
 #include <llcommon-internal.h>
+#include <lloperand-internal.h>
 
 /**
  * \ingroup LLFunction
@@ -84,6 +85,72 @@ ll_function_new(LLFunctionKind kind, uintptr_t address, LLState* state)
 
     state->functions[state->functionCount] = function;
     state->functionCount++;
+
+    return function;
+}
+
+static LLVMValueRef
+ll_function_declare_llvm(uint64_t packedType, const char* name, LLState* state)
+{
+    LLVMTypeRef i8 = LLVMInt8TypeInContext(state->context);
+    LLVMTypeRef i64 = LLVMInt64TypeInContext(state->context);
+
+    uint64_t tmp = packedType;
+    uint64_t noaliasParams = 0;
+
+    size_t paramCount = (size_t) (tmp & 07);
+    tmp = tmp >> 3;
+
+    LLVMTypeRef types[paramCount + 1];
+
+    for (size_t i = 0; i < paramCount + 1; i++)
+    {
+        int rawType = (int) (tmp & 07);
+        LLVMTypeRef type = NULL;
+
+        switch (rawType)
+        {
+            case 0:
+                type = LLVMPointerType(i8, 0);
+                break;
+            case 1:
+                if (i == 0)
+                    warn_if_reached();
+                type = LLVMPointerType(i8, 0);
+                noaliasParams = noaliasParams | (1 << (i - 1));
+                break;
+            case 2:
+                type = i64;
+                break;
+            case 6:
+                type = LLVMFloatTypeInContext(state->context);
+                break;
+            case 7:
+                type = LLVMDoubleTypeInContext(state->context);
+                break;
+            default:
+                warn_if_reached();
+        }
+
+        types[i] = type;
+        tmp = tmp >> 3;
+    }
+
+    LLVMTypeRef fnType = LLVMFunctionType(types[0], types + 1, paramCount, false);
+    LLVMValueRef function = LLVMAddFunction(state->module, name, fnType);
+
+    if (noaliasParams != 0)
+    {
+        LLVMValueRef params = LLVMGetFirstParam(function);
+
+        for (size_t i = 0; i < paramCount; i++)
+        {
+            if (noaliasParams & (1 << i))
+                LLVMAddAttribute(params, LLVMNoAliasAttribute);
+
+            params = LLVMGetNextParam(params);
+        }
+    }
 
     return function;
 }
@@ -154,7 +221,6 @@ ll_function_new_definition(uintptr_t address, LLConfig* config, LLState* state)
     function->u.definition.bbs = NULL;
     function->u.definition.bbsAllocated = 0;
     function->u.definition.stackSize = config->stackSize;
-    function->noaliasParams = config->noaliasParams;
 
     state->currentFunction = function;
 
@@ -162,18 +228,14 @@ ll_function_new_definition(uintptr_t address, LLConfig* config, LLState* state)
     LLVMTypeRef i8 = LLVMInt8TypeInContext(state->context);
     LLVMTypeRef i64 = LLVMInt64TypeInContext(state->context);
     LLVMTypeRef iVec = LLVMIntTypeInContext(state->context, LL_VECTOR_REGISTER_SIZE);
-    LLVMTypeRef ip = LLVMPointerType(i8, 0);
 
     // Construct function type and add a new function to the module
-    // A function has pointer types as arguments to allow alias analysis for the
-    // stack leading to huge improvements. Additionally, arguments can now be
-    // marked as noalias.
-    LLVMTypeRef paramTypes[6] = { ip, ip, ip, ip, ip, ip };
-    LLVMTypeRef functionType = LLVMFunctionType(i64, paramTypes, 6, false);
-    function->llvmFunction = LLVMAddFunction(state->module, function->name, functionType);
+    function->llvmFunction = ll_function_declare_llvm(config->signature, function->name, state);
+    size_t paramCount = LLVMCountParams(function->llvmFunction);
 
     LLBasicBlock* initialBB = ll_basic_block_new(function->address);
     ll_basic_block_declare(initialBB, state);
+    state->currentBB = initialBB;
 
     // Position IR builder at a new basic block in the function
     LLVMPositionBuilderAtEnd(state->builder, ll_basic_block_llvm(initialBB));
@@ -183,22 +245,32 @@ ll_function_new_definition(uintptr_t address, LLConfig* config, LLState* state)
 
     // Set all registers to undef first.
     for (Reg i = Reg_AX; i < Reg_Max; i++)
-        ll_basic_block_set_register(initialBB, i, LLVMGetUndef(i < Reg_X0 ? i64 : iVec));
+        ll_set_register(i, LLVMGetUndef(i < Reg_X0 ? i64 : iVec), state);
 
     for (int i = 0; i < RFLAG_Max; i++)
         ll_basic_block_set_flag(initialBB, i, LLVMGetUndef(i1));
 
-    static Reg paramRegisters[6] = { Reg_DI, Reg_SI, Reg_DX, Reg_CX, Reg_8, Reg_9 };
-    for (int i = 0; i < 6; i++)
+
+    Reg gpRegs[6] = { Reg_DI, Reg_SI, Reg_DX, Reg_CX, Reg_8, Reg_9 };
+    int gpRegOffset = 0;
+    int fpRegOffset = 0;
+    for (size_t i = 0; i < paramCount; i++)
     {
-        LLVMValueRef intValue = LLVMBuildPtrToInt(state->builder, params, i64, "");
+        LLVMTypeKind paramTypeKind = LLVMGetTypeKind(LLVMTypeOf(params));
 
-        ll_basic_block_set_register(initialBB, paramRegisters[i], intValue);
-
-        if (config->noaliasParams & (1 << i))
+        if (paramTypeKind == LLVMPointerTypeKind)
         {
-            LLVMAddAttribute(params, LLVMNoAliasAttribute);
+            LLVMValueRef intValue = LLVMBuildPtrToInt(state->builder, params, i64, "");
+            ll_operand_store(OP_SI, ALIGN_MAXIMUM, getRegOp(VT_64, gpRegs[gpRegOffset++]), REG_DEFAULT, intValue, state);
         }
+        else if (paramTypeKind == LLVMIntegerTypeKind)
+            ll_operand_store(OP_SI, ALIGN_MAXIMUM, getRegOp(VT_64, gpRegs[gpRegOffset++]), REG_DEFAULT, params, state);
+        else if (paramTypeKind == LLVMFloatTypeKind)
+            ll_operand_store(OP_SF, ALIGN_MAXIMUM, getRegOp(VT_32, Reg_X0 + (fpRegOffset++)), REG_ZERO_UPPER, params, state);
+        else if (paramTypeKind == LLVMDoubleTypeKind)
+            ll_operand_store(OP_SF, ALIGN_MAXIMUM, getRegOp(VT_64, Reg_X0 + (fpRegOffset++)), REG_ZERO_UPPER, params, state);
+        else
+            warn_if_reached();
 
         params = LLVMGetNextParam(params);
     }
@@ -276,7 +348,7 @@ ll_function_specialize(LLFunction* base, uintptr_t index, uintptr_t value, size_
         fixed = LLVMBuildPointerCast(state->builder, global, paramTypes[index], "");
     }
     else
-        fixed = LLVMConstPtrToInt(LLVMConstInt(i64, value, false), paramTypes[index]);
+        fixed = LLVMConstIntToPtr(LLVMConstInt(i64, value, false), paramTypes[index]);
 
     for (uintptr_t i = 0; i < paramCount; i++)
     {

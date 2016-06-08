@@ -15,9 +15,7 @@ test:
     .align 8
     .globl testCase
 testCase:
-    .quad 5
+    .quad 4
     .quad test
     .quad TEST_DRIVER_FLOAT_ARRAY
-    .quad 128
-    // Noalias params
-    .quad 2
+    .quad 01122

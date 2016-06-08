@@ -21,7 +21,7 @@ testCase:
     .quad 7
     .quad test
     .quad TEST_DRIVER_INT_ARRAY
+    .quad 0121
     .quad 128
-    .quad 0
     .quad 0
     .quad 0 // Enable unsafe pointer opts

@@ -1,3 +1,4 @@
+#include <test-common.h>
 .intel_syntax noprefix
     .text
     .globl  test
@@ -19,9 +20,7 @@ test:
     .align 8
     .globl testCase
 testCase:
-    .quad 5
+    .quad 4
     .quad test
-    .quad 1
-    .quad 128
-    // Noalias params
-    .quad 2
+    .quad TEST_DRIVER_DOUBLE_ARRAY
+    .quad 01122

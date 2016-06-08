@@ -1,13 +1,25 @@
-#include "test-common.h"
+#include <test-common.h>
 .intel_syntax noprefix
     .text
     .globl  test
     .type   test, @function
 test:
-    mov rcx, 0x8000000000000000
+    push rbp
+    mov rbp, rsp
+
     xor rax, rax
-    sub rdi, rcx
-    cmovno rax, rdi
+    mov edx, 1
+    test rdi, rdi
+    cmovz rdx, rax
+
+    // Equivalent to ret rdx
+    mov rcx, 0x7fffffffffffffff
+    add rcx, rdx
+    jno 1f
+    inc rax
+
+1:
+    leave
     ret
 
     .align 8

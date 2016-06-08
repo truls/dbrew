@@ -1,3 +1,4 @@
+#include "test-common.h"
 .intel_syntax noprefix
     .text
     .globl  test
@@ -5,13 +6,10 @@
 test:
     push rbp
     mov rbp, rsp
-    xor eax, eax
 
-1:
-    add rax, rdi
-    dec rdi
+    mov rax, 1
     cmp rdi, 0
-    jne 1b
+    cmove rax, rsi
 
     leave
     ret
@@ -19,7 +17,11 @@ test:
     .align 8
     .globl testCase
 testCase:
-    .quad 3
+    .quad 4
     .quad test
-    .quad 2
+    .quad TEST_DRIVER_INT_ARRAY
+    .quad 00022
+
+addend:
+    .quad 10
 

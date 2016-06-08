@@ -29,15 +29,17 @@ Decoded BB at ?+1b:
 target triple = "x86_64-pc-linux-gnu"
 
 ; Function Attrs: nounwind readnone
-define i64 @test(i8* readnone, i8* noalias nocapture readnone, i8* nocapture readnone, i8* nocapture readnone, i8* nocapture readnone, i8* nocapture readnone) #0 {
-  %7 = icmp eq i8* %0, null
-  %8 = zext i1 %7 to i64
-  %9 = xor i64 %8, 1
-  %10 = select i1 %7, i64 0, i64 %9
-  ret i64 %10
+define i64 @test(i64) #0 {
+  %2 = icmp eq i64 %0, 0, !asm.flag.zf !0
+  %3 = zext i1 %2 to i64
+  %4 = xor i64 %3, 1
+  %5 = select i1 %2, i64 0, i64 %4
+  ret i64 %5
 }
 
 attributes #0 = { nounwind readnone }
+
+!0 = !{}
 
 Result: 1
 Result: 1

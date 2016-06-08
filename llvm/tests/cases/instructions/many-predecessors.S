@@ -27,6 +27,4 @@ testCase:
     .quad 5
     .quad test
     .quad TEST_DRIVER_INT
-    .quad 128
-    // Noalias params
-    .quad 2
+    .quad 0221

@@ -12,11 +12,11 @@ Decoded BB at ?+13:
 target triple = "x86_64-pc-linux-gnu"
 
 ; Function Attrs: nounwind
-define i64 @test(i8* nocapture, i8* nocapture readnone, i8* nocapture readnone, i8* nocapture readnone, i8* nocapture readnone, i8* nocapture readnone) #0 {
-  %7 = bitcast i8* %0 to <8 x i64>*
-  %8 = load <8 x i64>, <8 x i64>* %7, align 8
-  %9 = add <8 x i64> %8, <i64 10, i64 10, i64 10, i64 10, i64 10, i64 10, i64 10, i64 10>
-  store <8 x i64> %9, <8 x i64>* %7, align 8
+define i64 @test(i8* noalias nocapture) #0 {
+  %2 = bitcast i8* %0 to <8 x i64>*
+  %3 = load <8 x i64>, <8 x i64>* %2, align 8
+  %4 = add <8 x i64> %3, <i64 10, i64 10, i64 10, i64 10, i64 10, i64 10, i64 10, i64 10>
+  store <8 x i64> %4, <8 x i64>* %2, align 8
   ret i64 0
 }
 

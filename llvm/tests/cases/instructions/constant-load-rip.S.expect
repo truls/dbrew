@@ -2,7 +2,7 @@ Decoded BB at ?+0:
                    ?:  55                    push    %rbp
                  ?+1:  48 89 e5              mov     %rsp,%rbp
                  ?+4:  48 8b 07              mov     (%rdi),%rax
-                 ?+7:  48 8b 0d 22 00 00 00  mov     0x22(%rip),%rcx
+                 ?+7:  48 8b 0d 2a 00 00 00  mov     0x2a(%rip),%rcx
                 ?+14:  48 01 c8              add     %rcx,%rax
                 ?+17:  48 89 07              mov     %rax,(%rdi)
                 ?+20:  31 c0                 xor     %eax,%eax
@@ -14,12 +14,12 @@ target triple = "x86_64-pc-linux-gnu"
 @__ll_global_base__ = external global i8
 
 ; Function Attrs: nounwind
-define i64 @test(i8* nocapture, i8* nocapture readnone, i8* nocapture readnone, i8* nocapture readnone, i8* nocapture readnone, i8* nocapture readnone) #0 {
-  %7 = bitcast i8* %0 to i64*
-  %8 = load i64, i64* %7, align 8, !asm.reg.rax !0
-  %9 = load i64, i64* bitcast (i8* @__ll_global_base__ to i64*), align 8, !asm.reg.rcx !0
-  %10 = add i64 %9, %8, !asm.reg.rax !0
-  store i64 %10, i64* %7, align 8
+define i64 @test(i8* noalias nocapture) #0 {
+  %2 = bitcast i8* %0 to i64*
+  %3 = load i64, i64* %2, align 8, !asm.reg.rax !0
+  %4 = load i64, i64* bitcast (i8* @__ll_global_base__ to i64*), align 8, !asm.reg.rcx !0
+  %5 = add i64 %4, %3, !asm.reg.rax !0
+  store i64 %5, i64* %2, align 8
   ret i64 0
 }
 

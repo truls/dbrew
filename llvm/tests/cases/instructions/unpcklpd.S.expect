@@ -9,16 +9,16 @@ Decoded BB at ?+0:
 target triple = "x86_64-pc-linux-gnu"
 
 ; Function Attrs: nounwind
-define i64 @test(i8* nocapture, i8* noalias nocapture readonly, i8* nocapture readnone, i8* nocapture readnone, i8* nocapture readnone, i8* nocapture readnone) #0 {
-  %7 = bitcast i8* %0 to double*
-  %8 = load double, double* %7, align 8
-  %9 = insertelement <2 x double> undef, double %8, i64 0
-  %10 = bitcast i8* %1 to double*
-  %11 = load double, double* %10, align 8
-  %12 = insertelement <2 x double> undef, double %11, i64 0
-  %13 = shufflevector <2 x double> %9, <2 x double> %12, <2 x i32> <i32 0, i32 2>
-  %14 = bitcast i8* %0 to <2 x double>*
-  store <2 x double> %13, <2 x double>* %14, align 8
+define i64 @test(i8* noalias nocapture, i8* noalias nocapture readonly) #0 {
+  %3 = bitcast i8* %0 to double*
+  %4 = load double, double* %3, align 8
+  %5 = insertelement <2 x double> undef, double %4, i64 0
+  %6 = bitcast i8* %1 to double*
+  %7 = load double, double* %6, align 8
+  %8 = insertelement <2 x double> undef, double %7, i64 0
+  %9 = shufflevector <2 x double> %5, <2 x double> %8, <2 x i32> <i32 0, i32 2>
+  %10 = bitcast i8* %0 to <2 x double>*
+  store <2 x double> %9, <2 x double>* %10, align 8
   ret i64 0
 }
 

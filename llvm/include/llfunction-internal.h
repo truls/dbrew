@@ -69,9 +69,6 @@ struct LLFunction {
      **/
     uintptr_t address;
 
-    // FunctionSignature sign;
-    size_t noaliasParams; // For now, until we have a proper signature.
-
     /**
      * \brief The LLVM function value
      **/

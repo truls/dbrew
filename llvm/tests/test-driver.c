@@ -113,7 +113,7 @@ test_dbrew_binding(bool debug)
         LLConfig config = {
             .name = "test",
             .stackSize = 128,
-            .noaliasParams = 7
+            .signature = 026
         };
 
         LLState* state = ll_engine_init();
@@ -131,10 +131,13 @@ test_llvm_generation(bool debug)
 
     TestRoutine testRoutine = testRoutines[(int) testCase.routineIndex];
 
+    if (testCase.length < 4 || testCase.signature == 128)
+        __asm__("int3");
+
     LLConfig config = {
         .name = "test",
-        .stackSize = testCase.length >= 4 ? testCase.stackSize : 128,
-        .noaliasParams = testCase.length >= 5 ? testCase.noaliasParams : 0,
+        .signature = testCase.length >= 4 ? testCase.signature : 0,
+        .stackSize = testCase.length >= 5 ? testCase.stackSize : 128,
     };
 
     LLState* state = ll_engine_init();

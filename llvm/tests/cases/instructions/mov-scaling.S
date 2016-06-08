@@ -1,3 +1,4 @@
+#include "test-common.h"
 .intel_syntax noprefix
     .text
     .globl  test
@@ -10,9 +11,10 @@ test:
     .align 8
     .globl testCase
 testCase:
-    .quad 3
+    .quad 4
     .quad test
-    .quad 0
+    .quad TEST_DRIVER_INT_ARRAY
+    .quad 0121
 
 index:
     .quad 2

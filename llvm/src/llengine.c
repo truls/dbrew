@@ -268,7 +268,7 @@ dbrew_llvm_backend(Rewriter* rewriter)
 
     LLConfig config = {
         .stackSize = 128,
-        .noaliasParams = 7,
+        .signature = 026, // 6 pointer params, returns i64
         .name = "__dbrew__"
     };
 

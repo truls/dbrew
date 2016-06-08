@@ -7,10 +7,10 @@ struct TestCase {
     long length;
     void* function;
     long routineIndex;
+    long signature;
     long stackSize;
-    long noaliasParams;
     void* data;
-    bool enableUnsafePointerOptimizations;
+    long enableUnsafePointerOptimizations;
 } __attribute__((packed));
 
 typedef struct TestCase TestCase;

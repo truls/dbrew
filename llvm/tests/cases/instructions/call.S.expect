@@ -1,6 +1,6 @@
 Decoded BB at ?+0:
                    ?:  57                    push    %rdi
-                 ?+1:  e8 22 00 00 00        callq   $?+40
+                 ?+1:  e8 2a 00 00 00        callq   $?+48
 Decoded BB at ?+6:
                  ?+6:  5f                    pop     %rdi
                  ?+7:  48 01 f8              add     %rdi,%rax
@@ -11,11 +11,11 @@ target triple = "x86_64-pc-linux-gnu"
 ; Function Attrs: inlinehint
 declare i64 @test_add(i8*, i8*, i8*, i8*, i8*, i8*) #0
 
-define i64 @test(i8*, i8*, i8*, i8*, i8*, i8*) {
-  %7 = ptrtoint i8* %0 to i64
-  %8 = tail call i64 @test_add(i8* %0, i8* %1, i8* %2, i8* %3, i8* %4, i8* %5)
-  %9 = add i64 %8, %7, !asm.reg.rax !0
-  ret i64 %9
+define i64 @test(i64) {
+  %2 = inttoptr i64 %0 to i8*
+  %3 = tail call i64 @test_add(i8* %2, i8* null, i8* null, i8* null, i8* null, i8* null)
+  %4 = add i64 %3, %0, !asm.reg.rax !0
+  ret i64 %4
 }
 
 attributes #0 = { inlinehint }

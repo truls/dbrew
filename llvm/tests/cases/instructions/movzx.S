@@ -17,6 +17,7 @@ test:
     .align 8
     .globl testCase
 testCase:
-    .quad 3
+    .quad 4
     .quad test
     .quad TEST_DRIVER_INT
+    .quad 0221

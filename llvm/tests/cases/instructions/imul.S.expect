@@ -5,10 +5,9 @@ Decoded BB at ?+0:
 target triple = "x86_64-pc-linux-gnu"
 
 ; Function Attrs: nounwind readnone
-define i64 @test(i8*, i8* nocapture readnone, i8* nocapture readnone, i8* nocapture readnone, i8* nocapture readnone, i8* nocapture readnone) #0 {
-  %7 = ptrtoint i8* %0 to i64
-  %8 = mul i64 %7, 3, !asm.reg.rax !0
-  ret i64 %8
+define i64 @test(i64) #0 {
+  %2 = mul i64 %0, 3, !asm.reg.rax !0
+  ret i64 %2
 }
 
 attributes #0 = { nounwind readnone }
