@@ -210,7 +210,6 @@ ll_generate_instruction(Instr* instr, LLState* state)
     LLVMTypeRef i8 = LLVMInt8TypeInContext(state->context);
     LLVMTypeRef i32 = LLVMInt32TypeInContext(state->context);
     LLVMTypeRef i64 = LLVMInt64TypeInContext(state->context);
-    LLVMTypeRef pi8 = LLVMPointerType(i8, 0);
     LLVMTypeRef pi64 = LLVMPointerType(i64, 0);
 
     // Set new instruction pointer register
@@ -295,11 +294,13 @@ ll_generate_instruction(Instr* instr, LLState* state)
         ////////////////////////////////////////////////////////////////////////
 
         case IT_CALL:
-            if (instr->dst.type != OT_Imm64)
-                warn_if_reached();
-
             {
+                if (instr->dst.type != OT_Imm64)
+                    warn_if_reached();
+
                 uintptr_t address = instr->dst.val;
+
+                // Find function with corresponding address.
                 LLFunction* function = NULL;
 
                 for (size_t i = 0; i < state->functionCount; i++)
@@ -309,22 +310,30 @@ ll_generate_instruction(Instr* instr, LLState* state)
                 if (function == NULL)
                     warn_if_reached();
 
-                // TODO: FP + Stack arguments
-                LLVMValueRef args[6] = {
-                    LLVMBuildIntToPtr(state->builder, ll_get_register(Reg_DI, state), pi8, ""),
-                    LLVMBuildIntToPtr(state->builder, ll_get_register(Reg_SI, state), pi8, ""),
-                    LLVMBuildIntToPtr(state->builder, ll_get_register(Reg_DX, state), pi8, ""),
-                    LLVMBuildIntToPtr(state->builder, ll_get_register(Reg_CX, state), pi8, ""),
-                    LLVMBuildIntToPtr(state->builder, ll_get_register(Reg_8, state), pi8, ""),
-                    LLVMBuildIntToPtr(state->builder, ll_get_register(Reg_9, state), pi8, "")
-                };
+                LLVMValueRef llvmFunction = function->llvmFunction;
+                LLVMAddFunctionAttr(llvmFunction, LLVMInlineHintAttribute);
 
-                LLVMAddFunctionAttr(function->llvmFunction, LLVMInlineHintAttribute);
+                // Construct arguments.
+                LLVMTypeRef fnType = LLVMGetElementType(LLVMTypeOf(llvmFunction));
+                size_t argCount = LLVMCountParamTypes(fnType);
 
-                result = LLVMBuildCall(state->builder, function->llvmFunction, args, 6, "");
+                LLVMValueRef args[argCount];
+                ll_operand_construct_args(fnType, args, state);
+
+                result = LLVMBuildCall(state->builder, llvmFunction, args, argCount, "");
 
                 // TODO: Handle return values except for i64!
                 ll_set_register(Reg_AX, result, state);
+
+                // Clobber registers.
+                ll_set_register(Reg_CX, LLVMGetUndef(i64), state);
+                ll_set_register(Reg_DX, LLVMGetUndef(i64), state);
+                ll_set_register(Reg_SI, LLVMGetUndef(i64), state);
+                ll_set_register(Reg_DI, LLVMGetUndef(i64), state);
+                ll_set_register(Reg_8, LLVMGetUndef(i64), state);
+                ll_set_register(Reg_9, LLVMGetUndef(i64), state);
+                ll_set_register(Reg_10, LLVMGetUndef(i64), state);
+                ll_set_register(Reg_11, LLVMGetUndef(i64), state);
             }
             break;
         case IT_RET:

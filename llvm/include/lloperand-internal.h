@@ -125,5 +125,6 @@ typedef enum PartialRegisterHandling PartialRegisterHandling;
 LLVMValueRef ll_operand_get_address(OperandDataType, Operand*, LLState*);
 LLVMValueRef ll_operand_load(OperandDataType, Alignment, Operand*, LLState*);
 void ll_operand_store(OperandDataType, Alignment, Operand*, PartialRegisterHandling, LLVMValueRef, LLState*);
+void ll_operand_construct_args(LLVMTypeRef, LLVMValueRef*, LLState*);
 
 #endif

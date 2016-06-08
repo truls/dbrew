@@ -545,6 +545,57 @@ ll_operand_store(OperandDataType dataType, Alignment alignment, Operand* operand
     }
 }
 
+void
+ll_operand_construct_args(LLVMTypeRef fnType, LLVMValueRef* args, LLState* state)
+{
+    Reg gpRegisters[6] = { Reg_DI, Reg_SI, Reg_DX, Reg_CX, Reg_8, Reg_9 };
+    int gpRegisterIndex = 0;
+
+    size_t argCount = LLVMCountParamTypes(fnType);
+    LLVMTypeRef argTypes[argCount];
+    LLVMGetParamTypes(fnType, argTypes);
+
+    for (uintptr_t i = 0; i < argCount; i++)
+    {
+        LLVMTypeKind argTypeKind = LLVMGetTypeKind(argTypes[i]);
+
+        switch (argTypeKind)
+        {
+            case LLVMIntegerTypeKind:
+            case LLVMPointerTypeKind:
+                {
+                    if (gpRegisterIndex >= 6)
+                        warn_if_reached();
+
+                    LLVMValueRef reg = ll_get_register(gpRegisters[gpRegisterIndex], state);
+                    gpRegisterIndex++;
+
+                    if (argTypeKind == LLVMIntegerTypeKind)
+                        args[i] = LLVMBuildTruncOrBitCast(state->builder, reg, argTypes[i], "");
+                    else
+                        args[i] = LLVMBuildIntToPtr(state->builder, reg, argTypes[i], "");
+                }
+                break;
+            case LLVMVoidTypeKind:
+            case LLVMHalfTypeKind:
+            case LLVMFloatTypeKind:
+            case LLVMDoubleTypeKind:
+            case LLVMX86_FP80TypeKind:
+            case LLVMFP128TypeKind:
+            case LLVMPPC_FP128TypeKind:
+            case LLVMLabelTypeKind:
+            case LLVMFunctionTypeKind:
+            case LLVMStructTypeKind:
+            case LLVMArrayTypeKind:
+            case LLVMVectorTypeKind:
+            case LLVMMetadataTypeKind:
+            case LLVMX86_MMXTypeKind:
+            default:
+                warn_if_reached();
+        }
+    }
+}
+
 /**
  * @}
  **/

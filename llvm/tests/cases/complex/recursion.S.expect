@@ -1,0 +1,25 @@
+Decoded BB at ?+0:
+                   ?:  48 83 c7 00           add     $0x0,%rdi
+                 ?+4:  48 85 ff              test    %rdi,%rdi
+                 ?+7:  74 0c                 je      $?+21
+Decoded BB at ?+9:
+                 ?+9:  48 ff cf              dec     %rdi
+                ?+12:  e8 ef ff ff ff        callq   $?
+Decoded BB at ?+11:
+                ?+17:  48 ff c0              inc     %rax
+                ?+20:  c3                    ret    
+Decoded BB at ?+15:
+                ?+21:  31 c0                 xor     %eax,%eax
+                ?+23:  c3                    ret    
+; ModuleID = '<llengine>'
+target triple = "x86_64-pc-linux-gnu"
+
+; Function Attrs: inlinehint nounwind readnone
+define i64 @test(i64) #0 {
+  ret i64 %0
+}
+
+attributes #0 = { inlinehint nounwind readnone }
+
+Result: 10
+Result: 10
