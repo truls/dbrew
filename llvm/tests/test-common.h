@@ -26,5 +26,6 @@ typedef struct TestCase TestCase;
 #define TEST_DRIVER_STENCIL_INT 3
 #define TEST_DRIVER_STENCIL_DOUBLE 4
 #define TEST_DRIVER_FLOAT_ARRAY 5
+#define TEST_DRIVER_DOUBLE 6
 
 #endif

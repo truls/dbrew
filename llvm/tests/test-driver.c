@@ -35,6 +35,13 @@ runTestSingleInt(TestFunction fn)
 }
 
 static void
+runTestSingleDouble(TestFunction fn)
+{
+    double q = fn(0.5);
+    printf("Result: %f\n", q);
+}
+
+static void
 runTestInt(TestFunction fn)
 {
     signed long testData[8] = { 1, 2, 3, 4, 5, 6, 7, 8 };
@@ -88,6 +95,7 @@ static TestRoutine testRoutines[] = {
     [TEST_DRIVER_STENCIL_INT] = runTestStencilInt,
     [TEST_DRIVER_STENCIL_DOUBLE] = runTestStencilDouble,
     [TEST_DRIVER_FLOAT_ARRAY] = runTestFloatArray,
+    [TEST_DRIVER_DOUBLE] = runTestSingleDouble,
 };
 
 static

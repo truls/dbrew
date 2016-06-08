@@ -322,6 +322,9 @@ ll_generate_instruction(Instr* instr, LLState* state)
 
                 result = LLVMBuildCall(state->builder, llvmFunction, args, argCount, "");
 
+                if (LLVMTypeOf(result) != i64)
+                    warn_if_reached();
+
                 // TODO: Handle return values except for i64!
                 ll_set_register(Reg_AX, result, state);
 
@@ -337,9 +340,31 @@ ll_generate_instruction(Instr* instr, LLState* state)
             }
             break;
         case IT_RET:
-            operand1 = ll_get_register(Reg_AX, state);
-            operand1 = LLVMBuildSExtOrBitCast(state->builder, operand1, LLVMInt64TypeInContext(state->context), "");
-            LLVMBuildRet(state->builder, operand1);
+            {
+                LLVMTypeRef fnType = LLVMGetElementType(LLVMTypeOf(state->currentFunction->llvmFunction));
+                LLVMTypeRef retType = LLVMGetReturnType(fnType);
+                LLVMTypeKind retTypeKind = LLVMGetTypeKind(retType);
+
+                if (retTypeKind == LLVMPointerTypeKind)
+                {
+                    LLVMValueRef value = ll_operand_load(OP_SI, ALIGN_MAXIMUM, getRegOp(VT_64, Reg_AX), state);
+                    result = LLVMBuildIntToPtr(state->builder, value, retType, "");
+                }
+                else if (retTypeKind == LLVMIntegerTypeKind)
+                    // TODO: Non 64-bit integers!
+                    result = ll_operand_load(OP_SI, ALIGN_MAXIMUM, getRegOp(VT_64, Reg_AX), state);
+                else if (retTypeKind == LLVMFloatTypeKind)
+                    result = ll_operand_load(OP_SF, ALIGN_MAXIMUM, getRegOp(VT_32, Reg_X0), state);
+                else if (retTypeKind == LLVMDoubleTypeKind)
+                    result = ll_operand_load(OP_SF, ALIGN_MAXIMUM, getRegOp(VT_64, Reg_X0), state);
+                else
+                {
+                    result = NULL;
+                    warn_if_reached();
+                }
+
+                LLVMBuildRet(state->builder, result);
+            }
             break;
 
         ////////////////////////////////////////////////////////////////////////

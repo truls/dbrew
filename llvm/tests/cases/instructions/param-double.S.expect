@@ -1,0 +1,16 @@
+Decoded BB at ?+0:
+                   ?:  f2 0f 58 c0           addsd   %xmm0,%xmm0
+                 ?+4:  c3                    ret    
+; ModuleID = '<llengine>'
+target triple = "x86_64-pc-linux-gnu"
+
+; Function Attrs: nounwind readnone
+define double @test(double) #0 {
+  %2 = fadd double %0, %0
+  ret double %2
+}
+
+attributes #0 = { nounwind readnone }
+
+Result: 1.000000
+Result: 1.000000
