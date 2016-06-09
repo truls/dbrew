@@ -332,6 +332,7 @@ benchmark_init_dbrew(StencilFunction fn)
     Rewriter* r = dbrew_new();
     // dbrew_set_ver
     dbrew_verbose(r, false, false, false);
+    dbrew_optverbose(r, false);
     dbrew_set_decoding_capacity(r, 100000, 100);
     dbrew_set_capture_capacity(r, 100000, 100, 10000);
     dbrew_set_function(r, (uintptr_t) fn);
@@ -351,7 +352,7 @@ benchmark_run2(const BenchmarkArgs* args, const BenchmarkStencilConfig* config)
     LLConfig llconfig = {
         .name = "test",
         .stackSize = 128,
-        .noaliasParams = 7,
+        .signature = 0211114,
     };
 
     LLState* state = NULL;
@@ -431,6 +432,7 @@ benchmark_run2(const BenchmarkArgs* args, const BenchmarkStencilConfig* config)
             JTimerStop(&timerTotal);
             if (state == NULL) state = ll_engine_init();
             if (r == NULL) r = benchmark_init_dbrew(stencilfn);
+            dbrew_verbose(r, true, false, false);
             ll_decode_function(r, (uintptr_t) processed, &llconfig, state);
             JTimerCont(&timerTotal);
         }
@@ -461,14 +463,18 @@ int
 main(int argc, char** argv)
 {
     if (argc < 5) {
-        printf("Usage: %s [config] [mode] [compiles] [runs per compile]", argv[0]);
+        printf("Usage: %s [config] [mode] [compiles] [runs per compile] ([decode generated])", argv[0]);
         return 1;
     }
+    bool decodeGenerated = false;
+    if (argc >= 6)
+        decodeGenerated = atoi(argv[5]) != 0;
+
     BenchmarkArgs args = {
         .mode = atoi(argv[2]),
         .iterationCount = atoi(argv[3]),
         .runCount = atoi(argv[4]),
-        .decodeGenerated = true,
+        .decodeGenerated = decodeGenerated,
     };
 
     int configIndex = atoi(argv[1]);
