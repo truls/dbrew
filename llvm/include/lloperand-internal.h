@@ -49,6 +49,10 @@ enum OperandDataType {
      **/
     OP_VI8,
     /**
+     * \brief Vector of 32-bit integers
+     **/
+    OP_VI32,
+    /**
      * \brief Vector of 8-bit integers
      **/
     OP_VI64,

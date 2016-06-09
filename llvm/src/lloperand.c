@@ -80,6 +80,12 @@ ll_operand_get_type(OperandDataType dataType, int bits, LLState* state)
             else
                 warn_if_reached();
             break;
+        case OP_VI32:
+            if (bits % 32 == 0)
+                type = LLVMVectorType(LLVMInt32TypeInContext(state->context), bits / 32);
+            else
+                warn_if_reached();
+            break;
         case OP_SF:
             if (bits == 32)
                 type = LLVMFloatTypeInContext(state->context);

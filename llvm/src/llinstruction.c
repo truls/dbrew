@@ -597,10 +597,7 @@ ll_generate_instruction(Instr* instr, LLState* state)
             operand1 = ll_operand_load(OP_SF, ALIGN_MAXIMUM, &instr->src, state);
             if (opIsInd(&instr->src))
             {
-                LLVMValueRef zeroElements[4];
-                for (int i = 0; i < 4; i++)
-                    zeroElements[i] = LLVMConstReal(LLVMFloatTypeInContext(state->context), 0);
-                LLVMValueRef zero = LLVMConstVector(zeroElements, 4);
+                LLVMValueRef zero = LLVMConstNull(LLVMVectorType(LLVMFloatTypeInContext(state->context), 4));
 
                 result = LLVMBuildInsertElement(state->builder, zero, operand1, LLVMConstInt(i64, 0, false), "");
                 opOverwriteType(&instr->dst, VT_128);
@@ -613,10 +610,7 @@ ll_generate_instruction(Instr* instr, LLState* state)
             operand1 = ll_operand_load(OP_SF, ALIGN_MAXIMUM, &instr->src, state);
             if (opIsInd(&instr->src))
             {
-                LLVMValueRef zeroElements[2];
-                for (int i = 0; i < 2; i++)
-                    zeroElements[i] = LLVMConstReal(LLVMDoubleTypeInContext(state->context), 0);
-                LLVMValueRef zero = LLVMConstVector(zeroElements, 2);
+                LLVMValueRef zero = LLVMConstNull(LLVMVectorType(LLVMDoubleTypeInContext(state->context), 2));
 
                 result = LLVMBuildInsertElement(state->builder, zero, operand1, LLVMConstInt(i64, 0, false), "");
                 opOverwriteType(&instr->dst, VT_128);
@@ -738,32 +732,22 @@ ll_generate_instruction(Instr* instr, LLState* state)
             break;
         case IT_XORPS:
             if (opIsEqual(&instr->dst, &instr->src))
-            {
-                LLVMValueRef zeroElements[4];
-                for (int i = 0; i < 4; i++)
-                    zeroElements[i] = LLVMConstReal(LLVMFloatTypeInContext(state->context), 0);
-                result = LLVMConstVector(zeroElements, 4);
-            }
+                result = LLVMConstNull(LLVMVectorType(LLVMFloatTypeInContext(state->context), 4));
             else
             {
-                operand1 = ll_operand_load(OP_VF32, ALIGN_MAXIMUM, &instr->dst, state);
-                operand2 = ll_operand_load(OP_VF32, ALIGN_MAXIMUM, &instr->src, state);
+                operand1 = ll_operand_load(OP_VI32, ALIGN_MAXIMUM, &instr->dst, state);
+                operand2 = ll_operand_load(OP_VI32, ALIGN_MAXIMUM, &instr->src, state);
                 result = LLVMBuildXor(state->builder, operand1, operand2, "");
             }
             ll_operand_store(OP_VF32, ALIGN_MAXIMUM, &instr->dst, REG_KEEP_UPPER, result, state);
             break;
         case IT_XORPD:
             if (opIsEqual(&instr->dst, &instr->src))
-            {
-                LLVMValueRef zeroElements[2];
-                for (int i = 0; i < 2; i++)
-                    zeroElements[i] = LLVMConstReal(LLVMDoubleTypeInContext(state->context), 0);
-                result = LLVMConstVector(zeroElements, 2);
-            }
+                result = LLVMConstNull(LLVMVectorType(LLVMDoubleTypeInContext(state->context), 2));
             else
             {
-                operand1 = ll_operand_load(OP_VF64, ALIGN_MAXIMUM, &instr->dst, state);
-                operand2 = ll_operand_load(OP_VF64, ALIGN_MAXIMUM, &instr->src, state);
+                operand1 = ll_operand_load(OP_VI64, ALIGN_MAXIMUM, &instr->dst, state);
+                operand2 = ll_operand_load(OP_VI64, ALIGN_MAXIMUM, &instr->src, state);
                 result = LLVMBuildXor(state->builder, operand1, operand2, "");
             }
             ll_operand_store(OP_VF64, ALIGN_MAXIMUM, &instr->dst, REG_KEEP_UPPER, result, state);
