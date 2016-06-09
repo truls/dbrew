@@ -9,13 +9,12 @@ Decoded BB at ?+6:
 target triple = "x86_64-pc-linux-gnu"
 
 ; Function Attrs: inlinehint
-declare i64 @test_add(i8*, i8*, i8*, i8*, i8*, i8*) #0
+declare i64 @test_add(i64) #0
 
 define i64 @test(i64) {
-  %2 = inttoptr i64 %0 to i8*
-  %3 = tail call i64 @test_add(i8* %2, i8* null, i8* null, i8* null, i8* null, i8* null)
-  %4 = add i64 %3, %0, !asm.reg.rax !0
-  ret i64 %4
+  %2 = tail call i64 @test_add(i64 %0)
+  %3 = add i64 %2, %0, !asm.reg.rax !0
+  ret i64 %3
 }
 
 attributes #0 = { inlinehint }

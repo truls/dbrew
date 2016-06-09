@@ -35,7 +35,7 @@ struct LLFunction;
 
 typedef struct LLFunction LLFunction;
 
-LLFunction* ll_function_declare(uintptr_t, const char*, LLState* state);
+LLFunction* ll_function_declare(uintptr_t, uint64_t, const char*, LLState* state);
 LLFunction* ll_function_specialize(LLFunction*, uintptr_t, uintptr_t, size_t, LLState* state);
 void ll_function_dispose(LLFunction*);
 void* ll_function_get_pointer(LLFunction*, LLState*);

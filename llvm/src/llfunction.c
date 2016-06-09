@@ -169,18 +169,11 @@ ll_function_declare_llvm(uint64_t packedType, const char* name, LLState* state)
  * \returns The declared function
  **/
 LLFunction*
-ll_function_declare(uintptr_t address, const char* name, LLState* state)
+ll_function_declare(uintptr_t address, uint64_t type, const char* name, LLState* state)
 {
     LLFunction* function = ll_function_new(LL_FUNCTION_DECLARATION, address, state);
     function->name = name;
-
-    LLVMTypeRef i8 = LLVMInt8TypeInContext(state->context);
-    LLVMTypeRef i64 = LLVMInt64TypeInContext(state->context);
-    LLVMTypeRef ip = LLVMPointerType(i8, 0);
-
-    LLVMTypeRef paramTypes[6] = { ip, ip, ip, ip, ip, ip };
-    LLVMTypeRef functionType = LLVMFunctionType(i64, paramTypes, 6, false);
-    function->llvmFunction = LLVMAddFunction(state->module, function->name, functionType);
+    function->llvmFunction = ll_function_declare_llvm(type, name, state);
 
     bool isIntrinsic = false;
     bool isSymbol = false;
