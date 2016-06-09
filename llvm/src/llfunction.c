@@ -230,6 +230,9 @@ ll_function_new_definition(uintptr_t address, LLConfig* config, LLState* state)
     function->llvmFunction = ll_function_declare_llvm(config->signature, function->name, state);
     size_t paramCount = LLVMCountParams(function->llvmFunction);
 
+    if (config->private)
+        LLVMSetLinkage(function->llvmFunction, LLVMPrivateLinkage);
+
     LLBasicBlock* initialBB = ll_basic_block_new(function->address);
     ll_basic_block_declare(initialBB, state);
     state->currentBB = initialBB;

@@ -44,12 +44,15 @@ struct LLConfig {
      **/
     size_t stackSize;
 
-    // FunctionSignature sign;
-
     /**
      * \brief Bitwise representation of the function signature
      **/
     size_t signature;
+
+    /**
+     * \brief Whether the function is private
+     **/
+    bool private;
 };
 
 typedef struct LLConfig LLConfig;
