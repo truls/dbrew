@@ -357,13 +357,18 @@ ll_generate_instruction(Instr* instr, LLState* state)
                     result = ll_operand_load(OP_SF, ALIGN_MAXIMUM, getRegOp(VT_32, Reg_X0), state);
                 else if (retTypeKind == LLVMDoubleTypeKind)
                     result = ll_operand_load(OP_SF, ALIGN_MAXIMUM, getRegOp(VT_64, Reg_X0), state);
+                else if (retTypeKind == LLVMVoidTypeKind)
+                    result = NULL;
                 else
                 {
                     result = NULL;
                     warn_if_reached();
                 }
 
-                LLVMBuildRet(state->builder, result);
+                if (result != NULL)
+                    LLVMBuildRet(state->builder, result);
+                else
+                    LLVMBuildRetVoid(state->builder);
             }
             break;
 

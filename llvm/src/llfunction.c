@@ -113,11 +113,15 @@ ll_function_declare_llvm(uint64_t packedType, const char* name, LLState* state)
             case 0:
                 type = LLVMPointerType(i8, 0);
                 break;
+            // Void for return type
             case 1:
                 if (i == 0)
-                    warn_if_reached();
-                type = LLVMPointerType(i8, 0);
-                noaliasParams = noaliasParams | (1 << (i - 1));
+                    type = LLVMVoidTypeInContext(state->context);
+                else
+                {
+                    type = LLVMPointerType(i8, 0);
+                    noaliasParams = noaliasParams | (1 << (i - 1));
+                }
                 break;
             case 2:
                 type = i64;
