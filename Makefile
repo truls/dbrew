@@ -67,7 +67,7 @@ libdbrew.a: $(OBJS) $(HEADERS)
 	ar rcs libdbrew.a $(OBJS)
 
 $(SUBDIRS_BUILD): build_%: libdbrew.a
-	make -C $*
+	+$(MAKE) -C $*
 
 src/snippets.o: src/snippets.c
 	$(CC) $(CFLAGS) $(SNIPPETSFLAGS) -c $< -o $@
@@ -82,10 +82,10 @@ clean: clean_dbrew $(SUBDIRS_CLEAN)
 
 clean_dbrew:
 	rm -f *~ *.o $(OBJS) $(DEPS) libdbrew.a
-	$(MAKE) clean -C tests
+	+$(MAKE) clean -C tests
 
 $(SUBDIRS_CLEAN): clean_%:
-	make -C $* clean
+	+$(MAKE) clean -C $*
 
 
 ## Test targets
@@ -98,8 +98,8 @@ test: libdbrew.a test_dbrew $(SUBDIRS_TEST)
 test_dbrew: libdbrew.a
 	cd tests && ./test.py
 
-$(SUBDIRS_TEST): test_%:
-	make -C $* test
+$(SUBDIRS_TEST): test_%: build_%
+	+$(MAKE) test -C $*
 
 
 # include previously generated dependency rules if existing

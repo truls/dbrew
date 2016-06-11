@@ -97,5 +97,5 @@ install:
   - $LLVM_CONFIG --components
 
 script:
-  - make CI=1 CC=$COMPILERC
+  - make -j4 CI=1 CC=$COMPILERC
   - make test CI=1 CC=$COMPILERC
