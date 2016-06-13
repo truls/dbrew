@@ -8,6 +8,8 @@ of the original functions as drop-in replacements as they use the exact same
 function signature. If rewriting fails, there is always a fall-back: calling
 the original function.
 
+Warning: DBrew is in a very early state with lots of features missing.
+
 ## Why is this useful?
 
 Performance
@@ -44,10 +46,17 @@ The second parameter actually is not used in the rewritten code. However,
 if rewriting failed for whatever reason, the original strcmp may be returned
 (depending on configuration). So, it is better to use valid parameters.
 
+FIXME: This short example currently does not work because DBrew does not yet
+(1) catch 1st-time invokation of runtime linker for shared library functions,
+(2) it does not specialize on mixed knowledge (known/unknown) of SSE/AVX
+registers, which the strcmp version in your glibc may use.
 
 ## License
 
 LGPLv2.1+
 
 
-#
+## Publications
+
+* Josef Weidendorfer and Jens Breitbart. The Case for Binary Rewriting at Runtime for Efficient Implementation of High-Level Programming Models in HPC. In **Proceedings of the 21st int. Workshop on High-Level Parallel Programming Models and Supportive Environments (HIPS 2016)**. Chicago, US, 2016.
+
