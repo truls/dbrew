@@ -1,4 +1,4 @@
-Decoded BB at ?+0:
+Decoding BB ? ...
                    ?:  f2 0f 10 07           movsd   (%rdi),%xmm0
                  ?+4:  f2 0f 10 0e           movsd   (%rsi),%xmm1
                  ?+8:  66 0f 14 c1           unpcklpd %xmm1,%xmm0

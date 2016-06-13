@@ -1,4 +1,4 @@
-Decoded BB at ?+0:
+Decoding BB ? ...
                    ?:  66 0f ef c0           pxor    %xmm0,%xmm0
                  ?+4:  0f 57 c9              xorps   %xmm1,%xmm1
                  ?+7:  66 0f 57 c1           xorpd   %xmm1,%xmm0

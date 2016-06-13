@@ -1,4 +1,4 @@
-Decoded BB at ?+0:
+Decoding BB ? ...
                    ?:  48 01 ff              add     %rdi,%rdi
                  ?+3:  48 01 ff              add     %rdi,%rdi
                  ?+6:  48 01 ff              add     %rdi,%rdi

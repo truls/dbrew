@@ -1,4 +1,4 @@
-Decoded BB at ?+0:
+Decoding BB ? ...
                    ?:  48 83 ec 08           sub     $0x8,%rsp
                  ?+4:  48 89 3c 24           mov     %rdi,(%rsp)
                  ?+8:  48 8b 04 24           mov     (%rsp),%rax

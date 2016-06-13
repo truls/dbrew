@@ -1,4 +1,4 @@
-Decoded BB at ?+0:
+Decoding BB ? ...
                    ?:  55                    push    %rbp
                  ?+1:  48 89 e5              mov     %rsp,%rbp
                  ?+4:  66 0f ef c0           pxor    %xmm0,%xmm0

@@ -1,4 +1,4 @@
-Decoded BB at ?+0:
+Decoding BB ? ...
                    ?:  48 b9 00 00 00 00 00  mov     $0x8000000000000000,%rcx
                  ?+7:  00 00 80            
                 ?+10:  48 31 c0              xor     %rax,%rax

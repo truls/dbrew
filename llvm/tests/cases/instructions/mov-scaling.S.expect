@@ -1,4 +1,4 @@
-Decoded BB at ?+0:
+Decoding BB ? ...
                    ?:  48 8b 0d 29 00 00 00  mov     0x29(%rip),%rcx
                  ?+7:  48 8b 04 cf           mov     (%rdi,%rcx,8),%rax
                 ?+11:  c3                    ret    

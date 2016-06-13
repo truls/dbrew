@@ -108,9 +108,6 @@ ll_decode_basic_block(Rewriter* dbrewDecoder, uintptr_t address, LLState* state)
     DBB* dbb = dbrew_decode(dbrewDecoder, address);
     dbb->fc = &fc;
 
-    printf("Decoded BB at ?+%lx:\n", address - state->currentFunction->address);
-    dbrew_print_decoded(dbb);
-
     LLBasicBlock* bb = ll_basic_block_new_from_dbb(dbb);
     ll_function_add_basic_block(state->currentFunction, bb);
 

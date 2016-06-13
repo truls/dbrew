@@ -1,15 +1,15 @@
-Decoded BB at ?+0:
+Decoding BB ? ...
                    ?:  55                    push    %rbp
                  ?+1:  48 89 e5              mov     %rsp,%rbp
                  ?+4:  31 c0                 xor     %eax,%eax
                  ?+6:  eb 04                 jmpq    $?+12
-Decoded BB at ?+c:
+Decoding BB ?+12 ...
                 ?+12:  48 39 f8              cmp     %rdi,%rax
                 ?+15:  7c f7                 jl      $?+8
-Decoded BB at ?+11:
+Decoding BB ?+17 ...
                 ?+17:  5d                    pop     %rbp
                 ?+18:  c3                    ret    
-Decoded BB at ?+8:
+Decoding BB ?+8 ...
                  ?+8:  48 83 c0 01           add     $0x1,%rax
                 ?+12:  48 39 f8              cmp     %rdi,%rax
                 ?+15:  7c f7                 jl      $?+8

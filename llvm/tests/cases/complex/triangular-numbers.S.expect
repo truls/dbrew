@@ -1,4 +1,4 @@
-Decoded BB at ?+0:
+Decoding BB ? ...
                    ?:  55                    push    %rbp
                  ?+1:  48 89 e5              mov     %rsp,%rbp
                  ?+4:  31 c0                 xor     %eax,%eax
@@ -6,7 +6,7 @@ Decoded BB at ?+0:
                  ?+9:  48 ff cf              dec     %rdi
                 ?+12:  48 83 ff 00           cmp     $0x0,%rdi
                 ?+16:  75 f4                 jne     $?+6
-Decoded BB at ?+12:
+Decoding BB ?+18 ...
                 ?+18:  c9                    leave  
                 ?+19:  c3                    ret    
 ; ModuleID = '<llengine>'

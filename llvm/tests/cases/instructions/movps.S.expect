@@ -1,4 +1,4 @@
-Decoded BB at ?+0:
+Decoding BB ? ...
                    ?:  0f 12 07              movlps  (%rdi),%xmm0
                  ?+3:  0f 16 06              movhps  (%rsi),%xmm0
                  ?+6:  0f 11 07              movups  %xmm0,(%rdi)

@@ -1,7 +1,7 @@
-Decoded BB at ?+0:
+Decoding BB ? ...
                    ?:  57                    push    %rdi
                  ?+1:  e8 2a 00 00 00        callq   $?+48
-Decoded BB at ?+6:
+Decoding BB ?+6 ...
                  ?+6:  5f                    pop     %rdi
                  ?+7:  48 01 f8              add     %rdi,%rax
                 ?+10:  c3                    ret    

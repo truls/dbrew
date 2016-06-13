@@ -1,9 +1,9 @@
-Decoded BB at ?+0:
+Decoding BB ? ...
                    ?:  31 c0                 xor     %eax,%eax
                  ?+2:  4c 8b 1f              mov     (%rdi),%r11
                  ?+5:  4d 85 db              test    %r11,%r11
                  ?+8:  74 3a                 je      $?+68
-Decoded BB at ?+a:
+Decoding BB ?+10 ...
                 ?+10:  48 83 c7 08           add     $0x8,%rdi
                 ?+14:  41 b9 00 00 00 00     mov     $0x0,%r9d
                 ?+20:  b8 00 00 00 00        mov     $0x0,%eax
@@ -19,9 +19,9 @@ Decoded BB at ?+a:
                 ?+58:  48 83 c7 18           add     $0x18,%rdi
                 ?+62:  4d 39 d9              cmp     %r11,%r9
                 ?+65:  75 d6                 jne     $?+25
-Decoded BB at ?+43:
+Decoding BB ?+67 ...
                 ?+67:  c3                    ret    
-Decoded BB at ?+44:
+Decoding BB ?+68 ...
                 ?+68:  b8 00 00 00 00        mov     $0x0,%eax
                 ?+73:  c3                    ret    
 ; ModuleID = '<llengine>'

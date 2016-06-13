@@ -1,4 +1,4 @@
-Decoded BB at ?+0:
+Decoding BB ? ...
                    ?:  48 6b c7 03           imul    $0x3,%rdi,%rax
                  ?+4:  c3                    ret    
 ; ModuleID = '<llengine>'
