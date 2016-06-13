@@ -57,8 +57,8 @@ static
 void
 stencil_inner_native_interleaved(void* a, double* restrict b, double* restrict c, uint64_t index)
 {
-    c[index-1] = 0.25 * (b[STENCIL_OFFSET(index-1, 0, -1)] + b[STENCIL_OFFSET(index-1, 0, 1)] + b[STENCIL_OFFSET(index-1, -1, 0)] + b[STENCIL_OFFSET(index-1, 1, 0)]);
     c[index] = 0.25 * (b[STENCIL_OFFSET(index, 0, -1)] + b[STENCIL_OFFSET(index, 0, 1)] + b[STENCIL_OFFSET(index, -1, 0)] + b[STENCIL_OFFSET(index, 1, 0)]);
+    c[index+1] = 0.25 * (b[STENCIL_OFFSET(index+1, 0, -1)] + b[STENCIL_OFFSET(index+1, 0, 1)] + b[STENCIL_OFFSET(index+1, -1, 0)] + b[STENCIL_OFFSET(index+1, 1, 0)]);
 }
 
 static
@@ -74,8 +74,8 @@ static
 void
 stencil_inner_native2(Stencil* restrict s, double* restrict b, double* restrict c, uint64_t index)
 {
-    stencil_inner_native(s, b, c, index-1);
     stencil_inner_native(s, b, c, index);
+    stencil_inner_native(s, b, c, index+1);
 }
 
 static
@@ -88,11 +88,11 @@ stencil_inner_struct_interleaved(Stencil* restrict s, double* restrict b, double
     for(uint64_t i = 0; i < s->points; i++)
     {
         StencilPoint* p = s->p + i;
-        result2 += p->factor * b[STENCIL_OFFSET(index - 1, p->xdiff, p->ydiff)];
         result1 += p->factor * b[STENCIL_OFFSET(index, p->xdiff, p->ydiff)];
+        result2 += p->factor * b[STENCIL_OFFSET(index+1, p->xdiff, p->ydiff)];
     }
-    c[index-1] = result2;
     c[index] = result1;
+    c[index+1] = result2;
 }
 
 static
@@ -114,8 +114,8 @@ static
 void
 stencil_inner_struct2(Stencil* restrict s, double* restrict b, double* restrict c, uint64_t index)
 {
-    stencil_inner_struct(s, b, c, index-1);
     stencil_inner_struct(s, b, c, index);
+    stencil_inner_struct(s, b, c, index+1);
 }
 
 static
@@ -129,19 +129,19 @@ stencil_inner_sorted_struct_interleaved(SortedStencil* restrict s, double* restr
     {
         StencilFactor* sf = s->f + i;
         StencilPoint* p = sf->p;
-        sum2 = b[STENCIL_OFFSET(index-1, p->xdiff, p->ydiff)];
         sum1 = b[STENCIL_OFFSET(index, p->xdiff, p->ydiff)];
+        sum2 = b[STENCIL_OFFSET(index+1, p->xdiff, p->ydiff)];
         for (uint64_t j = 1; j < sf->points; j++)
         {
             p = sf->p + j;
-            sum2 += b[STENCIL_OFFSET(index-1, p->xdiff, p->ydiff)];
             sum1 += b[STENCIL_OFFSET(index, p->xdiff, p->ydiff)];
+            sum2 += b[STENCIL_OFFSET(index+1, p->xdiff, p->ydiff)];
         }
-        result2 += sf->factor * sum2;
         result1 += sf->factor * sum1;
+        result2 += sf->factor * sum2;
     }
-    c[index-1] = result2;
     c[index] = result1;
+    c[index+1] = result2;
 }
 
 static
@@ -170,8 +170,8 @@ static
 void
 stencil_inner_sorted_struct2(SortedStencil* restrict s, double* restrict b, double* restrict c, uint64_t index)
 {
-    stencil_inner_sorted_struct(s, b, c, index-1);
     stencil_inner_sorted_struct(s, b, c, index);
+    stencil_inner_sorted_struct(s, b, c, index+1);
 }
 
 static void
@@ -204,10 +204,11 @@ compute_jacobi2(void* restrict a, StencilFunction fn, double* restrict b, double
 
         for (i = 1; i < STENCIL_N; i = i + 1)
         {
-            double c0 = c[STENCIL_INDEX(0, i)];
-            for (j = 1; j < STENCIL_N; j = j + 1)
+            uint64_t c0 = ((uint64_t*)c)[STENCIL_INDEX(0, i)];
+            fn(a, b, c, STENCIL_INDEX(0, i));
+            ((uint64_t*)c)[STENCIL_INDEX(0, i)] = c0;
+            for (j = 2; j < STENCIL_N; j = j + 2)
                 fn(a, b, c, STENCIL_INDEX(j, i));
-            c[STENCIL_INDEX(0, i)] = c0;
         }
     }
 }
