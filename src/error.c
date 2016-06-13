@@ -79,13 +79,14 @@ const char *errorString(Error* e)
 }
 
 // add error to some log, with further description (e.g. recover action)
-// currently just to stderror
+// currently just to as regular output
 void logError(Error* e, char* d)
 {
+    // FIXME: use stderr, needs support for expected stderr out in tests
     if (d)
-        fprintf(stderr, "%s\n %s\n", errorString(e), d);
+        fprintf(stdout, "%s. %s\n", errorString(e), d);
     else
-        fprintf(stderr, "%s\n", errorString(e));
+        fprintf(stdout, "%s\n", errorString(e));
 }
 
 void setDecodeError(DecodeError* de, Rewriter* r, char* d,

@@ -543,13 +543,17 @@ OpcEntry* setOpcGH(int opc, int digit, DecHandler h)
 }
 
 static
-void markDecodeError(DContext* c, int opc)
+void markDecodeError(DContext* c, int opc1, int opc2)
 {
     static char buf[64];
+    int o = 0;
 
-    sprintf(buf, "invalid opcode %d", opc);
+    o = sprintf(buf, "invalid opcode 0x%02x", opc1);
+    if (opc2 >= 0)
+        sprintf(buf+o, " 0x%02x", opc2);
+
     addSimple(c->r, c, IT_Invalid);
-    setDecodeError(&(c->error), c->r, buf, ET_BadOpcode, 0, c->off);
+    setDecodeError(&(c->error), c->r, buf, ET_BadOpcode, c->dbb, c->off);
 }
 
 
@@ -562,7 +566,7 @@ void processOpc(OpcInfo* oi, DContext* c)
     switch(oi->t) {
     case OT_Invalid:
         // invalid opcode
-        markDecodeError(c, 0);
+        markDecodeError(c, c->opc1, c->opc2);
         return;
     case OT_Single:
         break;
