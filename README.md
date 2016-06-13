@@ -58,5 +58,5 @@ LGPLv2.1+
 
 ## Publications
 
-* Josef Weidendorfer and Jens Breitbart. The Case for Binary Rewriting at Runtime for Efficient Implementation of High-Level Programming Models in HPC. In **Proceedings of the 21st int. Workshop on High-Level Parallel Programming Models and Supportive Environments (HIPS 2016)**. Chicago, US, 2016.
+* Josef Weidendorfer and Jens Breitbart. The Case for Binary Rewriting at Runtime for Efficient Implementation of High-Level Programming Models in HPC. In *Proceedings of the 21st int. Workshop on High-Level Parallel Programming Models and Supportive Environments (HIPS 2016)*. Chicago, US, 2016. ([PDF of pre-print version](https://github.com/lrr-tum/dbrew/raw/master/docs/pubs/preprint-hips16.pdf))
 
