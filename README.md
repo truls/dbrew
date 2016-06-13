@@ -5,27 +5,36 @@
 This library allows application-controlled, explicit rewriting of functions
 at runtime on the binary level. The rewritten functions can be used instead
 of the original functions as drop-in replacements as they use the exact same
-function signature. If rewriting fails, there is always a fall-back: calling
-the original function.
+function signature.
 
 Warning: DBrew is in a very early state with lots of features missing.
 
+
 ## Why is this useful?
 
-Performance
+Performance improvement
 * specialization: if function parameters are known at runtime
-* inline functions
-* optimize for common case: reorder, inline
+* optimization of common case by reordering and inline, e.g. when
+  profiling/usage data is available
 
-Change Functionality
+Change functionality
 * redirect function calls, memory accesses
-* replace instructions (eg. to use other ISA revision)
+* replace instructions
 * insert instrumentation for profiling
 
-Any rewriter configuration relates to properties of a function interface.
-Relying on the C calling convention of the target architecture (its ABI)
-enables rewriting of compiled code from most languages (C, C++, ...) as
-well as architecture independence of the DBrew API.
+
+# API
+
+DBrew provides best-effort and robustness. The API is designed in a way
+that rewriting may fail; however, it always can return the original
+function as fall-back. Thus, there is no need to strive for complete
+coverage of binary code.
+
+Rewriting configurations heavily rely on the C calling convention / ABI
+(Application Binary Interface) of the target architecture. This way,
+DBrew supports rewriting of compiled code from most languages (C, C++, ...)
+and makes the DBrew API itself architecture independent.
+
 
 
 ## Supported Architectures
@@ -47,16 +56,17 @@ if rewriting failed for whatever reason, the original strcmp may be returned
 (depending on configuration). So, it is better to use valid parameters.
 
 FIXME: This short example currently does not work because DBrew does not yet
-(1) catch 1st-time invokation of runtime linker for shared library functions,
-(2) it does not specialize on mixed knowledge (known/unknown) of SSE/AVX
-registers, which the strcmp version in your glibc may use.
-
-## License
-
-LGPLv2.1+
+(1) catch/ignore the dynamic-linker part of 1st-time invocations of shared
+library functions and (2) specialize on (mixed) knowledge (known/unknown) about
+SSE/AVX registers contents, which the strcmp version in your glibc may use.
 
 
 ## Publications
 
 * Josef Weidendorfer and Jens Breitbart. The Case for Binary Rewriting at Runtime for Efficient Implementation of High-Level Programming Models in HPC. In *Proceedings of the 21st int. Workshop on High-Level Parallel Programming Models and Supportive Environments (HIPS 2016)*. Chicago, US, 2016. ([PDF of pre-print version](https://github.com/lrr-tum/dbrew/raw/master/docs/pubs/preprint-hips16.pdf))
+
+
+## License
+
+LGPLv2.1+
 
