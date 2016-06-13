@@ -447,11 +447,14 @@ void attachPassthrough(Instr* i, PrefixSet set,
                        OperandEncoding enc, StateChange sc,
                        int b1, int b2, int b3)
 {
-    assert(i->ptLen == 0);
+    // catch previous decode error
+    if (!i) return;
+
+    assert(i->ptLen == 0); // never should happen
     i->ptEnc = enc;
     i->ptSChange = sc;
     i->ptPSet = set;
-    assert(b1 >= 0);
+    assert(b1 >= 0); // never should happen
     i->ptLen++;
     i->ptOpc[0] = (uint8_t) b1;
     if (b2 < 0) return;

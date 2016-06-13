@@ -39,7 +39,9 @@ typedef enum _ErrorType {
     ET_NoError,
     ET_Unknown,
     // Decoder
-    ET_BadPrefix, ET_BadOpcode, ET_BadOperands,
+    ET_BadPrefix, ET_BadOpcode,
+    ET_BadOperands, ET_BufferOverflow,
+    //
     ET_Max
 } ErrorType;
 

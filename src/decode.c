@@ -70,10 +70,14 @@ struct _DContext {
     DecodeError error; // if not-null, an decoding error was detected
 };
 
+// returns 0 if decoding buffer full
 Instr* nextInstr(Rewriter* r, uint64_t a, int len)
 {
-    Instr* i = r->decInstr + r->decInstrCount;
-    assert(r->decInstrCount < r->decInstrCapacity);
+    Instr* i;
+
+    if (r->decInstrCount >= r->decInstrCapacity) return 0;
+
+    i = r->decInstr + r->decInstrCount;
     r->decInstrCount++;
 
     i->addr = a;
@@ -89,10 +93,30 @@ Instr* nextInstr(Rewriter* r, uint64_t a, int len)
     return i;
 }
 
-Instr* addSimple(Rewriter* r, DContext* c, InstrType it)
+// on error, return 0 and capture error information in context
+static
+Instr* nextInstrForDContext(Rewriter* r, DContext* c)
 {
     uint64_t len = (uint64_t)(c->f + c->off) - c->iaddr;
     Instr* i = nextInstr(r, c->iaddr, len);
+
+    if (!i) {
+        static char buf[64];
+
+        sprintf(buf, "decode buffer full (size: %d instrs)",
+                    r->decInstrCapacity);
+        setDecodeError(&(c->error), c->r, buf, ET_BufferOverflow,
+                       c->dbb, c->off);
+    }
+
+    return i;
+}
+
+Instr* addSimple(Rewriter* r, DContext* c, InstrType it)
+{
+    Instr* i = nextInstrForDContext(r, c);
+    if (!i) return 0;
+
     i->type = it;
     i->form = OF_0;
 
@@ -101,8 +125,9 @@ Instr* addSimple(Rewriter* r, DContext* c, InstrType it)
 
 Instr* addSimpleVType(Rewriter* r, DContext* c, InstrType it, ValType vt)
 {
-    uint64_t len = (uint64_t)(c->f + c->off) - c->iaddr;
-    Instr* i = nextInstr(r, c->iaddr, len);
+    Instr* i = nextInstrForDContext(r, c);
+    if (!i) return 0;
+
     i->type = it;
     i->vtype = vt;
     i->form = OF_0;
@@ -112,8 +137,9 @@ Instr* addSimpleVType(Rewriter* r, DContext* c, InstrType it, ValType vt)
 
 Instr* addUnaryOp(Rewriter* r, DContext* c, InstrType it, Operand* o)
 {
-    uint64_t len = (uint64_t)(c->f + c->off) - c->iaddr;
-    Instr* i = nextInstr(r, c->iaddr, len);
+    Instr* i = nextInstrForDContext(r, c);
+    if (!i) return 0;
+
     i->type = it;
     i->form = OF_1;
     copyOperand( &(i->dst), o);
@@ -128,11 +154,12 @@ Instr* addBinaryOp(Rewriter* r, DContext* c,
     if ((vt != VT_None) && (vt != VT_Implicit)) {
         // if we specify an explicit value type, it must match destination
         // 2nd operand does not have to match (e.g. conversion/mask extraction)
-        assert(vt == opValType(o1));
+        assert(vt == opValType(o1)); // never should happen
     }
 
-    uint64_t len = (uint64_t)(c->f + c->off) - c->iaddr;
-    Instr* i = nextInstr(r, c->iaddr, len);
+    Instr* i = nextInstrForDContext(r, c);
+    if (!i) return 0;
+
     i->type = it;
     i->form = OF_2;
     i->vtype = vt;
@@ -149,11 +176,12 @@ Instr* addTernaryOp(Rewriter* r, DContext* c,
     if ((vt != VT_None) && (vt != VT_Implicit)) {
         // if we specify an explicit value type, it must match destination
         // 2nd operand does not have to match (e.g. conversion/mask extraction)
-        assert(vt == opValType(o1));
+        assert(vt == opValType(o1)); // never should happen
     }
 
-    uint64_t len = (uint64_t)(c->f + c->off) - c->iaddr;
-    Instr* i = nextInstr(r, c->iaddr, len);
+    Instr* i = nextInstrForDContext(r, c);
+    if (!i) return 0;
+
     i->type = it;
     i->form = OF_3;
     i->vtype = vt;
@@ -206,9 +234,14 @@ void parseModRM(DContext* cxt, ValType vt, RegTypes rt,
     case VT_16:   ot = OT_Reg16; break;
     case VT_32:   ot = OT_Reg32; break;
     case VT_64:   ot = OT_Reg64; break;
-    case VT_128:  ot = OT_Reg128; assert(rt & RT_Op2V); break;
-    case VT_256:  ot = OT_Reg256; assert(rt & RT_Op2V); break;
-    default: assert(0);
+    case VT_128:  ot = OT_Reg128;
+        assert(rt & RT_Op2V); // never should happen
+        break;
+    case VT_256:  ot = OT_Reg256;
+        assert(rt & RT_Op2V); // never should happen
+        break;
+    default:
+        assert(0); // never should happen
     }
     // r part: reg or digit, give both back to caller
     if (digit) *digit = reg;
@@ -263,9 +296,14 @@ void parseModRM(DContext* cxt, ValType vt, RegTypes rt,
     case VT_16:   ot = OT_Ind16; break;
     case VT_32:   ot = OT_Ind32; break;
     case VT_64:   ot = OT_Ind64; break;
-    case VT_128:  ot = OT_Ind128; assert(rt & RT_Op1V); break;
-    case VT_256:  ot = OT_Ind256; assert(rt & RT_Op1V); break;
-    default: assert(0);
+    case VT_128:  ot = OT_Ind128;
+        assert(rt & RT_Op1V); // never should happen
+        break;
+    case VT_256:  ot = OT_Ind256;
+        assert(rt & RT_Op1V); // never should happen
+        break;
+    default:
+        assert(0); // never should happen
     }
     o1->type = ot;
     o1->seg = cxt->segOv;
@@ -325,7 +363,7 @@ void parseImm(DContext* c, ValType vt, Operand* o, bool realImm64)
         }
         break;
     default:
-        assert(0);
+        assert(0); // never should happen
     }
 }
 
@@ -424,13 +462,13 @@ int setOpcInfo(int opc, OpcType t)
     OpcInfo* oi;
 
     if ((opc>=0) && (opc<=0xFF)) {
-        assert(opc != 0x0F);
+        assert(opc != 0x0F); // never should happen
         oi = &(opcTable[opc]);
     }
     else if ((opc>=0x0F00) && (opc<=0x0FFF)) {
         oi = &(opcTable0F[opc - 0x0F00]);
     }
-    else assert(0);
+    else assert(0); // never should happen
 
     if (oi->t == OT_Invalid) {
         // opcode not seen yet
@@ -441,14 +479,14 @@ int setOpcInfo(int opc, OpcType t)
         case OT_Single: used += 1; break;
         case OT_Four:   used += 4; break;
         case OT_Group:  used += 8; break;
-        default: assert(0);
+        default: assert(0); // never should happen
         }
         assert(used <= OPCENTRY_SIZE);
         for(int i = oi->eStart; i < used; i++)
             opcEntry[i].h1 = 0;
     }
     else
-        assert(oi->t == t);
+        assert(oi->t == t); // decoder bug
 
     return oi->eStart;
 }
@@ -462,9 +500,9 @@ OpcEntry* getOpcEntry(int opc, OpcType t, int off)
     case OT_Single: count = 1; break;
     case OT_Four:   count = 4; break;
     case OT_Group:  count = 8; break;
-    default: assert(0);
+    default: assert(0); // never should happen
     }
-    assert((off >= 0) && (off<count));
+    assert((off >= 0) && (off<count)); // decoder bug if not true
     return &(opcEntry[start+off]);
 }
 
@@ -501,7 +539,7 @@ OpcEntry* setOpcP(int opc, PrefixSet ps,
     case PS_66:   off = 1; break;
     case PS_F3:   off = 2; break;
     case PS_F2:   off = 3; break;
-    default: assert(0);
+    default: assert(0); // never should happen
     }
 
     OpcEntry* e = getOpcEntry(opc, OT_Four, off);
@@ -543,48 +581,76 @@ OpcEntry* setOpcGH(int opc, int digit, DecHandler h)
 }
 
 static
-void markDecodeError(DContext* c, int opc1, int opc2)
+void markDecodeError(DContext* c, bool showDigit, ErrorType et)
 {
     static char buf[64];
     int o = 0;
 
-    o = sprintf(buf, "invalid opcode 0x%02x", opc1);
-    if (opc2 >= 0)
-        sprintf(buf+o, " 0x%02x", opc2);
+    switch(et) {
+    case ET_BadOpcode:
+        o = sprintf(buf, "unsupported opcode"); break;
+    case ET_BadPrefix:
+        o = sprintf(buf, "unsupported prefix for opcode"); break;
+    case ET_BadOperands:
+        o = sprintf(buf, "unsupported operand size for opcode");
+    default:
+        assert(0); // should never happen
+    }
+    if (c->ps & PS_66) o += sprintf(buf+o, " 0x66");
+    if (c->ps & PS_F2) o += sprintf(buf+o, " 0xF2");
+    if (c->ps & PS_F3) o += sprintf(buf+o, " 0xF3");
+    if (c->ps & PS_2E) o += sprintf(buf+o, " 0x2E");
+
+    o += sprintf(buf+o, " 0x%02x", c->opc1);
+    if (c->opc2 >= 0) o += sprintf(buf+o, " 0x%02x", c->opc2);
+    if (showDigit) sprintf(buf+o, " / %d", c->digit);
 
     addSimple(c->r, c, IT_Invalid);
-    setDecodeError(&(c->error), c->r, buf, ET_BadOpcode, c->dbb, c->off);
+    setDecodeError(&(c->error), c->r, buf, et, c->dbb, c->off);
 }
 
 
 static
 void processOpc(OpcInfo* oi, DContext* c)
 {
-    OpcEntry* e;
-    int off = 0;
+    OpcEntry* e = 0;
+    int off;
 
     switch(oi->t) {
     case OT_Invalid:
-        // invalid opcode
-        markDecodeError(c, c->opc1, c->opc2);
+        // unsupported opcode
+        markDecodeError(c, false, ET_BadOpcode);
         return;
     case OT_Single:
+        e = &(opcEntry[oi->eStart]);
+        assert(e->h1 != 0); // should always be true
         break;
     case OT_Four:
         switch(c->ps) {
         case PS_No: off = 0; break;
-        case PS_66:   off = 1; break;
-        case PS_F3:   off = 2; break;
-        case PS_F2:   off = 3; break;
-        default: assert(0);
+        case PS_66: off = 1; break;
+        case PS_F3: off = 2; break;
+        case PS_F2: off = 3; break;
+        default: assert(0); // should never happen
+        }
+        e = &(opcEntry[oi->eStart+off]);
+        if (e->h1 == 0) {
+            markDecodeError(c, false, ET_BadPrefix);
+            return;
         }
         break;
     case OT_Group:
         off = (c->f[c->off] & 56) >> 3; // digit
+        e = &(opcEntry[oi->eStart+off]);
+        if (e->h1 == 0) {
+            markDecodeError(c, true, ET_BadOpcode);
+            return;
+        }
         break;
-    default: assert(0);
+    default:
+        assert(0); // never should happen
     }
-    e = &(opcEntry[oi->eStart+off]);
+    assert(e && e->h1); // must be true
 
     c->it = e->it;
     if (e->vt == VT_Def) {
@@ -595,10 +661,11 @@ void processOpc(OpcInfo* oi, DContext* c)
     else
         c->vt = e->vt;
 
-    assert(e->h1 != 0);
     (e->h1)(c);
+    if (isErrorSet(&(c->error.e))) return;
     if (e->h2 == 0) return;
     (e->h2)(c);
+    if (isErrorSet(&(c->error.e))) return;
     if (e->h3 == 0) return;
     (e->h3)(c);
 }
@@ -750,7 +817,7 @@ void decode0F_12(DContext* c)
     case PS_No:
         // movlps xmm,m64 (RM) - mov 2SP FP from m64 to low quadword of xmm
         c->it = IT_MOVLPS; break;
-    default: addSimple(c->r, c, IT_Invalid); return;
+    default: markDecodeError(c, false, ET_BadPrefix); return;
     }
     parseModRM(c, VT_64, RT_VV, &c->o2, &c->o1, 0);
     c->ii = addBinaryOp(c->r, c, c->it, VT_Implicit, &c->o1, &c->o2);
@@ -767,7 +834,7 @@ void decode0F_13(DContext* c)
     case PS_No:
         // movlps m64,xmm (MR) - mov 2SP FP from low quadword of xmm to m64
         c->it = IT_MOVLPS; break;
-    default: addSimple(c->r, c, IT_Invalid); return;
+    default: markDecodeError(c, false, ET_BadPrefix); return;
     }
     parseModRM(c, VT_64, RT_VV, &c->o1, &c->o2, 0);
     c->ii = addBinaryOp(c->r, c, c->it, VT_Implicit, &c->o1, &c->o2);
@@ -782,7 +849,7 @@ void decode0F_14(DContext* c)
         c->it = IT_UNPCKLPD; break;
     case PS_No: // unpcklps xmm1,xmm2/m128 (RM)
         c->it = IT_UNPCKLPS; break;
-    default: addSimple(c->r, c, IT_Invalid); return;
+    default: markDecodeError(c, false, ET_BadPrefix); return;
     }
     parseModRM(c, VT_128, RT_VV, &c->o2, &c->o1, 0);
     c->ii = addBinaryOp(c->r, c, c->it, VT_Implicit, &c->o1, &c->o2);
@@ -797,7 +864,7 @@ void decode0F_15(DContext* c)
         c->it = IT_UNPCKHPD; break;
     case PS_No: // unpckhps xmm1,xmm2/m128 (RM)
         c->it = IT_UNPCKHPS; break;
-    default: addSimple(c->r, c, IT_Invalid); return;
+    default: markDecodeError(c, false, ET_BadPrefix); return;
     }
     parseModRM(c, VT_128, RT_VV, &c->o2, &c->o1, 0);
     c->ii = addBinaryOp(c->r, c, c->it, VT_Implicit, &c->o1, &c->o2);
@@ -814,7 +881,7 @@ void decode0F_16(DContext* c)
     case PS_No:
         // movhps xmm,m64 (RM) - mov 2SP FP from m64 to high quadword of xmm
         c->it = IT_MOVHPS; break;
-    default: addSimple(c->r, c, IT_Invalid); return;
+    default: markDecodeError(c, false, ET_BadPrefix); return;
     }
     parseModRM(c, VT_128, RT_VV, &c->o2, &c->o1, 0);
     c->ii = addBinaryOp(c->r, c, c->it, VT_Implicit, &c->o1, &c->o2);
@@ -831,7 +898,7 @@ void decode0F_17(DContext* c)
     case PS_No:
         // movhps m64,xmm (MR) - mov 2SP FP from high quadword of xmm to m64
         c->it = IT_MOVHPS; break;
-    default: addSimple(c->r, c, IT_Invalid); return;
+    default: markDecodeError(c, false, ET_BadPrefix); return;
     }
     parseModRM(c, VT_64, RT_VV, &c->o1, &c->o2, 0);
     c->ii = addBinaryOp(c->r, c, c->it, VT_Implicit, &c->o1, &c->o2);
@@ -841,17 +908,18 @@ void decode0F_17(DContext* c)
 static
 void decode0F_1F(DContext* c)
 {
-    int digit;
-    parseModRM(c, c->vt, RT_G, &c->o1, 0, &digit);
-    switch(digit) {
+    parseModRM(c, c->vt, RT_G, &c->o1, 0, &c->digit);
+    switch(c->digit) {
     case 0:
         // 0F 1F /0: nop r/m 16/32
-        assert((c->vt == VT_16) || (c->vt == VT_32));
-        addUnaryOp(c->r, c, IT_NOP, &c->o1);
+        if ((c->vt == VT_16) || (c->vt == VT_32))
+            addUnaryOp(c->r, c, IT_NOP, &c->o1);
+        else
+            markDecodeError(c, true, ET_BadOperands);
         break;
 
     default:
-        addSimple(c->r, c, IT_Invalid);
+        markDecodeError(c, true, ET_BadOpcode);
         break;
     }
 }
@@ -864,7 +932,7 @@ void decode0F_28(DContext* c)
         c->vt = VT_128; c->it = IT_MOVAPS; break;
     case PS_66:   // movapd xmm1,xmm2/m128 (RM)
         c->vt = VT_128; c->it = IT_MOVAPD; break;
-    default: addSimple(c->r, c, IT_Invalid); return;
+    default: markDecodeError(c, false, ET_BadPrefix); return;
     }
     parseModRM(c, c->vt, RT_VV, &c->o2, &c->o1, 0);
     c->ii = addBinaryOp(c->r, c, c->it, VT_Implicit, &c->o1, &c->o2);
@@ -879,7 +947,7 @@ void decode0F_29(DContext* c)
         c->vt = VT_128; c->it = IT_MOVAPS; break;
     case PS_66:   // movapd xmm2/m128,xmm1 (MR)
         c->vt = VT_128; c->it = IT_MOVAPD; break;
-    default: addSimple(c->r, c, IT_Invalid); return;
+    default: markDecodeError(c, false, ET_BadPrefix); return;
     }
     parseModRM(c, c->vt, RT_VV, &c->o1, &c->o2, 0);
     c->ii = addBinaryOp(c->r, c, c->it, VT_Implicit, &c->o1, &c->o2);
@@ -958,7 +1026,7 @@ void decode0F_74(DContext* c)
     switch(c->ps) {
     case PS_66: c->vt = VT_128; break;
     case PS_No: c->vt = VT_64; break;
-    default: addSimple(c->r, c, IT_Invalid); return;
+    default: markDecodeError(c, false, ET_BadPrefix); return;
     }
     parseModRM(c, c->vt, RT_VV, &c->o2, &c->o1, 0);
     c->ii = addBinaryOp(c->r, c, IT_PCMPEQB, VT_Implicit, &c->o1, &c->o2);
@@ -983,7 +1051,7 @@ void decode0F_7E(DContext* c)
         c->it = IT_MOVQ;
         parseModRM(c, c->vt, RT_VV, &c->o2, &c->o1, 0);
         break;
-    default: addSimple(c->r, c, IT_Invalid); return;
+    default: markDecodeError(c, false, ET_BadPrefix); return;
     }
     c->ii = addBinaryOp(c->r, c, c->it, VT_Implicit, &c->o1, &c->o2);
     if (c->rex & REX_MASK_W) c->ps |= PS_REXW; // pass-through REX_W setting
@@ -1002,7 +1070,7 @@ void decode0F_7F(DContext* c)
         // movdqa xmm2/m128,xmm1 (MR)
         // - move aligned double quadword from xmm1 to xmm2/m128.
         c->vt = VT_128; c->it = IT_MOVDQA; break;
-    default: addSimple(c->r, c, IT_Invalid); return;
+    default: markDecodeError(c, false, ET_BadPrefix); return;
     }
     parseModRM(c, c->vt, RT_VV, &c->o1, &c->o2, 0);
     c->ii = addBinaryOp(c->r, c, c->it, VT_Implicit, &c->o1, &c->o2);
@@ -1307,7 +1375,7 @@ void decode_C0(DContext* c)
     case 7: // sar r/m8,imm8 (MI)
         addBinaryOp(c->r, c, IT_SAR, c->vt, &c->o1, &c->o2); break;
     default:
-        addSimple(c->r, c, IT_Invalid);
+        markDecodeError(c, true, ET_BadOpcode);
         break;
     }
 }
@@ -1327,8 +1395,7 @@ void decode_C1(DContext* c)
     case 7: // sar r/m 16/32/64,imm8 (MI)
         addBinaryOp(c->r, c, IT_SAR, c->vt, &c->o1, &c->o2); break;
     default:
-        addSimple(c->r, c, IT_Invalid);
-        break;
+        markDecodeError(c, true, ET_BadOpcode); break;
     }
 }
 
@@ -1342,7 +1409,7 @@ void decode_C6(DContext* c)
         parseImm(c, c->vt, &c->o2, false);
         addBinaryOp(c->r, c, IT_MOV, c->vt, &c->o1, &c->o2);
         break;
-    default: addSimple(c->r, c, IT_Invalid); break;
+    default: markDecodeError(c, true, ET_BadOpcode); break;
     }
 }
 
@@ -1356,7 +1423,7 @@ void decode_C7(DContext* c)
         parseImm(c, c->vt, &c->o2, false);
         addBinaryOp(c->r, c, IT_MOV, c->vt, &c->o1, &c->o2);
         break;
-    default: addSimple(c->r, c, IT_Invalid); break;
+    default: markDecodeError(c, true, ET_BadOpcode); break;
     }
 }
 
@@ -1373,7 +1440,7 @@ void decode_D0(DContext* c)
     case 7: // sar r/m8,1 (M1)
         addUnaryOp(c->r, c, IT_SAR, &c->o1); break;
     default:
-        addSimple(c->r, c, IT_Invalid); break;
+        markDecodeError(c, true, ET_BadOpcode); break;
     }
 }
 
@@ -1390,7 +1457,7 @@ void decode_D1(DContext* c)
     case 7: // sar r/m16/32/64,1 (M1)
         addUnaryOp(c->r, c, IT_SAR, &c->o1); break;
     default:
-        addSimple(c->r, c, IT_Invalid); break;
+        markDecodeError(c, true, ET_BadOpcode); break;
     }
 }
 
@@ -1408,7 +1475,7 @@ void decode_D2(DContext* c)
     case 7: // sar r/m8,cl (MC)
         addBinaryOp(c->r, c, IT_SAR, c->vt, &c->o1, &c->o2); break;
     default:
-        addSimple(c->r, c, IT_Invalid); break;
+        markDecodeError(c, true, ET_BadOpcode); break;
     }
 }
 
@@ -1426,7 +1493,7 @@ void decode_D3(DContext* c)
     case 7: // sar r/m16/32/64,cl (MC)
         addBinaryOp(c->r, c, IT_SAR, c->vt, &c->o1, &c->o2); break;
     default:
-        addSimple(c->r, c, IT_Invalid); break;
+        markDecodeError(c, true, ET_BadOpcode); break;
     }
 }
 
@@ -1486,7 +1553,7 @@ void decode_F6(DContext* c)
         addUnaryOp(c->r, c, IT_DIV, &c->o1); break;
     case 7: // idiv r/m8 (signed div ax by r/m8, rem/quot in ah:al)
         addUnaryOp(c->r, c, IT_IDIV1, &c->o1); break;
-    default: addSimple(c->r, c, IT_Invalid); break;
+    default: markDecodeError(c, true, ET_BadOpcode); break;
     }
 }
 
@@ -1511,7 +1578,7 @@ void decode_F7(DContext* c)
         addUnaryOp(c->r, c, IT_DIV, &c->o1); break;
     case 7: // idiv r/m 16/32/64 (signed div dx:ax/edx:eax/rdx:rax by r/m)
         addUnaryOp(c->r, c, IT_IDIV1, &c->o1); break;
-    default: addSimple(c->r, c, IT_Invalid); break;
+    default: markDecodeError(c, true, ET_BadOpcode); break;
     }
 }
 
@@ -1525,7 +1592,7 @@ void decode_FE(DContext* c)
         addUnaryOp(c->r, c, IT_INC, &c->o1); break;
     case 1: // dec r/m8
         addUnaryOp(c->r, c, IT_DEC, &c->o1); break;
-    default: addSimple(c->r, c, IT_Invalid); break;
+    default: markDecodeError(c, true, ET_BadOpcode); break;
     }
 }
 
@@ -1564,7 +1631,7 @@ void decode_FF(DContext* c)
         break;
 
     default:
-        addSimple(c->r, c, IT_Invalid);
+        markDecodeError(c, true, ET_BadOpcode);
         break;
     }
 }
@@ -2100,11 +2167,12 @@ DBB* dbrew_decode(Rewriter* r, uint64_t f)
         }
         else
           processOpc(&(opcTable[opc]), &cxt);
-         if (isErrorSet(&(cxt.error.e))) {
-             // current "fall-back": output error, stop decoding
-             logError(&(cxt.error.e), (char*) "Stopped decoding");
-             break;
-         }
+
+        if (isErrorSet(&(cxt.error.e))) {
+            // current "fall-back": output error, stop decoding
+            logError(&(cxt.error.e), (char*) "Stopped decoding");
+            break;
+        }
     }
 
     assert(dbb->addr == dbb->instr->addr);
