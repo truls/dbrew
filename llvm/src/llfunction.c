@@ -368,7 +368,11 @@ ll_function_specialize(LLFunction* base, uintptr_t index, uintptr_t value, size_
     LLVMPositionBuilderAtEnd(state->builder, llvmBB);
 
     LLVMValueRef retValue = LLVMBuildCall(state->builder, base->llvmFunction, args, paramCount, "");
-    LLVMBuildRet(state->builder, retValue);
+
+    if (LLVMGetTypeKind(LLVMGetReturnType(fnType)) != LLVMVoidTypeKind)
+        LLVMBuildRet(state->builder, retValue);
+    else
+        LLVMBuildRetVoid(state->builder);
 
     return function;
 }
