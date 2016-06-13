@@ -42,10 +42,9 @@ Stencil s5 = {4, {{-1,0,0.25},{1,0,0.25},{0,-1,0.25},{0,1,0.25}}};
 
 SortedStencil s5s = {1, {{0.25,4,&(s5.p[0])}}};
 
-#define STENCIL_INTERLINES 32
-
-
-// #define makeDynamic(x) (x)
+#ifndef STENCIL_INTERLINES
+#define STENCIL_INTERLINES 0
+#endif
 
 #define STENCIL_N ((STENCIL_INTERLINES) * 8 + 8)
 #define STENCIL_INDEX(x,y) ((y) * ((STENCIL_N) + 1) + (x))
@@ -393,7 +392,8 @@ benchmark_run2(const BenchmarkArgs* args, const BenchmarkStencilConfig* config)
                     LLFunction* llfn = ll_decode_function(r, (uintptr_t) stencilfn, &llconfig, state);
                     assert(!ll_function_build_ir(llfn, state));
                     ll_engine_optimize(state, 3);
-                    // ll_engine_dump(state);
+                    if (i == 0 && args->decodeGenerated)
+                        ll_engine_dump(state);
                     processed = ll_function_get_pointer(llfn, state);
                 }
                 break;
@@ -404,7 +404,8 @@ benchmark_run2(const BenchmarkArgs* args, const BenchmarkStencilConfig* config)
                     if (arg0 != NULL)
                         llfn = ll_function_specialize(llfn, 0, (uintptr_t) arg0, 0x100, state);
                     ll_engine_optimize(state, 3);
-                    ll_engine_dump(state);
+                    if (i == 0 && args->decodeGenerated)
+                        ll_engine_dump(state);
                     processed = ll_function_get_pointer(llfn, state);
                 }
                 break;
@@ -414,7 +415,8 @@ benchmark_run2(const BenchmarkArgs* args, const BenchmarkStencilConfig* config)
                     LLFunction* llfn = ll_decode_function(r, (uintptr_t) processed, &llconfig, state);
                     assert(!ll_function_build_ir(llfn, state));
                     ll_engine_optimize(state, 3);
-                    // ll_engine_dump(state);
+                    if (i == 0 && args->decodeGenerated)
+                        ll_engine_dump(state);
                     processed = ll_function_get_pointer(llfn, state);
                 }
                 break;
@@ -445,7 +447,10 @@ benchmark_run2(const BenchmarkArgs* args, const BenchmarkStencilConfig* config)
         JTimerStop(&timerRun);
         JTimerStop(&timerTotal);
 
-        if (i == 0) print_matrix(arg2);
+        // Smoke test to see whether results seem to be correct.
+        if (i == 0)
+            printf("matrix(n-1,n-1) = %f\n", ((double*)arg2)[STENCIL_INDEX(STENCIL_N-1, STENCIL_N-1)]);
+
         if (state != NULL) {
             ll_engine_dispose(state);
             state = NULL;

@@ -1,4 +1,6 @@
 
+INTERLINES=32
+
 WFLAGS_BASE=-Wall -Wextra -Wmissing-field-initializers -Wunused-parameter \
 			-Wold-style-definition -Wmissing-declarations -Wmissing-prototypes \
 			-Wredundant-decls -Wmissing-noreturn -Wshadow -Wpointer-arith \
@@ -8,16 +10,22 @@ WFLAGS_BASE=-Wall -Wextra -Wmissing-field-initializers -Wunused-parameter \
 			-Wswitch-enum -Wswitch -Waggregate-return
 
 CFLAGS=-g -std=c99 -I../include -I../../include/priv -I../../include $(WFLAGS) \
-	   -D__STDC_CONSTANT_MACROS -D__STDC_LIMIT_MACROS -D_POSIX_C_SOURCE=200809 -O2#3 -march=native
-LDFLAGS=-g -L/usr/lib64/llvm -lLLVM-3.7.0
+	   -D__STDC_CONSTANT_MACROS -D__STDC_LIMIT_MACROS -D_POSIX_C_SOURCE=200809 \
+	   -DSTENCIL_INTERLINES=$(INTERLINES) -O3 -msse2 -msse3 -mssse3
+LDFLAGS=-g -L/usr/lib64/llvm
+LDLIBS=-lLLVM-3.7.0  ../../libdbrew.a ../libdbrew-llvm.a
 
 SRCS = $(wildcard *.c)
-OBJS = $(SRCS:.c=.o)
-HEADERS = $(wildcard *.h)
 
-all: benchmark
+all: benchmark-$(INTERLINES).o
 
-benchmark: $(OBJS) ../../libdbrew.a ../libdbrew-llvm.a
+benchmark-$(INTERLINES).o:
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(SRCS) $(LDLIBS)
 
+.PHONY: clean
 clean:
-	rm -f $(OBJS) benchmark
+	rm -f $(OBJS) benchmark-*.o
+
+.PHONY: benchmark
+benchmark:
+	./benchmark.sh
