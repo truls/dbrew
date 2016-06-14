@@ -22,6 +22,8 @@ src/printer.c
 src/engine.c
 src/config.c
 
+deps/Makefile
+
 # test cases and expected files left out
 tests/Makefile
 tests/test-driver.c
@@ -39,10 +41,8 @@ examples/matrix.c
 examples/Makefile
 examples/.gitignore
 
-docs/BUGS
-docs/CONCEPTS
+docs/README
 docs/TODO
-docs/IDEAS
 
 Makefile
 README.md

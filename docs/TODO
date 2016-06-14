@@ -1,0 +1,23 @@
+== Short-term TODOs
+
+Replace asserts with correct error handling for
+* decoder [done]
+* emulator
+* generator
+
+Tests for
+* emulator
+* generator
+
+Emulation
+* config to catch memory writes via hash table
+* config to error out on non-static branching
+* pure capturing (no need to emulate anything unknown)
+* track meta info for vector registers
+* callbacks during emulation
+* inlining of callbacks?
+
+Optimizations:
+* liveness analysis, remove unneeded instructions
+* register renaming, upgrade spilled stack-values into registers
+* vectorization?
