@@ -308,7 +308,9 @@ dbrew_llvm_backend(Rewriter* rewriter)
     }
 
     ll_engine_optimize(state, 3);
-    ll_engine_dump(state);
+
+    if (rewriter->showOptSteps)
+        ll_engine_dump(state);
 
     rewriter->generatedCodeAddr = (uintptr_t) ll_function_get_pointer(function, state);
     rewriter->generatedCodeSize = 0;

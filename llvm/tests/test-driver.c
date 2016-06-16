@@ -107,6 +107,7 @@ test_dbrew_binding(bool debug)
         return 1;
 
     dbrew_verbose(dbrew, false, false, false);
+    dbrew_optverbose(dbrew, true);
     dbrew_set_decoding_capacity(dbrew, 100000, 100);
     dbrew_set_capture_capacity(dbrew, 100000, 100, 10000);
     dbrew_set_function(dbrew, (uintptr_t) testCase.function);
