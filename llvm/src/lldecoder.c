@@ -99,14 +99,7 @@ ll_decode_basic_block(Rewriter* dbrewDecoder, uintptr_t address, LLState* state)
         // If index == -1, the basic block does not contain this address.
     }
 
-    FunctionConfig fc = {
-        .func = state->currentFunction->address,
-        .size = 0x1000,
-        .name = (char*) "?",
-        .next = NULL
-    };
     DBB* dbb = dbrew_decode(dbrewDecoder, address);
-    dbb->fc = &fc;
 
     LLBasicBlock* bb = ll_basic_block_new_from_dbb(dbb);
     ll_function_add_basic_block(state->currentFunction, bb);

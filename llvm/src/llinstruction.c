@@ -758,11 +758,8 @@ ll_generate_instruction(Instr* instr, LLState* state)
             ll_operand_store(OP_VF64, ALIGN_MAXIMUM, &instr->dst, REG_KEEP_UPPER, result, state);
             break;
         case IT_PXOR:
-            // TODO: Figure out whether these are equivalent.
             if (opIsEqual(&instr->dst, &instr->src))
-            {
                 result = LLVMConstInt(LLVMIntTypeInContext(state->context, opTypeWidth(&instr->dst)), 0, false);
-            }
             else
             {
                 operand1 = ll_operand_load(OP_VI64, ALIGN_MAXIMUM, &instr->dst, state);
