@@ -1,5 +1,4 @@
 //!compile = {cc} {ccflags} {ldflags} -I. -I../../include -I../../include/priv -I../include -std=c99 -g -o {outfile} {infile} {driver} ../../libdbrew.a ../libdbrew-llvm.a {ldlibs}
-//!cc = cc
 
 #include <stdio.h>
 #include <stdbool.h>
@@ -37,7 +36,7 @@ runTestSingleInt(TestFunction fn)
 static void
 runTestSingleDouble(TestFunction fn)
 {
-    double q = fn(0.5);
+    double q = ((double(*)(double))(fn))(0.5);
     printf("Result: %f\n", q);
 }
 

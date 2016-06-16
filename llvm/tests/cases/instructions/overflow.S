@@ -13,7 +13,7 @@ test:
     cmovz rdx, rax
 
     // Equivalent to ret rdx
-    mov rcx, 0x7fffffffffffffff
+    movabs rcx, 0x7fffffffffffffff
     add rcx, rdx
     jno 1f
     inc rax

@@ -4,7 +4,7 @@
     .globl  test
     .type   test, @function
 test:
-    mov rcx, 0x8000000000000000
+    movabs rcx, 0x8000000000000000
     xor rax, rax
     sub rdi, rcx
     cmovno rax, rdi
