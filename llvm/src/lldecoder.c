@@ -45,6 +45,60 @@
  * @{
  **/
 
+#ifdef NO_INSTRUCTION_DEDUP
+
+/**
+ * Decode a basic block at the given address. This function calls itself
+ * recursively.
+ *
+ * This naive variant does not perform instruction de-duplication and exists
+ * solely for testing purposes.
+ *
+ * \private
+ *
+ * \author Alexis Engelke
+ *
+ * \param dbrewDecoder The decoder
+ * \param address The address of the basic block
+ * \param state The module state
+ * \returns The decoded basic block, which is ready-to-use
+ **/
+static LLBasicBlock*
+ll_decode_basic_block(Rewriter* dbrewDecoder, uintptr_t address, LLState* state)
+{
+    for (size_t i = 0; i < state->currentFunction->u.definition.bbCount; i++)
+    {
+        LLBasicBlock* otherBB = state->currentFunction->u.definition.bbs[i];
+        long index = ll_basic_block_find_address(otherBB, address);
+
+        if (index == 0)
+            return otherBB;
+    }
+
+    DBB* dbb = dbrew_decode(dbrewDecoder, address);
+
+    LLBasicBlock* bb = ll_basic_block_new_from_dbb(dbb);
+    ll_function_add_basic_block(state->currentFunction, bb);
+
+    Instr* lastInstr = dbb->instr + dbb->count - 1;
+    InstrType type = lastInstr->type;
+
+    LLBasicBlock* next = NULL;
+    LLBasicBlock* fallThrough = NULL;
+
+    if (instrIsJcc(type) || type == IT_CALL)
+        fallThrough = ll_decode_basic_block(dbrewDecoder, lastInstr->addr + lastInstr->len, state);
+
+    if (type == IT_JMP || instrIsJcc(type))
+        next = ll_decode_basic_block(dbrewDecoder, lastInstr->dst.val, state);
+
+    ll_basic_block_add_branches(bb, next, fallThrough);
+
+    return bb;
+}
+
+#else
+
 /**
  * Decode a basic block at the given address. This function calls itself
  * recursively.
@@ -158,6 +212,8 @@ ll_decode_basic_block(Rewriter* dbrewDecoder, uintptr_t address, LLState* state)
 
     return bb;
 }
+
+#endif
 
 /**
  * Decode a function at the given address. This only adds the declaration to the
