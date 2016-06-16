@@ -1,11 +1,3 @@
-Decoding BB ? ...
-                   ?:  66 0f 10 07           movupd  (%rdi),%xmm0
-                 ?+4:  66 0f 10 0f           movupd  (%rdi),%xmm1
-                 ?+8:  f2 0f 10 07           movsd   (%rdi),%xmm0
-                ?+12:  66 0f 58 c1           addpd   %xmm1,%xmm0
-                ?+16:  66 0f 11 07           movupd  %xmm0,(%rdi)
-                ?+20:  31 c0                 xor     %eax,%eax
-                ?+22:  c3                    ret    
 ; ModuleID = '<llengine>'
 target triple = "x86_64-pc-linux-gnu"
 

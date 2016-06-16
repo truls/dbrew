@@ -1,13 +1,3 @@
-Decoding BB ? ...
-                   ?:  55                    push    %rbp
-                 ?+1:  48 89 e5              mov     %rsp,%rbp
-                 ?+4:  48 8b 0d 35 00 00 00  mov     0x35(%rip),%rcx
-                ?+11:  48 01 0f              add     %rcx,(%rdi)
-                ?+14:  48 8b 0d 33 00 00 00  mov     0x33(%rip),%rcx
-                ?+21:  48 01 4f 08           add     %rcx,0x8(%rdi)
-                ?+25:  31 c0                 xor     %eax,%eax
-                ?+27:  c9                    leave  
-                ?+28:  c3                    ret    
 ; ModuleID = '<llengine>'
 target triple = "x86_64-pc-linux-gnu"
 

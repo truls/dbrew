@@ -1,13 +1,3 @@
-Decoding BB ? ...
-                   ?:  b9 08 00 00 00        mov     $0x8,%ecx
-                 ?+5:  48 83 07 0a           addq    $0xa,(%rdi)
-                 ?+9:  48 83 c7 08           add     $0x8,%rdi
-                ?+13:  ff c9                 dec     %ecx
-                ?+15:  85 c9                 test    %ecx,%ecx
-                ?+17:  75 f2                 jne     $?+5
-Decoding BB ?+19 ...
-                ?+19:  31 c0                 xor     %eax,%eax
-                ?+21:  c3                    ret    
 ; ModuleID = '<llengine>'
 target triple = "x86_64-pc-linux-gnu"
 

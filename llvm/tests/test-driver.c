@@ -139,7 +139,9 @@ test_llvm_generation(bool debug)
     // We want to decode the output properly.
     dbrew_config_function_setname(dbrewDecoder, (uintptr_t) testCase.function, "?");
     dbrew_config_function_setsize(dbrewDecoder, (uintptr_t) testCase.function, 0x1000);
-    dbrew_verbose(dbrewDecoder, true, false, false);
+
+    // Print decoded block only in debug mode
+    dbrew_verbose(dbrewDecoder, debug, false, false);
 
     TestRoutine testRoutine = testRoutines[(int) testCase.routineIndex];
 
