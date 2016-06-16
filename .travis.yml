@@ -8,8 +8,6 @@ matrix:
       env:
         - COMPILERC=gcc-4.9
         - COMPILERCXX=g++-4.9
-        - LLVM_CONFIG=llvm-config
-        - CLANGV=3.7.1
       addons:
         apt:
           sources:
@@ -23,8 +21,6 @@ matrix:
       env:
         - COMPILERC=gcc-5
         - COMPILERCXX=g++-5
-        - LLVM_CONFIG=llvm-config
-        - CLANGV=3.7.1
       addons:
         apt:
           sources:
@@ -38,8 +34,6 @@ matrix:
       env:
         - COMPILERC=gcc-6
         - COMPILERCXX=g++-6
-        - LLVM_CONFIG=llvm-config
-        - CLANGV=3.7.1
       addons:
         apt:
           sources:
@@ -52,7 +46,18 @@ matrix:
       env:
         - COMPILERC=clang
         - COMPILERCXX=clang++
-        - LLVM_CONFIG=llvm-config
+        - CLANGV=3.6.2
+      addons:
+        apt:
+          sources:
+            - ubuntu-toolchain-r-test
+          packages:
+            - libstdc++6-4.9-dbg
+            - python3
+    - compiler: clang
+      env:
+        - COMPILERC=clang
+        - COMPILERCXX=clang++
         - CLANGV=3.7.1
       addons:
         apt:
@@ -61,28 +66,31 @@ matrix:
           packages:
             - libstdc++6-4.9-dbg
             - python3
-    # We can't use LLVM 3.8 since the IR output is different.
-    # - compiler: clang
-    #   env:
-    #     - COMPILERC=clang
-    #     - COMPILERCXX=clang++
-    #     - LLVM_CONFIG=llvm-config
-    #     - CLANGV=3.8.0
-    #   addons:
-    #     apt:
-    #       sources:
-    #         - ubuntu-toolchain-r-test
-    #       packages:
-    #         - libstdc++6-4.9-dbg
-    #         - python3
+    - compiler: clang
+      env:
+        - COMPILERC=clang
+        - COMPILERCXX=clang++
+        - CLANGV=3.8.0
+      addons:
+        apt:
+          sources:
+            - ubuntu-toolchain-r-test
+          packages:
+            - libstdc++6-4.9-dbg
+            - python3
 
 # TODO: Eventually cache clang
 install:
-  - mkdir $HOME/clang+llvm
-  - export PATH=$HOME/clang+llvm/bin:$PATH
-  - export PATHLD_LIBRARY_PATH=$HOME/clang+llvm/lib:$LD_LIBRARY_PATH
-  - wget http://llvm.org/releases/$CLANGV/clang+llvm-$CLANGV-x86_64-linux-gnu-ubuntu-14.04.tar.xz -O $HOME/clang+llvm.tar.xz;
-  - tar xf $HOME/clang+llvm.tar.xz -C $HOME/clang+llvm --strip-components 1
+  - export LLVM_VERSION=3.7.1
+  - if [ -n "$CLANGV" ]; then mkdir $HOME/clang+llvm-$CLANGV; fi
+  - if [ -n "$CLANGV" ]; then export PATH=$HOME/clang+llvm-$CLANGV/bin:$PATH; fi
+  - if [ -n "$CLANGV" ]; then export LD_LIBRARY_PATH=$HOME/clang+llvm-$CLANGV/lib:$LD_LIBRARY_PATH; fi
+  - if [ -n "$CLANGV" ]; then wget http://llvm.org/releases/$CLANGV/clang+llvm-$CLANGV-x86_64-linux-gnu-ubuntu-14.04.tar.xz -O $HOME/clang+llvm-$CLANGV.tar.xz; fi
+  - if [ -n "$CLANGV" ]; then tar xf $HOME/clang+llvm-$CLANGV.tar.xz -C $HOME/clang+llvm-$CLANGV --strip-components 1; fi
+  - if [ "$CLANGV" != "$LLVM_VERSION" ]; then mkdir $HOME/clang+llvm-$LLVM_VERSION; fi
+  - if [ "$CLANGV" != "$LLVM_VERSION" ]; then wget http://llvm.org/releases/$LLVM_VERSION/clang+llvm-$LLVM_VERSION-x86_64-linux-gnu-ubuntu-14.04.tar.xz -O $HOME/clang+llvm-$LLVM_VERSION.tar.xz; fi
+  - if [ "$CLANGV" != "$LLVM_VERSION" ]; then tar xf $HOME/clang+llvm-$LLVM_VERSION.tar.xz -C $HOME/clang+llvm-$LLVM_VERSION --strip-components 1; fi
+  - export LLVM_CONFIG=$HOME/clang+llvm-$LLVM_VERSION/bin/llvm-config
   - export CC=$COMPILERC
   - export CXX=$COMPILERCXX
   - $CC --version
@@ -97,5 +105,5 @@ install:
   - $LLVM_CONFIG --components
 
 script:
-  - make -j4 CI=1 CC=$COMPILERC
-  - make test CI=1 CC=$COMPILERC
+  - make -j4 CI=1 LLVM_CONFIG=$LLVM_CONFIG CC=$COMPILERC
+  - make test CI=1 LLVM_CONFIG=$LLVM_CONFIG CC=$COMPILERC
