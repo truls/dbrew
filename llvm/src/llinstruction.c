@@ -322,6 +322,8 @@ ll_generate_instruction(Instr* instr, LLState* state)
 
                 result = LLVMBuildCall(state->builder, llvmFunction, args, argCount, "");
 
+                if (LLVMGetTypeKind(LLVMTypeOf(result)) == LLVMPointerTypeKind)
+                    result = LLVMBuildPtrToInt(state->builder, result, i64, "");
                 if (LLVMTypeOf(result) != i64)
                     warn_if_reached();
 
@@ -827,6 +829,10 @@ ll_generate_instruction(Instr* instr, LLState* state)
         case IT_JG:
             break;
 
+        case IT_Invalid:
+            LLVMBuildUnreachable(state->builder);
+            break;
+
         case IT_DIVSS:
         case IT_DIVSD:
         case IT_DIVPS:
@@ -882,7 +888,6 @@ ll_generate_instruction(Instr* instr, LLState* state)
         case IT_PCMPEQB:
         case IT_PMOVMSKB:
         case IT_Max:
-        case IT_Invalid:
         case IT_None:
         default:
             printf("%s\n", instr2string(instr, 0, NULL));

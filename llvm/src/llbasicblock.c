@@ -457,7 +457,7 @@ ll_basic_block_build_ir(LLBasicBlock* bb, LLState* state)
     }
     else if (endType == IT_JMP)
         LLVMBuildBr(state->builder, bb->nextBranch->llvmBB);
-    else if (endType != IT_RET) // Any other instruction which is not a terminator
+    else if (endType != IT_RET && endType != IT_Invalid) // Any other instruction which is not a terminator
         LLVMBuildBr(state->builder, bb->nextFallThrough->llvmBB);
 }
 
