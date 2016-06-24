@@ -610,6 +610,8 @@ CBB* getCaptureBB(Rewriter* r, uint64_t f, int esID)
     bb->genJcc8 = false;
     bb->genJump = false;
 
+    bb->generatorData = 0;
+
     return bb;
 }
 

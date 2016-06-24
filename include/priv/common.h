@@ -62,10 +62,13 @@ struct _CBB {
     // a hint for conditional branches whether branching is more likely
     bool preferBranch;
 
-    // for code generation/relocation
+    // for DBrew's own code generation backend
     int size;
     uint64_t addr1, addr2;
     bool genJcc8, genJump;
+
+    // allow to store CBB-specific data for other backends (eg. via LLVM JIT)
+    void* generatorData;
 };
 
 char* cbb_prettyName(CBB* bb);
