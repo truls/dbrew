@@ -168,6 +168,7 @@ void freeRewriter(Rewriter* r)
  * The state can be accessed as c->es afterwards (e.g. for the return
  * value of the emulated function)
  */
+static
 void emulateAndCapture(Rewriter* r, int parCount, uint64_t* par)
 {
     // calling convention x86-64: parameters are stored in registers
