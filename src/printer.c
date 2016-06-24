@@ -266,7 +266,7 @@ char* op2string(Operand* o, ValType t, FunctionConfig* fc)
     case OT_Reg64:
     case OT_Reg128:
     case OT_Reg256:
-        sprintf(buf, "%%%s", regName(o->reg, o->type));
+        off += sprintf(buf, "%%%s", regName(o->reg, o->type));
         break;
 
     case OT_Imm8:
@@ -285,7 +285,7 @@ char* op2string(Operand* o, ValType t, FunctionConfig* fc)
             break;
         default: assert(0);
         }
-        sprintf(buf, "$0x%lx", val);
+        off += sprintf(buf, "$0x%lx", val);
         break;
 
     case OT_Imm16:
@@ -303,7 +303,7 @@ char* op2string(Operand* o, ValType t, FunctionConfig* fc)
             break;
         default: assert(0);
         }
-        sprintf(buf, "$0x%lx", val);
+        off += sprintf(buf, "$0x%lx", val);
         break;
 
     case OT_Imm32:
@@ -318,11 +318,11 @@ char* op2string(Operand* o, ValType t, FunctionConfig* fc)
             break;
         default: assert(0);
         }
-        sprintf(buf, "$%s", prettyAddress(val, fc));
+        off += sprintf(buf, "$%s", prettyAddress(val, fc));
         break;
 
     case OT_Imm64:
-        sprintf(buf, "$%s", prettyAddress(o->val, fc));
+        off += sprintf(buf, "$%s", prettyAddress(o->val, fc));
         break;
 
     case OT_Ind8:
@@ -331,7 +331,6 @@ char* op2string(Operand* o, ValType t, FunctionConfig* fc)
     case OT_Ind64:
     case OT_Ind128:
     case OT_Ind256:
-        off = 0;
         switch(o->seg) {
         case OSO_None: break;
         case OSO_UseFS: off += sprintf(buf+off, "fs:"); break;
@@ -346,20 +345,25 @@ char* op2string(Operand* o, ValType t, FunctionConfig* fc)
         }
         if ((o->scale == 0) || (o->ireg == Reg_None)) {
             if (o->reg != Reg_None)
-                sprintf(buf+off,"(%%%s)", regName(o->reg, OT_Reg64));
+                off += sprintf(buf+off,"(%%%s)", regName(o->reg, OT_Reg64));
+            else if (off == 0) {
+                // nothing printed yet
+                off += sprintf(buf, "0x0");
+            }
         }
         else {
             const char* ri = regName(o->ireg, OT_Reg64);
             if (o->reg == Reg_None) {
-                sprintf(buf+off,"(,%%%s,%d)", ri, o->scale);
+                off += sprintf(buf+off,"(,%%%s,%d)", ri, o->scale);
             }
             else
-                sprintf(buf+off,"(%%%s,%%%s,%d)",
-                        regName(o->reg, OT_Reg64), ri, o->scale);
+                off += sprintf(buf+off,"(%%%s,%%%s,%d)",
+                               regName(o->reg, OT_Reg64), ri, o->scale);
         }
         break;
     default: assert(0);
     }
+    assert(off > 0);
     return buf;
 }
 

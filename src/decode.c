@@ -1608,7 +1608,8 @@ void decode_FF(DContext* c)
 
     case 2:
         // call r/m64
-        assert(c->vt == VT_64); // only 64bit target allowed in 64bit mode
+        // operand size forced to 64 bit in 64-bit mode
+        opOverwriteType(&c->o1, VT_64);
         addUnaryOp(c->r, c, IT_CALL, &c->o1);
         c->exit = true;
         break;
