@@ -156,6 +156,7 @@ int dbrew_generated_size(Rewriter* r);
 void dbrew_config_reset(Rewriter* r);
 void dbrew_config_staticpar(Rewriter* r, int staticParPos);
 void dbrew_config_returnfp(Rewriter* r);
+void dbrew_config_parcount(Rewriter* r, int parCount);
 // assume all calculated results to be unknown at call depth lower <depth>
 void dbrew_config_force_unknown(Rewriter* r, int depth);
 // assume all branches to be fixed according to rewriter input parameters

@@ -242,6 +242,7 @@ int main(int argc, char* argv[])
         dbrew_config_staticpar(r, 0); // size is constant
         dbrew_config_staticpar(r, 3); // apply func is constant
         dbrew_config_staticpar(r, 4); // stencil is constant
+        dbrew_config_parcount(r, 5);
         if (!do4)
             dbrew_config_force_unknown(r, 0); // do not unroll in applyLoop
         al = (apply_loop) dbrew_rewrite(r, size, m1, m2, af, s);
@@ -258,6 +259,7 @@ int main(int argc, char* argv[])
             dbrew_set_function(r, (uint64_t) af);
             dbrew_config_staticpar(r, 1); // size is constant
             dbrew_config_staticpar(r, 2); // stencil is constant
+            dbrew_config_parcount(r, 3);
             dbrew_config_returnfp(r);
             af = (apply_func) dbrew_rewrite(r, m1 + size + 1, size, s);
         }

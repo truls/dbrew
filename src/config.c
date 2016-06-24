@@ -33,6 +33,7 @@ void cc_init(CaptureConfig* cc)
     for(int i=0; i < CC_MAXCALLDEPTH; i++)
         cc->force_unknown[i] = false;
     cc->hasReturnFP = false;
+    cc->parCount = -1; // unknown
     cc->branches_known = false;
     cc->function_configs = 0;
 
@@ -175,6 +176,12 @@ void dbrew_config_returnfp(Rewriter* r)
 {
     CaptureConfig* cc = cc_get(r);
     cc->hasReturnFP = true;
+}
+
+void dbrew_config_parcount(Rewriter* r, int parCount)
+{
+    CaptureConfig* cc = cc_get(r);
+    cc->parCount = parCount;
 }
 
 void dbrew_config_branches_known(Rewriter* r, bool b)

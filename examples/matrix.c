@@ -84,6 +84,7 @@ int main(int argc, char* argv[])
     }
     dbrew_set_function(r, (uint64_t) mm_kernel);
     dbrew_config_staticpar(r, 0); // size is constant
+    dbrew_config_parcount(r, 7);
     mmf = (mm_t) dbrew_rewrite(r, s, a, b, c, 0, 0, 0);
 
     if (verbose > 0) {

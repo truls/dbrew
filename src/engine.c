@@ -168,27 +168,18 @@ void freeRewriter(Rewriter* r)
  * The state can be accessed as c->es afterwards (e.g. for the return
  * value of the emulated function)
  */
-// FIXME: this always assumes 5 parameters
-void vEmulateAndCapture(Rewriter* r, va_list args)
+void emulateAndCapture(Rewriter* r, int parCount, uint64_t* par)
 {
     // calling convention x86-64: parameters are stored in registers
     // see https://en.wikipedia.org/wiki/X86_calling_conventions
     static Reg parReg[6] = { Reg_DI, Reg_SI, Reg_DX, Reg_CX, Reg_8, Reg_9 };
 
     int i, esID;
-    uint64_t par[6];
     EmuState* es;
     DBB *dbb;
     CBB *cbb;
     Instr* instr;
     uint64_t bb_addr, nextbb_addr;
-
-    par[0] = va_arg(args, uint64_t);
-    par[1] = va_arg(args, uint64_t);
-    par[2] = va_arg(args, uint64_t);
-    par[3] = va_arg(args, uint64_t);
-    par[4] = va_arg(args, uint64_t);
-    par[5] = va_arg(args, uint64_t);
 
     if (!r->es)
         r->es = allocEmuState(1024);
@@ -199,7 +190,7 @@ void vEmulateAndCapture(Rewriter* r, va_list args)
     if (r->cs)
         r->cs->used = 0;
 
-    for(i=0;i<6;i++) {
+    for(i=0;i<parCount;i++) {
         MetaState* ms = &(es->reg_state[parReg[i]]);
         es->reg[parReg[i]] = par[i];
         if (r->cc && (i<CC_MAXPARAM))
@@ -313,6 +304,30 @@ void vEmulateAndCapture(Rewriter* r, va_list args)
         bb_addr = nextbb_addr;
     }
 }
+
+void vEmulateAndCapture(Rewriter* r, va_list args)
+{
+    int i, parCount;
+    uint64_t par[6];
+
+    parCount = r->cc->parCount;
+    if (parCount == -1) {
+        fprintf(stderr, "Warning: number of parameters not set\n");
+        assert(0);
+    }
+
+    if (parCount > 6) {
+        fprintf(stderr, "Warning: number of parameters >6 not supported\n");
+        assert(0);
+    }
+
+    for(i = 0; i < parCount; i++) {
+        par[i] = va_arg(args, uint64_t);
+    }
+
+    emulateAndCapture(r, parCount, par);
+}
+
 
 //----------------------------------------------------------
 // example optimization passes on captured instructions

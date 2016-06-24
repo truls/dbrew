@@ -7,8 +7,8 @@
 
 #include "dbrew.h"
 
-typedef int (*f1_t)(int);
-int f1(int);
+typedef int (*f1_t)(int, int);
+int f1(int, int);
 
 int runtest(Rewriter*r, int parameter, bool doRun)
 {
@@ -20,6 +20,7 @@ int runtest(Rewriter*r, int parameter, bool doRun)
         printf(">>> Testcase unknown par.\n");
 
     dbrew_set_function(r, (uint64_t) f1);
+    dbrew_config_parcount(r, 2);
     // to get rid of changing addresses, assume f1 code to be 100 bytes max
     dbrew_config_function_setname(r, (uint64_t) f1, "test");
     dbrew_config_function_setsize(r, (uint64_t) f1, 100);
@@ -37,8 +38,8 @@ int runtest(Rewriter*r, int parameter, bool doRun)
     if (!doRun) return 0;
 
     // Ensure that the program actually works.
-    int orig = f1(parameter);
-    int rewritten = ff(parameter);
+    int orig = f1(parameter, 1);
+    int rewritten = ff(parameter, 1);
 
     printf(">>> Run orig/rewritten: %d/%d\n", orig, rewritten);
     return (orig != rewritten) ? 1 : 0;
@@ -46,7 +47,6 @@ int runtest(Rewriter*r, int parameter, bool doRun)
 
 int main(int argc, char** argv)
 {
-    int parameter;
     int arg = 1;
     int res = 0;
     bool debug = false;

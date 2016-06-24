@@ -118,6 +118,8 @@ typedef struct _CaptureConfig
 
      // does function to rewrite return floating point?
     bool hasReturnFP;
+    // number of parameters passed to function to rewrite
+    int parCount;
     // avoid unrolling at call depths
     bool force_unknown[CC_MAXCALLDEPTH];
     // all branches forced known

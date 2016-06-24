@@ -5,6 +5,9 @@ Replace asserts with correct error handling for
 * emulator
 * generator
 
+API:
+* rewriting function for arbitrary parameters
+
 Tests for
 * emulator
 * generator

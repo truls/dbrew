@@ -14,6 +14,7 @@ int main(int argc, char* argv[])
   dbrew_verbose(r, true, true, true);
   dbrew_set_function(r, (uint64_t) foo);
   dbrew_config_staticpar(r, 0);
+  dbrew_config_parcount(r, 2);
   foo_t f = (foo_t) dbrew_rewrite(r, 2, 3);
   return f(2, 3);
 }
