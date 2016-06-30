@@ -1,0 +1,1 @@
+sed -e 's/test:  [ 0-9a-f]*/test:  XX /g'

@@ -121,6 +121,22 @@ class TestCase:
 
         returnCode, outResult, errResult = Utils.execBuffered(runArgs)
 
+        if os.path.isfile(self.expectFile + "_filter"):
+            proc = Popen(["/bin/sh", "-c", self.expectFile + "_filter"], stdin=PIPE, stdout=PIPE)
+            streams = proc.communicate(input=bytes("".join(outResult),'utf-8'))
+            outResult = []
+            for out in streams[0].splitlines():
+                out = out.decode("utf-8")
+                outResult.append(out + "\n")
+
+        if os.path.isfile(self.expectErrFile + "_filter"):
+            proc = Popen(["/bin/sh", "-c", self.expectErrFile + "_filter"], stdin=PIPE, stdout=PIPE)
+            streams = proc.communicate(input=bytes("".join(errResult),'utf-8'))
+            errResult = []
+            for out in streams[0].splitlines():
+                out = out.decode("utf-8")
+                errResult.append(out + "\n")
+
         if returnCode != 0:
             print("FAIL (Exit Code %d)" % returnCode)
             print("".join(outResult).join(errResult))
@@ -148,9 +164,12 @@ class TestCase:
             self.status = TestCase.IGNORED
             raise TestIgnoredException()
 
+        #print("Test: outResult: " + "".join(self.outResult))
+        #print("Test: comparison: " + "".join(comparison))
         if self.outResult != comparison:
             print("FAIL (stdout)")
-            for line in difflib.unified_diff(comparison, self.outResult): sys.stdout.write(line)
+            for line in difflib.unified_diff(comparison, self.outResult):
+                sys.stdout.write(line)
             self.status = TestCase.FAILED
             raise TestFailException()
         else:

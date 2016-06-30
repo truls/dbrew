@@ -7,7 +7,7 @@ Emulation Static State (esID 0, call depth 0):
   Flags: (none)
   Stack: (none)
 Decoding BB test ...
-                test:  49 c7 c6 51 0b 40 00  mov     $test+11,%r14
+                test:  XX mov     $test+11,%r14
               test+7:  41 ff d6              call    %r14
 Emulate 'test: mov $test+11,%r14'
 Emulate 'test+7: call %r14'
