@@ -28,18 +28,24 @@ class Utils:
 
         return properties
 
+
     def execBuffered(command):
         proc = Popen(["/bin/sh", "-c", command], stdout=PIPE, stderr=PIPE)
-        output = []
+        streams = proc.communicate();
 
-        # This iterates through stdout and stderr in this order.
-        for stream in proc.communicate():
-            for out in stream.splitlines():
-                out = out.decode("utf-8")
-                if len(out) >= 4 and out[:4] == "!DBG": continue
-                output.append(out + "\n")
+        stdout_output = []
+        for out in streams[0].splitlines():
+            out = out.decode("utf-8")
+            if len(out) >= 4 and out[:4] == "!DBG": continue
+            stdout_output.append(out + "\n")
 
-        return proc.returncode, output
+        stderr_output = []
+        for out in streams[1].splitlines():
+            out = out.decode("utf-8")
+            if len(out) >= 4 and out[:4] == "!DBG": continue
+            stderr_output.append(out + "\n")
+
+        return proc.returncode, stdout_output, stderr_output
 
 
 class TestCase:
@@ -52,6 +58,7 @@ class TestCase:
 
     def __init__(self, testCase, verbose):
         self.expectFile = testCase + ".expect"
+        self.expectErrFile = testCase + ".expect_stderr"
         self.sourceFile = testCase
         self.objFile = testCase + ".o"
         self.outFile = testCase + ".out"
@@ -64,10 +71,12 @@ class TestCase:
         self.driver = self.properties["driver"] if "driver" in self.properties else "test-driver.c"
         self.driverProperties = Utils.fetchProperties(self.driver)
 
+
     def getProperty(self, name, default):
         if name in self.properties: return self.properties[name]
         elif name in self.driverProperties: return self.driverProperties[name]
         else: return default
+
 
     def compile(self):
         if self.status != TestCase.WAITING: return
@@ -90,7 +99,8 @@ class TestCase:
         if self.verbose >0:
             print("\nCompiling:\n " + compileArgs)
 
-        returnCode, output = Utils.execBuffered(compileArgs)
+        # ignore stderr
+        returnCode, output, _ = Utils.execBuffered(compileArgs)
         if returnCode != 0:
             print("FAIL (Compile)")
             print("".join(output))
@@ -98,6 +108,7 @@ class TestCase:
             raise TestFailException()
         else:
             self.status = TestCase.COMPILED
+
 
     def run(self):
         self.compile()
@@ -108,11 +119,11 @@ class TestCase:
             "outfile": self.outFile,
         })
 
-        returnCode, testResult = Utils.execBuffered(runArgs)
+        returnCode, outResult, errResult = Utils.execBuffered(runArgs)
 
         if returnCode != 0:
             print("FAIL (Exit Code %d)" % returnCode)
-            print("".join(testResult))
+            print("".join(outResult).join(errResult))
             self.status = TestCase.FAILED
             raise TestFailException()
         elif int(self.getProperty("nooutput", "0")) == 1:
@@ -120,7 +131,9 @@ class TestCase:
             self.status = TestCase.SUCCESS
         else:
             self.status = TestCase.EXECUTED
-            self.testResult = testResult
+            self.outResult = outResult
+            self.errResult = errResult
+
 
     def test(self):
         self.run()
@@ -135,14 +148,30 @@ class TestCase:
             self.status = TestCase.IGNORED
             raise TestIgnoredException()
 
-        if self.testResult != comparison:
-            print("FAIL (Output)")
-            for line in difflib.unified_diff(comparison, self.testResult): sys.stdout.write(line)
+        if self.outResult != comparison:
+            print("FAIL (stdout)")
+            for line in difflib.unified_diff(comparison, self.outResult): sys.stdout.write(line)
             self.status = TestCase.FAILED
             raise TestFailException()
         else:
-            print("OK")
             self.status = TestCase.SUCCESS
+
+        try:
+            with open(self.expectErrFile) as f:
+                comparison = f.readlines()
+        except Exception:
+            print("OK (stdout)")
+            return
+
+        if self.errResult != comparison:
+            print("FAIL (stderr)")
+            for line in difflib.unified_diff(comparison, self.errResult): sys.stdout.write(line)
+            self.status = TestCase.FAILED
+            raise TestFailException()
+        else:
+            print("OK (stdout, stderr)")
+            self.status = TestCase.SUCCESS
+
 
     def store(self):
         self.run()

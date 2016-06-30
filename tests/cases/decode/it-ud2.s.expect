@@ -1,3 +1,2 @@
-Decoder error at decoding BB f1+2: unsupported opcode 0x0f 0x0b. Stopped decoding
 BB f1 (1 instructions):
                   f1:  0f 0b                 <Invalid>

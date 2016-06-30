@@ -82,11 +82,10 @@ const char *errorString(Error* e)
 // currently just to as regular output
 void logError(Error* e, char* d)
 {
-    // FIXME: use stderr, needs support for expected stderr out in tests
     if (d)
-        fprintf(stdout, "%s. %s\n", errorString(e), d);
+        fprintf(stderr, "%s. %s\n", errorString(e), d);
     else
-        fprintf(stdout, "%s\n", errorString(e));
+        fprintf(stderr, "%s\n", errorString(e));
 }
 
 void setDecodeError(DecodeError* de, Rewriter* r, char* d,
