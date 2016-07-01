@@ -8,17 +8,9 @@
 #include <stdlib.h>
 #include "dbrew.h"
 
-//#define USEINT
-
-#ifdef USEINT
-#define TYPE int
-#else
-#define TYPE double
-#endif
-
 typedef struct {
     int xdiff, ydiff;
-    TYPE factor;
+    double factor;
 } StencilPoint;
 
 typedef struct {
@@ -27,7 +19,7 @@ typedef struct {
 } Stencil;
 
 typedef struct {
-    TYPE factor;
+    double factor;
     int points;
     StencilPoint* p;
 } StencilFactor;
@@ -37,29 +29,24 @@ typedef struct {
     StencilFactor f[];
 } SortedStencil;
 
-#ifdef USEINT
-#define COEFF1 (-4)
-#define COEFF2 (1)
+#define CO1 (.4)
+#define CO2 (.15)
 
-Stencil s5 = {5,{{0,0,-4},{-1,0,1},{1,0,1},{0,-1,1},{0,1,1}}};
+Stencil s5 = {5,{ { 0, 0, CO1},
+                  {-1, 0, CO2},
+                  { 1, 0, CO2},
+                  { 0,-1, CO2},
+                  { 0, 1, CO2} }};
 
-#else
-#define COEFF1 (-.2)
-#define COEFF2 (.3)
-
-Stencil s5 = {5, {{0,0,-.2},
-                  {-1,0,.3},{1,0,.3},{0,-1,.3},{0,1,.3}}};
-
-SortedStencil s5s = {2, {{-.2,1,&(s5.p[0])},{.3,4,&(s5.p[1])}}};
-
-#endif
+SortedStencil s5s = {2,{ {CO1, 1, &(s5.p[0])},
+                         {CO2, 4, &(s5.p[1])} }};
 
 
-typedef TYPE (*apply_func)(TYPE*, int, Stencil*);
+typedef double (*apply_func)(double*, int, Stencil*);
 
-TYPE apply(TYPE *m, int xsize, Stencil* s)
+double apply(double *m, int xsize, Stencil* s)
 {
-    TYPE res;
+    double res;
     int i;
 
     res = 0;
@@ -70,9 +57,9 @@ TYPE apply(TYPE *m, int xsize, Stencil* s)
     return res;
 }
 
-TYPE applyS(TYPE *m, int xsize, SortedStencil* s)
+double applyS(double *m, int xsize, SortedStencil* s)
 {
-    TYPE sum, res;
+    double sum, res;
     int f, i;
 
     res = 0;
@@ -90,21 +77,23 @@ TYPE applyS(TYPE *m, int xsize, SortedStencil* s)
     return res;
 }
 
-TYPE apply2(TYPE *m, int xsize, Stencil* s)
+double apply2(double *m, int xsize, Stencil* s)
 {
-    return COEFF1 * m[0] + COEFF2 * (m[-1] + m[1] + m[-xsize] + m[xsize]);
+    (void)s; // unused
+    return CO1 * m[0] + CO2 * (m[-1] + m[1] + m[-xsize] + m[xsize]);
 }
 
-TYPE apply3(TYPE *m, int xsize, Stencil* s)
+double apply3(double *m, int xsize, Stencil* s)
 {
+    (void)xsize, (void)s; // unused
     return m[0];
 }
 
 
-typedef void (*apply_loop)(int, TYPE*, TYPE*, apply_func, Stencil*);
+typedef void (*apply_loop)(int, double*, double*, apply_func, Stencil*);
 
-#if 1
-void applyLoop(int size, TYPE* src, TYPE* dst, apply_func af, Stencil* s)
+
+void applyLoop(int size, double* src, double* dst, apply_func af, Stencil* s)
 {
     int x,y;
 
@@ -112,27 +101,17 @@ void applyLoop(int size, TYPE* src, TYPE* dst, apply_func af, Stencil* s)
         for(x=1;x<size-1;x++)
             dst[x+y*size] = af(&(src[x+y*size]), size, s);
 }
-#else
-void applyLoop(int size, TYPE* src, TYPE* dst, apply_func af, Stencil* s)
-{
-    int x,y;
-    int f = makeDynamic(1), t = makeDynamic(size-1);
 
-    for(y=f;y<t;y++)
-        for(x=f;x<t;x++)
-            dst[x+y*size] = af(&(src[x+y*size]), size, s);
-}
-#endif
 
 // only top line
-void applyLoop1(int size, TYPE* src, TYPE* dst, apply_func af, Stencil* s)
+void applyLoop1(int size, double* src, double* dst, apply_func af, Stencil* s)
 {
     int x;
     for(x=1;x<size-1;x++)
         dst[x+size] = af(&(src[x+size]), size, s);
 }
 
-void apply4(int size, TYPE* src, TYPE* dst, apply_func af, Stencil* s)
+void apply4(int size, double* src, double* dst, apply_func af, Stencil* s)
 {
     dst[0] = af(&(src[0]), size, s);
     dst[1] = af(&(src[1]), size, s);
@@ -144,7 +123,7 @@ void apply4(int size, TYPE* src, TYPE* dst, apply_func af, Stencil* s)
 int main(int argc, char* argv[])
 {
     int i, x, y;
-    TYPE *m1, *m2, diff;
+    double *m1, *m2, diff;
     int size = 0, iter = 0, av = 0;
     apply_func af;
     apply_loop al;
@@ -183,17 +162,18 @@ int main(int argc, char* argv[])
         av -= 10;
     }
 
-    m1 = (TYPE*) malloc(sizeof(TYPE) * size * size);
-    m2 = (TYPE*) malloc(sizeof(TYPE) * size * size);
+    m1 = (double*) malloc(sizeof(double) * size * size);
+    m2 = (double*) malloc(sizeof(double) * size * size);
 
     // init
     for(i=0;i<size*size;i++)
-        m1[i] = 0;
+        m1[i] = 0.0;
     for(i=0;i<size;i++) {
-        m1[i] = 1;                 // upper row
-        m1[(size-1)*size + i] = 2; // lower row
-        m1[i*size] = 3;            // left column
-        m1[i*size + (size-1)] = 4; // right column
+        m1[i] = 1.0;                 // upper row
+        m1[(size-1)*size + i] = 2.0; // lower row
+        double v = 1.0 + (double)i/size;
+        m1[i*size] = v;              // left column
+        m1[i*size + (size-1)] = v;   // right column
     }
     for(i=0;i<size*size;i++)
         m2[i] = m1[i];
@@ -277,7 +257,7 @@ int main(int argc, char* argv[])
     }
 
     printf("Width %d, matrix size %d, %d iterations, apply V %d\n",
-           size, (int)(size*size*sizeof(TYPE)), iter, av);
+           size, (int)(size*size*sizeof(double)), iter, av);
     iter = iter/2;
 
 #if 1
@@ -313,18 +293,14 @@ int main(int argc, char* argv[])
     }
 #endif
 
-    diff = 0;
+    diff = 0.0;
     for(y=1;y<size-1;y++) {
         for(x=1;x<size-1;x++) {
-            i = m2[x+y*size] - af(&(m1[x+y*size]), size, s);
-            diff += (i>0) ? i : -i;
+            double d = m2[x+y*size] - af(&(m1[x+y*size]), size, s);
+            diff += (d>0) ? d : -d;
         }
     }
-#ifdef USEINT
-    printf("Residuum after %d iterations: %d\n", 2*iter, diff);
-#else
-    printf("Residuum after %d iterations: %f\n", 2*iter, diff);
-#endif
+    printf("Residuum after %d iterations: %.8f\n", 2*iter, diff);
 
     free(m1);
     free(m2);
