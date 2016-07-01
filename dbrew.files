@@ -25,6 +25,7 @@ src/config.c
 deps/Makefile
 
 # test cases and expected files left out
+tests/README.md
 tests/Makefile
 tests/test-driver.c
 tests/test-driver-decode.c
