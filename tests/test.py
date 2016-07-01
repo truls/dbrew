@@ -89,21 +89,22 @@ class TestCase:
         substs = {
             "cc": ccomp,
             "ccflags": self.getProperty("ccflags", "-std=c99 -g"),
+            "dbrew": "-I../include ../libdbrew.a",
             "outfile": self.outFile,
             "infile": self.sourceFile,
             "ofile": self.objFile,
             "driver": self.driver
         }
-
-        compileArgs = self.getProperty("compile", "{cc} {ccflags} -o {outfile} {infile} {driver}").format(**substs)
+        compileDef = "{cc} {ccflags} -o {outfile} {infile} {driver} {dbrew}"
+        compileArgs = self.getProperty("compile", compileDef).format(**substs)
         if self.verbose >0:
             print("\nCompiling:\n " + compileArgs)
 
         # ignore stderr
-        returnCode, output, _ = Utils.execBuffered(compileArgs)
+        returnCode, output, errout = Utils.execBuffered(compileArgs)
         if returnCode != 0:
             print("FAIL (Compile)")
-            print("".join(output))
+            print("".join(output).join(errout))
             self.status = TestCase.FAILED
             raise TestFailException()
         else:
@@ -115,9 +116,15 @@ class TestCase:
 
         if self.status != TestCase.COMPILED: return
 
-        runArgs = self.getProperty("run", "{outfile}").format(**{
+        substs = {
             "outfile": self.outFile,
-        })
+            "args" : self.getProperty("args", "")
+        }
+        runDef = "{outfile} {args}"
+        runArgs = self.getProperty("run", runDef).format(**substs)
+
+        if self.verbose >0:
+            print("\nRunning:\n " + runArgs)
 
         returnCode, outResult, errResult = Utils.execBuffered(runArgs)
 
