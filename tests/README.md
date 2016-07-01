@@ -34,14 +34,16 @@ absolute addresses).
 ### Test Case Configuration Options
 
 Specific test case configuration can be provided in the first lines of a test
-source using line comments starting with "//!". The following configurations
-are supported:
+source using line comments starting with "//!config=value". The following
+configurations are supported (the 'config' string in comment):
 
-* "//!driver = <source file>": a C source file to include in the
-  compilation of this test case. Allows for minimal files by splitting off
-  same source parts of test sources (e.g. a main() function).
-* "//!cc": overrides the compiler to use. For .s/.c files, this defaults to
-  "as"/$CC, respectively (if environment variable CC is not set, to "cc").
+* "driver": a C source file relative to tests/ directory, to include in the
+  compilation of this test case. Allows for small test files by splitting off
+  same source parts of test sources (e.g. a main() function)
+* "cc": overrides the compiler to use. For .s/.c files, this defaults to
+  "as"/$CC, respectively (if environment variable CC is not set, to "cc")
+* "ccflags": override compile flags to use, defaults to "-std=c99 -g"
+* "args": command line options to use when running the test. Default is empty
 
 To see if configuration options are applied correctly for a test case, use
 
