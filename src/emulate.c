@@ -339,17 +339,20 @@ int saveEmuState(Rewriter* r)
 {
     int i;
 
-    printf("Saving current emulator state: ");
+    if (r->showEmuSteps)
+        printf("Saving current emulator state: ");
     //printStaticEmuState(r->es, -1);
     for(i = 0; i < r->savedStateCount; i++) {
         //printf("Check ES %d\n", i);
         //printStaticEmuState(r->savedState[i], i);
         if (esIsEqual(r->es, r->savedState[i])) {
-            printf("already existing, esID %d\n", i);
+            if (r->showEmuSteps)
+                printf("already existing, esID %d\n", i);
             return i;
         }
     }
-    printf("new with esID %d\n", i);
+    if (r->showEmuSteps)
+        printf("new with esID %d\n", i);
     assert(i < SAVEDSTATE_MAX);
     r->savedState[i] = cloneEmuState(r->es);
     r->savedStateCount++;

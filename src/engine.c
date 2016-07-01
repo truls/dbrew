@@ -357,8 +357,6 @@ void optPass(Rewriter* r, CBB* cbb)
 {
     Instr* newInstrs;
 
-    printf("OPT!!\n");
-
     if (r->showOptSteps) {
         printf("Run Optimization for CBB (%lx|%d)\n",
                cbb->dec_addr, cbb->esID);

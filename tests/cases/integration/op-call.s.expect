@@ -24,7 +24,6 @@ Emulate 'test+10: ret'
 Capture 'H-ret' (into test|0 + 3)
 Capture 'mov $0x0,%rax' (into test|0 + 4)
 Capture 'ret' (into test|0 + 5)
-OPT!!
 Generating code for BB test|0 (6 instructions)
   I 0 : H-call                           (test|0)+0 
   I 1 : H-call                           (test|0)+0 

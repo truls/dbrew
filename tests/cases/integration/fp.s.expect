@@ -25,7 +25,6 @@ Capture 'movq %xmm0,%rax' (into test|0 + 4)
 Emulate 'test+22: ret'
 Capture 'H-ret' (into test|0 + 5)
 Capture 'ret' (into test|0 + 6)
-OPT!!
 Generating code for BB test|0 (7 instructions)
   I 0 : H-call                           (test|0)+0 
   I 1 : movq    %rdi,%xmm0               (test|0)+0  66 48 0f 6e c7
