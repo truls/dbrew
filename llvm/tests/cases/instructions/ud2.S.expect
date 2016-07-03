@@ -1,4 +1,3 @@
-Decoder error at decoding BB ?+16+2: unsupported opcode 0x0f 0x0b. Stopped decoding
 ; ModuleID = '<llengine>'
 target triple = "x86_64-pc-linux-gnu"
 

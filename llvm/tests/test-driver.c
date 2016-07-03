@@ -111,6 +111,7 @@ test_dbrew_binding(bool debug)
     dbrew_set_decoding_capacity(dbrew, 100000, 100);
     dbrew_set_capture_capacity(dbrew, 100000, 100, 10000);
     dbrew_set_function(dbrew, (uintptr_t) testCase.function);
+    dbrew_config_parcount(dbrew, 6);
     // dbrew_config_staticpar(dbrew, 0);
 
 
