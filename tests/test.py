@@ -82,12 +82,9 @@ class TestCase:
         if self.status != TestCase.WAITING: return
 
         # compiler taken from environment CC unless overwritten by explicit property
-        ccomp = self.getProperty("cc", "")
-        if not ccomp:
-            ccomp = os.environ["CC"] if "CC" in os.environ else "cc"
 
         substs = {
-            "cc": ccomp,
+            "cc": self.getProperty("cc", os.environ["CC"] if "CC" in os.environ else "cc"),
             "ccflags": self.getProperty("ccflags", "-std=c99 -g"),
             "dbrew": "-I../include ../libdbrew.a",
             "outfile": self.outFile,
@@ -128,21 +125,14 @@ class TestCase:
 
         returnCode, outResult, errResult = Utils.execBuffered(runArgs)
 
-        if os.path.isfile(self.expectFile + "_filter"):
-            proc = Popen(["/bin/sh", "-c", self.expectFile + "_filter"], stdin=PIPE, stdout=PIPE)
-            streams = proc.communicate(input=bytes("".join(outResult),'utf-8'))
-            outResult = []
-            for out in streams[0].splitlines():
-                out = out.decode("utf-8")
-                outResult.append(out + "\n")
-
-        if os.path.isfile(self.expectErrFile + "_filter"):
-            proc = Popen(["/bin/sh", "-c", self.expectErrFile + "_filter"], stdin=PIPE, stdout=PIPE)
-            streams = proc.communicate(input=bytes("".join(errResult),'utf-8'))
-            errResult = []
-            for out in streams[0].splitlines():
-                out = out.decode("utf-8")
-                errResult.append(out + "\n")
+        for expectFile, result in ((self.expectFile, outResult), (self.expectErrFile, errResult)):
+            if os.path.isfile(expectFile + "_filter"):
+                proc = Popen(["/bin/sh", "-c", expectFile + "_filter"], stdin=PIPE, stdout=PIPE)
+                streams = proc.communicate(input=bytes("".join(result),'utf-8'))
+                outResult = []
+                for out in streams[0].splitlines():
+                    out = out.decode("utf-8")
+                    outResult.append(out + "\n")
 
         if returnCode != 0:
             print("FAIL (Exit Code %d)" % returnCode)
