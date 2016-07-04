@@ -205,7 +205,7 @@ class TestCase:
         if self.status != TestCase.EXECUTED: return
 
         with open(self.expectFile, "w") as f:
-            f.writelines(self.testResult)
+            f.writelines(self.outResult)
 
         print("OK")
         self.status = TestCase.SUCCESS
@@ -216,7 +216,7 @@ class TestCase:
         if self.status != TestCase.EXECUTED: return
 
         print("OK")
-        print("".join(self.testResult))
+        print("".join(self.outResult))
 
         self.status = TestCase.SUCCESS
 
