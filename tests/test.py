@@ -248,12 +248,12 @@ if __name__ == "__main__":
 
     returnCode = 0
     if len(failed) > 0:
-        print(len(failed), "of", len(testCases) - len(ignored), "tests", "failed:", ", ".join(failed))
+        print(len(failed), "of", len(testCases) - len(ignored), "tests", "failed:", " ".join(failed))
         returnCode = 1
     else:
         print(len(testCases) - len(ignored), "tests passed.")
 
     if len(ignored) > 0:
-        print("Ignored", len(ignored), "tests:", ", ".join(ignored))
+        print("Ignored", len(ignored), "tests:", " ".join(ignored))
 
     sys.exit(returnCode)
