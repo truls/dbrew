@@ -217,9 +217,9 @@ if __name__ == "__main__":
     argparser = argparse.ArgumentParser(description='Test Script.')
     argparser.add_argument('--verbose', '-v', help="Be verbose about actions executing", action='count', default=0)
     argparser.add_argument("--test", help="Run tests and compare output (default)", dest="action", action="store_const", const=TestCase.test, default=TestCase.test)
-    argparser.add_argument("--run", help="Run tests and print ouput", dest="action", action="store_const", const=TestCase.printResult)
-    argparser.add_argument("--store", help="Run tests and store ouput", dest="action", action="store_const", const=TestCase.store)
-    argparser.add_argument("--debug", help="Pass --debug to the test case", action="store_true")
+    argparser.add_argument("--run", "-r", help="Run tests and print ouput", dest="action", action="store_const", const=TestCase.printResult)
+    argparser.add_argument("--store", "-s", help="Run tests and store ouput", dest="action", action="store_const", const=TestCase.store)
+    argparser.add_argument("--debug", "-d", help="Pass --debug to the test case", action="store_true")
     argparser.add_argument("cases", nargs="*")
     args = argparser.parse_args()
 
