@@ -95,7 +95,7 @@ class TestCase:
         }
         compileDef = "{cc} {ccflags} -o {outfile} {infile} {driver} {dbrew}"
         compileArgs = self.getProperty("compile", compileDef).format(**substs)
-        if self.verbose >0:
+        if self.verbose > 0:
             print("\nCompiling:\n " + compileArgs)
 
         # ignore stderr
@@ -123,7 +123,7 @@ class TestCase:
 
         if self.debug: runArgs += " --debug"
 
-        if self.verbose >0:
+        if self.verbose > 0:
             print("\nRunning:\n " + runArgs)
 
         returnCode, outResult, errResult = Utils.execBuffered(runArgs)
@@ -131,7 +131,7 @@ class TestCase:
         for expectFile, result in ((self.expectFile, outResult), (self.expectErrFile, errResult)):
             if os.path.isfile(expectFile + "_filter"):
                 proc = Popen(["/bin/sh", "-c", expectFile + "_filter"], stdin=PIPE, stdout=PIPE)
-                streams = proc.communicate(input=bytes("".join(result),'utf-8'))
+                streams = proc.communicate(input="".join(result).encode())
                 outResult = []
                 for out in streams[0].splitlines():
                     out = out.decode("utf-8")
@@ -164,32 +164,30 @@ class TestCase:
             self.status = TestCase.IGNORED
             raise TestIgnoredException()
 
-        #print("Test: outResult: " + "".join(self.outResult))
-        #print("Test: comparison: " + "".join(comparison))
         if self.outResult != comparison:
             print("FAIL (stdout)")
             for line in difflib.unified_diff(comparison, self.outResult):
                 sys.stdout.write(line)
             self.status = TestCase.FAILED
             raise TestFailException()
-        else:
-            self.status = TestCase.SUCCESS
 
         try:
             with open(self.expectErrFile) as f:
                 comparison = f.readlines()
+
+            if self.errResult != comparison:
+                print("FAIL (stderr)")
+                for line in difflib.unified_diff(comparison, self.errResult):
+                    sys.stdout.write(line)
+                self.status = TestCase.FAILED
+                raise TestFailException()
+            else:
+                print("OK (stdout, stderr)")
         except Exception:
             print("OK (stdout)")
-            return
 
-        if self.errResult != comparison:
-            print("FAIL (stderr)")
-            for line in difflib.unified_diff(comparison, self.errResult): sys.stdout.write(line)
-            self.status = TestCase.FAILED
-            raise TestFailException()
-        else:
-            print("OK (stdout, stderr)")
-            self.status = TestCase.SUCCESS
+        self.status = TestCase.SUCCESS
+
 
 
     def store(self):
@@ -214,8 +212,8 @@ class TestCase:
         self.status = TestCase.SUCCESS
 
 if __name__ == "__main__":
-    argparser = argparse.ArgumentParser(description='Test Script.')
-    argparser.add_argument('--verbose', '-v', help="Be verbose about actions executing", action='count', default=0)
+    argparser = argparse.ArgumentParser(description="Test Script.")
+    argparser.add_argument("--verbose", "-v", help="Be verbose about actions executing", action="count", default=0)
     argparser.add_argument("--test", help="Run tests and compare output (default)", dest="action", action="store_const", const=TestCase.test, default=TestCase.test)
     argparser.add_argument("--run", "-r", help="Run tests and print ouput", dest="action", action="store_const", const=TestCase.printResult)
     argparser.add_argument("--store", "-s", help="Run tests and store ouput", dest="action", action="store_const", const=TestCase.store)
@@ -224,14 +222,13 @@ if __name__ == "__main__":
     args = argparser.parse_args()
 
     # In case there are no flags given or a flag is given but no file:
-    # Use all *.c and *.s files in the cases directory.
+    # Use all *.c, *.s and *.S files in the cases directory.
     expectFiles = args.cases
     if len(expectFiles) == 0:
         for root, dirnames, filenames in os.walk("cases"):
             for filename in fnmatch.filter(filenames, "*.[csS]"):
                 expectFiles.append(os.path.join(root, filename))
 
-    # Remove .expect extension for the real filename
     testCases = [TestCase(file, args.verbose, args.debug) for file in expectFiles]
 
     failed = []
