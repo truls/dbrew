@@ -224,7 +224,7 @@ if __name__ == "__main__":
     expectFiles = args.cases
     if len(expectFiles) == 0:
         for root, dirnames, filenames in os.walk("cases"):
-            for filename in fnmatch.filter(filenames, "*.[cs]"):
+            for filename in fnmatch.filter(filenames, "*.[csS]"):
                 expectFiles.append(os.path.join(root, filename))
 
     # Remove .expect extension for the real filename
