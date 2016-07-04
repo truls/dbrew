@@ -16,8 +16,9 @@ the compile command.
 
 ## Specification of a Test Case
 
-A test case is given by the existance of a test source file below the cases/
-subdirectory ending in `.c`, `.s` or  (e.g. testcase = 'cases/decode/it-add.s').
+A test case (denoted by $testcase in the following) is the name
+of a test source file existing below the `cases/` subdirectory,
+ending in `.c`, `.s` or `.S`, for example `cases/decode/it-add.s`.
 However, such a file often will not be the complete source for a test, see
 *driver* configuration below.
 
@@ -46,7 +47,7 @@ configurations are supported (the 'config' string in comment):
 
 To see if configuration options are applied correctly for a test case, use
 
-    ./test.py -v testcase
+    ./test.py -v $testcase
 
 
 ## Other Command-line options
