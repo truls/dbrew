@@ -56,13 +56,14 @@ class TestCase:
     FAILED = 5
     IGNORED = 6
 
-    def __init__(self, testCase, verbose):
+    def __init__(self, testCase, verbose=0, debug=False):
         self.expectFile = testCase + ".expect"
         self.expectErrFile = testCase + ".expect_stderr"
         self.sourceFile = testCase
         self.objFile = testCase + ".o"
         self.outFile = testCase + ".out"
         self.testResult = None
+        self.debug = debug
         self.verbose = verbose
         self.status = TestCase.WAITING
 
@@ -119,6 +120,8 @@ class TestCase:
         }
         runDef = "{outfile} {args}"
         runArgs = self.getProperty("run", runDef).format(**substs)
+
+        if self.debug: runArgs += " --debug"
 
         if self.verbose >0:
             print("\nRunning:\n " + runArgs)
@@ -216,6 +219,7 @@ if __name__ == "__main__":
     argparser.add_argument("--test", help="Run tests and compare output (default)", dest="action", action="store_const", const=TestCase.test, default=TestCase.test)
     argparser.add_argument("--run", help="Run tests and print ouput", dest="action", action="store_const", const=TestCase.printResult)
     argparser.add_argument("--store", help="Run tests and store ouput", dest="action", action="store_const", const=TestCase.store)
+    argparser.add_argument("--debug", help="Pass --debug to the test case", action="store_true")
     argparser.add_argument("cases", nargs="*")
     args = argparser.parse_args()
 
@@ -228,7 +232,7 @@ if __name__ == "__main__":
                 expectFiles.append(os.path.join(root, filename))
 
     # Remove .expect extension for the real filename
-    testCases = [TestCase(file, args.verbose) for file in expectFiles]
+    testCases = [TestCase(file, args.verbose, args.debug) for file in expectFiles]
 
     failed = []
     ignored = []
