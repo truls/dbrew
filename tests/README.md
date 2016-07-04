@@ -1,12 +1,12 @@
 # DBrew Test Framework
 
-Tests are done by running the Python script 'test.py'. This iterates over all
-test cases in subdirectory 'cases' and prints for each test case the result, as
+Tests are done by running the Python script `test.py`. This iterates over all
+test cases in subdirectory `cases` and prints for each test case the result, as
 well as a summary. The script returns 0 back to the shell if all tests pass,
 and 1 otherwise. From the top source directory, you can do "make test" to run
 all tests.
 
-To run a specific test case, specify it on the command line. E.g.
+To test a specific test case, specify it on the command line:
 
     ./test.py cases/decode/it-add.s
 
@@ -14,11 +14,10 @@ Running a test will force the compilation of the test.
 Use "-v" for more verbose output on the test runs, such as printing
 the compile command.
 
-
 ## Specification of a Test Case
 
 A test case is given by the existance of a test source file below the cases/
-subdirectory ending in .c or .s (e.g. testcase = 'cases/decode/it-add.s').
+subdirectory ending in `.c`, `.s` or  (e.g. testcase = 'cases/decode/it-add.s').
 However, such a file often will not be the complete source for a test, see
 *driver* configuration below.
 
@@ -48,3 +47,9 @@ configurations are supported (the 'config' string in comment):
 To see if configuration options are applied correctly for a test case, use
 
     ./test.py -v testcase
+
+
+## Other Command-line options
+- `--debug`, `-d`: Pass `--debug` at the end of the arguments for the test script.
+- `--run`, `-r`: Run the specified test cases only and print the output to the terminal.
+- `--store`, `-s`: Store the standard output of a test in the corresponding expect file. This can be used when the expect file does not exist yet. However, this can be also used to update existing expect files. **Warning: when updating existing test cases, verify the differences to the previous results twice!**

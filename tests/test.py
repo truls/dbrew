@@ -56,13 +56,14 @@ class TestCase:
     FAILED = 5
     IGNORED = 6
 
-    def __init__(self, testCase, verbose):
+    def __init__(self, testCase, verbose=0, debug=False):
         self.expectFile = testCase + ".expect"
         self.expectErrFile = testCase + ".expect_stderr"
         self.sourceFile = testCase
         self.objFile = testCase + ".o"
         self.outFile = testCase + ".out"
         self.testResult = None
+        self.debug = debug
         self.verbose = verbose
         self.status = TestCase.WAITING
 
@@ -82,12 +83,9 @@ class TestCase:
         if self.status != TestCase.WAITING: return
 
         # compiler taken from environment CC unless overwritten by explicit property
-        ccomp = self.getProperty("cc", "")
-        if not ccomp:
-            ccomp = os.environ["CC"] if "CC" in os.environ else "cc"
 
         substs = {
-            "cc": ccomp,
+            "cc": self.getProperty("cc", os.environ["CC"] if "CC" in os.environ else "cc"),
             "ccflags": self.getProperty("ccflags", "-std=c99 -g"),
             "dbrew": "-I../include ../libdbrew.a",
             "outfile": self.outFile,
@@ -97,7 +95,7 @@ class TestCase:
         }
         compileDef = "{cc} {ccflags} -o {outfile} {infile} {driver} {dbrew}"
         compileArgs = self.getProperty("compile", compileDef).format(**substs)
-        if self.verbose >0:
+        if self.verbose > 0:
             print("\nCompiling:\n " + compileArgs)
 
         # ignore stderr
@@ -123,26 +121,21 @@ class TestCase:
         runDef = "{outfile} {args}"
         runArgs = self.getProperty("run", runDef).format(**substs)
 
-        if self.verbose >0:
+        if self.debug: runArgs += " --debug"
+
+        if self.verbose > 0:
             print("\nRunning:\n " + runArgs)
 
         returnCode, outResult, errResult = Utils.execBuffered(runArgs)
 
-        if os.path.isfile(self.expectFile + "_filter"):
-            proc = Popen(["/bin/sh", "-c", self.expectFile + "_filter"], stdin=PIPE, stdout=PIPE)
-            streams = proc.communicate(input=bytes("".join(outResult),'utf-8'))
-            outResult = []
-            for out in streams[0].splitlines():
-                out = out.decode("utf-8")
-                outResult.append(out + "\n")
-
-        if os.path.isfile(self.expectErrFile + "_filter"):
-            proc = Popen(["/bin/sh", "-c", self.expectErrFile + "_filter"], stdin=PIPE, stdout=PIPE)
-            streams = proc.communicate(input=bytes("".join(errResult),'utf-8'))
-            errResult = []
-            for out in streams[0].splitlines():
-                out = out.decode("utf-8")
-                errResult.append(out + "\n")
+        for expectFile, result in ((self.expectFile, outResult), (self.expectErrFile, errResult)):
+            if os.path.isfile(expectFile + "_filter"):
+                proc = Popen(["/bin/sh", "-c", expectFile + "_filter"], stdin=PIPE, stdout=PIPE)
+                streams = proc.communicate(input="".join(result).encode())
+                outResult = []
+                for out in streams[0].splitlines():
+                    out = out.decode("utf-8")
+                    outResult.append(out + "\n")
 
         if returnCode != 0:
             print("FAIL (Exit Code %d)" % returnCode)
@@ -171,32 +164,30 @@ class TestCase:
             self.status = TestCase.IGNORED
             raise TestIgnoredException()
 
-        #print("Test: outResult: " + "".join(self.outResult))
-        #print("Test: comparison: " + "".join(comparison))
         if self.outResult != comparison:
             print("FAIL (stdout)")
             for line in difflib.unified_diff(comparison, self.outResult):
                 sys.stdout.write(line)
             self.status = TestCase.FAILED
             raise TestFailException()
-        else:
-            self.status = TestCase.SUCCESS
 
         try:
             with open(self.expectErrFile) as f:
                 comparison = f.readlines()
+
+            if self.errResult != comparison:
+                print("FAIL (stderr)")
+                for line in difflib.unified_diff(comparison, self.errResult):
+                    sys.stdout.write(line)
+                self.status = TestCase.FAILED
+                raise TestFailException()
+            else:
+                print("OK (stdout, stderr)")
         except Exception:
             print("OK (stdout)")
-            return
 
-        if self.errResult != comparison:
-            print("FAIL (stderr)")
-            for line in difflib.unified_diff(comparison, self.errResult): sys.stdout.write(line)
-            self.status = TestCase.FAILED
-            raise TestFailException()
-        else:
-            print("OK (stdout, stderr)")
-            self.status = TestCase.SUCCESS
+        self.status = TestCase.SUCCESS
+
 
 
     def store(self):
@@ -205,7 +196,7 @@ class TestCase:
         if self.status != TestCase.EXECUTED: return
 
         with open(self.expectFile, "w") as f:
-            f.writelines(self.testResult)
+            f.writelines(self.outResult)
 
         print("OK")
         self.status = TestCase.SUCCESS
@@ -216,29 +207,29 @@ class TestCase:
         if self.status != TestCase.EXECUTED: return
 
         print("OK")
-        print("".join(self.testResult))
+        print("".join(self.outResult))
 
         self.status = TestCase.SUCCESS
 
 if __name__ == "__main__":
-    argparser = argparse.ArgumentParser(description='Test Script.')
-    argparser.add_argument('--verbose', '-v', help="Be verbose about actions executing", action='count', default=0)
+    argparser = argparse.ArgumentParser(description="Test Script.")
+    argparser.add_argument("--verbose", "-v", help="Be verbose about actions executing", action="count", default=0)
     argparser.add_argument("--test", help="Run tests and compare output (default)", dest="action", action="store_const", const=TestCase.test, default=TestCase.test)
-    argparser.add_argument("--run", help="Run tests and print ouput", dest="action", action="store_const", const=TestCase.printResult)
-    argparser.add_argument("--store", help="Run tests and store ouput", dest="action", action="store_const", const=TestCase.store)
+    argparser.add_argument("--run", "-r", help="Run tests and print ouput", dest="action", action="store_const", const=TestCase.printResult)
+    argparser.add_argument("--store", "-s", help="Run tests and store ouput", dest="action", action="store_const", const=TestCase.store)
+    argparser.add_argument("--debug", "-d", help="Pass --debug to the test case", action="store_true")
     argparser.add_argument("cases", nargs="*")
     args = argparser.parse_args()
 
     # In case there are no flags given or a flag is given but no file:
-    # Use all *.c and *.s files in the cases directory.
+    # Use all *.c, *.s and *.S files in the cases directory.
     expectFiles = args.cases
     if len(expectFiles) == 0:
         for root, dirnames, filenames in os.walk("cases"):
-            for filename in fnmatch.filter(filenames, "*.[cs]"):
+            for filename in fnmatch.filter(filenames, "*.[csS]"):
                 expectFiles.append(os.path.join(root, filename))
 
-    # Remove .expect extension for the real filename
-    testCases = [TestCase(file, args.verbose) for file in expectFiles]
+    testCases = [TestCase(file, args.verbose, args.debug) for file in expectFiles]
 
     failed = []
     ignored = []
@@ -258,12 +249,12 @@ if __name__ == "__main__":
 
     returnCode = 0
     if len(failed) > 0:
-        print(len(failed), "of", len(testCases) - len(ignored), "tests", "failed:", ", ".join(failed))
+        print(len(failed), "of", len(testCases) - len(ignored), "tests", "failed:", " ".join(failed))
         returnCode = 1
     else:
         print(len(testCases) - len(ignored), "tests passed.")
 
     if len(ignored) > 0:
-        print("Ignored", len(ignored), "tests:", ", ".join(ignored))
+        print("Ignored", len(ignored), "tests:", " ".join(ignored))
 
     sys.exit(returnCode)
