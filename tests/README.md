@@ -1,24 +1,29 @@
 # DBrew Test Framework
 
-Tests are done by running the Python script `test.py`. This iterates over all
-test cases in subdirectory `cases` and prints for each test case the result, as
-well as a summary. The script returns 0 back to the shell if all tests pass,
-and 1 otherwise. From the top source directory, you can do "make test" to run
-all tests.
+Testing is done by running the Python script `test.py`. If no specific test
+cases are specified as parameters, the script iterates over all tests in
+subdirectory `cases/` and prints for each test case the result, as well as a
+summary. The script returns 0 back to the shell if all tests pass, and 1
+otherwise. From the top source directory, you can do "make test" to run all
+tests.
 
-To test a specific test case, specify it on the command line:
+To run specific test cases, specify them on the command line. Providing
+directories will run all tests within these directories. Thus, assuming
+that the directory `cases/integration/` exists,
 
-    ./test.py cases/decode/it-add.s
+    ./test.py cases/decode/it-add.s cases/integration
+
+will run the test `cases/decode/it-add.s` and all tests below directory
+`cases/integration/`.
 
 Running a test will force the compilation of the test.
 Use "-v" for more verbose output on the test runs, such as printing
-the compile command.
+the compile command. See below for further command line options.
 
 ## Specification of a Test Case
 
-A test case (denoted by $testcase in the following) is the name
-of a test source file existing below the `cases/` subdirectory,
-ending in `.c`, `.s` or `.S`, for example `cases/decode/it-add.s`.
+A test case (denoted by $testcase in the following) is the name of a source
+file, ending in `.c`, `.s` or `.S`, for example `cases/decode/it-add.s`.
 However, such a file often will not be the complete source for a test, see
 *driver* configuration below.
 
@@ -49,8 +54,14 @@ To see if configuration options are applied correctly for a test case, use
 
     ./test.py -v $testcase
 
+## Test Script Command Line Options
 
-## Other Command-line options
-- `--debug`, `-d`: Pass `--debug` at the end of the arguments for the test script.
-- `--run`, `-r`: Run the specified test cases only and print the output to the terminal.
-- `--store`, `-s`: Store the standard output of a test in the corresponding expect file. This can be used when the expect file does not exist yet. However, this can be also used to update existing expect files. **Warning: when updating existing test cases, verify the differences to the previous results twice!**
+* `--verbose`, `-v`: Show compile and run commands used for tests
+* `--debug`, `-d`: Pass `--debug` at the end of the arguments for the test
+  script
+* `--run`, `-r`: Run the specified test cases only and print the output to the
+  terminal
+- `--store`, `-s`: Store the standard output of a test in the corresponding
+  expect file. This can be used when the expect file does not exist yet.
+  However, this can be also used to update existing expect files.
+  **Warning: verify the differences to the previous results twice!**

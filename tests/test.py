@@ -118,7 +118,7 @@ class TestCase:
             "outfile": self.outFile,
             "args" : self.getProperty("args", "")
         }
-        runDef = "{outfile} {args}"
+        runDef = "./{outfile} {args}"
         runArgs = self.getProperty("run", runDef).format(**substs)
 
         if self.debug: runArgs += " --debug"
@@ -223,13 +223,22 @@ if __name__ == "__main__":
 
     # In case there are no flags given or a flag is given but no file:
     # Use all *.c, *.s and *.S files in the cases directory.
-    expectFiles = args.cases
-    if len(expectFiles) == 0:
-        for root, dirnames, filenames in os.walk("cases"):
-            for filename in fnmatch.filter(filenames, "*.[csS]"):
-                expectFiles.append(os.path.join(root, filename))
+    paths = args.cases
+    if len(paths) == 0:
+        paths.append("cases")
 
-    testCases = [TestCase(file, args.verbose, args.debug) for file in expectFiles]
+    testFiles = []
+    for path in paths:
+        if (os.path.isdir(path)):
+            for root, dirnames, filenames in os.walk(path):
+                for filename in fnmatch.filter(filenames, "*.[csS]"):
+                    testFiles.append(os.path.join(root, filename))
+        elif (os.path.isfile(path)):
+            testFiles.append(path)
+        else:
+            print("Test '" + path + "' not existing; ignored")
+
+    testCases = [TestCase(file, args.verbose, args.debug) for file in testFiles]
 
     failed = []
     ignored = []
