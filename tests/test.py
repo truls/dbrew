@@ -221,19 +221,19 @@ if __name__ == "__main__":
     argparser.add_argument("cases", nargs="*")
     args = argparser.parse_args()
 
-    # In case there are no flags given or a flag is given but no file:
-    # Use all *.c, *.s and *.S files in the cases directory.
+    # When no specific tests are given, use cases subdirectory
     paths = args.cases
     if len(paths) == 0:
         paths.append("cases")
 
     testFiles = []
     for path in paths:
-        if (os.path.isdir(path)):
+        if os.path.isdir(path):
+            # Search for all *.c, *.s and *.S files within given directory
             for root, dirnames, filenames in os.walk(path):
                 for filename in fnmatch.filter(filenames, "*.[csS]"):
                     testFiles.append(os.path.join(root, filename))
-        elif (os.path.isfile(path)):
+        elif os.path.isfile(path):
             testFiles.append(path)
         else:
             print("Test '" + path + "' not existing; ignored")
