@@ -1232,19 +1232,21 @@ void applyStaticToInd(Operand* o, EmuState* es)
 {
     if (!opIsInd(o)) return;
 
-    if ((o->reg.rt != RT_None) && msIsStatic(es->reg_state[o->reg.ri])) {
-        if (o->reg.rt == RT_GP64)
-            o->val += es->reg[o->reg.ri];
-        else if (o->reg.rt == RT_IP)
-            o->val += es->regIP;
-        else
-            assert(0);
+    if ((o->reg.rt == RT_GP64) && msIsStatic(es->reg_state[o->reg.ri])) {
+        o->val += es->reg[o->reg.ri];
         o->reg.rt = RT_None;
     }
-    if ((o->scale > 0) && msIsStatic(es->reg_state[o->ireg.ri])) {
+    if ((o->reg.rt == RT_IP) && msIsStatic(es->regIP_state)) {
+        o->val += es->regIP;
+        o->reg.rt = RT_None;
+    }
+
+    if (o->scale > 0) {
         assert(o->ireg.rt == RT_GP64);
-        o->val += o->scale * es->reg[o->ireg.ri];
-        o->scale = 0;
+        if (msIsStatic(es->reg_state[o->ireg.ri])) {
+            o->val += o->scale * es->reg[o->ireg.ri];
+            o->scale = 0;
+        }
     }
 }
 
