@@ -195,7 +195,7 @@ Instr* addTernaryOp(Rewriter* r, DContext* c,
 
 // for parseModRM: register types (GP: general purpose integer, V: vector)
 typedef enum _RegTypes {
-    RT_None = 0,
+    RT_Invalid = 0,
     RT_Op1V = 1,
     RT_Op2V = 2,
     RT_G = 0,        // 1 GP operand

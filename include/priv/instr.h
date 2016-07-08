@@ -27,6 +27,88 @@
 
 #include <stdint.h>
 
+/**
+ * Declarations used to store decoded instructions
+ *
+ * This currently is Intel64-specific (also called amd64 / x86_64)
+ */
+
+
+/* A register is identified by a register type and an index into an array
+ * of similar registers.
+ *
+ * Types are related to how they are used in instruction encodings, with the
+ * indexes being part of the encoding. Registers of different type may
+ * overlap each other.
+*/
+typedef enum _RegType {
+    RT_None = 0,
+    RT_GP8Leg, // general purpose 8bit 80x86 legacy registers (8 regs)
+    RT_GP8,    // low 8 bits of 64bit general purpose registers (16 regs)
+    RT_GP16,   // low 16 bits of 64bit general purpose registers (16 regs)
+    RT_GP32,   // low 32 bits of 64bit general purpose registers (16 regs)
+    RT_GP64,   // 64bit general purpose registers (16 regs)
+    RT_IP,     // own type due to its speciality: instruction pointer (1 reg)
+    RT_X87,    // 80-bit floating point registers (8 regs in x87 FP stack)
+    RT_MMX,    // 64bit MMX vector registers (8 regs: mm0 - mm7)
+    RT_XMM,    // 128bit SSE vector registers (16 regs: xmm0 - xmm15)
+    RT_YMM,    // 256bit AVX vector registers (16 regs: ymm0 - ymm15)
+    RT_ZMM,    // 512bit AVX512 vector registers (32 regs: zmm0 - zmm31)
+    RT_Max
+} RegType;
+
+// Names for register indexes. Warning: indexes for different types overlap!
+typedef enum _RegIndex {
+    RI_Invalid = 99,
+
+    // for RT_GP8Leg (from x86, but can address 16 regs in 64bit mode)
+    RI_AL = 0, RI_CL, RI_DL, RI_BL, RI_AH, RI_CH, RI_DH, RI_BH,
+    RI_R8L, RI_9L, RI_10L, RI_11L, RI_12L, RI_13L, RI_14L, RI_15L,
+
+    // for RT_GP{8,16,32,64}, order according to usage in encoding
+    RI_A = 0, RI_C, RI_D, RI_B, RI_SP, RI_BP, RI_SI, RI_DI,
+    RI_8, RI_9, RI_10, RI_11, RI_12, RI_13, RI_14, RI_15,
+    RI_GPMax, // useful for allocation of GP register space
+
+    // for RT_X87 FPU register stack
+    RI_ST0 = 0, RI_ST1, RI_ST2, RI_ST3, RI_ST4, RI_ST5, RI_ST6, RI_ST7,
+    RI_STMax,
+
+    // for RT_MMX
+    RI_MM0 = 0, RI_MM1, RI_MM2, RI_MM3, RI_MM4, RI_MM5, RI_MM6, RI_MM7,
+    RI_MMMax,
+
+    // for RT_XMM SSE
+    RI_XMM0 = 0, RI_XMM1, RI_XMM2, RI_XMM3,
+    RI_XMM4, RI_XMM5, RI_XMM6, RI_XMM7,
+    RI_XMM8, RI_XMM9, RI_XMM10, RI_XMM11,
+    RI_XMM12, RI_XMM13, RI_XMM14, RI_XMM15,
+    RI_XMMMax,
+
+    // for RT_YMM AVX
+    RI_YMM0 = 0, RI_YMM1, RI_YMM2, RI_YMM3,
+    RI_YMM4, RI_YMM5, RI_YMM6, RI_YMM7,
+    RI_YMM8, RI_YMM9, RI_YMM10, RI_YMM11,
+    RI_YMM12, RI_YMM13, RI_YMM14, RI_YMM15,
+    RI_YMMMax,
+
+    // for RT_ZMM AVX512
+    RI_ZMM0 = 0, RI_ZMM1, RI_ZMM2, RI_ZMM3,
+    RI_ZMM4, RI_ZMM5, RI_ZMM6, RI_ZMM7,
+    RI_ZMM8, RI_ZMM9, RI_ZMM10, RI_ZMM11,
+    RI_ZMM12, RI_ZMM13, RI_ZMM14, RI_ZMM15,
+    RI_ZMMMax,
+} RegIndex;
+
+#if 0
+typedef struct _Reg
+{
+    RegType rt;
+    RegIndex ri;
+} Reg;
+
+#else
+
 typedef enum _Reg {
     Reg_None = 0,
     // general purpose (order is important, aligned to x86 encoding)
@@ -39,6 +121,8 @@ typedef enum _Reg {
     //
     Reg_Max
 } Reg;
+
+#endif
 
 typedef enum _InstrType {
     IT_None = 0, IT_Invalid,
