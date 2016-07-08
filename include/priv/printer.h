@@ -22,7 +22,8 @@
 
 #include "common.h"
 
-const char* regName(Reg r, OpType t);
+const char* regNameI(RegType rt, RegIndex ri);
+const char* regName(Reg r);
 char* op2string(Operand* o, ValType t, FunctionConfig *fc);
 const char* instrName(InstrType it, int* pOpCount);
 char* instr2string(Instr* instr, int align, FunctionConfig *fc);

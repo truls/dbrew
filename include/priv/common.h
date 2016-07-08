@@ -142,6 +142,7 @@ FunctionConfig* config_find_function(Rewriter* r, uint64_t f);
 // Emulation
 //
 
+// TODO: replace with RI_xxx flag register type indexes
 typedef enum _FlagType {
     FT_Carry = 0, FT_Zero, FT_Sign, FT_Overflow, FT_Parity,
     FT_Max
@@ -167,9 +168,13 @@ struct _EmuState {
     // when saving an EmuState, remember root
     EmuState* parent;
 
-    // general registers: Reg_AX .. Reg_R15
-    uint64_t reg[Reg_Max];
-    MetaState reg_state[Reg_Max];
+    // general purpose registers: RAX - R15
+    uint64_t reg[RI_GPMax];
+    MetaState reg_state[RI_GPMax];
+
+    // instruction pointer
+    uint64_t regIP;
+    MetaState regIP_state;
 
     // x86 flags: carry (CF), zero (ZF), sign (SF), overflow (OF), parity (PF)
     // TODO: auxiliary carry

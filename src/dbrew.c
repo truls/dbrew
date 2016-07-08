@@ -184,7 +184,7 @@ uint64_t dbrew_emulate(Rewriter* r, ...)
     va_end(argptr);
 
     // integer return value is in RAX according to calling convention
-    return r->es->reg[Reg_AX];
+    return r->es->reg[RI_A];
 }
 
 uint64_t dbrew_rewrite(Rewriter* r, ...)

@@ -173,7 +173,7 @@ void emulateAndCapture(Rewriter* r, int parCount, uint64_t* par)
 {
     // calling convention x86-64: parameters are stored in registers
     // see https://en.wikipedia.org/wiki/X86_calling_conventions
-    static Reg parReg[6] = { Reg_DI, Reg_SI, Reg_DX, Reg_CX, Reg_8, Reg_9 };
+    static RegIndex parReg[6] = { RI_DI, RI_SI, RI_D, RI_C, RI_8, RI_9 };
 
     int i, esID;
     EmuState* es;
@@ -203,8 +203,8 @@ void emulateAndCapture(Rewriter* r, int parCount, uint64_t* par)
                                  r->cc ? r->cc->par_name[i] : 0);
     }
 
-    es->reg[Reg_SP] = (uint64_t) (es->stackStart + es->stackSize);
-    initMetaState(&(es->reg_state[Reg_SP]), CS_STACKRELATIVE);
+    es->reg[RI_SP] = (uint64_t) (es->stackStart + es->stackSize);
+    initMetaState(&(es->reg_state[RI_SP]), CS_STACKRELATIVE);
 
     // traverse all paths and generate CBBs
 
@@ -232,7 +232,7 @@ void emulateAndCapture(Rewriter* r, int parCount, uint64_t* par)
         printStaticEmuState(es, cbb->esID);
     }
     if (r->showEmuState) {
-        es->reg[Reg_IP] = bb_addr;
+        es->regIP = bb_addr;
         printEmuState(es);
     }
 
@@ -260,7 +260,7 @@ void emulateAndCapture(Rewriter* r, int parCount, uint64_t* par)
                 printStaticEmuState(es, cbb->esID);
             }
             if (r->showEmuState) {
-                es->reg[Reg_IP] = bb_addr;
+                es->regIP = bb_addr;
                 printEmuState(es);
             }
         }
@@ -277,12 +277,12 @@ void emulateAndCapture(Rewriter* r, int parCount, uint64_t* par)
             }
 
             // for RIP-relative accesses
-            es->reg[Reg_IP] = instr->addr + instr->len;
+            es->regIP = instr->addr + instr->len;
 
             nextbb_addr = emulateInstr(r, es, instr);
 
             if (r->showEmuState) {
-                if (nextbb_addr != 0) es->reg[Reg_IP] = nextbb_addr;
+                if (nextbb_addr != 0) es->regIP = nextbb_addr;
                 printEmuState(es);
             }
 

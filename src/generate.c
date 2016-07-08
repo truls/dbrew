@@ -34,21 +34,31 @@
 
 // helpers for operand encodings
 
-// return 0 - 15 for RAX - R15
+// return 0 - 15 for AL/AX/EAX/RAX - R15
 static
 int GPRegEncoding(Reg r)
 {
-    assert((r >= Reg_AX) && (r <= Reg_15));
-    return r - Reg_AX;
+    assert(regIsGP(r));
+    return r.ri;
 }
 
-// return 0 - 15 for XMM0 - XMM15
+// return 0 - 15 for RAX - R15
+static
+int GP64RegEncoding(Reg r)
+{
+    assert(r.rt == RT_GP64);
+    assert((r.ri >= 0) && (r.ri < RI_GPMax));
+    return r.ri;
+}
+
+// return 0 - 7 for mm0-mm7 (MMX), 0-15 for XMM0/YMM0-XMM15/YMM15 (SSE/AVX)
 static
 int VRegEncoding(Reg r)
 {
-    assert((r >= Reg_X0) && (r <= Reg_X15));
-    return r - Reg_X0;
+    assert(regIsV(r));
+    return r.ri;
 }
+
 
 // returns static buffer with requested operand encoding
 static
@@ -100,9 +110,9 @@ uint8_t* calcModRMDigit(Operand* o1, int digit,
         // may need to generated segment override prefix
         *pso = o1->seg;
 
-        if ((o1->scale == 0) && (o1->reg != Reg_SP)) {
+        if ((o1->scale == 0) && (regGP64Index(o1->reg) != RI_SP)) {
             // no SIB needed (reg not sp which requires SIB)
-            if (o1->reg == Reg_None) {
+            if (o1->reg.rt == RT_None) {
                 useDisp32 = 1; // encoding needs disp32
                 useDisp8 = 0;
                 modrm &= 63; // mod needs to be 00
@@ -110,7 +120,7 @@ uint8_t* calcModRMDigit(Operand* o1, int digit,
                 sib = (4 << 3) + 5; // index 4 (= none) + base 5 (= none)
             }
             else {
-                if (o1->reg == Reg_IP) {
+                if (o1->reg.rt == RT_IP) {
                     // should not happen, we converted RIP-rel to absolute
                     assert(0);
                     // RIP relative
@@ -119,7 +129,7 @@ uint8_t* calcModRMDigit(Operand* o1, int digit,
                     useDisp32 = 1;
                 }
                 else {
-                    r1 = GPRegEncoding(o1->reg);
+                    r1 = GP64RegEncoding(o1->reg);
 
                     if ((r1 == 5) && (v==0)) {
                         // encoding for rbp without displacement is reused
@@ -145,19 +155,19 @@ uint8_t* calcModRMDigit(Operand* o1, int digit,
             else
                 assert((o1->scale == 0) || (o1->scale == 1));
 
-            if ((o1->scale == 0) || (o1->ireg == Reg_None)) {
+            if ((o1->scale == 0) || (o1->ireg.rt == RT_None)) {
                 // no index register: uses index 4 (usually SP, not allowed)
                 sib |= (4 << 3);
             }
             else {
-                ri = GPRegEncoding(o1->ireg);
+                ri = GP64RegEncoding(o1->ireg);
                 // offset 4 not allowed here, used for "no scaling"
                 assert(ri != 4);
                 if (ri & 8) *prex |= REX_MASK_X;
                 sib |= (ri & 7) <<3;
             }
 
-            if (o1->reg == Reg_None) {
+            if (o1->reg.rt == RT_None) {
                 // encoding requires disp32 with mod = 00 / base 5 = none
                 useDisp32 = 1;
                 useDisp8 = 0;
@@ -165,14 +175,14 @@ uint8_t* calcModRMDigit(Operand* o1, int digit,
                 sib |= 5;
             }
             else {
-                if (o1->reg == Reg_BP) {
+                if (regGP64Index(o1->reg) == RI_BP) {
                     // cannot use mod == 00
                     if ((modrm & 192) == 0) {
                         modrm |= 64;
                         useDisp8 = 1;
                     }
                 }
-                rb = GPRegEncoding(o1->reg);
+                rb = GP64RegEncoding(o1->reg);
                 if (rb & 8) *prex |= REX_MASK_B;
                 sib |= (rb & 7);
             }
@@ -439,32 +449,30 @@ static
 int genPush(uint8_t* buf, Operand* o)
 {
     assert(o->type == OT_Reg64);
-    if ((o->reg >= Reg_AX) && (o->reg <= Reg_DI)) {
-        buf[0] = 0x50 + (o->reg - Reg_AX);
-        return 1;
-    }
-    else if ((o->reg >= Reg_8) && (o->reg <= Reg_15)) {
+    int r = GP64RegEncoding(o->reg);
+    if (r > 7) {
+        assert(r < 16);
         buf[0] = 0x41; // REX with MASK_B
-        buf[1] = 0x50 + (o->reg - Reg_8);
+        buf[1] = 0x50 + r - 8;
         return 2;
     }
-    assert(0);
+    buf[0] = 0x50 + r;
+    return 1;
 }
 
 static
 int genPop(uint8_t* buf, Operand* o)
 {
     assert(o->type == OT_Reg64);
-    if ((o->reg >= Reg_AX) && (o->reg <= Reg_DI)) {
-        buf[0] = 0x58 + (o->reg - Reg_AX);
-        return 1;
-    }
-    else if ((o->reg >= Reg_8) && (o->reg <= Reg_15)) {
+    int r = GP64RegEncoding(o->reg);
+    if (r > 7) {
+        assert(r < 16);
         buf[0] = 0x41; // REX with MASK_B
-        buf[1] = 0x58 + (o->reg - Reg_8);
+        buf[1] = 0x58 + r - 8;
         return 2;
     }
-    assert(0);
+    buf[0] = 0x58 + r;
+    return 1;
 }
 
 static

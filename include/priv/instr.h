@@ -48,6 +48,7 @@ typedef enum _RegType {
     RT_GP16,   // low 16 bits of 64bit general purpose registers (16 regs)
     RT_GP32,   // low 32 bits of 64bit general purpose registers (16 regs)
     RT_GP64,   // 64bit general purpose registers (16 regs)
+    RT_Flag,   // 1-bit, part of EFLAGS register
     RT_IP,     // own type due to its speciality: instruction pointer (1 reg)
     RT_X87,    // 80-bit floating point registers (8 regs in x87 FP stack)
     RT_MMX,    // 64bit MMX vector registers (8 regs: mm0 - mm7)
@@ -59,9 +60,9 @@ typedef enum _RegType {
 
 // Names for register indexes. Warning: indexes for different types overlap!
 typedef enum _RegIndex {
-    RI_Invalid = 99,
+    RI_None = 100, // assume no register type has more than 100 regs
 
-    // for RT_GP8Leg (from x86, but can address 16 regs in 64bit mode)
+    // for RT_GP8Leg (1st 8 from x86, but can address 16 regs in 64bit mode)
     RI_AL = 0, RI_CL, RI_DL, RI_BL, RI_AH, RI_CH, RI_DH, RI_BH,
     RI_R8L, RI_9L, RI_10L, RI_11L, RI_12L, RI_13L, RI_14L, RI_15L,
 
@@ -69,6 +70,10 @@ typedef enum _RegIndex {
     RI_A = 0, RI_C, RI_D, RI_B, RI_SP, RI_BP, RI_SI, RI_DI,
     RI_8, RI_9, RI_10, RI_11, RI_12, RI_13, RI_14, RI_15,
     RI_GPMax, // useful for allocation of GP register space
+
+    // for RT_Flag
+    RI_Carry = 0, RI_Zero, RI_Sign, RI_Overflow, RI_Parity,
+    RI_FlMax,
 
     // for RT_X87 FPU register stack
     RI_ST0 = 0, RI_ST1, RI_ST2, RI_ST3, RI_ST4, RI_ST5, RI_ST6, RI_ST7,
@@ -97,33 +102,21 @@ typedef enum _RegIndex {
     RI_ZMM4, RI_ZMM5, RI_ZMM6, RI_ZMM7,
     RI_ZMM8, RI_ZMM9, RI_ZMM10, RI_ZMM11,
     RI_ZMM12, RI_ZMM13, RI_ZMM14, RI_ZMM15,
+    RI_ZMM16, RI_ZMM17, RI_ZMM18, RI_ZMM19,
+    RI_ZMM20, RI_ZMM21, RI_ZMM22, RI_ZMM23,
+    RI_ZMM24, RI_ZMM25, RI_ZMM26, RI_ZMM27,
+    RI_ZMM28, RI_ZMM29, RI_ZMM30, RI_ZMM31,
     RI_ZMMMax,
 } RegIndex;
 
-#if 0
 typedef struct _Reg
 {
     RegType rt;
     RegIndex ri;
 } Reg;
 
-#else
 
-typedef enum _Reg {
-    Reg_None = 0,
-    // general purpose (order is important, aligned to x86 encoding)
-    Reg_AX, Reg_CX, Reg_DX, Reg_BX, Reg_SP, Reg_BP, Reg_SI, Reg_DI,
-    Reg_8,  Reg_9,  Reg_10, Reg_11, Reg_12, Reg_13, Reg_14, Reg_15,
-    Reg_IP,
-    // vector regs (MMX, XMM, YMM)
-    Reg_X0, Reg_X1, Reg_X2, Reg_X3, Reg_X4, Reg_X5, Reg_X6, Reg_X7,
-    Reg_X8, Reg_X9, Reg_X10, Reg_X11, Reg_X12, Reg_X13, Reg_X14, Reg_X15,
-    //
-    Reg_Max
-} Reg;
-
-#endif
-
+// enum for instruction types, based on Intel SDM
 typedef enum _InstrType {
     IT_None = 0, IT_Invalid,
     // Hints: not actual instructions
@@ -184,7 +177,7 @@ typedef enum _InstrType {
 
 typedef enum _ValType {
     VT_None = 0,
-    VT_8, VT_16, VT_32, VT_64, VT_128, VT_256,
+    VT_1, VT_8, VT_16, VT_32, VT_64, VT_80, VT_128, VT_256, VT_512,
 
     // used in decoder and printer
     VT_Implicit, // type depends only on opcode, with Instr.vtype
@@ -198,9 +191,9 @@ typedef enum _ValType {
 typedef enum _OpType {
     OT_None = 0,
     OT_Imm8, OT_Imm16, OT_Imm32, OT_Imm64,
-    OT_Reg8, OT_Reg16, OT_Reg32, OT_Reg64, OT_Reg128, OT_Reg256,
+    OT_Reg8, OT_Reg16, OT_Reg32, OT_Reg64, OT_Reg128, OT_Reg256, OT_Reg512,
     // mem (64bit addr): register indirect + displacement
-    OT_Ind8, OT_Ind16, OT_Ind32, OT_Ind64, OT_Ind128, OT_Ind256,
+    OT_Ind8, OT_Ind16, OT_Ind32, OT_Ind64, OT_Ind128, OT_Ind256, OT_Ind512,
     //
     OT_MAX
 } OpType;
@@ -271,6 +264,16 @@ typedef struct _Instr {
     ExprNode* info_memAddr; // annotate memory reference of instr
 } Instr;
 
+RegType getGPRegType(ValType vt);
+RegType getVRegType(ValType vt);
+ValType regValTypeT(RegType rt);
+ValType regValType(Reg r);
+bool regTypeIsGP(RegType rt);
+bool regTypeIsV(RegType rt);
+bool regIsGP(Reg r);
+bool regIsV(Reg r);
+RegIndex regGP64Index(Reg r);
+Reg getReg(RegType rt, RegIndex ri);
 
 ValType opValType(Operand* o);
 int opTypeWidth(Operand* o);
@@ -280,38 +283,29 @@ bool opIsGPReg(Operand* o);
 bool opIsVReg(Operand* o);
 bool opIsInd(Operand* o);
 
+bool regIsEqual(Reg r1, Reg r2);
 bool opIsEqual(Operand* o1, Operand* o2);
 
 OpType getImmOpType(ValType t);
 OpType getGPRegOpType(ValType t);
 
-void setRegOp(Operand* o, ValType t, Reg r);
-Operand* getRegOp(ValType t, Reg r);      // returns pointer to static object
+void setRegOp(Operand* o, Reg r);
+Operand* getRegOp(Reg r);      // returns pointer to static object
 Operand* getImmOp(ValType t, uint64_t v); // returns pointer to static object
 
-
 void copyOperand(Operand* dst, Operand* src);
-
 void opOverwriteType(Operand* o, ValType vt);
-
 bool instrIsJcc(InstrType it);
 
 void copyInstr(Instr* dst, Instr* src);
-
 void initSimpleInstr(Instr* i, InstrType it);
-
 void initUnaryInstr(Instr* i, InstrType it, Operand* o);
-
 void initBinaryInstr(Instr* i, InstrType it, ValType vt,
                      Operand *o1, Operand *o2);
-
 void initTernaryInstr(Instr* i, InstrType it,
                       Operand *o1, Operand *o2, Operand* o3);
-
-
 void attachPassthrough(Instr* i, PrefixSet set,
                        OperandEncoding enc, StateChange sc,
                        int b1, int b2, int b3);
-
 
 #endif // INSTR_H

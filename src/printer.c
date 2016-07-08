@@ -28,17 +28,6 @@
 #include "common.h"
 
 
-// if shown register name makes type visible, set *markVisible to true
-static
-bool regTypeVisible(Reg r, OpType t)
-{
-    if ((t == OT_Reg32) || (t == OT_Reg64) || (t == OT_Reg128)) {
-        if ((r >= Reg_X0) && (r <= Reg_X15))
-            return false; // xmm register names can have 32/64/128 bit
-    }
-    return true;
-}
-
 static
 bool opTypeVisible(Operand* o)
 {
@@ -49,190 +38,237 @@ bool opTypeVisible(Operand* o)
     case OT_Reg64:
     case OT_Reg128:
     case OT_Reg256:
-        return regTypeVisible(o->reg, o->type);
+        return true;
     default: break;
     }
     return false;
 }
 
-
-const char* regName(Reg r, OpType t)
+// get register name by index
+const char* regNameI(RegType rt, RegIndex ri)
 {
-    switch(t) {
-    // TODO: legacy x86 8-bit register set (with AH,...)
-    case OT_Reg8:
-        switch(r) {
-        case Reg_AX: return "al";
-        case Reg_BX: return "bl";
-        case Reg_CX: return "cl";
-        case Reg_DX: return "dl";
-        case Reg_DI: return "dil";
-        case Reg_SI: return "sil";
-        case Reg_BP: return "bpl";
-        case Reg_SP: return "spl";
-        case Reg_8:  return "r8b";
-        case Reg_9:  return "r9b";
-        case Reg_10: return "r10b";
-        case Reg_11: return "r11b";
-        case Reg_12: return "r12b";
-        case Reg_13: return "r13b";
-        case Reg_14: return "r14b";
-        case Reg_15: return "r15b";
+    switch(rt) {
+
+    case RT_IP:
+        return "rip";
+
+    case RT_GP8:
+        switch(ri) {
+        case RI_A: return "al";
+        case RI_B: return "bl";
+        case RI_C: return "cl";
+        case RI_D: return "dl";
+        case RI_DI: return "dil";
+        case RI_SI: return "sil";
+        case RI_BP: return "bpl";
+        case RI_SP: return "spl";
+        case RI_8:  return "r8b";
+        case RI_9:  return "r9b";
+        case RI_10: return "r10b";
+        case RI_11: return "r11b";
+        case RI_12: return "r12b";
+        case RI_13: return "r13b";
+        case RI_14: return "r14b";
+        case RI_15: return "r15b";
         default: assert(0);
         }
         break;
 
-    case OT_Reg16:
-        switch(r) {
-        case Reg_AX: return "ax";
-        case Reg_BX: return "bx";
-        case Reg_CX: return "cx";
-        case Reg_DX: return "dx";
-        case Reg_DI: return "di";
-        case Reg_SI: return "si";
-        case Reg_BP: return "bp";
-        case Reg_SP: return "sp";
-        case Reg_8:  return "r8w";
-        case Reg_9:  return "r9w";
-        case Reg_10: return "r10w";
-        case Reg_11: return "r11w";
-        case Reg_12: return "r12w";
-        case Reg_13: return "r13w";
-        case Reg_14: return "r14w";
-        case Reg_15: return "r15w";
-        case Reg_IP: return "ip";
+    case RT_GP8Leg:
+        switch(ri) {
+        case RI_AL: return "al";
+        case RI_BL: return "bl";
+        case RI_CL: return "cl";
+        case RI_DL: return "dl";
+        case RI_AH: return "ah";
+        case RI_BH: return "bh";
+        case RI_CH: return "ch";
+        case RI_DH: return "dh";
+        case RI_8:  return "r8b";
+        case RI_9:  return "r9b";
+        case RI_10: return "r10b";
+        case RI_11: return "r11b";
+        case RI_12: return "r12b";
+        case RI_13: return "r13b";
+        case RI_14: return "r14b";
+        case RI_15: return "r15b";
         default: assert(0);
         }
         break;
 
-    case OT_Reg32:
-        switch(r) {
-        case Reg_AX: return "eax";
-        case Reg_BX: return "ebx";
-        case Reg_CX: return "ecx";
-        case Reg_DX: return "edx";
-        case Reg_DI: return "edi";
-        case Reg_SI: return "esi";
-        case Reg_BP: return "ebp";
-        case Reg_SP: return "esp";
-        case Reg_8:  return "r8d";
-        case Reg_9:  return "r9d";
-        case Reg_10: return "r10d";
-        case Reg_11: return "r11d";
-        case Reg_12: return "r12d";
-        case Reg_13: return "r13d";
-        case Reg_14: return "r14d";
-        case Reg_15: return "r15d";
-        case Reg_IP: return "eip";
-
-        case Reg_X0:  return "xmm0";
-        case Reg_X1:  return "xmm1";
-        case Reg_X2:  return "xmm2";
-        case Reg_X3:  return "xmm3";
-        case Reg_X4:  return "xmm4";
-        case Reg_X5:  return "xmm5";
-        case Reg_X6:  return "xmm6";
-        case Reg_X7:  return "xmm7";
-        case Reg_X8:  return "xmm8";
-        case Reg_X9:  return "xmm9";
-        case Reg_X10: return "xmm10";
-        case Reg_X11: return "xmm11";
-        case Reg_X12: return "xmm12";
-        case Reg_X13: return "xmm13";
-        case Reg_X14: return "xmm14";
-        case Reg_X15: return "xmm15";
+    case RT_GP16:
+        switch(ri) {
+        case RI_A: return "ax";
+        case RI_B: return "bx";
+        case RI_C: return "cx";
+        case RI_D: return "dx";
+        case RI_DI: return "di";
+        case RI_SI: return "si";
+        case RI_BP: return "bp";
+        case RI_SP: return "sp";
+        case RI_8:  return "r8w";
+        case RI_9:  return "r9w";
+        case RI_10: return "r10w";
+        case RI_11: return "r11w";
+        case RI_12: return "r12w";
+        case RI_13: return "r13w";
+        case RI_14: return "r14w";
+        case RI_15: return "r15w";
         default: assert(0);
         }
         break;
 
-    case OT_Reg64:
-        switch(r) {
-        case Reg_AX: return "rax";
-        case Reg_BX: return "rbx";
-        case Reg_CX: return "rcx";
-        case Reg_DX: return "rdx";
-        case Reg_DI: return "rdi";
-        case Reg_SI: return "rsi";
-        case Reg_BP: return "rbp";
-        case Reg_SP: return "rsp";
-        case Reg_8:  return "r8";
-        case Reg_9:  return "r9";
-        case Reg_10: return "r10";
-        case Reg_11: return "r11";
-        case Reg_12: return "r12";
-        case Reg_13: return "r13";
-        case Reg_14: return "r14";
-        case Reg_15: return "r15";
-        case Reg_IP: return "rip";
-
-        // FIXME: difference between 64bit MMX vs 64bit SSE2: mmX vs xmmX
-        case Reg_X0:  return "xmm0";
-        case Reg_X1:  return "xmm1";
-        case Reg_X2:  return "xmm2";
-        case Reg_X3:  return "xmm3";
-        case Reg_X4:  return "xmm4";
-        case Reg_X5:  return "xmm5";
-        case Reg_X6:  return "xmm6";
-        case Reg_X7:  return "xmm7";
-        case Reg_X8:  return "xmm8";
-        case Reg_X9:  return "xmm9";
-        case Reg_X10: return "xmm10";
-        case Reg_X11: return "xmm11";
-        case Reg_X12: return "xmm12";
-        case Reg_X13: return "xmm13";
-        case Reg_X14: return "xmm14";
-        case Reg_X15: return "xmm15";
+    case RT_GP32:
+        switch(ri) {
+        case RI_A: return "eax";
+        case RI_B: return "ebx";
+        case RI_C: return "ecx";
+        case RI_D: return "edx";
+        case RI_DI: return "edi";
+        case RI_SI: return "esi";
+        case RI_BP: return "ebp";
+        case RI_SP: return "esp";
+        case RI_8:  return "r8d";
+        case RI_9:  return "r9d";
+        case RI_10: return "r10d";
+        case RI_11: return "r11d";
+        case RI_12: return "r12d";
+        case RI_13: return "r13d";
+        case RI_14: return "r14d";
+        case RI_15: return "r15d";
         default: assert(0);
         }
         break;
 
-    case OT_Reg128:
-        switch(r) {
-        case Reg_X0:  return "xmm0";
-        case Reg_X1:  return "xmm1";
-        case Reg_X2:  return "xmm2";
-        case Reg_X3:  return "xmm3";
-        case Reg_X4:  return "xmm4";
-        case Reg_X5:  return "xmm5";
-        case Reg_X6:  return "xmm6";
-        case Reg_X7:  return "xmm7";
-        case Reg_X8:  return "xmm8";
-        case Reg_X9:  return "xmm9";
-        case Reg_X10: return "xmm10";
-        case Reg_X11: return "xmm11";
-        case Reg_X12: return "xmm12";
-        case Reg_X13: return "xmm13";
-        case Reg_X14: return "xmm14";
-        case Reg_X15: return "xmm15";
+    case RT_GP64:
+        switch(ri) {
+        case RI_A: return "rax";
+        case RI_B: return "rbx";
+        case RI_C: return "rcx";
+        case RI_D: return "rdx";
+        case RI_DI: return "rdi";
+        case RI_SI: return "rsi";
+        case RI_BP: return "rbp";
+        case RI_SP: return "rsp";
+        case RI_8:  return "r8";
+        case RI_9:  return "r9";
+        case RI_10: return "r10";
+        case RI_11: return "r11";
+        case RI_12: return "r12";
+        case RI_13: return "r13";
+        case RI_14: return "r14";
+        case RI_15: return "r15";
         default: assert(0);
         }
         break;
 
-    case OT_Reg256:
-        switch(r) {
-        case Reg_X0:  return "ymm0";
-        case Reg_X1:  return "ymm1";
-        case Reg_X2:  return "ymm2";
-        case Reg_X3:  return "ymm3";
-        case Reg_X4:  return "ymm4";
-        case Reg_X5:  return "ymm5";
-        case Reg_X6:  return "ymm6";
-        case Reg_X7:  return "ymm7";
-        case Reg_X8:  return "ymm8";
-        case Reg_X9:  return "ymm9";
-        case Reg_X10: return "ymm10";
-        case Reg_X11: return "ymm11";
-        case Reg_X12: return "ymm12";
-        case Reg_X13: return "ymm13";
-        case Reg_X14: return "ymm14";
-        case Reg_X15: return "ymm15";
+    case RT_MMX:
+        switch(ri) {
+        case RI_MM0:  return "mm0";
+        case RI_MM1:  return "mm1";
+        case RI_MM2:  return "mm2";
+        case RI_MM3:  return "mm3";
+        case RI_MM4:  return "mm4";
+        case RI_MM5:  return "mm5";
+        case RI_MM6:  return "mm6";
+        case RI_MM7:  return "mm7";
         default: assert(0);
         }
         break;
+
+    case RT_XMM:
+        switch(ri) {
+        case RI_XMM0:  return "xmm0";
+        case RI_XMM1:  return "xmm1";
+        case RI_XMM2:  return "xmm2";
+        case RI_XMM3:  return "xmm3";
+        case RI_XMM4:  return "xmm4";
+        case RI_XMM5:  return "xmm5";
+        case RI_XMM6:  return "xmm6";
+        case RI_XMM7:  return "xmm7";
+        case RI_XMM8:  return "xmm8";
+        case RI_XMM9:  return "xmm9";
+        case RI_XMM10: return "xmm10";
+        case RI_XMM11: return "xmm11";
+        case RI_XMM12: return "xmm12";
+        case RI_XMM13: return "xmm13";
+        case RI_XMM14: return "xmm14";
+        case RI_XMM15: return "xmm15";
+        default: assert(0);
+        }
+        break;
+
+    case RT_YMM:
+        switch(ri) {
+        case RI_YMM0:  return "ymm0";
+        case RI_YMM1:  return "ymm1";
+        case RI_YMM2:  return "ymm2";
+        case RI_YMM3:  return "ymm3";
+        case RI_YMM4:  return "ymm4";
+        case RI_YMM5:  return "ymm5";
+        case RI_YMM6:  return "ymm6";
+        case RI_YMM7:  return "ymm7";
+        case RI_YMM8:  return "ymm8";
+        case RI_YMM9:  return "ymm9";
+        case RI_YMM10: return "ymm10";
+        case RI_YMM11: return "ymm11";
+        case RI_YMM12: return "ymm12";
+        case RI_YMM13: return "ymm13";
+        case RI_YMM14: return "ymm14";
+        case RI_YMM15: return "ymm15";
+        default: assert(0);
+        }
+        break;
+
+    case RT_ZMM:
+        switch(ri) {
+        case RI_ZMM0:  return "zmm0";
+        case RI_ZMM1:  return "zmm1";
+        case RI_ZMM2:  return "zmm2";
+        case RI_ZMM3:  return "zmm3";
+        case RI_ZMM4:  return "zmm4";
+        case RI_ZMM5:  return "zmm5";
+        case RI_ZMM6:  return "zmm6";
+        case RI_ZMM7:  return "zmm7";
+        case RI_ZMM8:  return "zmm8";
+        case RI_ZMM9:  return "zmm9";
+        case RI_ZMM10: return "zmm10";
+        case RI_ZMM11: return "zmm11";
+        case RI_ZMM12: return "zmm12";
+        case RI_ZMM13: return "zmm13";
+        case RI_ZMM14: return "zmm14";
+        case RI_ZMM15: return "zmm15";
+        case RI_ZMM16: return "zmm16";
+        case RI_ZMM17: return "zmm17";
+        case RI_ZMM18: return "zmm18";
+        case RI_ZMM19: return "zmm19";
+        case RI_ZMM20: return "zmm20";
+        case RI_ZMM21: return "zmm21";
+        case RI_ZMM22: return "zmm22";
+        case RI_ZMM23: return "zmm23";
+        case RI_ZMM24: return "zmm24";
+        case RI_ZMM25: return "zmm25";
+        case RI_ZMM26: return "zmm26";
+        case RI_ZMM27: return "zmm27";
+        case RI_ZMM28: return "zmm28";
+        case RI_ZMM29: return "zmm29";
+        case RI_ZMM30: return "zmm30";
+        case RI_ZMM31: return "zmm31";
+
+        default: assert(0);
+        }
+        break;
+
     default: assert(0);
     }
     return "(unknown)";
 }
+
+const char* regName(Reg r)
+{
+    return regNameI(r.rt, r.ri);
+}
+
 
 char* prettyAddress(uint64_t a, FunctionConfig* fc)
 {
@@ -266,7 +302,7 @@ char* op2string(Operand* o, ValType t, FunctionConfig* fc)
     case OT_Reg64:
     case OT_Reg128:
     case OT_Reg256:
-        off += sprintf(buf, "%%%s", regName(o->reg, o->type));
+        off += sprintf(buf, "%%%s", regName(o->reg));
         break;
 
     case OT_Imm8:
@@ -343,22 +379,22 @@ char* op2string(Operand* o, ValType t, FunctionConfig* fc)
             else
                 off += sprintf(buf+off, "%s", prettyAddress(o->val, fc));
         }
-        if ((o->scale == 0) || (o->ireg == Reg_None)) {
-            if (o->reg != Reg_None)
-                off += sprintf(buf+off,"(%%%s)", regName(o->reg, OT_Reg64));
+        if ((o->scale == 0) || (o->ireg.rt == RT_None)) {
+            if (o->reg.rt != RT_None)
+                off += sprintf(buf+off,"(%%%s)", regName(o->reg));
             else if (off == 0) {
                 // nothing printed yet
                 off += sprintf(buf, "0x0");
             }
         }
         else {
-            const char* ri = regName(o->ireg, OT_Reg64);
-            if (o->reg == Reg_None) {
+            const char* ri = regName(o->ireg);
+            if (o->reg.rt == RT_None) {
                 off += sprintf(buf+off,"(,%%%s,%d)", ri, o->scale);
             }
             else
                 off += sprintf(buf+off,"(%%%s,%%%s,%d)",
-                               regName(o->reg, OT_Reg64), ri, o->scale);
+                               regName(o->reg), ri, o->scale);
         }
         break;
     default: assert(0);

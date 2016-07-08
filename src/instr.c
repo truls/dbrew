@@ -25,6 +25,159 @@
 #include <stdint.h>
 
 
+// Helper functions for structs used for decoded instructions
+
+RegType getGPRegType(ValType vt)
+{
+    switch(vt) {
+    case VT_8:  return RT_GP8;
+    case VT_16: return RT_GP16;
+    case VT_32: return RT_GP32;
+    case VT_64: return RT_GP64;
+    default: break;
+    }
+    return RT_None;
+}
+
+RegType getVRegType(ValType vt)
+{
+    switch(vt) {
+    case VT_64:  return RT_MMX;
+    case VT_128: return RT_XMM;
+    case VT_256: return RT_YMM;
+    case VT_512: return RT_ZMM;
+    default: break;
+    }
+    return RT_None;
+}
+
+ValType regValTypeT(RegType rt)
+{
+    switch(rt) {
+    case RT_Flag:
+        return VT_1;
+    case RT_GP8:
+    case RT_GP8Leg:
+        return VT_8;
+    case RT_GP16:
+        return VT_16;
+    case RT_GP32:
+        return VT_32;
+    case RT_GP64:
+    case RT_IP:
+        return VT_64;
+    case RT_X87:
+        return VT_80;
+    case RT_MMX:
+        return VT_64;
+    case RT_XMM:
+        return VT_128;
+    case RT_YMM:
+        return VT_256;
+    case RT_ZMM:
+        return VT_512;
+    default: break;
+    }
+    return VT_None;
+}
+
+ValType regValType(Reg r)
+{
+    return regValTypeT(r.rt);
+}
+
+
+bool regTypeIsGP(RegType rt)
+{
+    if ( (rt == RT_GP8)  ||
+         (rt == RT_GP16) ||
+         (rt == RT_GP32) ||
+         (rt == RT_GP64)) {
+        return true;
+    }
+    return false;
+}
+
+bool regTypeIsV(RegType rt)
+{
+    switch(rt) {
+    case RT_MMX:
+    case RT_XMM:
+    case RT_YMM:
+    case RT_ZMM:
+        return true;
+    default:
+        break;
+    }
+    return false;
+}
+
+bool regIsGP(Reg r)
+{
+    if (regTypeIsGP(r.rt)) {
+        assert((r.ri >= 0) && (r.ri < RI_GPMax));
+        return true;
+    }
+    return false;
+}
+
+bool regIsV(Reg r)
+{
+    switch(r.rt) {
+    case RT_MMX:
+        assert((r.ri >= 0) && (r.ri < RI_MMMax));
+        break;
+    case RT_XMM:
+    case RT_YMM:
+        assert((r.ri >= 0) && (r.ri < RI_XMMMax));
+        break;
+    case RT_ZMM:
+        assert((r.ri >= 0) && (r.ri < RI_ZMMMax));
+        break;
+    default:
+        return false;
+    }
+    return true;
+}
+
+// if not a GP64, return RI_None
+RegIndex regGP64Index(Reg r)
+{
+    if (r.rt == RT_GP64) {
+        assert((r.ri >= 0) && (r.ri < RI_GPMax));
+        return r.ri;
+    }
+    return RI_None;
+}
+
+Reg getReg(RegType rt, RegIndex ri)
+{
+    switch(rt) {
+    case RT_None:
+    case RT_IP:
+        assert(ri == 0);
+        break;
+    case RT_GP8Leg:
+    case RT_MMX:
+        assert((ri >= 0) && (ri<8));
+        break;
+    case RT_GP8:
+    case RT_GP16:
+    case RT_GP32:
+    case RT_GP64:
+    case RT_XMM:
+    case RT_YMM:
+        assert((ri >= 0) && (ri<16));
+        break;
+    default:
+        assert(0);
+    }
+
+    Reg r = {rt, ri};
+    return r;
+}
+
+
 ValType opValType(Operand* o)
 {
     switch(o->type) {
@@ -53,7 +206,7 @@ ValType opValType(Operand* o)
 
     default: assert(0);
     }
-    return 0; // invalid;
+    return VT_None; // invalid;
 }
 
 int opTypeWidth(Operand* o)
@@ -103,17 +256,13 @@ bool opIsReg(Operand* o)
 bool opIsGPReg(Operand* o)
 {
     if (!opIsReg(o)) return false;
-    if ((o->reg >= Reg_AX) && (o->reg <= Reg_15))
-        return true;
-    return false;
+    return regIsGP(o->reg);
 }
 
 bool opIsVReg(Operand* o)
 {
     if (!opIsReg(o)) return false;
-    if ((o->reg >= Reg_X0) && (o->reg <= Reg_X15))
-        return true;
-    return false;
+    return regIsV(o->reg);
 }
 
 
@@ -133,22 +282,34 @@ bool opIsInd(Operand* o)
     return false;
 }
 
+bool regIsEqual(Reg r1, Reg r2)
+{
+    if (r1.rt != r2.rt) return false;
+
+    // if one or both are unspecified, they cannot be equal
+    if (r1.rt == RT_None) return false;
+    if (r2.rt == RT_None) return false;
+
+    return (r1.ri == r2.ri);
+}
+
 bool opIsEqual(Operand* o1, Operand* o2)
 {
     if (o1->type != o2->type)
         return false;
     if (opIsReg(o1))
-        return (o1->reg == o2->reg);
+        return regIsEqual(o1->reg, o2->reg);
     if (opIsImm(o1))
         return (o1->val == o2->val);
     // memory
     assert(opIsInd(o1));
     if (o1->val != o2->val) return false;
-    if (o1->reg != o2->reg) return false;
+    if (!regIsEqual(o1->reg, o2->reg)) return false;
     if (o1->seg != o2->seg) return false;
 
     if (o1->scale == 0) return true;
-    if ((o1->scale != o2->scale) || (o1->ireg != o2->ireg)) return false;
+    if (o1->scale != o2->scale) return false;
+    if (!regIsEqual(o1->ireg, o2->ireg)) return false;
     return true;
 }
 
@@ -176,15 +337,16 @@ OpType getGPRegOpType(ValType t)
     assert(0);
 }
 
-void setRegOp(Operand* o, ValType t, Reg r)
+void setRegOp(Operand* o, Reg r)
 {
-    if ((r >= Reg_AX) && (r <= Reg_15)) {
+    ValType t = regValType(r);
+    if (regIsGP(r)) {
         o->type = getGPRegOpType(t);
         o->reg = r;
         return;
     }
 
-    if ((r >= Reg_X0) && (r <= Reg_X15)) {
+    if (regIsV(r)) {
         switch(t) {
         case VT_64:  o->type = OT_Reg64; break;
         case VT_128: o->type = OT_Reg128; break;
@@ -198,11 +360,11 @@ void setRegOp(Operand* o, ValType t, Reg r)
 
 }
 
-Operand* getRegOp(ValType t, Reg r)
+Operand* getRegOp(Reg r)
 {
     static Operand o;
 
-    setRegOp(&o, t, r);
+    setRegOp(&o, r);
     return &o;
 }
 
@@ -268,9 +430,9 @@ void copyOperand(Operand* dst, Operand* src)
     case OT_Ind64:
     case OT_Ind128:
     case OT_Ind256:
-        assert( (src->reg == Reg_None) ||
-                (src->reg == Reg_IP) ||
-                ((src->reg >= Reg_AX) && (src->reg <= Reg_15)) );
+        assert( (src->reg.rt == RT_None) ||
+                (src->reg.rt == RT_IP)   ||
+                (src->reg.rt == RT_GP64) );
         dst->reg = src->reg;
         dst->val = src->val;
         dst->seg = src->seg;
@@ -278,7 +440,7 @@ void copyOperand(Operand* dst, Operand* src)
         if (src->scale >0) {
             assert((src->scale == 1) || (src->scale == 2) ||
                    (src->scale == 4) || (src->scale == 8));
-            assert((src->ireg >= Reg_AX) && (src->ireg <= Reg_15));
+            assert(src->ireg.rt == RT_GP64);
             dst->ireg = src->ireg;
         }
         break;
@@ -299,16 +461,38 @@ void opOverwriteType(Operand* o, ValType vt)
     }
     else if (opIsReg(o)) {
         switch(vt) {
-        case VT_8:   o->type = OT_Reg8; break;
-        case VT_16:  o->type = OT_Reg16; break;
-        case VT_32:  o->type = OT_Reg32; break;
-        case VT_64:  o->type = OT_Reg64; break;
+        case VT_8:
+            o->type   = OT_Reg8;
+            o->reg.rt = RT_GP8;
+            break;
+        case VT_16:
+            o->type   = OT_Reg16;
+            o->reg.rt = RT_GP16;
+            break;
+        case VT_32:
+            o->type   = OT_Reg32;
+            o->reg.rt = RT_GP32;
+            break;
+        case VT_64:
+            o->type   = OT_Reg64;
+            if (opIsVReg(o))
+                o->reg.rt = RT_MMX;
+            else
+                o->reg.rt = RT_GP64;
+            break;
         case VT_128:
-            o->type = OT_Reg128;
+            o->type   = OT_Reg128;
+            o->reg.rt = RT_XMM;
             assert(opIsVReg(o));
             break;
         case VT_256:
             o->type = OT_Reg256;
+            o->reg.rt = RT_YMM;
+            assert(opIsVReg(o));
+            break;
+        case VT_512:
+            o->type = OT_Reg512;
+            o->reg.rt = RT_ZMM;
             assert(opIsVReg(o));
             break;
         default: assert(0);

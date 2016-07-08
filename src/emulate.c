@@ -117,12 +117,13 @@ EmuValue staticEmuValue(uint64_t v, ValType t)
 void resetEmuState(EmuState* es)
 {
     int i;
-    static Reg calleeSave[] = {
-        Reg_BP, Reg_BX, Reg_12, Reg_13, Reg_14, Reg_15, Reg_None };
+    static RegIndex calleeSave[] = {
+        RI_BP, RI_B, RI_12, RI_13, RI_14, RI_15, RI_None
+    };
 
     es->parent = 0;
 
-    for(i=0; i<Reg_Max; i++) {
+    for(i=0; i < RI_GPMax; i++) {
         es->reg[i] = 0;
         initMetaState(&(es->reg_state[i]), CS_DEAD);
     }
@@ -144,10 +145,10 @@ void resetEmuState(EmuState* es)
 
     // calling convention:
     //  rbp, rbx, r12-r15 have to be preserved by callee
-    for(i=0; calleeSave[i] != Reg_None; i++)
+    for(i=0; calleeSave[i] != RI_None; i++)
         initMetaState(&(es->reg_state[calleeSave[i]]), CS_DYNAMIC);
     // RIP always known
-    initMetaState(&(es->reg_state[Reg_IP]), CS_STATIC);
+    initMetaState(&(es->regIP_state), CS_STATIC);
 
     es->depth = 0;
 }
@@ -214,7 +215,7 @@ bool esIsEqual(EmuState* es1, EmuState* es2)
     int i;
 
     // same state for registers?
-    for(i = Reg_AX; i <= Reg_15; i++) {
+    for(i = 0; i <= RI_GPMax; i++) {
         if (!csIsEqual(es1, es1->reg_state[i].cState, es1->reg[i],
                        es2, es2->reg_state[i].cState, es2->reg[i]))
             return false;
@@ -272,7 +273,7 @@ void copyEmuState(EmuState* dst, EmuState* src)
 
     dst->parent = src->parent;
 
-    for(i=0; i<Reg_Max; i++) {
+    for(i=0; i < RI_GPMax; i++) {
         dst->reg[i] = src->reg[i];
         dst->reg_state[i] = src->reg_state[i];
     }
@@ -393,9 +394,10 @@ void printEmuState(EmuState* es)
     printf("%s\n", (es->depth == 0) ? " (empty)":"");
 
     printf("  Registers:\n");
-    for(i=Reg_AX; i<Reg_15; i++) {
+    for(i=0; i < RI_GPMax; i++) {
         MetaState* ms = &(es->reg_state[i]);
-        printf("    %%%-3s = 0x%016lx %c", regName(i, OT_Reg64),
+        printf("    %%%-3s = 0x%016lx %c",
+               regNameI(RT_GP64, (RegIndex)i),
                es->reg[i], captureState2Char( ms->cState ));
         if (ms->range)
             printf(", range %s", expr_toString(ms->range));
@@ -403,8 +405,8 @@ void printEmuState(EmuState* es)
             printf(", parDep %s", expr_toString(ms->parDep));
         printf("\n");
     }
-    printf("    %%%-3s = 0x%016lx %c\n", regName(Reg_IP, OT_Reg64),
-           es->reg[Reg_IP], captureState2Char( es->reg_state[Reg_IP].cState ));
+    printf("    %%%-3s = 0x%016lx %c\n", "rip",
+           es->regIP, captureState2Char( es->regIP_state.cState ));
 
     printf("  Flags: ");
     for(i = 0; i < FT_Max; i++) {
@@ -414,7 +416,7 @@ void printEmuState(EmuState* es)
     }
     printf("\n");
 
-    spOff = es->reg[Reg_SP] - es->stackStart;
+    spOff = es->reg[RI_SP] - es->stackStart;
     spMax = spOff /8*8 + 40;
     spMin = spOff /8*8 - 32;
     if (es->stackStart + spMin < es->stackAccessed)
@@ -448,7 +450,7 @@ void printStaticEmuState(EmuState* es, int esID)
 
     printf("  Registers: ");
     c = 0;
-    for(i=Reg_AX; i<=Reg_15; i++) {
+    for(i = 0; i < RI_GPMax; i++) {
         if (es->reg_state[i].cState == CS_DEAD) continue;
         if (es->reg_state[i].cState == CS_DYNAMIC) continue;
 
@@ -456,11 +458,12 @@ void printStaticEmuState(EmuState* es, int esID)
         switch(es->reg_state[i].cState) {
         case CS_STATIC:
         case CS_STATIC2:
-            printf("%%%s (0x%lx)", regName(i, OT_Reg64), es->reg[i]);
+            printf("%%%s (0x%lx)",
+                   regNameI(RT_GP64, (RegIndex)i), es->reg[i]);
             break;
         case CS_STACKRELATIVE:
             printf("%%%s (R %ld)",
-                   regName(i, OT_Reg64), es->reg[i] - es->stackTop);
+                   regNameI(RT_GP64, (RegIndex)i), es->reg[i] - es->stackTop);
             break;
         default: assert(0);
         }
@@ -952,9 +955,11 @@ void setStackValue(EmuState* es, EmuValue* v, EmuValue* off)
 static
 void getRegValue(EmuValue* v, EmuState* es, Reg r, ValType t)
 {
+    assert(regIsGP(r));
+    assert(regValType(r) == t);
     v->type = t;
-    v->val = es->reg[r];
-    v->state = es->reg_state[r];
+    v->val = es->reg[r.ri];
+    v->state = es->reg_state[r.ri];
 }
 
 static
@@ -1067,11 +1072,12 @@ void setMemValue(EmuValue* v, EmuValue* addr, EmuState* es, ValType t,
 static
 void addRegToValue(EmuValue* v, EmuState* es, Reg r, int scale)
 {
-    if (r == Reg_None) return;
+    if (r.rt == RT_None) return;
+    assert(r.rt == RT_GP64);
 
     v->state.cState = combineState(v->state.cState,
-                                   es->reg_state[r].cState, 0);
-    v->val += scale * es->reg[r];
+                                   es->reg_state[r.ri].cState, 0);
+    v->val += scale * es->reg[r.ri];
 }
 
 // get resulting address (and state) for memory operands
@@ -1086,7 +1092,7 @@ void getOpAddr(EmuValue* v, EmuState* es, Operand* o)
     v->val = o->val;
     initMetaState(&(v->state), CS_STATIC);
 
-    if (o->reg != Reg_None)
+    if (o->reg.rt != RT_None)
         addRegToValue(v, es, o->reg, 1);
 
     if (o->scale > 0)
@@ -1109,26 +1115,30 @@ void getOpValue(EmuValue* v, EmuState* es, Operand* o)
 
     case OT_Reg8:
         v->type = VT_8;
-        v->val = (uint8_t) es->reg[o->reg];
-        v->state = es->reg_state[o->reg];
+        assert(regValType(o->reg) == VT_8);
+        v->val = (uint8_t) es->reg[o->reg.ri];
+        v->state = es->reg_state[o->reg.ri];
         return;
 
     case OT_Reg16:
         v->type = VT_16;
-        v->val = (uint16_t) es->reg[o->reg];
-        v->state = es->reg_state[o->reg];
+        assert(regValType(o->reg) == VT_16);
+        v->val = (uint16_t) es->reg[o->reg.ri];
+        v->state = es->reg_state[o->reg.ri];
         return;
 
     case OT_Reg32:
         v->type = VT_32;
-        v->val = (uint32_t) es->reg[o->reg];
-        v->state = es->reg_state[o->reg];
+        assert(regValType(o->reg) == VT_32);
+        v->val = (uint32_t) es->reg[o->reg.ri];
+        v->state = es->reg_state[o->reg.ri];
         return;
 
     case OT_Reg64:
         v->type = VT_64;
-        v->val = (uint64_t) es->reg[o->reg];
-        v->state = es->reg_state[o->reg];
+        assert(regValType(o->reg) == VT_64);
+        v->val = (uint64_t) es->reg[o->reg.ri];
+        v->state = es->reg_state[o->reg.ri];
         return;
 
     case OT_Ind8:
@@ -1163,23 +1173,27 @@ void setOpValue(EmuValue* v, EmuState* es, Operand* o)
     assert(v->type == opValType(o));
     switch(o->type) {
     case OT_Reg8:
-        es->reg[o->reg] = (uint8_t) v->val;
-        es->reg_state[o->reg] = v->state;
+        assert(regValType(o->reg) == VT_8);
+        es->reg[o->reg.ri] = (uint8_t) v->val;
+        es->reg_state[o->reg.ri] = v->state;
         return;
 
     case OT_Reg16:
-        es->reg[o->reg] = (uint16_t) v->val;
-        es->reg_state[o->reg] = v->state;
+        assert(regValType(o->reg) == VT_16);
+        es->reg[o->reg.ri] = (uint16_t) v->val;
+        es->reg_state[o->reg.ri] = v->state;
         return;
 
     case OT_Reg32:
-        es->reg[o->reg] = (uint32_t) v->val;
-        es->reg_state[o->reg] = v->state;
+        assert(regValType(o->reg) == VT_32);
+        es->reg[o->reg.ri] = (uint32_t) v->val;
+        es->reg_state[o->reg.ri] = v->state;
         return;
 
     case OT_Reg64:
-        es->reg[o->reg] = v->val;
-        es->reg_state[o->reg] = v->state;
+        assert(regValType(o->reg) == VT_64);
+        es->reg[o->reg.ri] = v->val;
+        es->reg_state[o->reg.ri] = v->state;
         return;
 
     case OT_Ind32:
@@ -1218,12 +1232,18 @@ void applyStaticToInd(Operand* o, EmuState* es)
 {
     if (!opIsInd(o)) return;
 
-    if ((o->reg != Reg_None) && msIsStatic(es->reg_state[o->reg])) {
-        o->val += es->reg[o->reg];
-        o->reg = Reg_None;
+    if ((o->reg.rt != RT_None) && msIsStatic(es->reg_state[o->reg.ri])) {
+        if (o->reg.rt == RT_GP64)
+            o->val += es->reg[o->reg.ri];
+        else if (o->reg.rt == RT_IP)
+            o->val += es->regIP;
+        else
+            assert(0);
+        o->reg.rt = RT_None;
     }
-    if ((o->scale > 0) && msIsStatic(es->reg_state[o->ireg])) {
-        o->val += o->scale * es->reg[o->ireg];
+    if ((o->scale > 0) && msIsStatic(es->reg_state[o->ireg.ri])) {
+        assert(o->ireg.rt == RT_GP64);
+        o->val += o->scale * es->reg[o->ireg.ri];
         o->scale = 0;
     }
 }
@@ -1319,16 +1339,16 @@ void captureIDiv(Rewriter* r, Instr* orig, CaptureState resCState, EmuState* es)
     }
 
     // update ax/dx with known values, use type from idiv operand
-    if (msIsStatic(es->reg_state[Reg_AX])) {
+    if (msIsStatic(es->reg_state[RI_A])) {
+        Reg reg = getReg(getGPRegType(v.type), RI_A);
         initBinaryInstr(&i, IT_MOV, v.type,
-                        getRegOp(v.type, Reg_AX),
-                        getImmOp(v.type, es->reg[Reg_AX]));
+                        getRegOp(reg), getImmOp(v.type, es->reg[RI_A]));
         capture(r, &i);
     }
-    if (msIsStatic(es->reg_state[Reg_DX])) {
+    if (msIsStatic(es->reg_state[RI_D])) {
+        Reg reg = getReg(getGPRegType(v.type), RI_D);
         initBinaryInstr(&i, IT_MOV, v.type,
-                        getRegOp(v.type, Reg_DX),
-                        getImmOp(v.type, es->reg[Reg_DX]));
+                        getRegOp(reg), getImmOp(v.type, es->reg[RI_D]));
         capture(r, &i);
     }
 
@@ -1491,10 +1511,11 @@ void captureRet(Rewriter* r, Instr* orig, EmuState* es)
 
     // when returning an integer: if AX state is static, load constant
     if (!r->cc->hasReturnFP) {
-        getRegValue(&v, es, Reg_AX, VT_64);
+        Reg reg = getReg(getGPRegType(VT_64), RI_A);
+        getRegValue(&v, es, reg, VT_64);
         if (msIsStatic(v.state)) {
             initBinaryInstr(&i, IT_MOV, VT_64,
-                            getRegOp(VT_64, Reg_AX), getImmOp(v.type, v.val));
+                            getRegOp(reg), getImmOp(v.type, v.val));
             capture(r, &i);
         }
     }
@@ -1513,7 +1534,7 @@ void processPassThrough(Instr* i, EmuState* es)
     case OT_Reg32:
     case OT_Reg64:
         if (opIsGPReg(&(i->dst)))
-            initMetaState(&(es->reg_state[i->dst.reg]), CS_DYNAMIC);
+            initMetaState(&(es->reg_state[i->dst.reg.ri]), CS_DYNAMIC);
         break;
 
         // memory locations not handled yet
@@ -1665,8 +1686,8 @@ uint64_t emulateInstr(Rewriter* r, EmuState* es, Instr* instr)
         assert(msIsStatic(v1.state)); // call target must be known
 
         // push address of instruction after CALL onto stack
-        es->reg[Reg_SP] -= 8;
-        addr = emuValue(es->reg[Reg_SP], VT_64, es->reg_state[Reg_SP]);
+        es->reg[RI_SP] -= 8;
+        addr = emuValue(es->reg[RI_SP], VT_64, es->reg_state[RI_SP]);
         initMetaState(&(v2.state), CS_DYNAMIC);
         v2.type = VT_64;
         v2.val = instr->addr + instr->len;
@@ -1682,17 +1703,17 @@ uint64_t emulateInstr(Rewriter* r, EmuState* es, Instr* instr)
 
         // special handling for known functions
         if ((v1.val == (uint64_t) makeDynamic) &&
-            msIsStatic(es->reg_state[Reg_DI])) {
+            msIsStatic(es->reg_state[RI_DI])) {
             // update register value to static value
             Instr i;
             initBinaryInstr(&i, IT_MOV, VT_64,
-                            getRegOp(VT_64, Reg_DI),
-                            getImmOp(VT_64, es->reg[Reg_DI]));
+                            getRegOp(getReg(RT_GP64, RI_DI)),
+                            getImmOp(VT_64, es->reg[RI_DI]));
             capture(r, &i);
-            initMetaState(&(es->reg_state[Reg_DI]), CS_DYNAMIC);
+            initMetaState(&(es->reg_state[RI_DI]), CS_DYNAMIC);
         }
         if (v1.val == (uint64_t) makeStatic)
-            initMetaState(&(es->reg_state[Reg_DI]), CS_STATIC2);
+            initMetaState(&(es->reg_state[RI_DI]), CS_STATIC2);
 
         // address to jump to
         return v1.val;
@@ -1700,14 +1721,14 @@ uint64_t emulateInstr(Rewriter* r, EmuState* es, Instr* instr)
     case IT_CLTQ:
         switch(instr->vtype) {
         case VT_32:
-            es->reg[Reg_AX] = (int32_t) (int16_t) es->reg[Reg_AX];
+            es->reg[RI_A] = (int32_t) (int16_t) es->reg[RI_A];
             break;
         case VT_64:
-            es->reg[Reg_AX] = (int64_t) (int32_t) es->reg[Reg_AX];
+            es->reg[RI_A] = (int64_t) (int32_t) es->reg[RI_A];
             break;
         default: assert(0);
         }
-        if (!msIsStatic(es->reg_state[Reg_AX]))
+        if (!msIsStatic(es->reg_state[RI_A]))
             capture(r, instr);
         break;
 
@@ -1715,16 +1736,16 @@ uint64_t emulateInstr(Rewriter* r, EmuState* es, Instr* instr)
         switch(instr->vtype) {
         case VT_64:
             // sign-extend eax to edx:eax
-            es->reg[Reg_DX] = (es->reg[Reg_AX] & (1<<30)) ? ((uint32_t)-1) : 0;
+            es->reg[RI_D] = (es->reg[RI_A] & (1<<30)) ? ((uint32_t)-1) : 0;
             break;
         case VT_128:
             // sign-extend rax to rdx:rax
-            es->reg[Reg_DX] = (es->reg[Reg_AX] & (1ul<<62)) ? ((uint64_t)-1) : 0;
+            es->reg[RI_D] = (es->reg[RI_A] & (1ul<<62)) ? ((uint64_t)-1) : 0;
             break;
         default: assert(0);
         }
-        es->reg_state[Reg_DX] = es->reg_state[Reg_AX];
-        if (!msIsStatic(es->reg_state[Reg_AX]))
+        es->reg_state[RI_D] = es->reg_state[RI_A];
+        if (!msIsStatic(es->reg_state[RI_A]))
             capture(r, instr);
         break;
 
@@ -1830,14 +1851,14 @@ uint64_t emulateInstr(Rewriter* r, EmuState* es, Instr* instr)
         getOpValue(&v1, es, &(instr->dst));
         // TODO: raise "division by 0" exception
         assert(v1.val != 0);
-        cs = combineState(es->reg_state[Reg_DX].cState,
-                          es->reg_state[Reg_AX].cState, 1);
+        cs = combineState(es->reg_state[RI_D].cState,
+                          es->reg_state[RI_A].cState, 1);
         cs = combineState(cs, v1.state.cState, 0);
 
         switch(instr->dst.type) {
         case OT_Reg32:
         case OT_Ind32:
-            v = (es->reg[Reg_DX] << 32) + (es->reg[Reg_AX] & ((1ul<<32)-1) );
+            v = (es->reg[RI_D] << 32) + (es->reg[RI_A] & ((1ul<<32)-1) );
             v1.val = (int32_t) v1.val;
             quRes = v / v1.val;
             assert(quRes < (1u<<31)); // fits into 32 bit (TODO: raise exc)
@@ -1847,8 +1868,8 @@ uint64_t emulateInstr(Rewriter* r, EmuState* es, Instr* instr)
         case OT_Reg64:
         case OT_Ind64:
             // FIXME: should use rdx
-            quRes = es->reg[Reg_AX] / v1.val;
-            modRes = es->reg[Reg_AX] % v1.val;
+            quRes = es->reg[RI_A] / v1.val;
+            modRes = es->reg[RI_A] % v1.val;
             break;
 
         default:assert(0);
@@ -1856,10 +1877,10 @@ uint64_t emulateInstr(Rewriter* r, EmuState* es, Instr* instr)
 
         captureIDiv(r, instr, cs, es);
 
-        es->reg[Reg_AX] = quRes;
-        es->reg[Reg_DX] = modRes;
-        initMetaState(&(es->reg_state[Reg_DX]), cs);
-        initMetaState(&(es->reg_state[Reg_AX]), cs);
+        es->reg[RI_A] = quRes;
+        es->reg[RI_D] = modRes;
+        initMetaState(&(es->reg_state[RI_D]), cs);
+        initMetaState(&(es->reg_state[RI_A]), cs);
         break;
     }
     case IT_INC:
@@ -2069,17 +2090,17 @@ uint64_t emulateInstr(Rewriter* r, EmuState* es, Instr* instr)
         Instr i;
         // mov rbp,rsp
         initSimpleInstr(&i, IT_MOV);
-        copyOperand( &(i.src), getRegOp(VT_64, Reg_BP) );
-        copyOperand( &(i.dst), getRegOp(VT_64, Reg_SP) );
+        copyOperand( &(i.src), getRegOp(getReg(RT_GP64, RI_BP)) );
+        copyOperand( &(i.dst), getRegOp(getReg(RT_GP64, RI_SP)) );
         getOpValue(&v1, es, &(i.src));
         setOpValue(&v1, es, &(i.dst));
         captureMov(r, &i, es, &v1);
         // pop rbp
-        initUnaryInstr(&i, IT_POP, getRegOp(VT_64, Reg_BP));
-        addr = emuValue(es->reg[Reg_SP], VT_64, es->reg_state[Reg_SP]);
+        initUnaryInstr(&i, IT_POP, getRegOp(getReg(RT_GP64, RI_BP)));
+        addr = emuValue(es->reg[RI_SP], VT_64, es->reg_state[RI_SP]);
         getMemValue(&v1, &addr, es, VT_64, 1);
         setOpValue(&v1, es, &(i.dst));
-        es->reg[Reg_SP] += 8;
+        es->reg[RI_SP] += 8;
         if (!msIsStatic(v1.state))
             capture(r, &i);
         break;
@@ -2147,19 +2168,19 @@ uint64_t emulateInstr(Rewriter* r, EmuState* es, Instr* instr)
     case IT_POP:
         switch(instr->dst.type) {
         case OT_Reg32:
-            addr = emuValue(es->reg[Reg_SP], VT_64, es->reg_state[Reg_SP]);
+            addr = emuValue(es->reg[RI_SP], VT_64, es->reg_state[RI_SP]);
             getMemValue(&v1, &addr, es, VT_32, 1);
             setOpValue(&v1, es, &(instr->dst));
-            es->reg[Reg_SP] += 4;
+            es->reg[RI_SP] += 4;
             if (!msIsStatic(v1.state))
                 capture(r, instr);
             break;
 
         case OT_Reg64:
-            addr = emuValue(es->reg[Reg_SP], VT_64, es->reg_state[Reg_SP]);
+            addr = emuValue(es->reg[RI_SP], VT_64, es->reg_state[RI_SP]);
             getMemValue(&v1, &addr, es, VT_64, 1);
             setOpValue(&v1, es, &(instr->dst));
-            es->reg[Reg_SP] += 8;
+            es->reg[RI_SP] += 8;
             if (!msIsStatic(v1.state))
                 capture(r, instr);
             break;
@@ -2172,8 +2193,8 @@ uint64_t emulateInstr(Rewriter* r, EmuState* es, Instr* instr)
         switch(instr->dst.type) {
         case OT_Reg32:
         case OT_Imm32:
-            es->reg[Reg_SP] -= 4;
-            addr = emuValue(es->reg[Reg_SP], VT_64, es->reg_state[Reg_SP]);
+            es->reg[RI_SP] -= 4;
+            addr = emuValue(es->reg[RI_SP], VT_64, es->reg_state[RI_SP]);
             getOpValue(&v1, es, &(instr->dst));
             setMemValue(&v1, &addr, es, VT_32, 1);
             if (!msIsStatic(v1.state))
@@ -2181,8 +2202,8 @@ uint64_t emulateInstr(Rewriter* r, EmuState* es, Instr* instr)
             break;
 
         case OT_Reg64:
-            es->reg[Reg_SP] -= 8;
-            addr = emuValue(es->reg[Reg_SP], VT_64, es->reg_state[Reg_SP]);
+            es->reg[RI_SP] -= 8;
+            addr = emuValue(es->reg[RI_SP], VT_64, es->reg_state[RI_SP]);
             getOpValue(&v1, es, &(instr->dst));
             setMemValue(&v1, &addr, es, VT_64, 1);
             if (!msIsStatic(v1.state))
@@ -2203,9 +2224,9 @@ uint64_t emulateInstr(Rewriter* r, EmuState* es, Instr* instr)
         es->depth--;
         if (es->depth >= 0) {
             // pop return address from stack
-            addr = emuValue(es->reg[Reg_SP], VT_64, es->reg_state[Reg_SP]);
+            addr = emuValue(es->reg[RI_SP], VT_64, es->reg_state[RI_SP]);
             getMemValue(&v1, &addr, es, VT_64, 1);
-            es->reg[Reg_SP] += 8;
+            es->reg[RI_SP] += 8;
 
             assert(v1.val == es->ret_stack[es->depth]);
             return es->ret_stack[es->depth];

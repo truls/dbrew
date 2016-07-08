@@ -20,10 +20,6 @@
 /* For now, decoder only does x86-64
  *
  * Opcode handlers are registered once and put into opcode tables.
- *
- * FIXME:
- * - for 8bit regs, we do not support/assert on use of AH/BH/CH/DH
- * - difference between 64bit MMX and 64 SSE regs (?)
 */
 
 #include "decode.h"
@@ -216,20 +212,21 @@ static
 void parseModRM(DContext* cxt, ValType vt, RegTypes rt,
                Operand* o1, Operand* o2, int* digit)
 {
-    int modrm, mod, rm, reg; // modRM byte
+    int modrm, mod, rm, r; // modRM byte
     int sib, scale, idx, base; // SIB byte
     int64_t disp;
-    Reg r;
     OpType ot;
     int hasDisp8 = 0, hasDisp32 = 0;
 
     modrm = cxt->f[cxt->off++];
     mod = (modrm & 192) >> 6;
-    reg = (modrm & 56) >> 3;
+    r = (modrm & 56) >> 3;
     rm = modrm & 7;
 
+    if (vt == VT_None)
+        vt = (cxt->rex & REX_MASK_W) ? VT_64 : VT_32;
+
     switch(vt) {
-    case VT_None: ot = (cxt->rex & REX_MASK_W) ? OT_Reg64 : OT_Reg32; break;
     case VT_8:    ot = OT_Reg8; break;
     case VT_16:   ot = OT_Reg16; break;
     case VT_32:   ot = OT_Reg32; break;
@@ -244,20 +241,24 @@ void parseModRM(DContext* cxt, ValType vt, RegTypes rt,
         assert(0); // never should happen
     }
     // r part: reg or digit, give both back to caller
-    if (digit) *digit = reg;
+    if (digit) *digit = r;
     if (o2) {
-        r = ((rt & RT_Op2V) ? Reg_X0 : Reg_AX) + reg;
         if (cxt->rex & REX_MASK_R) r += 8;
         o2->type = ot;
-        o2->reg = r;
+        if (rt & RT_Op2V)
+            o2->reg = getReg(getVRegType(VT_128), (RegIndex) r); // FIXME
+        else
+            o2->reg = getReg(getGPRegType(vt), (RegIndex) r);
     }
 
     if (mod == 3) {
         // r, r
-        r = ((rt & RT_Op1V) ? Reg_X0 : Reg_AX) + rm;
-        if (cxt->rex & REX_MASK_B) r += 8;
+        if (cxt->rex & REX_MASK_B) rm += 8;
         o1->type = ot;
-        o1->reg = r;
+        if (rt & RT_Op1V)
+            o1->reg = getReg(getVRegType(VT_128), (RegIndex) rm); // FIXME
+        else
+            o1->reg = getReg(getGPRegType(vt), (RegIndex) rm);
         return;
     }
 
@@ -291,7 +292,6 @@ void parseModRM(DContext* cxt, ValType vt, RegTypes rt,
     }
 
     switch(vt) {
-    case VT_None: ot = (cxt->rex & REX_MASK_W) ? OT_Ind64 : OT_Ind32; break;
     case VT_8:    ot = OT_Ind8; break;
     case VT_16:   ot = OT_Ind16; break;
     case VT_32:   ot = OT_Ind32; break;
@@ -310,23 +310,31 @@ void parseModRM(DContext* cxt, ValType vt, RegTypes rt,
     o1->scale = scale;
     o1->val = (uint64_t) disp;
     if (scale == 0) {
-        r = Reg_AX + rm;
-        if (cxt->rex & REX_MASK_B) r += 8;
-        o1->reg = ((mod == 0) && (rm == 5)) ? Reg_IP : r;
+        if ((mod == 0) && (rm == 5)) {
+            o1->reg = getReg(RT_IP, (RegIndex)0);
+            return;
+        }
+        if (cxt->rex & REX_MASK_B) rm += 8;
+        o1->reg = getReg(RT_GP64, (RegIndex) rm);
         return;
     }
 
-    if (cxt->rex & REX_MASK_X) idx += 8;
-    r = Reg_AX + idx;
-    o1->ireg = (idx == 4) ? Reg_None : r;
+    if (idx == 4) {
+        o1->ireg = getReg(RT_None, (RegIndex)0);
+        o1->scale = 0; // index register not used: set scale to 0
+    }
+    else {
+        if (cxt->rex & REX_MASK_X) idx += 8;
+        o1->ireg = getReg(RT_GP64, (RegIndex) idx);
+    }
 
-
-    if (cxt->rex & REX_MASK_B) base += 8;
-    r = Reg_AX + base;
-    o1->reg = ((base == 5) && (mod == 0)) ? Reg_None : r;
-
-    // no need to use SIB if index register not used
-    if (o1->ireg == Reg_None) o1->scale = 0;
+    if ((base == 5) && (mod == 0)) {
+        o1->reg = getReg(RT_None, (RegIndex)0);
+    }
+    else {
+        if (cxt->rex & REX_MASK_B) base += 8;
+        o1->reg = getReg(RT_GP64, (RegIndex) base);
+    }
 }
 
 // parse immediate value at current decode context into operand <o>
@@ -691,6 +699,8 @@ static void parseMR(DContext* c)
 // RM encoding for 2 vector registers, remember encoding for pass-through
 static void parseRMVV(DContext* c)
 {
+    // assume 128bit operand type for VV
+    c->vt = VT_128;
     parseModRM(c, c->vt, RT_VV, &c->o2, &c->o1, 0);
     c->oe = OE_RM;
 }
@@ -698,6 +708,8 @@ static void parseRMVV(DContext* c)
 // MR encoding for 2 vector registers, remember encoding for pass-through
 static void parseMRVV(DContext* c)
 {
+    // assume 128bit operand type for VV
+    c->vt = VT_128;
     parseModRM(c, c->vt, RT_VV, &c->o1, &c->o2, 0);
     c->oe = OE_MR;
 }
@@ -733,7 +745,7 @@ static void parseI3_8se(DContext* c)
 // set op1 as al/ax/eax/rax register
 static void setO1RegA(DContext* c)
 {
-    setRegOp(&c->o1, c->vt, Reg_AX);
+    setRegOp(&c->o1, getReg(getGPRegType(c->vt), RI_A));
 }
 
 // M in op 1, Imm in op 2 (64bit with imm32 signed extension)
@@ -1038,14 +1050,14 @@ void decode0F_7E(DContext* c)
 {
     switch(c->ps) {
     case PS_66:
-        // movd/q r/m 32/64,xmm (MR)
+        // movd/q r/m 32/64,xmm (MR), SSE
         c->oe = OE_MR;
         c->vt = (c->rex & REX_MASK_W) ? VT_64 : VT_32;
         c->it = (c->rex & REX_MASK_W) ? IT_MOVQ : IT_MOVD;
         parseModRM(c, c->vt, RT_GV, &c->o1, &c->o2, 0);
         break;
     case PS_F3:
-        // movq xmm1, xmm2/m64 (RM) - move from xmm2/m64 to xmm1
+        // movq xmm1, xmm2/m64 (RM) - move from xmm2/m64 to xmm1, SSE
         c->oe = OE_RM;
         c->vt = VT_64;
         c->it = IT_MOVQ;
@@ -1228,22 +1240,26 @@ static
 void decode_50(DContext* c)
 {
     // 0x50-57: push r16/r64
-    Reg reg = Reg_AX + (c->opc1 - 0x50);
+    int ri = c->opc1 - 0x50;
+    if (c->rex & REX_MASK_B) ri += 8;
     c->vt = VT_64;
-    if (c->rex & REX_MASK_B) reg += 8;
     if (c->ps & PS_66) c->vt = VT_16;
-    addUnaryOp(c->r, c, IT_PUSH, getRegOp(c->vt, reg));
+
+    Reg reg = getReg(getGPRegType(c->vt), (RegIndex) ri);
+    addUnaryOp(c->r, c, IT_PUSH, getRegOp(reg));
 }
 
 static
 void decode_58(DContext* c)
 {
     // 0x58-5F: pop r16/r64
-    Reg reg = Reg_AX + (c->opc1 - 0x58);
+    int ri = c->opc1 - 0x58;
+    if (c->rex & REX_MASK_B) ri += 8;
     c->vt = VT_64;
-    if (c->rex & REX_MASK_B) reg += 8;
     if (c->ps & PS_66) c->vt = VT_16;
-    addUnaryOp(c->r, c, IT_POP, getRegOp(c->vt, reg));
+
+    Reg reg = getReg(getGPRegType(c->vt), (RegIndex) ri);
+    addUnaryOp(c->r, c, IT_POP, getRegOp(reg));
 }
 
 static
@@ -1253,11 +1269,7 @@ void decode_63(DContext* c)
     assert(c->rex & REX_MASK_W);
     parseModRM(c, VT_None, RT_GG, &c->o2, &c->o1, 0);
     // src is 32 bit
-    switch(c->o2.type) {
-    case OT_Reg64: c->o2.type = OT_Reg32; break;
-    case OT_Ind64: c->o2.type = OT_Ind32; break;
-    default: assert(0);
-    }
+    opOverwriteType(&c->o2, VT_32);
     addBinaryOp(c->r, c, IT_MOVSX, VT_None, &c->o1, &c->o2);
 }
 
@@ -1351,9 +1363,10 @@ void decode_B0(DContext* c)
 {
     // B0-B7: mov r8,imm8
     // B8-BF: mov r32/64,imm32/64
+    int ri = (c->opc1 & 7);
+    if (c->rex & REX_MASK_B) ri += 8;
     if ((c->opc1 >= 0xB0) && (c->opc1 <= 0xB7)) c->vt = VT_8;
-    c->o1.reg = Reg_AX + (c->opc1 & 7);
-    if (c->rex & REX_MASK_B) c->o1.reg += 8;
+    c->o1.reg = getReg(getGPRegType(c->vt), (RegIndex)ri);
     c->o1.type = getGPRegOpType(c->vt);
     parseImm(c, c->vt, &c->o2, true);
     addBinaryOp(c->r, c, IT_MOV, c->vt, &c->o1, &c->o2);
@@ -1466,7 +1479,7 @@ void decode_D2(DContext* c)
 {
     c->vt = VT_8;
     parseModRM(c, c->vt, RT_G, &c->o1, 0, &c->digit);
-    setRegOp(&c->o2, VT_8, Reg_CX);
+    setRegOp(&c->o2, getReg(RT_GP8, RI_C));
     switch(c->digit) {
     case 4: // shl r/m8,cl (MC16/32/64) (= sal)
         addBinaryOp(c->r, c, IT_SHL, c->vt, &c->o1, &c->o2); break;
@@ -1484,7 +1497,7 @@ void decode_D3(DContext* c)
 {
     // for 16/32/64
     parseModRM(c, c->vt, RT_G, &c->o1, 0, &c->digit);
-    setRegOp(&c->o2, VT_8, Reg_CX);
+    setRegOp(&c->o2, getReg(RT_GP8, RI_C));
     switch(c->digit) {
     case 4: // shl r/m16/32/64,cl (MC) (= sal)
         addBinaryOp(c->r, c, IT_SHL, c->vt, &c->o1, &c->o2); break;
