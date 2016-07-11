@@ -29,6 +29,10 @@
 
 #include "dbrew.h"
 
+typedef struct _Error Error;
+typedef struct _DecodeError DecodeError;
+typedef struct _GenerateError GenerateError;
+
 typedef enum _ErrorModule {
     EM_Unknown,
     EM_Decoder, EM_Emulator, EM_Generator, EM_Capture,
@@ -47,13 +51,13 @@ typedef enum _ErrorType {
     ET_Max
 } ErrorType;
 
-typedef struct _Error {
+struct _Error {
     ErrorModule em;
     ErrorType et;
     Rewriter* r;
 
     const char* desc; // textual description
-} Error;
+};
 
 void setErrorNone(Error* e);
 bool isErrorSet(Error*);
@@ -66,26 +70,26 @@ void logError(Error* e, char* d);
 
 // extensions with more context info
 
-typedef struct _DecodeError {
+struct _DecodeError {
     Error e; // must be first
 
     // additional context
     DBB* dbb;
     int offset;
-} DecodeError;
+};
 
 void setDecodeError(DecodeError* de, Rewriter* r, char* d,
                     ErrorType et, DBB* dbb, int off);
 const char* decodeErrorContext(Error*); // used by errorString()
 
 
-typedef struct _GenerateError {
+struct _GenerateError {
     Error e; // must be first
 
     // additional context
     CBB* cbb;
     int offset;
-} GenerateError;
+};
 
 void setGenerateError(GenerateError* de, Rewriter* r, char* d,
                       ErrorType et, CBB* cbb, int off);

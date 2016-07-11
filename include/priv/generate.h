@@ -24,7 +24,6 @@
 #include "error.h"
 
 typedef struct _GContext GContext;
-typedef struct _GenerateError GenerateError;
 
 // generate code for a captured BB
 // returns 0 on success

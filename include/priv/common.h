@@ -29,7 +29,6 @@
 
 #define debug(format, ...) printf("!DBG %s: " format "\n", __PRETTY_FUNCTION__, ##__VA_ARGS__)
 
-typedef struct _CBB CBB;
 typedef struct _FunctionConfig FunctionConfig;
 
 // a decoded basic block

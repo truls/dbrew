@@ -244,7 +244,7 @@ typedef enum _StateChange {
     SC_dstDyn // operand dst is valid, should change to dynamic
 } StateChange;
 
-typedef struct _Instr {
+struct _Instr {
     uint64_t addr;
     int len;
     InstrType type;
@@ -262,7 +262,7 @@ typedef struct _Instr {
     Operand src2; // with ternary op: dst = src op src2
 
     ExprNode* info_memAddr; // annotate memory reference of instr
-} Instr;
+};
 
 RegType getGPRegType(ValType vt);
 RegType getLegGPRegType(ValType vt);
