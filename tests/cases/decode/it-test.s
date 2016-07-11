@@ -48,4 +48,8 @@ f1:
     test bl, bh
     test cl, ch
     test dl, dh
+
+    test ax, 0x10
+    test eax, 0x10
+    test rax, 0x10
     ret

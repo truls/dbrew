@@ -437,6 +437,23 @@ Operand* reduceImm64to32(Operand* o)
 }
 
 static
+Operand* reduceImm16to8(Operand* o)
+{
+    static Operand newOp;
+
+    if (o->type == OT_Imm16) {
+        // reduction possible if signed 16bit fits into signed 8bit
+        int16_t v = (int16_t) o->val;
+        if ((v > -(1<<7)) && (v < (1<<7))) {
+            newOp.type = OT_Imm8;
+            newOp.val = (uint8_t) (int8_t) v;
+            return &newOp;
+        }
+    }
+    return o;
+}
+
+static
 Operand* reduceImm32to8(Operand* o)
 {
     static Operand newOp;
@@ -678,31 +695,49 @@ int genAdd(GContext* cxt)
     // if src is imm, try to reduce width
     src = reduceImm64to32(src);
     src = reduceImm32to8(src);
+    src = reduceImm16to8(src);
 
     switch(src->type) {
+    case OT_Reg8:
+    case OT_Reg16:
     case OT_Reg32:
     case OT_Reg64:
+        // src reg
         if (opValType(src) != opValType(dst)) return -1;
         switch(dst->type) {
+        case OT_Reg16:
         case OT_Reg32:
         case OT_Reg64:
+        case OT_Ind16:
         case OT_Ind32:
         case OT_Ind64:
             // use 'add r/m,r 32/64' (0x01 MR)
-            return genModRM(buf, 0x01, -1, dst, src, VT_None, 0);
+            return genModRM(buf, 0x01, -1, dst, src, VT_None, GEN_66OnVT16);
+
+        case OT_Reg8:
+        case OT_Ind8:
+            // use 'add r/m,r 8' (0x00 MR)
+            return genModRM(buf, 0x00, -1, dst, src, VT_None, 0);
 
         default: return -1;
         }
         break;
 
+    case OT_Ind8:
+    case OT_Ind16:
     case OT_Ind32:
     case OT_Ind64:
         if (opValType(src) != opValType(dst)) return -1;
         switch(dst->type) {
+        case OT_Reg8:
+            // use 'add r,r/m 8' (0x02 RM)
+            return genModRM(buf, 0x02, -1, src, dst, VT_None, 0);
+
+        case OT_Reg16:
         case OT_Reg32:
         case OT_Reg64:
-            // use 'add r,r/m 32/64' (0x03 RM)
-            return genModRM(buf, 0x03, -1, src, dst, VT_None, 0);
+            // use 'add r,r/m 16/32/64' (0x03 RM)
+            return genModRM(buf, 0x03, -1, src, dst, VT_None, GEN_66OnVT16);
 
         default: return -1;
         }
@@ -711,12 +746,42 @@ int genAdd(GContext* cxt)
     case OT_Imm8:
         // src imm8
         switch(dst->type) {
+        case OT_Reg8:
+            if (dst->reg.ri == RI_A) {
+                // use 'add al,imm8' (0x04 I)
+                buf[0] = 0x04;
+                return appendI(buf, 1, src);
+            }
+            // fall-through
+        case OT_Ind8:
+            // use 'add r/m 8,imm8' (0x80/0 MI)
+            return genDigitMI(buf, 0x80, 0, dst, src, 0);
+
+        case OT_Reg16:
         case OT_Reg32:
         case OT_Reg64:
+        case OT_Ind16:
         case OT_Ind32:
         case OT_Ind64:
-            // use 'add r/m 32/64, imm8' (0x83/0 MI)
-            return genDigitMI(buf, 0x83, 0, dst, src, 0);
+            // use 'add r/m 16/32/64, imm8' (0x83/0 MI)
+            return genDigitMI(buf, 0x83, 0, dst, src, GEN_66OnVT16);
+
+        default: return -1;
+        }
+        break;
+
+    case OT_Imm16:
+        switch(dst->type) {
+        case OT_Reg16:
+            if (dst->reg.ri == RI_A) {
+                // use 'add ax,imm8' (0x66 0x05 I)
+                buf[0] = 0x66; buf[1] = 0x05;
+                return appendI(buf, 2, src);
+            }
+            // fall-through
+        case OT_Ind16:
+            // use 'add r/m 16,imm16' (0x81/0 MI)
+            return genDigitMI(buf, 0x81, 0, dst, src, GEN_66OnVT16);
 
         default: return -1;
         }
@@ -727,6 +792,14 @@ int genAdd(GContext* cxt)
         switch(dst->type) {
         case OT_Reg32:
         case OT_Reg64:
+            if (dst->reg.ri == RI_A) {
+                // use 'add eax/rax,imm32' (0x05 I)
+                int o=0;
+                if (dst->type == OT_Reg64) buf[o++] = 0x40 | REX_MASK_W;
+                buf[o++] = 0x05;
+                return appendI(buf, o, src);
+            }
+            // fall-through
         case OT_Ind32:
         case OT_Ind64:
             // use 'add r/m 32/64, imm32' (0x81/0 MI)
@@ -830,8 +903,8 @@ int genTest(GContext* cxt)
     case OT_Reg16:
     case OT_Reg32:
     case OT_Reg64:
-        if (opValType(src) != opValType(dst)) return -1;
         // src reg
+        if (opValType(src) != opValType(dst)) return -1;
         switch(dst->type) {
         case OT_Reg16:
         case OT_Reg32:
@@ -886,7 +959,7 @@ int genTest(GContext* cxt)
         break;
 
     case OT_Imm32:
-        // src imm16,imm32
+        // src imm32
         switch(dst->type) {
         case OT_Reg32:
         case OT_Reg64:
@@ -901,7 +974,7 @@ int genTest(GContext* cxt)
         case OT_Ind32:
         case OT_Ind64:
             // use 'test r/m 16/32/64,imm16/32' (0xF7/0 MI)
-            return genDigitMI(buf, 0xF7, 0, dst, src, GEN_66OnVT16);
+            return genDigitMI(buf, 0xF7, 0, dst, src, 0);
 
         default: return -1;
         }

@@ -1,0 +1,58 @@
+BB f1gen (57 instructions):
+               f1gen:  48 01 07              add     %rax,(%rdi)
+             f1gen+3:  4c 01 0f              add     %r9,(%rdi)
+             f1gen+6:  01 07                 add     %eax,(%rdi)
+             f1gen+8:  44 01 0f              add     %r9d,(%rdi)
+            f1gen+11:  66 01 07              add     %ax,(%rdi)
+            f1gen+14:  66 44 01 0f           add     %r9w,(%rdi)
+            f1gen+18:  00 07                 add     %al,(%rdi)
+            f1gen+20:  44 00 0f              add     %r9b,(%rdi)
+            f1gen+23:  48 03 07              add     (%rdi),%rax
+            f1gen+26:  4c 03 0f              add     (%rdi),%r9
+            f1gen+29:  03 07                 add     (%rdi),%eax
+            f1gen+31:  44 03 0f              add     (%rdi),%r9d
+            f1gen+34:  66 03 07              add     (%rdi),%ax
+            f1gen+37:  66 44 03 0f           add     (%rdi),%r9w
+            f1gen+41:  02 07                 add     (%rdi),%al
+            f1gen+43:  44 02 0f              add     (%rdi),%r9b
+            f1gen+46:  04 10                 add     $0x10,%al
+            f1gen+48:  66 05 00 10           add     $0x1000,%ax
+            f1gen+52:  66 83 c0 10           add     $0x10,%ax
+            f1gen+56:  05 00 ef cd ab        add     $0xabcdef00,%eax
+            f1gen+61:  83 c0 10              add     $0x10,%eax
+            f1gen+64:  48 05 00 ef cd 0b     add     $0xbcdef00,%rax
+            f1gen+70:  48 83 c0 10           add     $0x10,%rax
+            f1gen+74:  80 00 10              addb    $0x10,(%rax)
+            f1gen+77:  66 81 00 10 03        addw    $0x310,(%rax)
+            f1gen+82:  81 00 10 03 00 00     addl    $0x310,(%rax)
+            f1gen+88:  48 81 00 10 03 00 00  addq    $0x310,(%rax)
+            f1gen+95:  44 00 c8              add     %r9b,%al
+            f1gen+98:  41 00 da              add     %bl,%r10b
+           f1gen+101:  00 d1                 add     %dl,%cl
+           f1gen+103:  40 00 fe              add     %dil,%sil
+           f1gen+106:  44 01 c8              add     %r9d,%eax
+           f1gen+109:  41 01 da              add     %ebx,%r10d
+           f1gen+112:  4c 01 c8              add     %r9,%rax
+           f1gen+115:  49 01 da              add     %rbx,%r10
+           f1gen+118:  40 00 f0              add     %sil,%al
+           f1gen+121:  40 00 c6              add     %al,%sil
+           f1gen+124:  00 e0                 add     %ah,%al
+           f1gen+126:  00 dc                 add     %bl,%ah
+           f1gen+128:  00 fb                 add     %bh,%bl
+           f1gen+130:  00 e9                 add     %ch,%cl
+           f1gen+132:  00 f2                 add     %dh,%dl
+           f1gen+134:  80 c3 10              add     $0x10,%bl
+           f1gen+137:  66 81 c3 00 10        add     $0x1000,%bx
+           f1gen+142:  66 83 c3 10           add     $0x10,%bx
+           f1gen+146:  81 c3 00 ef cd ab     add     $0xabcdef00,%ebx
+           f1gen+152:  83 c3 10              add     $0x10,%ebx
+           f1gen+155:  48 81 c3 00 ef cd 0b  add     $0xbcdef00,%rbx
+           f1gen+162:  48 83 c3 10           add     $0x10,%rbx
+           f1gen+166:  41 80 c1 10           add     $0x10,%r9b
+           f1gen+170:  66 41 81 c1 00 10     add     $0x1000,%r9w
+           f1gen+176:  66 41 83 c1 10        add     $0x10,%r9w
+           f1gen+181:  41 81 c1 00 ef cd ab  add     $0xabcdef00,%r9d
+           f1gen+188:  41 83 c1 10           add     $0x10,%r9d
+           f1gen+192:  49 81 c1 00 ef cd 0b  add     $0xbcdef00,%r9
+           f1gen+199:  49 83 c1 10           add     $0x10,%r9
+           f1gen+203:  c3                    ret    
