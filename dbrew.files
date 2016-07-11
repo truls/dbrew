@@ -30,6 +30,7 @@ tests/TODO.md
 tests/Makefile
 tests/test-driver.c
 tests/test-driver-decode.c
+tests/test-driver-gen.c
 tests/test-driver-generate.c
 tests/op-tls.c
 tests/branchtest.c

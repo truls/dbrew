@@ -20,9 +20,14 @@
 #ifndef GENERATE_H
 #define GENERATE_H
 
-#include <common.h>
+#include "common.h"
+#include "error.h"
+
+typedef struct _GContext GContext;
+typedef struct _GenerateError GenerateError;
 
 // generate code for a captured BB
-void generate(Rewriter* r, CBB* cbb);
+// returns 0 on success
+GenerateError* generate(Rewriter* r, CBB* cbb);
 
 #endif // GENERATE_H

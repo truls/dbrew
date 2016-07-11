@@ -633,7 +633,8 @@ char* cbb_prettyName(CBB* bb)
     else
         off = sprintf(buf, "%s+%lx", bb->fc->name, bb->dec_addr - bb->fc->func);
 
-    sprintf(buf+off, "|%d", bb->esID);
+    if (bb->esID >=0)
+        sprintf(buf+off, "|%d", bb->esID);
 
     return buf;
 }
@@ -686,6 +687,21 @@ void capture(Rewriter* r, Instr* instr)
     }
     copyInstr(newInstr, instr);
     cbb->count++;
+}
+
+// clone a decoded BB as a CBB
+//
+// By-pass emulation by directly forwarding all decoded instructions
+// from a given DBB to newly created CBB. Used for debugging/testing.
+CBB* createCBBfromDBB(Rewriter* r, DBB* src)
+{
+    // a CBB starting from an undefined emulator state (esID -1)
+    CBB* cbb = getCaptureBB(r, (uint64_t) src->addr, -1);
+    r->currentCapBB = cbb;
+    for(int i = 0; i < src->count; i++)
+        capture(r, src->instr + i);
+    r->currentCapBB = 0;
+    return cbb;
 }
 
 

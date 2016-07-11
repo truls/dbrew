@@ -35,7 +35,7 @@ bool isErrorSet(Error* e)
     return (e->et != ET_NoError);
 }
 
-void setError(Error* e, Rewriter* r, char* d)
+void setError(Error* e, Rewriter* r, const char* d)
 {
     e->et = ET_Unknown;
     e->em = EM_Unknown;
@@ -57,6 +57,10 @@ const char *errorString(Error* e)
     case EM_Decoder:
         module = "Decoder";
         detail = decodeErrorContext(e);
+        break;
+    case EM_Generator:
+        module = "Generator";
+        detail = generateErrorContext(e);
         break;
     case EM_Unknown: break;
     default: assert(0);
@@ -108,6 +112,35 @@ const char *decodeErrorContext(Error* e)
     assert(e->em == EM_Decoder);
     sprintf(buf, "decoding BB %s+%d",
             prettyAddress(de->dbb->addr, de->dbb->fc), de->offset);
+
+    return buf;
+}
+
+void setGenerateError(GenerateError* de, Rewriter* r, char* d,
+                      ErrorType et, CBB *cbb, int o)
+{
+    Error* e = (Error*)de;
+
+    setError(e, r, d);
+    e->em = EM_Decoder;
+    e->et = et;
+    de->cbb = cbb;
+    de->offset = o;
+}
+
+const char *generateErrorContext(Error* e)
+{
+    static char buf[100];
+    GenerateError* ge = (GenerateError*)e;
+
+    assert(e->em == EM_Generator);
+    if (ge->offset<0)
+        sprintf(buf, "in BB (%s)", cbb_prettyName(ge->cbb));
+    else
+        sprintf(buf, "instr %d '%s' in BB (%s)",
+                ge->offset,
+                instr2string(ge->cbb->instr + ge->offset, 0, 0),
+                cbb_prettyName(ge->cbb));
 
     return buf;
 }

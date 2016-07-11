@@ -29,9 +29,12 @@ int main()
 
     test_fill_instruction(instr);
     generate(r, cbb);
-
-    printf("Instruction: %s\n", instr2string(instr, 0, cbb->fc));
-    printf("Generated:  %s\n", bytes2string(instr, 0, instr->len));
-
+    Error* e = (Error*) generate(r, cbb);
+    if (e)
+        logError(e, (char*) "Stopped");
+    else {
+        printf("Instruction: %s\n", instr2string(instr, 0, cbb->fc));
+        printf("Generated:  %s\n", bytes2string(instr, 0, instr->len));
+    }
     return 0;
 }

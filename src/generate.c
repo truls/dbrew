@@ -26,6 +26,31 @@
 
 #include "common.h"
 #include "printer.h"
+#include "error.h"
+
+struct _GContext {
+    Instr* instr;
+    uint8_t* buf;
+    GenerateError* e;
+};
+
+static
+void markError(GContext* c, ErrorType et, const char* d)
+{
+    if (d == 0) {
+        if (et == ET_UnsupportedOperands)
+            d = "unsupported operands";
+        else
+            d = "unsupported instruction";
+    }
+    setError(&(c->e->e), 0, d);
+    c->e->e.em = EM_Generator;
+    c->e->e.et = et;
+    // will be set in generate()
+    c->e->e.r = 0;
+    c->e->cbb = 0;
+    c->e->offset = -1;
+}
 
 
 /*------------------------------------------------------------*/
@@ -439,15 +464,19 @@ Operand* reduceImm32to8(Operand* o)
 // Return number of bytes written
 
 static
-int genRet(uint8_t* buf)
+int genRet(GContext* cxt)
 {
+    uint8_t* buf = cxt->buf;
     buf[0] = 0xc3;
     return 1;
 }
 
 static
-int genPush(uint8_t* buf, Operand* o)
+int genPush(GContext* cxt)
 {
+    uint8_t* buf = cxt->buf;
+    Operand* o =  &(cxt->instr->dst);
+
     assert(o->type == OT_Reg64);
     int r = GP64RegEncoding(o->reg);
     if (r > 7) {
@@ -461,8 +490,11 @@ int genPush(uint8_t* buf, Operand* o)
 }
 
 static
-int genPop(uint8_t* buf, Operand* o)
+int genPop(GContext* cxt)
 {
+    uint8_t* buf = cxt->buf;
+    Operand* o =  &(cxt->instr->dst);
+
     assert(o->type == OT_Reg64);
     int r = GP64RegEncoding(o->reg);
     if (r > 7) {
@@ -476,8 +508,11 @@ int genPop(uint8_t* buf, Operand* o)
 }
 
 static
-int genDec(uint8_t* buf, Operand* dst)
+int genDec(GContext* cxt)
 {
+    uint8_t* buf = cxt->buf;
+    Operand* dst =  &(cxt->instr->dst);
+
     switch(dst->type) {
     case OT_Ind32:
     case OT_Ind64:
@@ -492,8 +527,11 @@ int genDec(uint8_t* buf, Operand* dst)
 }
 
 static
-int genInc(uint8_t* buf, Operand* dst)
+int genInc(GContext* cxt)
 {
+    uint8_t* buf = cxt->buf;
+    Operand* dst =  &(cxt->instr->dst);
+
     switch(dst->type) {
     case OT_Ind32:
     case OT_Ind64:
@@ -508,8 +546,12 @@ int genInc(uint8_t* buf, Operand* dst)
 }
 
 static
-int genMov(uint8_t* buf, Operand* src, Operand* dst)
+int genMov(GContext* cxt)
 {
+    uint8_t* buf = cxt->buf;
+    Operand* src =  &(cxt->instr->src);
+    Operand* dst =  &(cxt->instr->dst);
+
     src = reduceImm64to32(src);
 
     switch(dst->type) {
@@ -580,8 +622,12 @@ int genMov(uint8_t* buf, Operand* src, Operand* dst)
 }
 
 static
-int genCMov(uint8_t* buf, InstrType it, Operand* src, Operand* dst)
+int genCMov(GContext* cxt)
 {
+    uint8_t* buf = cxt->buf;
+    InstrType it = cxt->instr->type;
+    Operand* src =  &(cxt->instr->src);
+    Operand* dst =  &(cxt->instr->dst);
     int opc;
 
     switch(dst->type) {
@@ -627,8 +673,12 @@ int genCMov(uint8_t* buf, InstrType it, Operand* src, Operand* dst)
 }
 
 static
-int genAdd(uint8_t* buf, Operand* src, Operand* dst)
+int genAdd(GContext* cxt)
 {
+    uint8_t* buf = cxt->buf;
+    Operand* src =  &(cxt->instr->src);
+    Operand* dst =  &(cxt->instr->dst);
+
     // if src is imm, try to reduce width
     src = reduceImm64to32(src);
     src = reduceImm32to8(src);
@@ -696,8 +746,12 @@ int genAdd(uint8_t* buf, Operand* src, Operand* dst)
 }
 
 static
-int genSub(uint8_t* buf, Operand* src, Operand* dst)
+int genSub(GContext* cxt)
 {
+    uint8_t* buf = cxt->buf;
+    Operand* src =  &(cxt->instr->src);
+    Operand* dst =  &(cxt->instr->dst);
+
     // if src is imm, try to reduce width
     src = reduceImm64to32(src);
     src = reduceImm32to8(src);
@@ -766,8 +820,12 @@ int genSub(uint8_t* buf, Operand* src, Operand* dst)
 }
 
 static
-int genTest(uint8_t* buf, Operand* src, Operand* dst)
+int genTest(GContext* cxt)
 {
+    uint8_t* buf = cxt->buf;
+    Operand* src =  &(cxt->instr->src);
+    Operand* dst =  &(cxt->instr->dst);
+
     switch(src->type) {
     case OT_Reg8:
     case OT_Reg32:
@@ -807,14 +865,18 @@ int genTest(uint8_t* buf, Operand* src, Operand* dst)
         }
         break;
 
-    default: assert(0);
+    default: markError(cxt, ET_UnsupportedOperands, 0); break;
     }
     return 0;
 }
 
 static
-int genIMul(uint8_t* buf, Operand* src, Operand* dst)
+int genIMul(GContext* cxt)
 {
+    uint8_t* buf = cxt->buf;
+    Operand* src =  &(cxt->instr->src);
+    Operand* dst =  &(cxt->instr->dst);
+
     // if src is imm, try to reduce width
     src = reduceImm64to32(src);
     src = reduceImm32to8(src);
@@ -864,8 +926,11 @@ int genIMul(uint8_t* buf, Operand* src, Operand* dst)
 }
 
 static
-int genIDiv1(uint8_t* buf, Operand* src)
+int genIDiv1(GContext* cxt)
 {
+    uint8_t* buf = cxt->buf;
+    Operand* src =  &(cxt->instr->dst); // idiv src decoded into instr->dst
+
     switch(src->type) {
     case OT_Reg32:
     case OT_Ind32:
@@ -881,8 +946,12 @@ int genIDiv1(uint8_t* buf, Operand* src)
 
 
 static
-int genXor(uint8_t* buf, Operand* src, Operand* dst)
+int genXor(GContext* cxt)
 {
+    uint8_t* buf = cxt->buf;
+    Operand* src =  &(cxt->instr->src);
+    Operand* dst =  &(cxt->instr->dst);
+
     switch(src->type) {
     // src reg
     case OT_Reg32:
@@ -948,8 +1017,12 @@ int genXor(uint8_t* buf, Operand* src, Operand* dst)
 }
 
 static
-int genOr(uint8_t* buf, Operand* src, Operand* dst)
+int genOr(GContext* cxt)
 {
+    uint8_t* buf = cxt->buf;
+    Operand* src =  &(cxt->instr->src);
+    Operand* dst =  &(cxt->instr->dst);
+
     switch(src->type) {
     // src reg
     case OT_Reg32:
@@ -1015,8 +1088,12 @@ int genOr(uint8_t* buf, Operand* src, Operand* dst)
 }
 
 static
-int genAnd(uint8_t* buf, Operand* src, Operand* dst)
+int genAnd(GContext* cxt)
 {
+    uint8_t* buf = cxt->buf;
+    Operand* src =  &(cxt->instr->src);
+    Operand* dst =  &(cxt->instr->dst);
+
     switch(src->type) {
     // src reg
     case OT_Reg32:
@@ -1083,8 +1160,12 @@ int genAnd(uint8_t* buf, Operand* src, Operand* dst)
 
 
 static
-int genShl(uint8_t* buf, Operand* src, Operand* dst)
+int genShl(GContext* cxt)
 {
+    uint8_t* buf = cxt->buf;
+    Operand* src =  &(cxt->instr->src);
+    Operand* dst =  &(cxt->instr->dst);
+
     switch(src->type) {
     // src reg
     case OT_Imm8:
@@ -1106,8 +1187,12 @@ int genShl(uint8_t* buf, Operand* src, Operand* dst)
 }
 
 static
-int genShr(uint8_t* buf, Operand* src, Operand* dst)
+int genShr(GContext* cxt)
 {
+    uint8_t* buf = cxt->buf;
+    Operand* src =  &(cxt->instr->src);
+    Operand* dst =  &(cxt->instr->dst);
+
     switch(src->type) {
     // src reg
     case OT_Imm8:
@@ -1129,8 +1214,12 @@ int genShr(uint8_t* buf, Operand* src, Operand* dst)
 }
 
 static
-int genSar(uint8_t* buf, Operand* src, Operand* dst)
+int genSar(GContext* cxt)
 {
+    uint8_t* buf = cxt->buf;
+    Operand* src =  &(cxt->instr->src);
+    Operand* dst =  &(cxt->instr->dst);
+
     switch(src->type) {
     // src reg
     case OT_Imm8:
@@ -1153,8 +1242,12 @@ int genSar(uint8_t* buf, Operand* src, Operand* dst)
 
 
 static
-int genLea(uint8_t* buf, Operand* src, Operand* dst)
+int genLea(GContext* cxt)
 {
+    uint8_t* buf = cxt->buf;
+    Operand* src =  &(cxt->instr->src);
+    Operand* dst =  &(cxt->instr->dst);
+
     assert(opIsInd(src));
     assert(opIsGPReg(dst));
     switch(dst->type) {
@@ -1169,8 +1262,11 @@ int genLea(uint8_t* buf, Operand* src, Operand* dst)
 }
 
 static
-int genCltq(uint8_t* buf, ValType vt)
+int genCltq(GContext* cxt)
 {
+    uint8_t* buf = cxt->buf;
+    ValType vt =  cxt->instr->vtype;
+
     switch(vt) {
     case VT_32: buf[0] = 0x98; return 1;
     case VT_64: buf[0] = 0x48; buf[1] = 0x98; return 2;
@@ -1180,8 +1276,11 @@ int genCltq(uint8_t* buf, ValType vt)
 }
 
 static
-int genCqto(uint8_t* buf, ValType vt)
+int genCqto(GContext* cxt)
 {
+    uint8_t* buf = cxt->buf;
+    ValType vt =  cxt->instr->vtype;
+
     switch(vt) {
     case VT_64: buf[0] = 0x99; return 1;
     case VT_128: buf[0] = 0x48; buf[1] = 0x99; return 2;
@@ -1192,8 +1291,12 @@ int genCqto(uint8_t* buf, ValType vt)
 
 
 static
-int genCmp(uint8_t* buf, Operand* src, Operand* dst)
+int genCmp(GContext* cxt)
 {
+    uint8_t* buf = cxt->buf;
+    Operand* src =  &(cxt->instr->src);
+    Operand* dst =  &(cxt->instr->dst);
+
     // if src is imm, try to reduce width
     src = reduceImm64to32(src);
     src = reduceImm32to8(src);
@@ -1265,10 +1368,12 @@ int genCmp(uint8_t* buf, Operand* src, Operand* dst)
 
 // Pass-through: parser forwarding opcodes, provides encoding
 static
-int genPassThrough(uint8_t* buf, Instr* instr)
+int genPassThrough(GContext* cxt)
 {
-    int o = 0;
+    uint8_t* buf = cxt->buf;
+    Instr* instr = cxt->instr;
     ValType vt = instr->vtype;
+    int o = 0;
 
     assert(instr->ptLen > 0);
     if (instr->ptPSet & PS_66) buf[o++] = 0x66;
@@ -1305,14 +1410,25 @@ int genPassThrough(uint8_t* buf, Instr* instr)
 
 
 // generate code for a captured BB
-void generate(Rewriter* r, CBB* cbb)
+GenerateError* generate(Rewriter* r, CBB* cbb)
 {
-    uint8_t* buf;
+    static GenerateError error;
+
     uint64_t buf0;
     int used, i, usedTotal;
+    GContext cxt;
 
-    if (cbb == 0) return;
-    if (r->cs == 0) return;
+    assert(cbb != 0);
+
+    cxt.e = &error;
+    setErrorNone((Error*) cxt.e);
+
+    if (r->cs == 0) {
+        markError(&cxt, ET_BufferOverflow, "no code buffer available");
+        error.e.r = r;
+        error.cbb = cbb;
+        return &error;
+    }
 
     if (r->showEmuSteps)
         printf("Generating code for BB %s (%d instructions)\n",
@@ -1323,61 +1439,64 @@ void generate(Rewriter* r, CBB* cbb)
     for(i = 0; i < cbb->count; i++) {
         Instr* instr = cbb->instr + i;
 
-        buf = reserveCodeStorage(r->cs, 15);
+        // pass generator requests via GContext to helpers
+        cxt.buf = reserveCodeStorage(r->cs, 15);
+        cxt.instr = instr;
+        used = 0;
 
         if (instr->ptLen > 0) {
-            used = genPassThrough(buf, instr);
+            used = genPassThrough(&cxt);
         }
         else {
             switch(instr->type) {
             case IT_ADD:
-                used = genAdd(buf, &(instr->src), &(instr->dst));
+                used = genAdd(&cxt);
                 break;
             case IT_CLTQ:
-                used = genCltq(buf, instr->vtype);
+                used = genCltq(&cxt);
                 break;
             case IT_CQTO:
-                used = genCqto(buf, instr->vtype);
+                used = genCqto(&cxt);
                 break;
             case IT_CMP:
-                used = genCmp(buf, &(instr->src), &(instr->dst));
+                used = genCmp(&cxt);
                 break;
             case IT_DEC:
-                used = genDec(buf, &(instr->dst));
+                used = genDec(&cxt);
                 break;
             case IT_IMUL:
-                used = genIMul(buf, &(instr->src), &(instr->dst));
+                used = genIMul(&cxt);
                 break;
             case IT_IDIV1:
-                used = genIDiv1(buf, &(instr->dst));
+                used = genIDiv1(&cxt);
                 break;
             case IT_INC:
-                used = genInc(buf, &(instr->dst));
+                used = genInc(&cxt);
                 break;
             case IT_XOR:
-                used = genXor(buf, &(instr->src), &(instr->dst));
+                used = genXor(&cxt);
                 break;
             case IT_OR:
-                used = genOr(buf, &(instr->src), &(instr->dst));
+                used = genOr(&cxt);
                 break;
             case IT_AND:
-                used = genAnd(buf, &(instr->src), &(instr->dst));
+                used = genAnd(&cxt);
                 break;
             case IT_SHL:
-                used = genShl(buf, &(instr->src), &(instr->dst));
+                used = genShl(&cxt);
                 break;
             case IT_SHR:
-                used = genShr(buf, &(instr->src), &(instr->dst));
+                used = genShr(&cxt);
                 break;
             case IT_SAR:
-                used = genSar(buf, &(instr->src), &(instr->dst));
+                used = genSar(&cxt);
                 break;
             case IT_LEA:
-                used = genLea(buf, &(instr->src), &(instr->dst));
+                used = genLea(&cxt);
                 break;
             case IT_MOV:
             case IT_MOVSX: // converting move
-                used = genMov(buf, &(instr->src), &(instr->dst));
+                used = genMov(&cxt);
                 break;
             case IT_CMOVO:
             case IT_CMOVNO:
@@ -1395,33 +1514,46 @@ void generate(Rewriter* r, CBB* cbb)
             case IT_CMOVGE:
             case IT_CMOVLE:
             case IT_CMOVG:
-                used = genCMov(buf, instr->type, &(instr->src), &(instr->dst));
+                used = genCMov(&cxt);
                 break;
             case IT_POP:
-                used = genPop(buf, &(instr->dst));
+                used = genPop(&cxt);
                 break;
             case IT_PUSH:
-                used = genPush(buf, &(instr->dst));
+                used = genPush(&cxt);
                 break;
             case IT_RET:
-                used = genRet(buf);
+                used = genRet(&cxt);
                 break;
             case IT_SUB:
-                used = genSub(buf, &(instr->src), &(instr->dst));
+                used = genSub(&cxt);
                 break;
             case IT_TEST:
-                used = genTest(buf, &(instr->src), &(instr->dst));
+                used = genTest(&cxt);
                 break;
             case IT_HINT_CALL:
             case IT_HINT_RET:
-                used = 0;
                 break;
-            default: assert(0);
+            default:
+                markError(&cxt, ET_UnsupportedInstr, 0);
+                break;
             }
         }
         assert(used < 15);
 
-        instr->addr = (uint64_t) buf;
+        if (isErrorSet((Error*)cxt.e)) {
+            // fill-in error info
+            error.e.r = r;
+            error.cbb = cbb;
+            error.offset = i;
+
+            // error: no code generated, reset used buffer
+            cbb->size = -1;
+            r->cs->used = buf0 - (uint64_t) r->cs->buf;
+            return &error;
+        }
+
+        instr->addr = (uint64_t) cxt.buf;
         instr->len = used;
         usedTotal += used;
 
@@ -1449,10 +1581,13 @@ void generate(Rewriter* r, CBB* cbb)
     }
 
     // add padding space after generated code for jump instruction
-    buf = useCodeStorage(r->cs, 10);
+    useCodeStorage(r->cs, 10);
 
     cbb->size = usedTotal;
     // start address of generated code.
     // if CBB had no instruction, this points to the padding buffer
-    cbb->addr1 = (cbb->count == 0) ? ((uint64_t)buf) : cbb->instr[0].addr;
+    cbb->addr1 = (cbb->count == 0) ? ((uint64_t)cxt.buf) : cbb->instr[0].addr;
+
+    // no error
+    return 0;
 }

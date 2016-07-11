@@ -109,6 +109,8 @@ uint64_t makeStatic(uint64_t v);
 // opaque data structures used in interface
 typedef struct _Rewriter Rewriter;
 typedef struct _DBB DBB;
+typedef struct _CBB CBB;
+typedef struct _Instr Instr;
 
 // allocate space for a given number of decoded instructions
 Rewriter* dbrew_new(void);

@@ -67,6 +67,9 @@ Instr* newCapInstr(Rewriter* r);
 void capture(Rewriter* r, Instr* instr);
 void captureRet(Rewriter* r, Instr* orig, EmuState* es);
 
+// clone a decoded BB as a CBB
+CBB* createCBBfromDBB(Rewriter* r, DBB* src);
+
 // emulate <instr> by changing <es> and capture it if not static.
 // return 0 to fall through to next instruction, or return address to jump to
 uint64_t emulateInstr(Rewriter* r, EmuState* es, Instr* instr);

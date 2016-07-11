@@ -30,6 +30,7 @@
 #include "decode.h"
 #include "generate.h"
 #include "expr.h"
+#include "error.h"
 
 
 Rewriter* allocRewriter(void)
@@ -401,7 +402,16 @@ void generateBinaryFromCaptured(Rewriter* r)
 
         assert(r->genOrderCount < GENORDER_MAX);
         r->genOrder[r->genOrderCount++] = cbb;
-        generate(r, cbb);
+
+        Error* e = (Error*) generate(r, cbb);
+        if (e) {
+            assert(isErrorSet(e));
+            // current "fall-back": output error, stop generation
+            logError(e, (char*) "Stopped code generation");
+            r->generatedCodeAddr = 0;
+            r->generatedCodeSize = 0;
+            return;
+        }
 
         if (instrIsJcc(cbb->endType)) {
             // FIXME: order according to branch preference

@@ -38,9 +38,11 @@ typedef enum _ErrorModule {
 typedef enum _ErrorType {
     ET_NoError,
     ET_Unknown,
+    ET_BufferOverflow,
     // Decoder
-    ET_BadPrefix, ET_BadOpcode,
-    ET_BadOperands, ET_BufferOverflow,
+    ET_BadPrefix, ET_BadOpcode, ET_BadOperands,
+    // Generator
+    ET_UnsupportedInstr, ET_UnsupportedOperands,
     //
     ET_Max
 } ErrorType;
@@ -50,12 +52,12 @@ typedef struct _Error {
     ErrorType et;
     Rewriter* r;
 
-    char* desc; // textual description
+    const char* desc; // textual description
 } Error;
 
 void setErrorNone(Error* e);
 bool isErrorSet(Error*);
-void setError(Error* e, Rewriter* r, char* d);
+void setError(Error* e, Rewriter* r, const char *d);
 const char* errorString(Error*);
 // add error to some log, with further description (e.g. recover action)
 // currently just to stderror
@@ -72,7 +74,22 @@ typedef struct _DecodeError {
     int offset;
 } DecodeError;
 
-void setDecodeError(DecodeError* de, Rewriter* r, char* d, ErrorType et, DBB* dbb, int off);
+void setDecodeError(DecodeError* de, Rewriter* r, char* d,
+                    ErrorType et, DBB* dbb, int off);
 const char* decodeErrorContext(Error*); // used by errorString()
+
+
+typedef struct _GenerateError {
+    Error e; // must be first
+
+    // additional context
+    CBB* cbb;
+    int offset;
+} GenerateError;
+
+void setGenerateError(GenerateError* de, Rewriter* r, char* d,
+                      ErrorType et, CBB* cbb, int off);
+const char* generateErrorContext(Error*); // used by errorString()
+
 
 #endif // ERROR_H
