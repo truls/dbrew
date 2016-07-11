@@ -1,0 +1,11 @@
+BB f1 (10 instructions):
+                  f1:  0f ef ca              pxor    %mm2,%mm1
+                f1+3:  0f ef 0f              pxor    (%rdi),%mm1
+                f1+6:  41 0f ef 09           pxor    (%r9),%mm1
+               f1+10:  66 0f ef dc           pxor    %xmm4,%xmm3
+               f1+14:  66 41 0f ef d9        pxor    %xmm9,%xmm3
+               f1+19:  66 0f ef 1f           pxor    (%rdi),%xmm3
+               f1+23:  66 44 0f ef 0f        pxor    (%rdi),%xmm9
+               f1+28:  66 41 0f ef 19        pxor    (%r9),%xmm3
+               f1+33:  66 45 0f ef 09        pxor    (%r9),%xmm9
+               f1+38:  c3                    ret    

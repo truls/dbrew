@@ -190,16 +190,29 @@ Instr* addTernaryOp(Rewriter* r, DContext* c,
 
 
 // for parseModRM: register types (GP: general purpose integer, V: vector)
+// vectors: VM: MMX, VX: SSE/XMM, VY: AVX/YMM, VZ: AVX512/ZMM
 typedef enum _RegTypes {
-    RT_Invalid = 0,
-    RT_Op1V = 1,
-    RT_Op2V = 2,
-    RT_G = 0,        // 1 GP operand
-    RT_V = RT_Op1V,  // 1 vector operand
-    RT_GG = 0,       // 2 operands, both GP
-    RT_VG = RT_Op1V, // 2 ops, 1st V, 2nd GP
-    RT_GV = RT_Op2V, // 2 ops, 1st GP, 2nd V
-    RT_VV = RT_Op1V | RT_Op2V // 2 ops, both V
+    RTS_Invalid = 0,
+    RTS_Op1Mask = 7, RTS_Op2Mask = 56,
+    RTS_Op1VM = 4,  RTS_Op1VX =  5, RTS_Op1VY =  6, RTS_Op1VZ =  7,
+    RTS_Op2VM = 32, RTS_Op2VX = 40, RTS_Op2VY = 48, RTS_Op2VZ = 56,
+
+    RTS_G = 0,   // 1 GP operand
+    RTS_VM = RTS_Op1VM,  // 1 vector operand
+    RTS_VX = RTS_Op1VX,
+    RTS_VY = RTS_Op1VY,
+    RTS_VZ = RTS_Op1VZ,
+
+    RTS_G_G = 0,       // 2 operands, both GP
+    RTS_G_VM = RTS_Op2VM, // 2 ops: 1st GP, 2nd V
+    RTS_G_VX = RTS_Op2VX,
+    RTS_G_VY = RTS_Op2VY,
+    RTS_G_VZ = RTS_Op2VZ,
+    RTS_VM_G  =  4, RTS_VX_G,  RTS_VY_G,  RTS_VZ_G, // 2 ops: 1st V, 2nd G
+    RTS_VM_VM = 36, RTS_VX_VM, RTS_VY_VM, RTS_VZ_VM,
+    RTS_VM_VX = 44, RTS_VX_VX, RTS_VY_VX, RTS_VZ_VX,
+    RTS_VM_VY = 52, RTS_VX_VY, RTS_VY_VY, RTS_VZ_VY,
+    RTS_VM_VZ = 60, RTS_VX_VZ, RTS_VY_VZ, RTS_VZ_VZ
 } RegTypes;
 
 // Parse MR encoding (r/m,r: op1 is reg or memory operand, op2 is reg/digit),
@@ -232,10 +245,13 @@ void parseModRM(DContext* cxt, ValType vt, RegTypes rts,
     case VT_32:   ot = OT_Reg32; break;
     case VT_64:   ot = OT_Reg64; break;
     case VT_128:  ot = OT_Reg128;
-        assert(rts & RT_Op2V); // never should happen
+        assert(rts & RTS_Op2VX); // never should happen
         break;
     case VT_256:  ot = OT_Reg256;
-        assert(rts & RT_Op2V); // never should happen
+        assert(rts & RTS_Op2VY); // never should happen
+        break;
+    case VT_512:  ot = OT_Reg512;
+        assert(rts & RTS_Op2VZ); // never should happen
         break;
     default:
         assert(0); // never should happen
@@ -246,24 +262,34 @@ void parseModRM(DContext* cxt, ValType vt, RegTypes rts,
     if (o2) {
         if (cxt->rex & REX_MASK_R) r += 8;
         o2->type = ot;
-        if (rts & RT_Op2V)
-            o2->reg = getReg(getVRegType(VT_128), (RegIndex) r); // FIXME
-        else {
-            RegType rt = cxt->hasRex ? getGPRegType(vt) : getLegGPRegType(vt);
-            o2->reg = getReg(rt, (RegIndex) r);
+
+        RegType rt;
+        switch(rts & RTS_Op2Mask) {
+        case RTS_Op2VM: rt = getVRegType(VT_64); break;
+        case RTS_Op2VX: rt = getVRegType(VT_128); break;
+        case RTS_Op2VY: rt = getVRegType(VT_256); break;
+        case RTS_Op2VZ: rt = getVRegType(VT_512); break;
+        default:
+            rt = cxt->hasRex ? getGPRegType(vt) : getLegGPRegType(vt);
         }
+        o2->reg = getReg(rt, (RegIndex) r);
     }
 
     if (mod == 3) {
         // r, r
         if (cxt->rex & REX_MASK_B) rm += 8;
         o1->type = ot;
-        if (rts & RT_Op1V)
-            o1->reg = getReg(getVRegType(VT_128), (RegIndex) rm); // FIXME
-        else {
-            RegType rt = cxt->hasRex ? getGPRegType(vt) : getLegGPRegType(vt);
-            o1->reg = getReg(rt, (RegIndex) rm);
+
+        RegType rt;
+        switch(rts & RTS_Op1Mask) {
+        case RTS_Op1VM: rt = getVRegType(VT_64); break;
+        case RTS_Op1VX: rt = getVRegType(VT_128); break;
+        case RTS_Op1VY: rt = getVRegType(VT_256); break;
+        case RTS_Op1VZ: rt = getVRegType(VT_512); break;
+        default:
+            rt = cxt->hasRex ? getGPRegType(vt) : getLegGPRegType(vt);
         }
+        o1->reg = getReg(rt, (RegIndex) rm);
         return;
     }
 
@@ -302,10 +328,13 @@ void parseModRM(DContext* cxt, ValType vt, RegTypes rts,
     case VT_32:   ot = OT_Ind32; break;
     case VT_64:   ot = OT_Ind64; break;
     case VT_128:  ot = OT_Ind128;
-        assert(rts & RT_Op1V); // never should happen
+        assert(rts & RTS_Op1VX); // never should happen
         break;
-    case VT_256:  ot = OT_Ind256;
-        assert(rts & RT_Op1V); // never should happen
+    case VT_256:  ot = OT_Reg256;
+        assert(rts & RTS_Op1VY); // never should happen
+        break;
+    case VT_512:  ot = OT_Reg512;
+        assert(rts & RTS_Op1VZ); // never should happen
         break;
     default:
         assert(0); // never should happen
@@ -686,19 +715,19 @@ void processOpc(OpcInfo* oi, DContext* c)
 // operand processing handlers
 
 // put M of RM encoding in op 1
-//static void parseM1(DContext* c) { parseModRM(c, c->vt, RT_G, &c->o1, 0, 0); }
+//static void parseM1(DContext* c) { parseModRM(c, c->vt, RTS_G, &c->o1, 0, 0); }
 
 
 // RM encoding for 2 GP registers
 static void parseRM(DContext* c)
 {
-    parseModRM(c, c->vt, RT_GG, &c->o2, &c->o1, 0);
+    parseModRM(c, c->vt, RTS_G_G, &c->o2, &c->o1, 0);
 }
 
 // MR encoding for 2 GP registers
 static void parseMR(DContext* c)
 {
-    parseModRM(c, c->vt, RT_GG, &c->o1, &c->o2, 0);
+    parseModRM(c, c->vt, RTS_G_G, &c->o1, &c->o2, 0);
 }
 
 // RM encoding for 2 vector registers, remember encoding for pass-through
@@ -706,7 +735,7 @@ static void parseRMVV(DContext* c)
 {
     // assume 128bit operand type for VV
     c->vt = VT_128;
-    parseModRM(c, c->vt, RT_VV, &c->o2, &c->o1, 0);
+    parseModRM(c, c->vt, RTS_VX_VX, &c->o2, &c->o1, 0);
     c->oe = OE_RM;
 }
 
@@ -715,7 +744,7 @@ static void parseMRVV(DContext* c)
 {
     // assume 128bit operand type for VV
     c->vt = VT_128;
-    parseModRM(c, c->vt, RT_VV, &c->o1, &c->o2, 0);
+    parseModRM(c, c->vt, RTS_VX_VX, &c->o1, &c->o2, 0);
     c->oe = OE_MR;
 }
 
@@ -756,14 +785,14 @@ static void setO1RegA(DContext* c)
 // M in op 1, Imm in op 2 (64bit with imm32 signed extension)
 static void parseMI(DContext* c)
 {
-    parseModRM(c, c->vt, RT_G, &c->o1, 0, 0);
+    parseModRM(c, c->vt, RTS_G, &c->o1, 0, 0);
     parseImm(c, c->vt, &c->o2, false);
 }
 
 // M in op 1, Imm in op 2 (64bit with imm32 signed extension)
 static void parseMI_8se(DContext* c)
 {
-    parseModRM(c, c->vt, RT_G, &c->o1, 0, 0);
+    parseModRM(c, c->vt, RTS_G, &c->o1, 0, 0);
     parseImm(c, VT_8, &c->o2, false);
     // sign-extend op2 to required type: 8->64 works for all
     c->o2.val = (int64_t)(int8_t)c->o2.val;
@@ -836,7 +865,7 @@ void decode0F_12(DContext* c)
         c->it = IT_MOVLPS; break;
     default: markDecodeError(c, false, ET_BadPrefix); return;
     }
-    parseModRM(c, VT_64, RT_VV, &c->o2, &c->o1, 0);
+    parseModRM(c, VT_64, RTS_VX_VX, &c->o2, &c->o1, 0);
     c->ii = addBinaryOp(c->r, c, c->it, VT_Implicit, &c->o1, &c->o2);
     attachPassthrough(c->ii, c->ps, OE_RM, SC_None, 0x0F, 0x12, -1);
 }
@@ -853,7 +882,7 @@ void decode0F_13(DContext* c)
         c->it = IT_MOVLPS; break;
     default: markDecodeError(c, false, ET_BadPrefix); return;
     }
-    parseModRM(c, VT_64, RT_VV, &c->o1, &c->o2, 0);
+    parseModRM(c, VT_64, RTS_VX_VX, &c->o1, &c->o2, 0);
     c->ii = addBinaryOp(c->r, c, c->it, VT_Implicit, &c->o1, &c->o2);
     attachPassthrough(c->ii, c->ps, OE_MR, SC_None, 0x0F, 0x13, -1);
 }
@@ -868,7 +897,7 @@ void decode0F_14(DContext* c)
         c->it = IT_UNPCKLPS; break;
     default: markDecodeError(c, false, ET_BadPrefix); return;
     }
-    parseModRM(c, VT_128, RT_VV, &c->o2, &c->o1, 0);
+    parseModRM(c, VT_128, RTS_VX_VX, &c->o2, &c->o1, 0);
     c->ii = addBinaryOp(c->r, c, c->it, VT_Implicit, &c->o1, &c->o2);
     attachPassthrough(c->ii, c->ps, OE_RM, SC_None, 0x0F, 0x14, -1);
 }
@@ -883,7 +912,7 @@ void decode0F_15(DContext* c)
         c->it = IT_UNPCKHPS; break;
     default: markDecodeError(c, false, ET_BadPrefix); return;
     }
-    parseModRM(c, VT_128, RT_VV, &c->o2, &c->o1, 0);
+    parseModRM(c, VT_128, RTS_VX_VX, &c->o2, &c->o1, 0);
     c->ii = addBinaryOp(c->r, c, c->it, VT_Implicit, &c->o1, &c->o2);
     attachPassthrough(c->ii, c->ps, OE_RM, SC_None, 0x0F, 0x15, -1);
 }
@@ -900,7 +929,7 @@ void decode0F_16(DContext* c)
         c->it = IT_MOVHPS; break;
     default: markDecodeError(c, false, ET_BadPrefix); return;
     }
-    parseModRM(c, VT_128, RT_VV, &c->o2, &c->o1, 0);
+    parseModRM(c, VT_128, RTS_VX_VX, &c->o2, &c->o1, 0);
     c->ii = addBinaryOp(c->r, c, c->it, VT_Implicit, &c->o1, &c->o2);
     attachPassthrough(c->ii, c->ps, OE_RM, SC_None, 0x0F, 0x16, -1);
 }
@@ -917,7 +946,7 @@ void decode0F_17(DContext* c)
         c->it = IT_MOVHPS; break;
     default: markDecodeError(c, false, ET_BadPrefix); return;
     }
-    parseModRM(c, VT_64, RT_VV, &c->o1, &c->o2, 0);
+    parseModRM(c, VT_64, RTS_VX_VX, &c->o1, &c->o2, 0);
     c->ii = addBinaryOp(c->r, c, c->it, VT_Implicit, &c->o1, &c->o2);
     attachPassthrough(c->ii, c->ps, OE_MR, SC_None, 0x0F, 0x17, -1);
 }
@@ -925,7 +954,7 @@ void decode0F_17(DContext* c)
 static
 void decode0F_1F(DContext* c)
 {
-    parseModRM(c, c->vt, RT_G, &c->o1, 0, &c->digit);
+    parseModRM(c, c->vt, RTS_G, &c->o1, 0, &c->digit);
     switch(c->digit) {
     case 0:
         // 0F 1F /0: nop r/m 16/32
@@ -951,7 +980,7 @@ void decode0F_28(DContext* c)
         c->vt = VT_128; c->it = IT_MOVAPD; break;
     default: markDecodeError(c, false, ET_BadPrefix); return;
     }
-    parseModRM(c, c->vt, RT_VV, &c->o2, &c->o1, 0);
+    parseModRM(c, c->vt, RTS_VX_VX, &c->o2, &c->o1, 0);
     c->ii = addBinaryOp(c->r, c, c->it, VT_Implicit, &c->o1, &c->o2);
     attachPassthrough(c->ii, c->ps, OE_RM, SC_None, 0x0F, 0x28, -1);
 }
@@ -966,7 +995,7 @@ void decode0F_29(DContext* c)
         c->vt = VT_128; c->it = IT_MOVAPD; break;
     default: markDecodeError(c, false, ET_BadPrefix); return;
     }
-    parseModRM(c, c->vt, RT_VV, &c->o1, &c->o2, 0);
+    parseModRM(c, c->vt, RTS_VX_VX, &c->o1, &c->o2, 0);
     c->ii = addBinaryOp(c->r, c, c->it, VT_Implicit, &c->o1, &c->o2);
     attachPassthrough(c->ii, c->ps, OE_RM, SC_None, 0x0F, 0x29, -1);
 }
@@ -976,7 +1005,7 @@ void decode0F_2E(DContext* c)
 {
     assert(c->ps & PS_66);
     // ucomisd xmm1,xmm2/m64 (RM)
-    parseModRM(c, VT_64, RT_VV, &c->o2, &c->o1, 0);
+    parseModRM(c, VT_64, RTS_VX_VX, &c->o2, &c->o1, 0);
     c->ii = addBinaryOp(c->r, c, IT_UCOMISD, VT_Implicit, &c->o1, &c->o2);
     attachPassthrough(c->ii, PS_66, OE_RM, SC_None, 0x0F, 0x2E, -1);
 }
@@ -1019,7 +1048,7 @@ void decode0F_40(DContext* c)
     case 0x4F: c->it = IT_CMOVG; break;
     default: assert(0);
     }
-    parseModRM(c, c->vt, RT_GG, &c->o2, &c->o1, 0);
+    parseModRM(c, c->vt, RTS_G_G, &c->o2, &c->o1, 0);
     addBinaryOp(c->r, c, c->it, c->vt, &c->o1, &c->o2);
 }
 
@@ -1029,7 +1058,7 @@ void decode0F_6E_P66(DContext* c)
     // movd/q xmm,r/m 32/64 (RM)
     c->vt = (c->rex & REX_MASK_W) ? VT_64 : VT_32;
     c->it = (c->rex & REX_MASK_W) ? IT_MOVQ : IT_MOVD;
-    parseModRM(c, c->vt, RT_GV, &c->o2, &c->o1, 0);
+    parseModRM(c, c->vt, RTS_G_VX, &c->o2, &c->o1, 0);
     c->ii = addBinaryOp(c->r, c, c->it, VT_Implicit, &c->o1, &c->o2);
     if (c->rex & REX_MASK_W) c->ps |= PS_REXW; // pass-through REX_W setting
     attachPassthrough(c->ii, c->ps, OE_RM, SC_dstDyn, 0x0F, 0x6E, -1);
@@ -1045,7 +1074,7 @@ void decode0F_74(DContext* c)
     case PS_No: c->vt = VT_64; break;
     default: markDecodeError(c, false, ET_BadPrefix); return;
     }
-    parseModRM(c, c->vt, RT_VV, &c->o2, &c->o1, 0);
+    parseModRM(c, c->vt, RTS_VX_VX, &c->o2, &c->o1, 0);
     c->ii = addBinaryOp(c->r, c, IT_PCMPEQB, VT_Implicit, &c->o1, &c->o2);
     attachPassthrough(c->ii, c->ps, OE_RM, SC_None, 0x0F, 0x74, -1);
 }
@@ -1059,14 +1088,14 @@ void decode0F_7E(DContext* c)
         c->oe = OE_MR;
         c->vt = (c->rex & REX_MASK_W) ? VT_64 : VT_32;
         c->it = (c->rex & REX_MASK_W) ? IT_MOVQ : IT_MOVD;
-        parseModRM(c, c->vt, RT_GV, &c->o1, &c->o2, 0);
+        parseModRM(c, c->vt, RTS_G_VX, &c->o1, &c->o2, 0);
         break;
     case PS_F3:
         // movq xmm1, xmm2/m64 (RM) - move from xmm2/m64 to xmm1, SSE
         c->oe = OE_RM;
         c->vt = VT_64;
         c->it = IT_MOVQ;
-        parseModRM(c, c->vt, RT_VV, &c->o2, &c->o1, 0);
+        parseModRM(c, c->vt, RTS_VX_VX, &c->o2, &c->o1, 0);
         break;
     default: markDecodeError(c, false, ET_BadPrefix); return;
     }
@@ -1089,7 +1118,7 @@ void decode0F_7F(DContext* c)
         c->vt = VT_128; c->it = IT_MOVDQA; break;
     default: markDecodeError(c, false, ET_BadPrefix); return;
     }
-    parseModRM(c, c->vt, RT_VV, &c->o1, &c->o2, 0);
+    parseModRM(c, c->vt, RTS_VX_VX, &c->o1, &c->o2, 0);
     c->ii = addBinaryOp(c->r, c, c->it, VT_Implicit, &c->o1, &c->o2);
     attachPassthrough(c->ii, c->ps, OE_MR, SC_None, 0x0F, 0x7F, -1);
 }
@@ -1145,7 +1174,7 @@ static
 void decode0F_B6(DContext* c)
 {
     // movzbl r16/32/64,r/m8 (RM): move byte to (d)word, zero-extend
-    parseModRM(c, c->vt, RT_GG, &c->o2, &c->o1, 0);
+    parseModRM(c, c->vt, RTS_G_G, &c->o2, &c->o1, 0);
     opOverwriteType(&c->o2, VT_8); // source always 8bit
     addBinaryOp(c->r, c, IT_MOVZX, c->vt, &c->o1, &c->o2);
 }
@@ -1155,7 +1184,7 @@ void decode0F_B7(DContext* c)
 {
     // movzbl r32/64,r/m16 (RM): move word to (d/q)word, zero-extend
     assert((c->vt == VT_32) || (c->vt == VT_64));
-    parseModRM(c, c->vt, RT_GG, &c->o2, &c->o1, 0);
+    parseModRM(c, c->vt, RTS_G_G, &c->o2, &c->o1, 0);
     opOverwriteType(&c->o2, VT_16); // source always 16bit
     addBinaryOp(c->r, c, IT_MOVZX, c->vt, &c->o1, &c->o2);
 }
@@ -1164,7 +1193,7 @@ static
 void decode0F_BE(DContext* c)
 {
     // movsx r16/32/64,r/m8 (RM): byte to (q/d)word with sign-extension
-    parseModRM(c, c->vt, RT_GG, &c->o2, &c->o1, 0);
+    parseModRM(c, c->vt, RTS_G_G, &c->o2, &c->o1, 0);
     opOverwriteType(&c->o2, VT_8); // source always 8bit
     addBinaryOp(c->r, c, IT_MOVSX, c->vt, &c->o1, &c->o2);
 }
@@ -1174,7 +1203,7 @@ void decode0F_BF(DContext* c)
 {
     // movsx r32/64,r/m16 (RM). word to (q/d)word with sign-extension
     assert((c->vt == VT_32) || (c->vt == VT_64));
-    parseModRM(c, c->vt, RT_GG, &c->o2, &c->o1, 0);
+    parseModRM(c, c->vt, RTS_G_G, &c->o2, &c->o1, 0);
     opOverwriteType(&c->o2, VT_16); // source always 16bit
     addBinaryOp(c->r, c, IT_MOVSX, c->vt, &c->o1, &c->o2);
 }
@@ -1187,7 +1216,7 @@ void decode0F_D4(DContext* c)
     // paddq xmm1,xmm2/m64 (RM)
     // - add packed quadword xmm2/m128 to xmm1
     c->vt = (c->ps & PS_66) ? VT_128 : VT_64;
-    parseModRM(c, c->vt, RT_VV, &c->o2, &c->o1, 0);
+    parseModRM(c, c->vt, RTS_VX_VX, &c->o2, &c->o1, 0);
     c->ii = addBinaryOp(c->r, c, IT_PADDQ, VT_Implicit, &c->o1, &c->o2);
     attachPassthrough(c->ii, c->ps, OE_RM, SC_None, 0x0F, 0xD4, -1);
 }
@@ -1197,7 +1226,7 @@ void decode0F_D6(DContext* c)
 {
     // movq xmm2/m64,xmm1 (MR)
     assert(c->ps == PS_66);
-    parseModRM(c, VT_64, RT_VV, &c->o1, &c->o2, 0);
+    parseModRM(c, VT_64, RTS_VX_VX, &c->o1, &c->o2, 0);
     c->ii = addBinaryOp(c->r, c, IT_MOVQ, VT_Implicit, &c->o1, &c->o2);
     attachPassthrough(c->ii, c->ps, OE_MR, SC_None, 0x0F, 0xD6, -1);
 }
@@ -1207,7 +1236,7 @@ void decode0F_D7(DContext* c)
 {
     // pmovmskb r,mm 64/128 (RM): minimum of packed bytes
     c->vt = (c->ps & PS_66) ? VT_128 : VT_64;
-    parseModRM(c, c->vt, RT_VG, &c->o2, &c->o1, 0);
+    parseModRM(c, c->vt, RTS_VX_G, &c->o2, &c->o1, 0);
     opOverwriteType(&c->o1, VT_32); // result always 32bit
     c->ii = addBinaryOp(c->r, c, IT_PMOVMSKB, VT_32, &c->o1, &c->o2);
     attachPassthrough(c->ii, (PrefixSet)(c->ps & PS_66), OE_RM, SC_dstDyn,
@@ -1219,7 +1248,7 @@ void decode0F_DA(DContext* c)
 {
     // pminub mm,mm/m 64/128 (RM): minimum of packed bytes
     c->vt = (c->ps & PS_66) ? VT_128 : VT_64;
-    parseModRM(c, c->vt, RT_VV, &c->o2, &c->o1, 0);
+    parseModRM(c, c->vt, RTS_VX_VX, &c->o2, &c->o1, 0);
     c->ii = addBinaryOp(c->r, c, IT_PMINUB, VT_Implicit, &c->o1, &c->o2);
     attachPassthrough(c->ii, (PrefixSet)(c->ps & PS_66), OE_RM, SC_None,
                       0x0F, 0xDA, -1);
@@ -1228,9 +1257,11 @@ void decode0F_DA(DContext* c)
 static
 void decode0F_EF(DContext* c)
 {
-    // pxor xmm1,xmm2/m 64/128 (RM)
+    // pxor xmm1,xmm2/m 64/128 (RM) MMX/SSE
+    RegTypes rts;
+    rts   = (c->ps & PS_66) ? RTS_VX_VX : RTS_VM_VM;
     c->vt = (c->ps & PS_66) ? VT_128 : VT_64;
-    parseModRM(c, c->vt, RT_VV, &c->o2, &c->o1, 0);
+    parseModRM(c, c->vt, rts, &c->o2, &c->o1, 0);
     c->ii = addBinaryOp(c->r, c, IT_PXOR, VT_Implicit, &c->o1, &c->o2);
     attachPassthrough(c->ii, (PrefixSet)(c->ps & PS_66), OE_RM, SC_None,
                       0x0F, 0xEF, -1);
@@ -1272,7 +1303,7 @@ void decode_63(DContext* c)
 {
     // movsx r64,r/m32 (RM) mov with sign extension
     assert(c->rex & REX_MASK_W);
-    parseModRM(c, VT_None, RT_GG, &c->o2, &c->o1, 0);
+    parseModRM(c, VT_None, RTS_G_G, &c->o2, &c->o1, 0);
     // src is 32 bit
     opOverwriteType(&c->o2, VT_32);
     addBinaryOp(c->r, c, IT_MOVSX, VT_None, &c->o1, &c->o2);
@@ -1328,7 +1359,7 @@ static
 void decode_8D(DContext* c)
 {
     // lea r16/32/64,m (RM)
-    parseModRM(c, c->vt, RT_GG, &c->o2, &c->o1, 0);
+    parseModRM(c, c->vt, RTS_G_G, &c->o2, &c->o1, 0);
     assert(opIsInd(&c->o2)); // TODO: bad code error
     addBinaryOp(c->r, c, IT_LEA, c->vt, &c->o1, &c->o2);
 }
@@ -1337,7 +1368,7 @@ static
 void decode_8F_0(DContext* c)
 {
     // pop r/m 16/64
-    parseModRM(c, c->vt, RT_G, &c->o1, 0, 0);
+    parseModRM(c, c->vt, RTS_G, &c->o1, 0, 0);
     // default operand type is 64, not 32
     if (c->vt == VT_32)
         opOverwriteType(&c->o1, VT_64);
@@ -1382,7 +1413,7 @@ void decode_C0(DContext* c)
 {
     // 1st op 8bit
     c->vt = VT_8;
-    parseModRM(c, c->vt, RT_G, &c->o1, 0, &c->digit);
+    parseModRM(c, c->vt, RTS_G, &c->o1, 0, &c->digit);
     // 2nd op imm8
     parseImm(c, VT_8, &c->o2, false);
     switch(c->digit) {
@@ -1402,7 +1433,7 @@ static
 void decode_C1(DContext* c)
 {
     // 1st op 16/32/64
-    parseModRM(c, c->vt, RT_G, &c->o1, 0, &c->digit);
+    parseModRM(c, c->vt, RTS_G, &c->o1, 0, &c->digit);
     // 2nd op imm8
     parseImm(c, VT_8, &c->o2, false);
     switch(c->digit) {
@@ -1421,7 +1452,7 @@ static
 void decode_C6(DContext* c)
 {
     c->vt = VT_8; // all sub-opcodes use 8bit operand type
-    parseModRM(c, c->vt, RT_G, &c->o1, 0, &c->digit);
+    parseModRM(c, c->vt, RTS_G, &c->o1, 0, &c->digit);
     switch(c->digit) {
     case 0: // mov r/m8, imm8
         parseImm(c, c->vt, &c->o2, false);
@@ -1435,7 +1466,7 @@ static
 void decode_C7(DContext* c)
 {
     // for 16/32/64
-    parseModRM(c, c->vt, RT_G, &c->o1, 0, &c->digit);
+    parseModRM(c, c->vt, RTS_G, &c->o1, 0, &c->digit);
     switch(c->digit) {
     case 0: // mov r/m 16/32/64, imm16/32/32se (sign extended)
         parseImm(c, c->vt, &c->o2, false);
@@ -1449,7 +1480,7 @@ static
 void decode_D0(DContext* c)
 {
     c->vt = VT_8;
-    parseModRM(c, c->vt, RT_G, &c->o1, 0, &c->digit);
+    parseModRM(c, c->vt, RTS_G, &c->o1, 0, &c->digit);
     switch(c->digit) {
     case 4: // shl r/m8,1 (M1) (= sal)
         addUnaryOp(c->r, c, IT_SHL, &c->o1); break;
@@ -1466,7 +1497,7 @@ static
 void decode_D1(DContext* c)
 {
     // for 16/32/64
-    parseModRM(c, c->vt, RT_G, &c->o1, 0, &c->digit);
+    parseModRM(c, c->vt, RTS_G, &c->o1, 0, &c->digit);
     switch(c->digit) {
     case 4: // shl r/m16/32/64,1 (M1) (= sal)
         addUnaryOp(c->r, c, IT_SHL, &c->o1); break;
@@ -1483,7 +1514,7 @@ static
 void decode_D2(DContext* c)
 {
     c->vt = VT_8;
-    parseModRM(c, c->vt, RT_G, &c->o1, 0, &c->digit);
+    parseModRM(c, c->vt, RTS_G, &c->o1, 0, &c->digit);
     setRegOp(&c->o2, getReg(RT_GP8, RI_C));
     switch(c->digit) {
     case 4: // shl r/m8,cl (MC16/32/64) (= sal)
@@ -1501,7 +1532,7 @@ static
 void decode_D3(DContext* c)
 {
     // for 16/32/64
-    parseModRM(c, c->vt, RT_G, &c->o1, 0, &c->digit);
+    parseModRM(c, c->vt, RTS_G, &c->o1, 0, &c->digit);
     setRegOp(&c->o2, getReg(RT_GP8, RI_C));
     switch(c->digit) {
     case 4: // shl r/m16/32/64,cl (MC) (= sal)
@@ -1553,7 +1584,7 @@ void decode_F6(DContext* c)
 {
     // source always 8bit
     c->vt = VT_8;
-    parseModRM(c, c->vt, RT_G, &c->o1, 0, &c->digit);
+    parseModRM(c, c->vt, RTS_G, &c->o1, 0, &c->digit);
     switch(c->digit) {
     case 0: // test r/m8,imm8 (MI)
         parseImm(c, c->vt, &c->o2, false);
@@ -1578,7 +1609,7 @@ void decode_F6(DContext* c)
 static
 void decode_F7(DContext* c)
 {
-    parseModRM(c, c->vt, RT_GG, &c->o1, 0, &c->digit);
+    parseModRM(c, c->vt, RTS_G_G, &c->o1, 0, &c->digit);
     switch(c->digit) {
     case 0: // test r/m16/32/64,imm16/32/32se (MI)
         parseImm(c, c->vt, &c->o2, false);
@@ -1604,7 +1635,7 @@ void decode_F7(DContext* c)
 static
 void decode_FE(DContext* c)
 {
-    parseModRM(c, VT_8, RT_G, &c->o1, 0, &c->digit);
+    parseModRM(c, VT_8, RTS_G, &c->o1, 0, &c->digit);
     switch(c->digit) {
     case 0: // inc r/m8
         addUnaryOp(c->r, c, IT_INC, &c->o1); break;
@@ -1617,7 +1648,7 @@ void decode_FE(DContext* c)
 static
 void decode_FF(DContext* c)
 {
-    parseModRM(c, c->vt, RT_G, &c->o1, 0, &c->digit);
+    parseModRM(c, c->vt, RTS_G, &c->o1, 0, &c->digit);
     switch(c->digit) {
     case 0: // inc r/m 16/32/64
         addUnaryOp(c->r, c, IT_INC, &c->o1); break;
