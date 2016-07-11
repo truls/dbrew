@@ -1,3 +1,4 @@
+//!driver = test-driver-gen.c
 .intel_syntax noprefix
 	.text
 	.globl	f1

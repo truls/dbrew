@@ -1,0 +1,11 @@
+BB f1gen (10 instructions):
+               f1gen:  0f ef ca              pxor    %mm2,%mm1
+             f1gen+3:  0f ef 0f              pxor    (%rdi),%mm1
+             f1gen+6:  41 0f ef 09           pxor    (%r9),%mm1
+            f1gen+10:  66 0f ef dc           pxor    %xmm4,%xmm3
+            f1gen+14:  66 41 0f ef d9        pxor    %xmm9,%xmm3
+            f1gen+19:  66 0f ef 1f           pxor    (%rdi),%xmm3
+            f1gen+23:  66 44 0f ef 0f        pxor    (%rdi),%xmm9
+            f1gen+28:  66 41 0f ef 19        pxor    (%r9),%xmm3
+            f1gen+33:  66 45 0f ef 09        pxor    (%r9),%xmm9
+            f1gen+38:  c3                    ret    
