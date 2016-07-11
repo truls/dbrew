@@ -27,10 +27,25 @@
 
 // Helper functions for structs used for decoded instructions
 
+// x86-64 register types used for a given value type
 RegType getGPRegType(ValType vt)
 {
     switch(vt) {
     case VT_8:  return RT_GP8;
+    case VT_16: return RT_GP16;
+    case VT_32: return RT_GP32;
+    case VT_64: return RT_GP64;
+    default: break;
+    }
+    return RT_None;
+}
+
+// legacy x86 register types used for a given value type
+// same as getGPRegType apart from 8-bit values
+RegType getLegGPRegType(ValType vt)
+{
+    switch(vt) {
+    case VT_8:  return RT_GP8Leg;
     case VT_16: return RT_GP16;
     case VT_32: return RT_GP32;
     case VT_64: return RT_GP64;

@@ -265,6 +265,7 @@ typedef struct _Instr {
 } Instr;
 
 RegType getGPRegType(ValType vt);
+RegType getLegGPRegType(ValType vt);
 RegType getVRegType(ValType vt);
 ValType regValTypeT(RegType rt);
 ValType regValType(Reg r);

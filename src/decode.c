@@ -209,7 +209,7 @@ typedef enum _RegTypes {
 // Fills o1/o2/digit
 // Increments offset in context according to parsed number of bytes
 static
-void parseModRM(DContext* cxt, ValType vt, RegTypes rt,
+void parseModRM(DContext* cxt, ValType vt, RegTypes rts,
                Operand* o1, Operand* o2, int* digit)
 {
     int modrm, mod, rm, r; // modRM byte
@@ -232,33 +232,38 @@ void parseModRM(DContext* cxt, ValType vt, RegTypes rt,
     case VT_32:   ot = OT_Reg32; break;
     case VT_64:   ot = OT_Reg64; break;
     case VT_128:  ot = OT_Reg128;
-        assert(rt & RT_Op2V); // never should happen
+        assert(rts & RT_Op2V); // never should happen
         break;
     case VT_256:  ot = OT_Reg256;
-        assert(rt & RT_Op2V); // never should happen
+        assert(rts & RT_Op2V); // never should happen
         break;
     default:
         assert(0); // never should happen
     }
+
     // r part: reg or digit, give both back to caller
     if (digit) *digit = r;
     if (o2) {
         if (cxt->rex & REX_MASK_R) r += 8;
         o2->type = ot;
-        if (rt & RT_Op2V)
+        if (rts & RT_Op2V)
             o2->reg = getReg(getVRegType(VT_128), (RegIndex) r); // FIXME
-        else
-            o2->reg = getReg(getGPRegType(vt), (RegIndex) r);
+        else {
+            RegType rt = cxt->hasRex ? getGPRegType(vt) : getLegGPRegType(vt);
+            o2->reg = getReg(rt, (RegIndex) r);
+        }
     }
 
     if (mod == 3) {
         // r, r
         if (cxt->rex & REX_MASK_B) rm += 8;
         o1->type = ot;
-        if (rt & RT_Op1V)
+        if (rts & RT_Op1V)
             o1->reg = getReg(getVRegType(VT_128), (RegIndex) rm); // FIXME
-        else
-            o1->reg = getReg(getGPRegType(vt), (RegIndex) rm);
+        else {
+            RegType rt = cxt->hasRex ? getGPRegType(vt) : getLegGPRegType(vt);
+            o1->reg = getReg(rt, (RegIndex) rm);
+        }
         return;
     }
 
@@ -297,10 +302,10 @@ void parseModRM(DContext* cxt, ValType vt, RegTypes rt,
     case VT_32:   ot = OT_Ind32; break;
     case VT_64:   ot = OT_Ind64; break;
     case VT_128:  ot = OT_Ind128;
-        assert(rt & RT_Op1V); // never should happen
+        assert(rts & RT_Op1V); // never should happen
         break;
     case VT_256:  ot = OT_Ind256;
-        assert(rt & RT_Op1V); // never should happen
+        assert(rts & RT_Op1V); // never should happen
         break;
     default:
         assert(0); // never should happen
@@ -1822,14 +1827,14 @@ void initDecodeTables(void)
     // 0x80: add/or/... r/m8,imm8 (MI)
     // 0x81: add/or/... r/m16/32/64,imm16/32/32se (MI)
     // 0x83: add/or/... r/m16/32/64,imm8se (MI)
-    setOpcG(0x80, 0, IT_ADD, VT_8,       parseMI, addBInstr, 0);
-    setOpcG(0x80, 1, IT_OR , VT_8,       parseMI, addBInstr, 0);
-    setOpcG(0x80, 2, IT_ADC, VT_8,       parseMI, addBInstr, 0);
-    setOpcG(0x80, 3, IT_SBB, VT_8,       parseMI, addBInstr, 0);
-    setOpcG(0x80, 4, IT_AND, VT_8,       parseMI, addBInstr, 0);
-    setOpcG(0x80, 5, IT_SUB, VT_8,       parseMI, addBInstr, 0);
-    setOpcG(0x80, 6, IT_XOR, VT_8,       parseMI, addBInstr, 0);
-    setOpcG(0x80, 7, IT_CMP, VT_8,       parseMI, addBInstr, 0);
+    setOpcG(0x80, 0, IT_ADD, VT_8,   parseMI, addBInstr, 0);
+    setOpcG(0x80, 1, IT_OR , VT_8,   parseMI, addBInstr, 0);
+    setOpcG(0x80, 2, IT_ADC, VT_8,   parseMI, addBInstr, 0);
+    setOpcG(0x80, 3, IT_SBB, VT_8,   parseMI, addBInstr, 0);
+    setOpcG(0x80, 4, IT_AND, VT_8,   parseMI, addBInstr, 0);
+    setOpcG(0x80, 5, IT_SUB, VT_8,   parseMI, addBInstr, 0);
+    setOpcG(0x80, 6, IT_XOR, VT_8,   parseMI, addBInstr, 0);
+    setOpcG(0x80, 7, IT_CMP, VT_8,   parseMI, addBInstr, 0);
     setOpcG(0x81, 0, IT_ADD, VT_Def, parseMI, addBInstr, 0);
     setOpcG(0x81, 1, IT_OR , VT_Def, parseMI, addBInstr, 0);
     setOpcG(0x81, 2, IT_ADC, VT_Def, parseMI, addBInstr, 0);

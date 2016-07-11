@@ -18,7 +18,6 @@ f1:
     test al, r9b
     test r10b, bl
     test cl, dl
-    // test ah, bh
     test sil, dil
     test eax, r9d
     test r10d, ebx
@@ -33,4 +32,11 @@ f1:
     test word ptr [rax], 0x310
     test dword ptr [rax], 0x310
     test qword ptr [rax], 0x310
+
+    test al, sil
+    test al, ah
+    test ah, bl
+    test bl, bh
+    test cl, ch
+    test dl, dh
     ret

@@ -1,4 +1,4 @@
-BB f1 (25 instructions):
+BB f1 (31 instructions):
                   f1:  48 85 07              test    %rax,(%rdi)
                 f1+3:  4c 85 0f              test    %r9,(%rdi)
                 f1+6:  85 07                 test    %eax,(%rdi)
@@ -23,4 +23,10 @@ BB f1 (25 instructions):
                f1+66:  66 f7 00 10 03        testw   $0x310,(%rax)
                f1+71:  f7 00 10 03 00 00     testl   $0x310,(%rax)
                f1+77:  48 f7 00 10 03 00 00  testq   $0x310,(%rax)
-               f1+84:  c3                    ret    
+               f1+84:  40 84 f0              test    %sil,%al
+               f1+87:  84 e0                 test    %ah,%al
+               f1+89:  84 dc                 test    %bl,%ah
+               f1+91:  84 fb                 test    %bh,%bl
+               f1+93:  84 e9                 test    %ch,%cl
+               f1+95:  84 f2                 test    %dh,%dl
+               f1+97:  c3                    ret    
