@@ -8,9 +8,10 @@ Replace asserts with correct error handling for
 API:
 * rewriting function for arbitrary parameters
 
-Tests for
+Tests:
 * emulator
 * generator
+* [more details](../tests/TODO.md)
 
 Emulation
 * config to catch memory writes via hash table
@@ -24,3 +25,7 @@ Optimizations:
 * liveness analysis, remove unneeded instructions
 * register renaming, upgrade spilled stack-values into registers
 * vectorization?
+
+Multiple ISAs:
+* subdirs per ISA
+* simple one like RiscV ?

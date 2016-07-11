@@ -26,6 +26,7 @@ deps/Makefile
 
 # test cases and expected files left out
 tests/README.md
+tests/TODO.md
 tests/Makefile
 tests/test-driver.c
 tests/test-driver-decode.c
