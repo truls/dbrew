@@ -104,9 +104,10 @@ ValType regValType(Reg r)
 
 bool regTypeIsGP(RegType rt)
 {
-    if ( (rt == RT_GP8)  ||
-         (rt == RT_GP16) ||
-         (rt == RT_GP32) ||
+    if ( (rt == RT_GP8Leg) ||
+         (rt == RT_GP8)    ||
+         (rt == RT_GP16)   ||
+         (rt == RT_GP32)   ||
          (rt == RT_GP64)) {
         return true;
     }

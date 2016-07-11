@@ -12,10 +12,11 @@
 
 int f1(int);
 
-int main()
+int main(int argc, char* argv[])
 {
     Rewriter* r = dbrew_new();
-    // to get rid of changing addresses, assume gen code to be 800 bytes max
+    if ((argc>1) && (strcmp(argv[1],"-v")==0))
+        dbrew_verbose(r, true, true, true);
     dbrew_config_function_setname(r, (uintptr_t) f1, "f1");
     dbrew_config_function_setsize(r, (uintptr_t) f1, 800);
 
@@ -26,7 +27,7 @@ int main()
         logError(e, (char*) "Stopped");
     else {
         // print generated instructions
-        dbrew_config_function_setname(r, (uintptr_t) cbb->addr1, "f1-gen");
+        dbrew_config_function_setname(r, (uintptr_t) cbb->addr1, "f1gen");
         dbrew_config_function_setsize(r, (uintptr_t) cbb->addr1, 800);
         dbrew_decode_print(r, (uintptr_t) cbb->addr1, cbb->size);
     }

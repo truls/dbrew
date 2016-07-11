@@ -1,0 +1,41 @@
+BB f1gen (40 instructions):
+               f1gen:  48 85 07              test    %rax,(%rdi)
+             f1gen+3:  4c 85 0f              test    %r9,(%rdi)
+             f1gen+6:  85 07                 test    %eax,(%rdi)
+             f1gen+8:  44 85 0f              test    %r9d,(%rdi)
+            f1gen+11:  66 85 07              test    %ax,(%rdi)
+            f1gen+14:  66 44 85 0f           test    %r9w,(%rdi)
+            f1gen+18:  84 07                 test    %al,(%rdi)
+            f1gen+20:  44 84 0f              test    %r9b,(%rdi)
+            f1gen+23:  44 84 c8              test    %r9b,%al
+            f1gen+26:  41 84 da              test    %bl,%r10b
+            f1gen+29:  84 d1                 test    %dl,%cl
+            f1gen+31:  40 84 fe              test    %dil,%sil
+            f1gen+34:  44 85 c8              test    %r9d,%eax
+            f1gen+37:  41 85 da              test    %ebx,%r10d
+            f1gen+40:  4c 85 c8              test    %r9,%rax
+            f1gen+43:  49 85 da              test    %rbx,%r10
+            f1gen+46:  a8 10                 test    $0x10,%al
+            f1gen+48:  66 a9 00 10           test    $0x1000,%ax
+            f1gen+52:  a9 00 ef cd ab        test    $0xabcdef00,%eax
+            f1gen+57:  48 a9 00 ef cd 0b     test    $0xbcdef00,%rax
+            f1gen+63:  f6 c3 10              test    $0x10,%bl
+            f1gen+66:  66 f7 c3 00 10        test    $0x1000,%bx
+            f1gen+71:  f7 c3 00 ef cd ab     test    $0xabcdef00,%ebx
+            f1gen+77:  48 f7 c3 00 ef cd 0b  test    $0xbcdef00,%rbx
+            f1gen+84:  41 f6 c1 10           test    $0x10,%r9b
+            f1gen+88:  66 41 f7 c1 00 10     test    $0x1000,%r9w
+            f1gen+94:  41 f7 c1 00 ef cd ab  test    $0xabcdef00,%r9d
+           f1gen+101:  49 f7 c1 00 ef cd 0b  test    $0xbcdef00,%r9
+           f1gen+108:  f6 00 10              testb   $0x10,(%rax)
+           f1gen+111:  66 f7 00 10 03        testw   $0x310,(%rax)
+           f1gen+116:  f7 00 10 03 00 00     testl   $0x310,(%rax)
+           f1gen+122:  48 f7 00 10 03 00 00  testq   $0x310,(%rax)
+           f1gen+129:  40 84 f0              test    %sil,%al
+           f1gen+132:  40 84 c6              test    %al,%sil
+           f1gen+135:  84 e0                 test    %ah,%al
+           f1gen+137:  84 dc                 test    %bl,%ah
+           f1gen+139:  84 fb                 test    %bh,%bl
+           f1gen+141:  84 e9                 test    %ch,%cl
+           f1gen+143:  84 f2                 test    %dh,%dl
+           f1gen+145:  c3                    ret    

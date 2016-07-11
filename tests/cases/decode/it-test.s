@@ -28,12 +28,21 @@ f1:
     test ax, 0x1000
     test eax, 0xabcdef00
     test rax, 0x0bcdef00
+    test bl, 0x10
+    test bx, 0x1000
+    test ebx, 0xabcdef00
+    test rbx, 0x0bcdef00
+    test r9b, 0x10
+    test r9w, 0x1000
+    test r9d, 0xabcdef00
+    test r9, 0x0bcdef00
     test byte ptr [rax], 0x10
     test word ptr [rax], 0x310
     test dword ptr [rax], 0x310
     test qword ptr [rax], 0x310
 
     test al, sil
+    test sil, al
     test al, ah
     test ah, bl
     test bl, bh
