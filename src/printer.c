@@ -369,8 +369,8 @@ char* op2string(Operand* o, ValType t, FunctionConfig* fc)
     case OT_Ind256:
         switch(o->seg) {
         case OSO_None: break;
-        case OSO_UseFS: off += sprintf(buf+off, "fs:"); break;
-        case OSO_UseGS: off += sprintf(buf+off, "gs:"); break;
+        case OSO_UseFS: off += sprintf(buf+off, "%%fs:"); break;
+        case OSO_UseGS: off += sprintf(buf+off, "%%gs:"); break;
         default: assert(0);
         }
         if (o->val != 0) {
