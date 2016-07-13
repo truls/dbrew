@@ -183,4 +183,18 @@ uint64_t dbrew_rewrite(Rewriter* r, ...);
 uint64_t dbrew_rewrite_func(uint64_t f, ...);
 
 
+
+// Vector API:
+// functions provided by DBrew with known semantics, known to rewriter
+
+typedef double (*dbrew_func_R8V8_t)(double);
+typedef double (*dbrew_func_R8V8V8_t)(double, double);
+
+// 4x call f (signature double => double) and map to input/output vector iv/ov
+void dbrew_apply4_R8V8(dbrew_func_R8V8_t f, double* ov, double* iv);
+// 4x call f (signature double,double => double) and map to vectors i1v,i2v,ov
+void dbrew_apply4_R8V8V8(dbrew_func_R8V8V8_t f,
+                         double* ov, double* i1v, double* i2v);
+
+
 #endif // DBREW_H

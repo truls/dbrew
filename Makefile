@@ -31,6 +31,9 @@ libdbrew.a: $(OBJS)
 test: libdbrew.a
 	$(MAKE) test -C tests
 
+src/snippets.o: src/snippets.c
+	$(CC) -O2 $(CFLAGS) -c $< -o $@
+
 examples:
 	cd examples && $(MAKE)
 

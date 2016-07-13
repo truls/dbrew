@@ -53,7 +53,6 @@ uint64_t makeStatic(uint64_t v)
     return v;
 }
 
-
 /**
  * DBrew API functions
  */

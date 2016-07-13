@@ -21,6 +21,8 @@ src/instr.c
 src/printer.c
 src/engine.c
 src/config.c
+src/vector.c
+src/snippets.c
 
 deps/Makefile
 
@@ -41,6 +43,7 @@ examples/stencil.c
 examples/simple.c
 examples/strcmp.c
 examples/matrix.c
+examples/vector.c
 examples/Makefile
 examples/.gitignore
 
