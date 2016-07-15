@@ -26,13 +26,13 @@ Emulate 'test+22: ret'
 Capture 'H-ret' (into test|0 + 5)
 Capture 'ret' (into test|0 + 6)
 Generating code for BB test|0 (7 instructions)
-  I 0 : H-call                           (test|0)+0 
-  I 1 : movq    %rdi,%xmm0               (test|0)+0  66 48 0f 6e c7
-  I 2 : movq    %rsi,%xmm1               (test|0)+5  66 48 0f 6e ce
-  I 3 : addsd   %xmm1,%xmm0              (test|0)+a  f2 0f 58 c1
-  I 4 : movq    %xmm0,%rax               (test|0)+e  66 48 0f 7e c0
-  I 5 : H-ret                            (test|0)+13 
-  I 6 : ret                              (test|0)+13  c3
+  I 0 : H-call                           (test|0)+0   
+  I 1 : movq    %rdi,%xmm0               (test|0)+0    66 48 0f 6e c7
+  I 2 : movq    %rsi,%xmm1               (test|0)+5    66 48 0f 6e ce
+  I 3 : addsd   %xmm1,%xmm0              (test|0)+10   f2 0f 58 c1
+  I 4 : movq    %xmm0,%rax               (test|0)+14   66 48 0f 7e c0
+  I 5 : H-ret                            (test|0)+19  
+  I 6 : ret                              (test|0)+19   c3
 BB gen (5 instructions):
                  gen:  66 48 0f 6e c7        movq    %rdi,%xmm0
                gen+5:  66 48 0f 6e ce        movq    %rsi,%xmm1

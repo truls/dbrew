@@ -1680,7 +1680,7 @@ GenerateError* generate(Rewriter* r, CBB* cbb)
 
         if (r->showEmuSteps) {
             printf("  I%2d : %-32s", i, instr2string(instr, 1, 0));
-            printf(" (%s)+%lx %s\n",
+            printf(" (%s)+%-3d %s\n",
                    cbb_prettyName(cbb), instr->addr - buf0,
                    bytes2string(instr, 0, used));
         }

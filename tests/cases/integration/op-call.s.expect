@@ -25,12 +25,12 @@ Capture 'H-ret' (into test|0 + 3)
 Capture 'mov $0x0,%rax' (into test|0 + 4)
 Capture 'ret' (into test|0 + 5)
 Generating code for BB test|0 (6 instructions)
-  I 0 : H-call                           (test|0)+0 
-  I 1 : H-call                           (test|0)+0 
-  I 2 : H-ret                            (test|0)+0 
-  I 3 : H-ret                            (test|0)+0 
-  I 4 : mov     $0x0,%rax                (test|0)+0  48 31 c0
-  I 5 : ret                              (test|0)+3  c3
+  I 0 : H-call                           (test|0)+0   
+  I 1 : H-call                           (test|0)+0   
+  I 2 : H-ret                            (test|0)+0   
+  I 3 : H-ret                            (test|0)+0   
+  I 4 : mov     $0x0,%rax                (test|0)+0    48 31 c0
+  I 5 : ret                              (test|0)+3    c3
 BB gen (2 instructions):
                  gen:  48 31 c0              xor     %rax,%rax
                gen+3:  c3                    ret    

@@ -43,18 +43,18 @@ Emulate 'test+34: ret'
 Capture 'H-ret' (into test|0 + 10)
 Capture 'ret' (into test|0 + 11)
 Generating code for BB test|0 (12 instructions)
-  I 0 : H-call                           (test|0)+0 
-  I 1 : push    %rbp                     (test|0)+0  55
-  I 2 : mov     %rsp,%rbp                (test|0)+1  48 8b ec
-  I 3 : mov     %fs:-0x8,%rax            (test|0)+4  64 48 8b 04 25 f8 ff ff ff
-  I 4 : mov     %eax,%edx                (test|0)+d  8b d0
-  I 5 : mov     %fs:-0x10,%eax           (test|0)+f  64 8b 04 25 f0 ff ff ff
-  I 6 : add     %eax,%edx                (test|0)+17  01 c2
-  I 7 : mov     $0x1,%eax                (test|0)+19  c7 c0 01 00 00 00
-  I 8 : add     %edx,%eax                (test|0)+1f  01 d0
-  I 9 : pop     %rbp                     (test|0)+21  5d
-  I10 : H-ret                            (test|0)+22 
-  I11 : ret                              (test|0)+22  c3
+  I 0 : H-call                           (test|0)+0   
+  I 1 : push    %rbp                     (test|0)+0    55
+  I 2 : mov     %rsp,%rbp                (test|0)+1    48 8b ec
+  I 3 : mov     %fs:-0x8,%rax            (test|0)+4    64 48 8b 04 25 f8 ff ff ff
+  I 4 : mov     %eax,%edx                (test|0)+13   8b d0
+  I 5 : mov     %fs:-0x10,%eax           (test|0)+15   64 8b 04 25 f0 ff ff ff
+  I 6 : add     %eax,%edx                (test|0)+23   01 c2
+  I 7 : mov     $0x1,%eax                (test|0)+25   c7 c0 01 00 00 00
+  I 8 : add     %edx,%eax                (test|0)+31   01 d0
+  I 9 : pop     %rbp                     (test|0)+33   5d
+  I10 : H-ret                            (test|0)+34  
+  I11 : ret                              (test|0)+34   c3
 BB gen (10 instructions):
                  gen:  55                    push    %rbp
                gen+1:  48 8b ec              mov     %rsp,%rbp
