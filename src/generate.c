@@ -1526,6 +1526,7 @@ int genPassThrough(GContext* cxt)
 
 
 // generate code for a captured BB
+// this sets cbb->addr1/cbb->size
 GenerateError* generate(Rewriter* r, CBB* cbb)
 {
     static GenerateError error;
@@ -1681,7 +1682,7 @@ GenerateError* generate(Rewriter* r, CBB* cbb)
         if (r->showEmuSteps) {
             printf("  I%2d : %-32s", i, instr2string(instr, 1, 0));
             printf(" (%s)+%-3d %s\n",
-                   cbb_prettyName(cbb), instr->addr - buf0,
+                   cbb_prettyName(cbb), (int)(instr->addr - buf0),
                    bytes2string(instr, 0, used));
         }
 
@@ -1701,13 +1702,10 @@ GenerateError* generate(Rewriter* r, CBB* cbb)
         }
     }
 
-    // add padding space after generated code for jump instruction
-    useCodeStorage(r->cs, 10);
-
     cbb->size = usedTotal;
     // start address of generated code.
     // if CBB had no instruction, this points to the padding buffer
-    cbb->addr1 = (cbb->count == 0) ? ((uint64_t)cxt.buf) : cbb->instr[0].addr;
+    cbb->addr1 = (cbb->count == 0) ? buf0 : cbb->instr[0].addr;
 
     // no error
     return 0;
