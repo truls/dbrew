@@ -55,6 +55,7 @@ Generating code for BB test|0 (12 instructions)
   I 9 : pop     %rbp                     (test|0)+33   5d
   I10 : H-ret                            (test|0)+34  
   I11 : ret                              (test|0)+34   c3
+Generated: 35 bytes (pass1: 61)
 BB gen (10 instructions):
                  gen:  55                    push    %rbp
                gen+1:  48 8b ec              mov     %rsp,%rbp

@@ -21,6 +21,7 @@ Generating code for BB test|0 (4 instructions)
   I 1 : H-ret                            (test|0)+0   
   I 2 : mov     $0x0,%rax                (test|0)+0    48 31 c0
   I 3 : ret                              (test|0)+3    c3
+Generated: 4 bytes (pass1: 30)
 BB gen (2 instructions):
                  gen:  48 31 c0              xor     %rax,%rax
                gen+3:  c3                    ret    

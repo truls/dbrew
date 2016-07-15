@@ -33,6 +33,7 @@ Generating code for BB test|0 (7 instructions)
   I 4 : movq    %xmm0,%rax               (test|0)+14   66 48 0f 7e c0
   I 5 : H-ret                            (test|0)+19  
   I 6 : ret                              (test|0)+19   c3
+Generated: 20 bytes (pass1: 46)
 BB gen (5 instructions):
                  gen:  66 48 0f 6e c7        movq    %rdi,%xmm0
                gen+5:  66 48 0f 6e ce        movq    %rsi,%xmm1
