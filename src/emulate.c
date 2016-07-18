@@ -186,12 +186,11 @@ bool csIsEqual(EmuState* es1, CaptureState s1, uint64_t v1,
     // normalize meta states: CS_STATIC2 is equivalent to CS_STATIC
     if (s1 == CS_STATIC2) s1 = CS_STATIC;
     if (s2 == CS_STATIC2) s2 = CS_STATIC;
-    // handle DEAD equal to DYNAMIC (no need to distinguish)
-    if (s1 == CS_DEAD) s1 = CS_DYNAMIC;
-    if (s2 == CS_DEAD) s2 = CS_DYNAMIC;
+    // DEAD means "not initialized". This is different from DYNAMIC!
 
     if (s1 != s2) return false;
 
+    // both have same meta-state
     switch(s1) {
     case CS_STATIC:
         // for static capture states, values have to be equal
@@ -204,6 +203,7 @@ bool csIsEqual(EmuState* es1, CaptureState s1, uint64_t v1,
         return (v1 == v2);
 
     default:
+        // any two DEAD registers are equal
         break;
     }
     return true;
@@ -216,7 +216,7 @@ bool esIsEqual(EmuState* es1, EmuState* es2)
     int i;
 
     // same state for registers?
-    for(i = 0; i <= RI_GPMax; i++) {
+    for(i = 0; i < RI_GPMax; i++) {
         if (!csIsEqual(es1, es1->reg_state[i].cState, es1->reg[i],
                        es2, es2->reg_state[i].cState, es2->reg[i]))
             return false;
