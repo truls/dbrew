@@ -43,11 +43,9 @@ void markError(GContext* c, ErrorType et, const char* d)
         else
             d = "unsupported instruction";
     }
-    setError(&(c->e->e), 0, d);
-    c->e->e.em = EM_Generator;
-    c->e->e.et = et;
-    // will be set in generate()
-    c->e->e.r = 0;
+    setError(&(c->e->e), et, EM_Generator, 0, d);
+
+    // will be set later
     c->e->cbb = 0;
     c->e->offset = -1;
 }

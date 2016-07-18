@@ -35,12 +35,18 @@ bool isErrorSet(Error* e)
     return (e->et != ET_NoError);
 }
 
-void setError(Error* e, Rewriter* r, const char* d)
+void setError(Error* e,
+              ErrorType et, ErrorModule em, Rewriter* r, const char* d)
 {
-    e->et = ET_Unknown;
-    e->em = EM_Unknown;
+    e->et = et;
+    e->em = em;
     e->r = r;
     e->desc = d;
+}
+
+void initError(Error* e)
+{
+    setError(e, ET_Unknown, EM_Unknown, 0, 0);
 }
 
 const char *errorString(Error* e)
@@ -61,6 +67,9 @@ const char *errorString(Error* e)
     case EM_Generator:
         module = "Generator";
         detail = generateErrorContext(e);
+        break;
+    case EM_Emulator:
+        module = "Emulator";
         break;
     case EM_Unknown: break;
     default: assert(0);
@@ -95,11 +104,8 @@ void logError(Error* e, char* d)
 void setDecodeError(DecodeError* de, Rewriter* r, char* d,
                     ErrorType et, DBB* dbb, int o)
 {
-    Error* e = (Error*)de;
+    setError( (Error*)de, et, EM_Decoder, r, d);
 
-    setError(e, r, d);
-    e->em = EM_Decoder;
-    e->et = et;
     de->dbb = dbb;
     de->offset = o;
 }
@@ -116,16 +122,13 @@ const char *decodeErrorContext(Error* e)
     return buf;
 }
 
-void setGenerateError(GenerateError* de, Rewriter* r, char* d,
-                      ErrorType et, CBB *cbb, int o)
+void setGenerateError(GenerateError* ge, Rewriter* r, char* d,
+                      ErrorType et, CBB* cbb, int o)
 {
-    Error* e = (Error*)de;
+    setError((Error*)ge, et, EM_Decoder, r, d);
 
-    setError(e, r, d);
-    e->em = EM_Decoder;
-    e->et = et;
-    de->cbb = cbb;
-    de->offset = o;
+    ge->cbb = cbb;
+    ge->offset = o;
 }
 
 const char *generateErrorContext(Error* e)

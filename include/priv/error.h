@@ -32,6 +32,8 @@
 typedef struct _Error Error;
 typedef struct _DecodeError DecodeError;
 typedef struct _GenerateError GenerateError;
+typedef struct _RewriteError RewriteError;
+typedef struct _EmulationError EmulationError;
 
 typedef enum _ErrorModule {
     EM_Unknown,
@@ -42,11 +44,10 @@ typedef enum _ErrorModule {
 typedef enum _ErrorType {
     ET_NoError,
     ET_Unknown,
-    ET_BufferOverflow,
+    ET_BufferOverflow, // Decoder, Generator, Rewriter
+    ET_UnsupportedInstr, ET_UnsupportedOperands, // Generator, Emulator
     // Decoder
     ET_BadPrefix, ET_BadOpcode, ET_BadOperands,
-    // Generator
-    ET_UnsupportedInstr, ET_UnsupportedOperands,
     //
     ET_Max
 } ErrorType;
@@ -61,7 +62,8 @@ struct _Error {
 
 void setErrorNone(Error* e);
 bool isErrorSet(Error*);
-void setError(Error* e, Rewriter* r, const char *d);
+void initError(Error* e);
+void setError(Error* e, ErrorType et, ErrorModule em, Rewriter* r, const char *d);
 const char* errorString(Error*);
 // add error to some log, with further description (e.g. recover action)
 // currently just to stderror
@@ -91,7 +93,7 @@ struct _GenerateError {
     int offset;
 };
 
-void setGenerateError(GenerateError* de, Rewriter* r, char* d,
+void setGenerateError(GenerateError* ge, Rewriter* r, char* d,
                       ErrorType et, CBB* cbb, int off);
 const char* generateErrorContext(Error*); // used by errorString()
 
