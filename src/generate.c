@@ -557,6 +557,33 @@ int genInc(GContext* cxt)
 }
 
 static
+int genNeg(GContext* cxt)
+{
+    uint8_t* buf = cxt->buf;
+    Operand* dst =  &(cxt->instr->dst);
+
+    switch(dst->type) {
+    case OT_Ind8:
+    case OT_Reg8:
+        // use 'neg r/m8' (0xF6/3)
+        return genDigitRM(buf, 0xF6, 3, dst, 0);
+
+    case OT_Ind16:
+    case OT_Ind32:
+    case OT_Ind64:
+    case OT_Reg16:
+    case OT_Reg32:
+    case OT_Reg64:
+      // use 'neg r/m 16/32/64' (0xF7/3)
+      return genDigitRM(buf, 0xF7, 3, dst, GEN_66OnVT16);
+
+    default: return -1;
+    }
+    return 0;
+}
+
+
+static
 int genMov(GContext* cxt)
 {
     uint8_t* buf = cxt->buf;
@@ -1587,6 +1614,9 @@ GenerateError* generate(Rewriter* r, CBB* cbb)
                 break;
             case IT_INC:
                 used = genInc(&cxt);
+                break;
+            case IT_NEG:
+                used = genNeg(&cxt);
                 break;
             case IT_XOR:
                 used = genXor(&cxt);
