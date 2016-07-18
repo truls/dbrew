@@ -190,13 +190,28 @@ uint64_t dbrew_emulate(Rewriter* r, ...)
 uint64_t dbrew_rewrite(Rewriter* r, ...)
 {
     va_list argptr;
+    Error* e;
 
     va_start(argptr, r);
-    vEmulateAndCapture(r, argptr);
+    e = vEmulateAndCapture(r, argptr);
     va_end(argptr);
 
-    runOptsOnCaptured(r);
-    generateBinaryFromCaptured(r);
+    if (!e) {
+        RContext c;
+        c.r = r;
+        c.e = 0;
+
+        runOptsOnCaptured(&c);
+        if (!c.e)
+            generateBinaryFromCaptured(&c);
+        e = c.e;
+    }
+
+    if (e) {
+        // on error, return original function
+        logError(e, (char*) "Stopped rewriting; return original");
+        return r->func;
+    }
 
     return r->generatedCodeAddr;
 }
@@ -205,16 +220,31 @@ uint64_t dbrew_rewrite_func(uint64_t f, ...)
 {
     Rewriter* r;
     va_list argptr;
+    Error* e;
 
     r = getDefaultRewriter();
     dbrew_set_function(r, f);
 
     va_start(argptr, f);
-    vEmulateAndCapture(r, argptr);
+    e = vEmulateAndCapture(r, argptr);
     va_end(argptr);
 
-    runOptsOnCaptured(r);
-    generateBinaryFromCaptured(r);
+    if (!e) {
+        RContext c;
+        c.r = r;
+        c.e = 0;
+
+        runOptsOnCaptured(&c);
+        if (!c.e)
+            generateBinaryFromCaptured(&c);
+        e = c.e;
+    }
+
+    if (e) {
+        // on error, return original function
+        logError(e, (char*) "Stopped rewriting; return original");
+        return f;
+    }
 
     return r->generatedCodeAddr;
 }

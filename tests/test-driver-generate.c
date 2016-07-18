@@ -16,22 +16,24 @@ void test_fill_instruction(Instr*);
 
 int main()
 {
-    Rewriter* r = dbrew_new();
+    RContext c;
+    c.e = 0;
+    c.r = dbrew_new();
+    initRewriter(c.r);
 
     // Construct a test-CBB of one instruction. This CBB does not have a
     // terminator and is not runnable, we only want to ensure that the produced
     // instruction is correct.
-    initRewriter(r);
-    Instr* instr = newCapInstr(r);
-    CBB* cbb = getCaptureBB(r, 0, -1);
-    cbb->instr = instr;
-    cbb->count++;
-
-    test_fill_instruction(instr);
-    generate(r, cbb);
-    Error* e = (Error*) generate(r, cbb);
-    if (e)
-        logError(e, (char*) "Stopped");
+    CBB* cbb = getCaptureBB(&c, 0, -1);
+    Instr* instr = newCapInstr(&c);
+    if ((cbb != 0) && (instr != 0)) {
+        cbb->instr = instr;
+        cbb->count++;
+        test_fill_instruction(instr);
+        c.e = (Error*) generate(c.r, cbb);
+    }
+    if (c.e)
+        logError(c.e, (char*) "Stopped");
     else {
         printf("Instruction: %s\n", instr2string(instr, 0, cbb->fc));
         printf("Generated:  %s\n", bytes2string(instr, 0, instr->len));

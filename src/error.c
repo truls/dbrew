@@ -71,6 +71,12 @@ const char *errorString(Error* e)
     case EM_Emulator:
         module = "Emulator";
         break;
+    case EM_Rewriter:
+        module = "Rewriter";
+        break;
+    case EM_Capture:
+        module = "Capturing";
+        break;
     case EM_Unknown: break;
     default: assert(0);
     }

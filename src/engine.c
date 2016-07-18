@@ -171,7 +171,7 @@ void freeRewriter(Rewriter* r)
  * value of the emulated function)
  */
 static
-void emulateAndCapture(Rewriter* r, int parCount, uint64_t* par)
+Error* emulateAndCapture(Rewriter* r, int parCount, uint64_t* par)
 {
     // calling convention x86-64: parameters are stored in registers
     // see https://en.wikipedia.org/wiki/X86_calling_conventions
@@ -183,6 +183,11 @@ void emulateAndCapture(Rewriter* r, int parCount, uint64_t* par)
     CBB *cbb;
     Instr* instr;
     uint64_t bb_addr, nextbb_addr;
+    RContext cxt;
+
+    // init context
+    cxt.r = r;
+    cxt.e = 0;
 
     if (!r->es)
         r->es = allocEmuState(1024);
@@ -212,11 +217,13 @@ void emulateAndCapture(Rewriter* r, int parCount, uint64_t* par)
 
     // push new CBB for c->func (as request to decode and emulate/capture
     // starting at that address)
-    esID = saveEmuState(r);
-    cbb = getCaptureBB(r, r->func, esID);
+    esID = saveEmuState(&cxt);
+    cbb = (esID >= 0) ? getCaptureBB(&cxt, r->func, esID) : 0;
+    if (cxt.e) return cxt.e;
     // new CBB has to be first in this rewriter (we start with it in Pass 2)
     assert(cbb = r->capBB);
-    pushCaptureBB(r, cbb);
+    pushCaptureBB(&cxt, cbb);
+    if (cxt.e) return cxt.e;
     assert(r->capStackTop == 0);
 
     // and start with this CBB
@@ -226,7 +233,8 @@ void emulateAndCapture(Rewriter* r, int parCount, uint64_t* par)
         // hint: here starts a function, we can assume ABI calling conventions
         Instr hintInstr;
         initSimpleInstr(&hintInstr, IT_HINT_CALL);
-        capture(r, &hintInstr);
+        capture(&cxt, &hintInstr);
+        if (cxt.e) return cxt.e;
     }
 
     if (r->showEmuSteps) {
@@ -281,7 +289,17 @@ void emulateAndCapture(Rewriter* r, int parCount, uint64_t* par)
             // for RIP-relative accesses
             es->regIP = instr->addr + instr->len;
 
-            nextbb_addr = emulateInstr(r, es, instr);
+            cxt.instr = instr;
+            cxt.exit = 0;
+
+            emulateInstr(&cxt);
+            if (cxt.e) {
+                assert(isErrorSet(cxt.e));
+                r->capBBCount = 0;
+                return cxt.e;
+            }
+
+            nextbb_addr = cxt.exit;
 
             if (r->showEmuState) {
                 if (nextbb_addr != 0) es->regIP = nextbb_addr;
@@ -298,7 +316,8 @@ void emulateAndCapture(Rewriter* r, int parCount, uint64_t* par)
         if (es->depth < 0) {
             // finish this path
             assert(instr->type == IT_RET);
-            captureRet(r, instr, es);
+            captureRet(&cxt, instr, es);
+            if (cxt.e) return cxt.e;
 
             // go to next path to trace
             cbb = popCaptureBB(r);
@@ -306,29 +325,33 @@ void emulateAndCapture(Rewriter* r, int parCount, uint64_t* par)
         }
         bb_addr = nextbb_addr;
     }
+    return 0;
 }
 
-void vEmulateAndCapture(Rewriter* r, va_list args)
+Error* vEmulateAndCapture(Rewriter* r, va_list args)
 {
+    static Error e;
     int i, parCount;
     uint64_t par[6];
 
     parCount = r->cc->parCount;
     if (parCount == -1) {
-        fprintf(stderr, "Warning: number of parameters not set\n");
-        assert(0);
+        setError(&e, ET_InvalidRequest, EM_Rewriter, r,
+                 "number of parameters not set");
+        return &e;
     }
 
     if (parCount > 6) {
-        fprintf(stderr, "Warning: number of parameters >6 not supported\n");
-        assert(0);
+        setError(&e, ET_InvalidRequest, EM_Rewriter, r,
+                 "number of parameters >6 not supported");
+        return &e;
     }
 
     for(i = 0; i < parCount; i++) {
         par[i] = va_arg(args, uint64_t);
     }
 
-    emulateAndCapture(r, parCount, par);
+    return emulateAndCapture(r, parCount, par);
 }
 
 
@@ -338,26 +361,29 @@ void vEmulateAndCapture(Rewriter* r, va_list args)
 
 // test: simply copy instructions
 static
-Instr* optPassCopy(Rewriter* r, CBB* cbb)
+Instr* optPassCopy(RContext* c, CBB* cbb)
 {
     Instr *first, *instr;
     int i;
 
     if (cbb->count == 0) return 0;
 
-    first = newCapInstr(r);
+    first = newCapInstr(c);
+    if (!first) return 0;
     copyInstr(first, cbb->instr);
     for(i = 1; i < cbb->count; i++) {
-        instr = newCapInstr(r);
+        instr = newCapInstr(c);
+        if (!instr) return 0;
         copyInstr(instr, cbb->instr + i);
     }
     return first;
 }
 
 static
-void optPass(Rewriter* r, CBB* cbb)
+void optPass(RContext* c, CBB* cbb)
 {
     Instr* newInstrs;
+    Rewriter* r = c->r;
 
     if (r->showOptSteps) {
         printf("Run Optimization for CBB (%lx|%d)\n",
@@ -365,7 +391,7 @@ void optPass(Rewriter* r, CBB* cbb)
     }
 
     if (r->doCopyPass) {
-        newInstrs = optPassCopy(r, cbb);
+        newInstrs = optPassCopy(c, cbb);
         if (newInstrs)
             cbb->instr = newInstrs;
     }
@@ -373,11 +399,13 @@ void optPass(Rewriter* r, CBB* cbb)
 
 
 // apply optimization passes to instructions captured in vEmulateAndCapture
-void runOptsOnCaptured(Rewriter* r)
+void runOptsOnCaptured(RContext* c)
 {
+    Rewriter* r = c->r;
     for(int i = 0; i < r->capBBCount; i++) {
         CBB* cbb = r->capBB + i;
-        optPass(r, cbb);
+        optPass(c, cbb);
+        if (c->e) return;
     }
 }
 
@@ -387,12 +415,13 @@ void runOptsOnCaptured(Rewriter* r)
 //
 
 // result in c->rewrittenFunc/rewrittenSize
-void generateBinaryFromCaptured(Rewriter* r)
+void generateBinaryFromCaptured(RContext *c)
 {
     CBB* cbb;
 
     // Pass 1: generating code for BBs without linking them
 
+    Rewriter* r = c->r;
     uint8_t* buf0 = reserveCodeStorage(r->cs, 0);
 
     // align address to cacheline boundary (multiple of 64)
@@ -406,8 +435,11 @@ void generateBinaryFromCaptured(Rewriter* r)
     int genOrder0 = r->genOrderCount;
 
     assert(r->capStackTop == -1);
+    assert(r->capBBCount > 0);
     // start with first CBB created
-    pushCaptureBB(r, r->capBB);
+    pushCaptureBB(c, r->capBB);
+    if (c->e) return;
+
     while(r->capStackTop >= 0) {
         cbb = r->capStack[r->capStackTop];
         r->capStackTop--;
@@ -419,17 +451,17 @@ void generateBinaryFromCaptured(Rewriter* r)
         Error* e = (Error*) generate(r, cbb);
         if (e) {
             assert(isErrorSet(e));
-            // current "fall-back": output error, stop generation
-            logError(e, (char*) "Stopped code generation");
             r->generatedCodeAddr = 0;
             r->generatedCodeSize = 0;
+            c->e = e;
             return;
         }
 
         if (instrIsJcc(cbb->endType)) {
             // FIXME: order according to branch preference
-            pushCaptureBB(r, cbb->nextBranch);
-            pushCaptureBB(r, cbb->nextFallThrough);
+            pushCaptureBB(c, cbb->nextBranch);
+            pushCaptureBB(c, cbb->nextFallThrough);
+            if (c->e) return;
         }
 
         // add a hole with size maximally needed (shrinks in pass 2)

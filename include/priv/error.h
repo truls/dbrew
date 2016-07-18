@@ -37,13 +37,14 @@ typedef struct _EmulationError EmulationError;
 
 typedef enum _ErrorModule {
     EM_Unknown,
-    EM_Decoder, EM_Emulator, EM_Generator, EM_Capture,
+    EM_Decoder, EM_Emulator, EM_Generator, EM_Capture, EM_Rewriter,
     EM_Max
 } ErrorModule;
 
 typedef enum _ErrorType {
     ET_NoError,
     ET_Unknown,
+    ET_InvalidRequest, // Rewriter
     ET_BufferOverflow, // Decoder, Generator, Rewriter
     ET_UnsupportedInstr, ET_UnsupportedOperands, // Generator, Emulator
     // Decoder

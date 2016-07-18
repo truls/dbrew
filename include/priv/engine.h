@@ -21,17 +21,28 @@
 #define ENGINE_H
 
 #include "common.h"
+#include "error.h"
 
 #include <stdarg.h>
 #include <stdint.h>
+
+// rewriter context
+typedef struct _RContext RContext;
+struct _RContext
+{
+    Rewriter* r;
+    Instr* instr;
+    uint64_t exit;
+    Error* e;
+};
 
 Rewriter* allocRewriter(void);
 void initRewriter(Rewriter* r);
 void freeRewriter(Rewriter* r);
 
 // Rewrite engine
-void vEmulateAndCapture(Rewriter* r, va_list args);
-void runOptsOnCaptured(Rewriter* r);
-void generateBinaryFromCaptured(Rewriter* r);
+Error* vEmulateAndCapture(Rewriter* r, va_list args);
+void runOptsOnCaptured(RContext *c);
+void generateBinaryFromCaptured(RContext* c);
 
 #endif // ENGINE_H

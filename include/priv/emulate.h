@@ -24,6 +24,8 @@
 
 #include "common.h"
 #include "instr.h"
+#include "engine.h"
+#include "error.h"
 
 
 /*------------------------------------------------------------*/
@@ -53,25 +55,26 @@ EmuState* allocEmuState(int size);
 void freeEmuState(Rewriter* r);
 void resetEmuState(EmuState* es);
 // save current emulator state for later rollback, return ID
-int saveEmuState(Rewriter* r);
+int saveEmuState(RContext *c);
 // set current emulator state to previously saved state <esID>
 void restoreEmuState(Rewriter* r, int esID);
 void printEmuState(EmuState* es);
 void printStaticEmuState(EmuState* es, int esID);
 
 void resetCapturing(Rewriter* r);
-CBB* getCaptureBB(Rewriter* r, uint64_t f, int esID);
-int pushCaptureBB(Rewriter* r, CBB* bb);
+CBB* getCaptureBB(RContext* c, uint64_t f, int esID);
+int pushCaptureBB(RContext *c, CBB* bb);
 CBB* popCaptureBB(Rewriter* r);
-Instr* newCapInstr(Rewriter* r);
-void capture(Rewriter* r, Instr* instr);
-void captureRet(Rewriter* r, Instr* orig, EmuState* es);
+Instr* newCapInstr(RContext *c);
+void capture(RContext* c, Instr* instr);
+void captureRet(RContext* c, Instr* orig, EmuState* es);
 
 // clone a decoded BB as a CBB
 CBB* createCBBfromDBB(Rewriter* r, DBB* src);
 
-// emulate <instr> by changing <es> and capture it if not static.
-// return 0 to fall through to next instruction, or return address to jump to
-uint64_t emulateInstr(Rewriter* r, EmuState* es, Instr* instr);
+// emulate a given instruction in a given emulation state (in RContext).
+// Capture it if not static. Set exit variable in RContext on jump.
+// Returns 0 if no error, otherwise pointer to Error struct
+void emulateInstr(RContext*);
 
 #endif // EMULATE_H
