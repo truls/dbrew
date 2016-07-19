@@ -159,8 +159,8 @@ uint8_t* calcModRMDigit(Operand* o1, int digit,
                 else {
                     r1 = GP64RegEncoding(o1->reg);
 
-                    if ((r1 == 5) && (v==0)) {
-                        // encoding for rbp without displacement is reused
+                    if (((r1 == RI_BP) || (r1 == RI_13)) && (v==0)) {
+                        // encoding for rbp/r13 without displacement is reused
                         // for RIP-relative addressing!
                         // we need to enforce +disp8 with disp8 = 0
                         // (see SDM, table 2-5 in 2.2.1.2)

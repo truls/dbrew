@@ -1,4 +1,4 @@
-BB f1 (87 instructions):
+BB f1 (99 instructions):
                   f1:  48 ff c0              inc     %rax
                 f1+3:  48 ff c5              inc     %rbp
                 f1+6:  49 ff c1              inc     %r9
@@ -111,4 +111,16 @@ BB f1 (87 instructions):
               f1+471:  12                  
               f1+472:  4d 8b 0c c5 12 34 56  mov     0x78563412(,%rax,8),%r9
               f1+479:  78                  
-              f1+480:  c3                    ret    
+              f1+480:  4c 03 4b 08           add     0x8(%rbx),%r9
+              f1+484:  4c 03 4c 24 08        add     0x8(%rsp),%r9
+              f1+489:  4c 03 4d 08           add     0x8(%rbp),%r9
+              f1+493:  4d 03 4b 08           add     0x8(%r11),%r9
+              f1+497:  4d 03 4c 24 08        add     0x8(%r12),%r9
+              f1+502:  4d 03 4d 08           add     0x8(%r13),%r9
+              f1+506:  4c 8b 0c 24           mov     (%rsp),%r9
+              f1+510:  4c 8b 4d 00           mov     (%rbp),%r9
+              f1+514:  4c 8b 0e              mov     (%rsi),%r9
+              f1+517:  4d 8b 0c 24           mov     (%r12),%r9
+              f1+521:  4d 8b 4d 00           mov     (%r13),%r9
+              f1+525:  4d 8b 0e              mov     (%r14),%r9
+              f1+528:  c3                    ret    

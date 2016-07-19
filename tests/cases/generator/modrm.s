@@ -103,5 +103,12 @@ f1:
     add r9, [0x8 + r12]
     add r9, [0x8 + r13]
 
+    mov r9, qword ptr [rsp]
+    mov r9, qword ptr [rbp]
+    mov r9, qword ptr [rsi]
+    mov r9, qword ptr [r12]
+    mov r9, qword ptr [r13]
+    mov r9, qword ptr [r14]
+
     ret
 

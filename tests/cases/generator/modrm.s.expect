@@ -1,4 +1,4 @@
-BB f1gen (87 instructions):
+BB f1gen (93 instructions):
                f1gen:  48 ff c0              inc     %rax
              f1gen+3:  48 ff c5              inc     %rbp
              f1gen+6:  49 ff c1              inc     %r9
@@ -111,4 +111,10 @@ BB f1gen (87 instructions):
            f1gen+451:  4d 03 4b 08           add     0x8(%r11),%r9
            f1gen+455:  4d 03 4c 24 08        add     0x8(%r12),%r9
            f1gen+460:  4d 03 4d 08           add     0x8(%r13),%r9
-           f1gen+464:  c3                    ret    
+           f1gen+464:  4c 8b 0c 24           mov     (%rsp),%r9
+           f1gen+468:  4c 8b 4d 00           mov     (%rbp),%r9
+           f1gen+472:  4c 8b 0e              mov     (%rsi),%r9
+           f1gen+475:  4d 8b 0c 24           mov     (%r12),%r9
+           f1gen+479:  4d 8b 4d 00           mov     (%r13),%r9
+           f1gen+483:  4d 8b 0e              mov     (%r14),%r9
+           f1gen+486:  c3                    ret    
