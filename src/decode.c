@@ -794,8 +794,14 @@ static void parseMI_8se(DContext* c)
 {
     parseModRM(c, c->vt, RTS_G, &c->o1, 0, 0);
     parseImm(c, VT_8, &c->o2, false);
-    // sign-extend op2 to required type: 8->64 works for all
-    c->o2.val = (int64_t)(int8_t)c->o2.val;
+    // sign-extend op2 to required type
+    if (c->vt == VT_64)
+        c->o2.val = (int64_t)(int8_t)c->o2.val;
+    else if (c->vt == VT_32)
+        c->o2.val = (uint32_t)(int32_t)(int8_t)c->o2.val;
+    else if (c->vt == VT_16)
+        c->o2.val = (uint16_t)(int16_t)(int8_t)c->o2.val;
+    else assert(0);
     c->o2.type = getImmOpType(c->vt);
 }
 

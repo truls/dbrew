@@ -1,0 +1,20 @@
+BB f1 (19 instructions):
+                  f1:  24 04                 and     $0x4,%al
+                f1+2:  66 83 e0 04           and     $0x4,%ax
+                f1+6:  66 25 90 01           and     $0x190,%ax
+               f1+10:  83 e0 04              and     $0x4,%eax
+               f1+13:  25 90 01 00 00        and     $0x190,%eax
+               f1+18:  25 80 1a 06 00        and     $0x61a80,%eax
+               f1+23:  48 83 e0 04           and     $0x4,%rax
+               f1+27:  48 25 90 01 00 00     and     $0x190,%rax
+               f1+33:  48 25 80 1a 06 00     and     $0x61a80,%rax
+               f1+39:  24 fc                 and     $0xfc,%al
+               f1+41:  66 83 e0 fc           and     $0xfffc,%ax
+               f1+45:  66 25 70 fe           and     $0xfe70,%ax
+               f1+49:  83 e0 fc              and     $0xfffffffc,%eax
+               f1+52:  25 70 fe ff ff        and     $0xfffffe70,%eax
+               f1+57:  25 80 e5 f9 ff        and     $0xfff9e580,%eax
+               f1+62:  48 83 e0 fc           and     $0xfffffffffffffffc,%rax
+               f1+66:  48 25 70 fe ff ff     and     $0xfffffffffffffe70,%rax
+               f1+72:  48 25 80 e5 f9 ff     and     $0xfffffffffff9e580,%rax
+               f1+78:  c3                    ret    
