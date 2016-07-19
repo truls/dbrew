@@ -85,5 +85,14 @@ f1:
     add r9, qword ptr [rip]
     add r9, qword ptr [rip + 0x100]
 
+    mov r9, qword ptr [rsp + 8 * rax]
+    mov r9, qword ptr [rbp + 8 * rax]
+    mov r9, qword ptr [rsi + 8 * rax]
+    mov r9, qword ptr [r12 + 8 * rax]
+    mov r9, qword ptr [r13 + 8 * rax]
+    mov r9, qword ptr [r14 + 8 * rax]
+    mov r9, qword ptr [0x12345678 + 8 * rax]
+    .byte 0x4d,0x8b,0x0c,0xc5,0x12,0x34,0x56,0x78
+
     ret
 
