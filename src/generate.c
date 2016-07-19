@@ -592,31 +592,34 @@ int genMov(GContext* cxt)
 
     src = reduceImm64to32(src);
 
-    switch(dst->type) {
-    case OT_Ind32:
-    case OT_Ind64:
-        // dst memory
-        switch(src->type) {
+    switch(src->type) {
+    case OT_Reg32:
+    case OT_Reg64:
+        switch(dst->type) {
         case OT_Reg32:
         case OT_Reg64:
+            // movsx
+            if ((opValType(src) == VT_32) && (opValType(dst) == VT_64)) {
+                Operand eSrc; // extend to 64 bit for genModRM not to fail
+                copyOperand(&eSrc, src);
+                eSrc.type = (src->type == OT_Reg32) ? OT_Reg64 : OT_Ind64;
+                // use 'movsx r64,r/m 32' (0x63)
+                return genModRM(buf, 0x63, -1, &eSrc, dst, VT_None, 0);
+            }
+            // fall through for regular 'mov r,r' with same operand sizes
+        case OT_Ind32:
+        case OT_Ind64:
             if (opValType(src) != opValType(dst)) return -1;
             // use 'mov r/m,r 32/64' (0x89 MR)
             return genModRM(buf, 0x89, -1, dst, src, VT_None, 0);
-
-        case OT_Imm32:
-            // use 'mov r/m 32/64, imm32' (0xC7/0 MI)
-            return genDigitMI(buf, 0xC7, 0, dst, src, 0);
 
         default: return -1;
         }
         break;
 
-    case OT_Reg32:
-    case OT_Reg64:
-        // dst reg
-        switch(src->type) {
-        case OT_Ind32:
-        case OT_Ind64:
+    case OT_Ind32:
+    case OT_Ind64:
+        switch(dst->type) {
         case OT_Reg32:
         case OT_Reg64:
             if (opValType(src) == opValType(dst)) {
@@ -628,12 +631,24 @@ int genMov(GContext* cxt)
                 Operand eSrc; // extend to 64 bit for genModRM not to fail
                 copyOperand(&eSrc, src);
                 eSrc.type = (src->type == OT_Reg32) ? OT_Reg64 : OT_Ind64;
-                // use 'movsx r64 ,r/m 32' (0x63)
+                // use 'movsx r64,r/m 32' (0x63)
                 return genModRM(buf, 0x63, -1, &eSrc, dst, VT_None, 0);
             }
             break;
 
-        case OT_Imm32:
+        default: return -1;
+        }
+        break;
+
+    case OT_Imm32:
+        switch(dst->type) {
+        case OT_Ind32:
+        case OT_Ind64:
+            // use 'mov r/m 32/64, imm32' (0xC7/0 MI)
+            return genDigitMI(buf, 0xC7, 0, dst, src, 0);
+
+        case OT_Reg32:
+        case OT_Reg64:
             if (src->val == 0) {
                 // setting to 0: use 'xor r/m,r 32/64' (0x31 MR)
                 return genModRM(buf, 0x31, -1, dst, dst, VT_None, 0);
@@ -641,14 +656,20 @@ int genMov(GContext* cxt)
             // use 'mov r/m 32/64, imm32' (0xC7/0)
             return genDigitMI(buf, 0xC7, 0, dst, src, 0);
 
-        case OT_Imm64: {
+        default: return -1;
+        }
+        break;
+
+    case OT_Imm64:
+        switch(dst->type) {
+        case OT_Reg32:
+        case OT_Reg64:
             if (src->val == 0) {
                 // setting to 0: use 'xor r/m,r 32/64' (0x31 MR)
                 return genModRM(buf, 0x31, -1, dst, dst, VT_None, 0);
             }
             // use 'mov r64,imm64' (REX.W + 0xB8)
             return genOI(buf, 0xB8, dst, src, 0);
-        }
 
         default: return -1;
         }
@@ -658,6 +679,7 @@ int genMov(GContext* cxt)
     }
     return 0;
 }
+
 
 static
 int genCMov(GContext* cxt)

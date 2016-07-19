@@ -45,9 +45,9 @@ Capture 'ret' (into test|0 + 11)
 Generating code for BB test|0 (12 instructions)
   I 0 : H-call                           (test|0)+0   
   I 1 : push    %rbp                     (test|0)+0    55
-  I 2 : mov     %rsp,%rbp                (test|0)+1    48 8b ec
+  I 2 : mov     %rsp,%rbp                (test|0)+1    48 89 e5
   I 3 : mov     %fs:-0x8,%rax            (test|0)+4    64 48 8b 04 25 f8 ff ff ff
-  I 4 : mov     %eax,%edx                (test|0)+13   8b d0
+  I 4 : mov     %eax,%edx                (test|0)+13   89 c2
   I 5 : mov     %fs:-0x10,%eax           (test|0)+15   64 8b 04 25 f0 ff ff ff
   I 6 : add     %eax,%edx                (test|0)+23   01 c2
   I 7 : mov     $0x1,%eax                (test|0)+25   c7 c0 01 00 00 00
@@ -58,10 +58,10 @@ Generating code for BB test|0 (12 instructions)
 Generated: 35 bytes (pass1: 61)
 BB gen (10 instructions):
                  gen:  55                    push    %rbp
-               gen+1:  48 8b ec              mov     %rsp,%rbp
+               gen+1:  48 89 e5              mov     %rsp,%rbp
                gen+4:  64 48 8b 04 25 f8 ff  mov     %fs:-0x8,%rax
               gen+11:  ff ff               
-              gen+13:  8b d0                 mov     %eax,%edx
+              gen+13:  89 c2                 mov     %eax,%edx
               gen+15:  64 8b 04 25 f0 ff ff  mov     %fs:-0x10,%eax
               gen+22:  ff                  
               gen+23:  01 c2                 add     %eax,%edx
