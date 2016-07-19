@@ -95,5 +95,13 @@ f1:
     // same as before, using r13 instead of rbp as base (marker for no base)
     .byte 0x4d,0x8b,0x0c,0xc5,0x12,0x34,0x56,0x78
 
+    // test indirect with rsp/r12: needs SIB encoding
+    add r9, [0x8 + rbx]
+    add r9, [0x8 + rsp]
+    add r9, [0x8 + rbp]
+    add r9, [0x8 + r11]
+    add r9, [0x8 + r12]
+    add r9, [0x8 + r13]
+
     ret
 

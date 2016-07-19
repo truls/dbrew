@@ -136,8 +136,10 @@ uint8_t* calcModRMDigit(Operand* o1, int digit,
         // may need to generated segment override prefix
         *pso = o1->seg;
 
-        if ((o1->scale == 0) && (regGP64Index(o1->reg) != RI_SP)) {
-            // no SIB needed (reg not sp which requires SIB)
+        if ((o1->scale == 0) &&
+                (regGP64Index(o1->reg) != RI_SP) &&
+                (regGP64Index(o1->reg) != RI_12)) {
+            // no SIB needed (and reg not rsp/r12 which requires SIB)
             if (o1->reg.rt == RT_None) {
                 useDisp32 = 1; // encoding needs disp32
                 useDisp8 = 0;
