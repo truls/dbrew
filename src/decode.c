@@ -997,7 +997,7 @@ void decode0F_29(DContext* c)
     }
     parseModRM(c, c->vt, RTS_VX_VX, &c->o1, &c->o2, 0);
     c->ii = addBinaryOp(c->r, c, c->it, VT_Implicit, &c->o1, &c->o2);
-    attachPassthrough(c->ii, c->ps, OE_RM, SC_None, 0x0F, 0x29, -1);
+    attachPassthrough(c->ii, c->ps, OE_MR, SC_None, 0x0F, 0x29, -1);
 }
 
 static
