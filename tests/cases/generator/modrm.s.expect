@@ -1,0 +1,108 @@
+BB f1gen (81 instructions):
+               f1gen:  48 ff c0              inc     %rax
+             f1gen+3:  48 ff c5              inc     %rbp
+             f1gen+6:  49 ff c1              inc     %r9
+             f1gen+9:  49 ff 01              incq    (%r9)
+            f1gen+12:  49 ff 04 01           incq    (%r9,%rax,1)
+            f1gen+16:  49 ff 04 01           incq    (%r9,%rax,1)
+            f1gen+20:  49 ff 04 51           incq    (%r9,%rdx,2)
+            f1gen+24:  49 ff 04 91           incq    (%r9,%rdx,4)
+            f1gen+28:  49 ff 04 d1           incq    (%r9,%rdx,8)
+            f1gen+32:  49 ff 41 10           incq    0x10(%r9)
+            f1gen+36:  4b ff 44 31 10        incq    0x10(%r9,%r14,1)
+            f1gen+41:  4b ff 44 31 10        incq    0x10(%r9,%r14,1)
+            f1gen+46:  4b ff 44 71 10        incq    0x10(%r9,%r14,2)
+            f1gen+51:  4b ff 44 b1 10        incq    0x10(%r9,%r14,4)
+            f1gen+56:  4b ff 44 f1 10        incq    0x10(%r9,%r14,8)
+            f1gen+61:  49 ff 81 00 10 00 00  incq    0x1000(%r9)
+            f1gen+68:  49 ff 84 01 00 10 00  incq    0x1000(%r9,%rax,1)
+            f1gen+75:  00                  
+            f1gen+76:  49 ff 84 01 00 10 00  incq    0x1000(%r9,%rax,1)
+            f1gen+83:  00                  
+            f1gen+84:  49 ff 84 51 00 10 00  incq    0x1000(%r9,%rdx,2)
+            f1gen+91:  00                  
+            f1gen+92:  49 ff 84 91 00 10 00  incq    0x1000(%r9,%rdx,4)
+            f1gen+99:  00                  
+           f1gen+100:  49 ff 84 d1 00 10 00  incq    0x1000(%r9,%rdx,8)
+           f1gen+107:  00                  
+           f1gen+108:  48 ff 04 55 00 10 00  incq    0x1000(,%rdx,2)
+           f1gen+115:  00                  
+           f1gen+116:  48 ff 04 95 00 10 00  incq    0x1000(,%rdx,4)
+           f1gen+123:  00                  
+           f1gen+124:  48 ff 04 d5 00 10 00  incq    0x1000(,%rdx,8)
+           f1gen+131:  00                  
+           f1gen+132:  48 01 c5              add     %rax,%rbp
+           f1gen+135:  48 01 ed              add     %rbp,%rbp
+           f1gen+138:  4c 01 cd              add     %r9,%rbp
+           f1gen+141:  49 03 29              add     (%r9),%rbp
+           f1gen+144:  49 03 2c 01           add     (%r9,%rax,1),%rbp
+           f1gen+148:  49 03 2c 01           add     (%r9,%rax,1),%rbp
+           f1gen+152:  49 03 2c 51           add     (%r9,%rdx,2),%rbp
+           f1gen+156:  49 03 2c 91           add     (%r9,%rdx,4),%rbp
+           f1gen+160:  49 03 2c d1           add     (%r9,%rdx,8),%rbp
+           f1gen+164:  49 03 69 10           add     0x10(%r9),%rbp
+           f1gen+168:  4b 03 6c 31 10        add     0x10(%r9,%r14,1),%rbp
+           f1gen+173:  4b 03 6c 31 10        add     0x10(%r9,%r14,1),%rbp
+           f1gen+178:  4b 03 6c 71 10        add     0x10(%r9,%r14,2),%rbp
+           f1gen+183:  4b 03 6c b1 10        add     0x10(%r9,%r14,4),%rbp
+           f1gen+188:  4b 03 6c f1 10        add     0x10(%r9,%r14,8),%rbp
+           f1gen+193:  49 03 a9 00 10 00 00  add     0x1000(%r9),%rbp
+           f1gen+200:  49 03 ac 01 00 10 00  add     0x1000(%r9,%rax,1),%rbp
+           f1gen+207:  00                  
+           f1gen+208:  49 03 ac 01 00 10 00  add     0x1000(%r9,%rax,1),%rbp
+           f1gen+215:  00                  
+           f1gen+216:  49 03 ac 51 00 10 00  add     0x1000(%r9,%rdx,2),%rbp
+           f1gen+223:  00                  
+           f1gen+224:  49 03 ac 91 00 10 00  add     0x1000(%r9,%rdx,4),%rbp
+           f1gen+231:  00                  
+           f1gen+232:  49 03 ac d1 00 10 00  add     0x1000(%r9,%rdx,8),%rbp
+           f1gen+239:  00                  
+           f1gen+240:  4a 03 2c 7d 00 10 00  add     0x1000(,%r15,2),%rbp
+           f1gen+247:  00                  
+           f1gen+248:  4a 03 2c bd 00 10 00  add     0x1000(,%r15,4),%rbp
+           f1gen+255:  00                  
+           f1gen+256:  4a 03 2c fd 00 10 00  add     0x1000(,%r15,8),%rbp
+           f1gen+263:  00                  
+           f1gen+264:  49 01 c1              add     %rax,%r9
+           f1gen+267:  49 01 e9              add     %rbp,%r9
+           f1gen+270:  4d 01 c9              add     %r9,%r9
+           f1gen+273:  4d 03 09              add     (%r9),%r9
+           f1gen+276:  4d 03 0c 01           add     (%r9,%rax,1),%r9
+           f1gen+280:  4d 03 0c 01           add     (%r9,%rax,1),%r9
+           f1gen+284:  4d 03 0c 51           add     (%r9,%rdx,2),%r9
+           f1gen+288:  4d 03 0c 91           add     (%r9,%rdx,4),%r9
+           f1gen+292:  4d 03 0c d1           add     (%r9,%rdx,8),%r9
+           f1gen+296:  4d 03 49 10           add     0x10(%r9),%r9
+           f1gen+300:  4f 03 4c 31 10        add     0x10(%r9,%r14,1),%r9
+           f1gen+305:  4f 03 4c 31 10        add     0x10(%r9,%r14,1),%r9
+           f1gen+310:  4f 03 4c 71 10        add     0x10(%r9,%r14,2),%r9
+           f1gen+315:  4f 03 4c b1 10        add     0x10(%r9,%r14,4),%r9
+           f1gen+320:  4f 03 4c f1 10        add     0x10(%r9,%r14,8),%r9
+           f1gen+325:  4d 03 89 00 10 00 00  add     0x1000(%r9),%r9
+           f1gen+332:  4d 03 8c 01 00 10 00  add     0x1000(%r9,%rax,1),%r9
+           f1gen+339:  00                  
+           f1gen+340:  4d 03 8c 01 00 10 00  add     0x1000(%r9,%rax,1),%r9
+           f1gen+347:  00                  
+           f1gen+348:  4d 03 8c 51 00 10 00  add     0x1000(%r9,%rdx,2),%r9
+           f1gen+355:  00                  
+           f1gen+356:  4d 03 8c 91 00 10 00  add     0x1000(%r9,%rdx,4),%r9
+           f1gen+363:  00                  
+           f1gen+364:  4d 03 8c d1 00 10 00  add     0x1000(%r9,%rdx,8),%r9
+           f1gen+371:  00                  
+           f1gen+372:  4e 03 0c 7d 00 10 00  add     0x1000(,%r15,2),%r9
+           f1gen+379:  00                  
+           f1gen+380:  4e 03 0c bd 00 10 00  add     0x1000(,%r15,4),%r9
+           f1gen+387:  00                  
+           f1gen+388:  4e 03 0c fd 00 10 00  add     0x1000(,%r15,8),%r9
+           f1gen+395:  00                  
+           f1gen+396:  4c 8b 0c c4           mov     (%rsp,%rax,8),%r9
+           f1gen+400:  4c 8b 4c c5 00        mov     (%rbp,%rax,8),%r9
+           f1gen+405:  4c 8b 0c c6           mov     (%rsi,%rax,8),%r9
+           f1gen+409:  4d 8b 0c c4           mov     (%r12,%rax,8),%r9
+           f1gen+413:  4d 8b 4c c5 00        mov     (%r13,%rax,8),%r9
+           f1gen+418:  4d 8b 0c c6           mov     (%r14,%rax,8),%r9
+           f1gen+422:  4c 8b 0c c5 78 56 34  mov     0x12345678(,%rax,8),%r9
+           f1gen+429:  12                  
+           f1gen+430:  4c 8b 0c c5 12 34 56  mov     0x78563412(,%rax,8),%r9
+           f1gen+437:  78                  
+           f1gen+438:  c3                    ret    

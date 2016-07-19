@@ -201,7 +201,8 @@ uint8_t* calcModRMDigit(Operand* o1, int digit,
                 sib |= 5;
             }
             else {
-                if (regGP64Index(o1->reg) == RI_BP) {
+                if ((regGP64Index(o1->reg) == RI_BP)
+                        || (regGP64Index(o1->reg) == RI_13) ) {
                     // cannot use mod == 00
                     if ((modrm & 192) == 0) {
                         modrm |= 64;
