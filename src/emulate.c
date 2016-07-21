@@ -33,6 +33,7 @@
 #include "printer.h"
 #include "expr.h"
 #include "error.h"
+#include "vector.h"
 
 
 
@@ -2635,6 +2636,11 @@ uint64_t processKnownTargets(RContext* c, uint64_t f)
     if (f == (uint64_t) makeStatic) {
         initMetaState(&(es->reg_state[RI_DI]), CS_STATIC2);
     }
+
+    // vector API
+    if ( (f == (uint64_t) dbrew_apply4_R8V8) ||
+         (f == (uint64_t) dbrew_apply4_R8V8V8) )
+        return handleVectorCall(f, es, c->r->showEmuSteps);
 
     return f;
 }

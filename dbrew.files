@@ -53,3 +53,4 @@ docs/TODO
 Makefile
 README.md
 .gitignore
+include/priv/vector.h
