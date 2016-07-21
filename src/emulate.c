@@ -1707,6 +1707,43 @@ void setEmulatorError(RContext* c, ErrorType et, const char* d)
     c->e = &e;
 }
 
+static
+void emulateRet(RContext* c)
+{
+    Rewriter* r = c->r;
+    EmuState* es = c->r->es;
+
+    // all caller-save / parameter registers become dead, but not return
+    // TODO: includes vector registers xmm1-15
+    static RegIndex ri[8] =
+    { RI_DI, RI_SI, RI_D, RI_C, RI_8, RI_9, RI_10, RI_11 };
+    for(int i=0; i<8; i++)
+        initMetaState(&(es->reg_state[ri[i]]), CS_DEAD);
+
+    if (r->addInliningHints) {
+        Instr i;
+        initSimpleInstr(&i, IT_HINT_RET);
+        capture(c, &i);
+    }
+
+    es->depth--;
+    if (es->depth >= 0) {
+        EmuValue v, addr;
+
+        // pop return address from stack
+        addr = emuValue(es->reg[RI_SP], VT_64, es->reg_state[RI_SP]);
+        getMemValue(&v, &addr, es, VT_64, 1);
+        es->reg[RI_SP] += 8;
+
+        if (v.val != es->ret_stack[es->depth]) {
+            setEmulatorError(c, ET_BadOperands, "Return address modified");
+            return;
+        }
+        // return to address
+        c->exit = es->ret_stack[es->depth];
+    }
+}
+
 // return 0 to fall through to next instruction, or return address to jump to
 void emulateInstr(RContext* c)
 {
@@ -2383,26 +2420,7 @@ void emulateInstr(RContext* c)
         break;
 
     case IT_RET:
-        if (r->addInliningHints) {
-            Instr i;
-            initSimpleInstr(&i, IT_HINT_RET);
-            capture(c, &i);
-        }
-
-        es->depth--;
-        if (es->depth >= 0) {
-            // pop return address from stack
-            addr = emuValue(es->reg[RI_SP], VT_64, es->reg_state[RI_SP]);
-            getMemValue(&v1, &addr, es, VT_64, 1);
-            es->reg[RI_SP] += 8;
-
-            if (v1.val != es->ret_stack[es->depth]) {
-                setEmulatorError(c, ET_BadOperands, "Return address modified");
-                return;
-            }
-            // return to address
-            c->exit = es->ret_stack[es->depth];
-        }
+        emulateRet(c);
         break;
 
     case IT_SHL:
