@@ -71,6 +71,7 @@ Rewriter* allocRewriter(void)
     r->generatedCodeSize = 0;
 
     r->cc = 0;
+    r->vreq = VR_None;
     r->es = 0;
 
     r->ePool = 0;

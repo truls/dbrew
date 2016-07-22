@@ -21,20 +21,8 @@
 
 #include <stdint.h>
 
-typedef struct _VRequest VRequest;
-struct _VRequest
-{
-    uint64_t func;
-    int pCount;
-    int retElemSize;
-    int par1ElemSize;
-    int par2ElemSize;
-
-    Rewriter* r;
-};
-
 // dispatcher
-uint64_t handleVectorCall(uint64_t f, EmuState* es, bool verb);
+uint64_t handleVectorCall(Rewriter *r, uint64_t f, EmuState* es);
 
 // replacement functions
 

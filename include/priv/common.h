@@ -36,7 +36,7 @@ struct _DBB {
     uint64_t addr;
     FunctionConfig* fc; // if !=0, the BB is in this function
     int size; // in bytes
-    int count;
+    int count; // number of instructions
     Instr* instr; // pointer to first decoded instruction
 };
 
@@ -133,6 +133,17 @@ typedef struct _CaptureConfig
 } CaptureConfig;
 
 
+// vectorization parameter config for a Rewriter
+
+typedef enum _VectorizeReq {
+    VR_None = 0,
+    VR_DoubleX2_RV,  // scalar double => 2x double vector, ret + par1
+    VR_DoubleX2_RVV, // scalar double => 2x double vector, ret + par1 + par2
+    VR_DoubleX4_RV,  // scalar double => 4x double vector, ret + par1
+    VR_DoubleX4_RVV  // scalar double => 4x double vector, ret + par1 + par2
+} VectorizeReq;
+
+
 FunctionConfig* config_find_function(Rewriter* r, uint64_t f);
 
 
@@ -225,6 +236,9 @@ struct _Rewriter {
     uint64_t generatedCodeAddr;
     int generatedCodeSize;
 
+    // vectorization config
+    VectorizeReq vreq;
+
     // structs for emulator & capture config
     CaptureConfig* cc;
     EmuState* es;
@@ -249,6 +263,9 @@ struct _Rewriter {
 
     // debug output
     bool showDecoding, showEmuState, showEmuSteps, showOptSteps;
+
+    // list of related rewriters
+    Rewriter* next;
 };
 
 

@@ -2640,7 +2640,7 @@ uint64_t processKnownTargets(RContext* c, uint64_t f)
     // vector API
     if ( (f == (uint64_t) dbrew_apply4_R8V8) ||
          (f == (uint64_t) dbrew_apply4_R8V8V8) )
-        return handleVectorCall(f, es, c->r->showEmuSteps);
+        return handleVectorCall(c->r, f, es);
 
     return f;
 }

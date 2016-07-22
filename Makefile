@@ -1,4 +1,3 @@
-
 WFLAGS_BASE=-Wall -Wextra -Wmissing-field-initializers -Wunused-parameter \
             -Wold-style-definition -Wmissing-declarations -Wmissing-prototypes \
             -Wredundant-decls -Wmissing-noreturn -Wshadow -Wpointer-arith \
@@ -16,6 +15,9 @@ WFLAGS2=-Wswitch-enum -Wswitch -Waggregate-return
 CFLAGS=-g -std=gnu99 -Iinclude -Iinclude/priv $(WFLAGS)
 LDFLAGS=-g
 
+# options for compiling DBrew snippets
+SOPTS = -O2 # -mavx
+
 SRCS = $(wildcard src/*.c)
 OBJS = $(SRCS:.c=.o)
 HEADERS = $(wildcard include/*.h)
@@ -32,7 +34,7 @@ test: libdbrew.a
 	$(MAKE) test -C tests
 
 src/snippets.o: src/snippets.c
-	$(CC) -O2 $(CFLAGS) -c $< -o $@
+	$(CC) $(CFLAGS) $(SOPTS) -c $< -o $@
 
 examples:
 	cd examples && $(MAKE)

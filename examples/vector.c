@@ -21,7 +21,7 @@ double copy_kernel(double v)
 
 void vcopy(double* dst, double* src, int n)
 {
-    while(n>4) {
+    while(n>3) {
         dbrew_apply4_R8V8(copy_kernel, dst, src);
         dst += 4;
         src += 4;
@@ -43,7 +43,7 @@ double add_kernel(double v1, double v2)
 
 void vadd(double* dst, double* src1, double* src2, int n)
 {
-    while(n>4) {
+    while(n>3) {
         dbrew_apply4_R8V8V8(add_kernel, dst, src1, src2);
         dst += 4;
         src1 += 4;
@@ -88,7 +88,7 @@ int main(int argc, char* argv[])
     if (argc>arg) { len   = atoi(argv[arg]); arg++; }
     if (argc>arg) { iters = atoi(argv[arg]); arg++; }
     if (len == 0) len = 10000;
-    if (iters == 0) iters = 100;
+    if (iters == 0) iters = 20;
     len = len * 1000;
 
     printf("Alloc/init 3 double arrays of length %d ...\n", len);
