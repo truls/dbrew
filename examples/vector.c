@@ -137,6 +137,7 @@ int main(int argc, char* argv[])
     vadd_t vadd2 = (vadd_t) dbrew_rewrite(r2, a, b, c, len);
     if (verb) decode_func(r2, "vadd2");
 
+    double sum1 = 0.0, sum2 = 0.0, sum3 = 0.0;
     printf("Running %d iterations of vadd ...\n", iters);
     t1 = wtime();
     for(int iter = 0; iter < iters; iter++) {
@@ -144,14 +145,19 @@ int main(int argc, char* argv[])
         for(int i = 0; i < len; i++)
             a[i] = b[i] + c[i];
     }
+    for(int i = 0; i < len; i++) sum1 += a[i];
     t2 = wtime();
     for(int iter = 0; iter < iters; iter++)
         vadd(a, b, c, len);
+    for(int i = 0; i < len; i++) sum2 += a[i];
     t3 = wtime();
     if (run)
         for(int iter = 0; iter < iters; iter++)
             vadd2(a, b, c, len);
+    for(int i = 0; i < len; i++) sum3 += a[i];
     t4 = wtime();
     printf("  naive: %.3f s, un-rewritten: %.3f s, rewritten: %.3f s\n",
            t2-t1, t3-t2, t4-t3);
+    printf("  sum naive: %f, sum rewritten: %f\n",
+           sum1, sum3);
 }
