@@ -23,16 +23,15 @@
 #include <stdio.h>
 
 #include "dbrew.h"
+#include "instr.h"
+#include "emulate.h"
 
-/* Support for DBrew vector API
+/*
+ *  Support for DBrew vector API
  *
  * - generate vectorized variants of a given function
  * - substitute vector API code with own version
  */
-
-
-
-
 
 
 // returns function pointer to rewritten, vectorized variant
@@ -105,4 +104,112 @@ uint64_t handleVectorCall(Rewriter* r, uint64_t f, EmuState* es)
     es->reg[RI_DI] = convertToVector(r, es->reg[RI_DI], vr);
 
     return rf;
+}
+
+
+//----------------------------------------------------------
+// vectorization pass
+//
+
+typedef enum _VecRegType {
+    VRT_Unknown = 0,
+    VRT_Double,    // lower double set
+    VRT_DoubleX2,  // original scalar double vectorized to 2 doubles
+    VRT_DoubleX4,  // original scalar double vectorized to 4 doubles
+} VecRegType;
+
+// maintain expansion state of 16 vector registers
+VecRegType vrt[16];
+
+static
+void doVec(RContext* c, Instr* dst, Instr* src)
+{
+    static Error e;
+    RegIndex ri1, ri2;
+    VecRegType vrt1, vrt2;
+
+    copyInstr(dst, src);
+
+    switch(src->type) {
+    case IT_ADDSD:
+        ri1 = opIsVReg(&(src->dst)) ? regVIndex(src->dst.reg) : RI_None;
+        vrt1 = (ri1 != RI_None) ? vrt[ri1] : VRT_Unknown;
+        ri2 = opIsVReg(&(src->src)) ? regVIndex(src->src.reg) : RI_None;
+        vrt2 = (ri2 != RI_None) ? vrt[ri2] : VRT_Unknown;
+
+        if ((vrt1 == VRT_DoubleX2) && (vrt2 == VRT_DoubleX2)) {
+            dst->type = IT_ADDPD;
+        }
+        else if ((vrt1 == VRT_DoubleX4) && (vrt2 == VRT_DoubleX4))
+            dst->type = IT_ADDPD; // FIXME: AVX
+        else {
+            assert((vrt1 != VRT_DoubleX2) && (vrt1 != VRT_DoubleX4));
+            assert((vrt2 != VRT_DoubleX2) && (vrt2 != VRT_DoubleX4));
+        }
+        break;
+    case IT_HINT_CALL:
+    case IT_HINT_RET:
+    case IT_RET:
+        break;
+    default:
+        setError(&e, ET_UnsupportedInstr, EM_Rewriter, c->r,
+                 "Cannot handle instruction for vector expansion");
+        c->e = &e;
+    break;
+    }
+}
+
+static
+void vecPass(RContext* c, CBB* cbb)
+{
+    Instr *first = 0, *instr;
+    Rewriter* r = c->r;
+    int i;
+
+    if (cbb->count == 0) return;
+
+    if (r->showOptSteps) {
+        printf("Run Vectorization for CBB (%lx|%d)\n",
+               cbb->dec_addr, cbb->esID);
+    }
+
+    for(i = 0; i < cbb->count; i++) {
+        instr = newCapInstr(c);
+        if (!instr) return;
+        if (!first) first = instr;
+
+        doVec(c, instr, cbb->instr + i);
+    }
+    assert(first != 0);
+    cbb->instr = first;
+}
+
+
+void runVectorization(RContext* c)
+{
+    int i, pCount;
+    bool vRet;
+    VecRegType expType;
+    Rewriter* r = c->r;
+
+    assert(r->vreq != VR_None);
+    switch(r->vreq) {
+    case VR_DoubleX2_RV:  expType = VRT_DoubleX2; vRet = true; pCount = 1; break;
+    case VR_DoubleX2_RVV: expType = VRT_DoubleX2; vRet = true; pCount = 2; break;
+    case VR_DoubleX4_RV:  expType = VRT_DoubleX4; vRet = true; pCount = 1; break;
+    case VR_DoubleX4_RVV: expType = VRT_DoubleX4; vRet = true; pCount = 2; break;
+    default: break;
+    }
+
+    for(i=0; i<16; i++) vrt[i] = VRT_Unknown;
+    if (pCount>0) vrt[0] = expType;
+    if (pCount>1) vrt[1] = expType;
+
+    assert(r->capBBCount == 1);
+    vecPass(c, r->capBB);
+    if (c->e) return;
+
+    // check for expanded return value
+    if (vRet)
+        assert(vrt[0] == expType);
 }

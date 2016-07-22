@@ -32,6 +32,7 @@
 #include "emulate.h"
 #include "engine.h"
 #include "generate.h"
+#include "vector.h"
 
 /**
  * Functions which may be used in code to be rewritten
@@ -200,7 +201,10 @@ uint64_t dbrew_rewrite(Rewriter* r, ...)
         c.r = r;
         c.e = 0;
 
-        runOptsOnCaptured(&c);
+        if (r->vreq != VR_None)
+            runVectorization(&c);
+        if (!c.e)
+            runOptsOnCaptured(&c);
         if (!c.e)
             generateBinaryFromCaptured(&c);
         e = c.e;

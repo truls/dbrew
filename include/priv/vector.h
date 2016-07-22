@@ -18,11 +18,12 @@
  */
 
 #include "common.h"
+#include "engine.h"
 
 #include <stdint.h>
 
-// dispatcher
 uint64_t handleVectorCall(Rewriter *r, uint64_t f, EmuState* es);
+void runVectorization(RContext* c);
 
 // replacement functions
 
