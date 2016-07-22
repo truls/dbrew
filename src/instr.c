@@ -166,6 +166,17 @@ RegIndex regGP64Index(Reg r)
     return RI_None;
 }
 
+// if not a XMM/YMM/ZMM register, return RI_None
+RegIndex regVIndex(Reg r)
+{
+    if ((r.rt == RT_XMM) || (r.rt == RT_YMM) || (r.rt == RT_ZMM)) {
+        assert((r.ri >= 0) && (r.ri < RI_XMMMax));
+        return r.ri;
+    }
+    return RI_None;
+}
+
+
 Reg getReg(RegType rt, RegIndex ri)
 {
     switch(rt) {

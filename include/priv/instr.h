@@ -274,6 +274,7 @@ bool regTypeIsV(RegType rt);
 bool regIsGP(Reg r);
 bool regIsV(Reg r);
 RegIndex regGP64Index(Reg r);
+RegIndex regVIndex(Reg r);
 Reg getReg(RegType rt, RegIndex ri);
 
 ValType opValType(Operand* o);
