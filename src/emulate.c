@@ -1597,6 +1597,53 @@ void processPassThrough(Instr* i, EmuState* es)
 }
 
 static
+void captureVec(RContext* c, Instr* orig, EmuState* es)
+{
+    Instr i;
+    OperandEncoding oe = OE_None;
+
+    switch(orig->type) {
+    case IT_ADDSS:
+    case IT_ADDSD:
+    case IT_ADDPS:
+    case IT_ADDPD:
+        oe = OE_RM;
+        break;
+    default: assert(0);
+    }
+
+    // we need to apply static information to memory addressing
+
+    initSimpleInstr(&i, orig->type);
+    i.vtype  = orig->vtype;
+    i.form   = orig->form;
+
+    switch(oe) {
+    case OE_MR:
+        assert(opIsReg(&(orig->dst)) || opIsInd(&(orig->dst)));
+        assert(opIsReg(&(orig->src)));
+
+        copyOperand( &(i.dst), &(orig->dst));
+        copyOperand( &(i.src), &(orig->src));
+        applyStaticToInd(&(i.dst), es);
+        break;
+
+    case OE_RM:
+        assert(opIsReg(&(orig->src)) || opIsInd(&(orig->src)));
+        assert(opIsReg(&(orig->dst)));
+
+        copyOperand( &(i.dst), &(orig->dst));
+        copyOperand( &(i.src), &(orig->src));
+        applyStaticToInd(&(i.src), es);
+        break;
+
+    default: assert(0);
+    }
+    capture(c, &i);
+}
+
+
+static
 void capturePassThrough(RContext* c, Instr* orig, EmuState* es)
 {
     Instr i;
@@ -2546,6 +2593,14 @@ void emulateInstr(RContext* c)
         // for capturing we need state of original dst
         captureBinaryOp(c, instr, es, &v1);
         setOpValue(&v1, es, &(instr->dst));
+        break;
+
+    case IT_ADDSS:
+    case IT_ADDSD:
+    case IT_ADDPS:
+    case IT_ADDPD:
+        // just always capture without emulation
+        captureVec(c, instr, es);
         break;
 
     default:

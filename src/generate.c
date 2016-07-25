@@ -1641,6 +1641,21 @@ int genCmp(GContext* cxt)
     return 0;
 }
 
+static
+int genVec(GContext* c)
+{
+    Instr* instr = c->instr;
+
+    switch(instr->type) {
+    case IT_ADDSS: setGenInfo(c, PS_F3, 0x0F58, OE_RM, VT_Implicit); break;
+    case IT_ADDSD: setGenInfo(c, PS_F2, 0x0F58, OE_RM, VT_Implicit); break;
+    case IT_ADDPS: setGenInfo(c, PS_No, 0x0F58, OE_RM, VT_Implicit); break;
+    case IT_ADDPD: setGenInfo(c, PS_66, 0x0F58, OE_RM, VT_Implicit); break;
+    default: assert(0);
+    }
+
+    return genInstr(c);
+}
 
 // Pass-through: parser forwarding opcodes, provides encoding
 static
@@ -1818,8 +1833,10 @@ GenerateError* generate(Rewriter* r, CBB* cbb)
                 break;
 
             case IT_ADDSS:
-                setGenInfo(&cxt, PS_F3, 0x0F58, OE_RM, VT_Implicit);
-                genInstr(&cxt);
+            case IT_ADDSD:
+            case IT_ADDPS:
+            case IT_ADDPD:
+                used = genVec(&cxt);
                 break;
 
             case IT_HINT_CALL:

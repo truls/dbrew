@@ -2057,10 +2057,10 @@ void initDecodeTables(void)
     // 0x0F58/F2: addsd xmm1,xmm2/m64 (RM)
     // 0x0F58/No: addps xmm1,xmm2/m128 (RM)
     // 0x0F58/66: addpd xmm1,xmm2/m128 (RM)
-    setOpcP(0x0F58, PS_F3, IT_ADDSS, VT_32,  parseRMVV, addBInsImp, attach);
-    setOpcP(0x0F58, PS_F2, IT_ADDSD, VT_64,  parseRMVV, addBInsImp, attach);
-    setOpcP(0x0F58, PS_No, IT_ADDPS, VT_128, parseRMVV, addBInsImp, attach);
-    setOpcP(0x0F58, PS_66, IT_ADDPD, VT_128, parseRMVV, addBInsImp, attach);
+    setOpcP(0x0F58, PS_F3, IT_ADDSS, VT_32,  parseRMVV, addBInsImp, 0);
+    setOpcP(0x0F58, PS_F2, IT_ADDSD, VT_64,  parseRMVV, addBInsImp, 0);
+    setOpcP(0x0F58, PS_No, IT_ADDPS, VT_128, parseRMVV, addBInsImp, 0);
+    setOpcP(0x0F58, PS_66, IT_ADDPD, VT_128, parseRMVV, addBInsImp, 0);
 
     // 0x0F59/F3: mulss xmm1,xmm2/m32 (RM)
     // 0x0F59/F2: mulsd xmm1,xmm2/m64 (RM)
