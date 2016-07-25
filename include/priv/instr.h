@@ -245,9 +245,16 @@ typedef enum _StateChange {
 } StateChange;
 
 struct _Instr {
+    InstrType type;
+
+    OperandForm form;
+    ValType vtype; // without explicit operands or all operands of same type
+    Operand dst, src; //  with binary op: dst = dst op src
+    Operand src2; // with ternary op: dst = src op src2
+
+    // if instruction was decoded
     uint64_t addr;
     int len;
-    InstrType type;
 
     // annotation for pass-through (not used when ptLen == 0)
     int ptLen;
@@ -256,10 +263,6 @@ struct _Instr {
     OperandEncoding ptEnc;
     StateChange ptSChange;
 
-    ValType vtype; // without explicit operands or all operands of same type
-    OperandForm form;
-    Operand dst, src; //  with binary op: dst = dst op src
-    Operand src2; // with ternary op: dst = src op src2
 
     ExprNode* info_memAddr; // annotate memory reference of instr
 };
