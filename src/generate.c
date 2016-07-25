@@ -32,6 +32,13 @@ struct _GContext {
     Instr* instr;
     uint8_t* buf;
     GenerateError* e;
+
+    // information passed among generator functions
+    PrefixSet ps;
+    int rex;
+    OpSegOverride so;
+    uint8_t b[10];    // partly generated machine code
+    int blen;         // valid bytes in b
 };
 
 static
@@ -83,12 +90,11 @@ int VRegEncoding(Reg r)
 }
 
 
-// returns static buffer with requested operand encoding
+// Generate bytes with ModRM encoding for operand <o> and 3-bit <digit>.
+// Sets info in GContext <c>: b/len/rex/so
 static
-uint8_t* calcModRMDigit(Operand* o1, int digit,
-                        int* prex, OpSegOverride* pso, int* plen)
+void calcModRMDigit(GContext* c, Operand* o1, int digit)
 {
-    static uint8_t buf[10];
     int modrm, r1;
     int o = 0;
     ValType vt;
@@ -97,7 +103,7 @@ uint8_t* calcModRMDigit(Operand* o1, int digit,
     assert(opIsReg(o1) || opIsInd(o1));
 
     vt = opValType(o1);
-    if (vt == VT_64) *prex |= REX_MASK_W;
+    if (vt == VT_64) c->rex |= REX_MASK_W;
 
     modrm = (digit & 7) << 3;
 
@@ -106,16 +112,19 @@ uint8_t* calcModRMDigit(Operand* o1, int digit,
         modrm |= 192;
         if (opIsGPReg(o1)) {
             r1 = GPRegEncoding(o1->reg);
-            if ((o1->reg.rt == RT_GP8) && (o1->reg.ri >= 4) && (o1->reg.ri < 8))
-                *prex |= 0x40; // empty REX mask for non-legacy 8-bit registers
+            if ( (o1->reg.rt == RT_GP8) &&
+                 (o1->reg.ri >= 4) && (o1->reg.ri < 8) ) {
+                // empty REX mask for non-legacy 8-bit registers
+                c->rex |= 0x40;
+            }
         }
         else if (opIsVReg(o1))
             r1 = VRegEncoding(o1->reg);
         else
             assert(0);
-        if (r1 & 8) *prex |= REX_MASK_B;
+        if (r1 & 8) c->rex |= REX_MASK_B;
         modrm |= (r1 & 7);
-        buf[o++] = modrm;
+        c->b[o++] = modrm;
     }
     else {
         int useDisp8 = 0, useDisp32 = 0, useSIB = 0;
@@ -134,7 +143,7 @@ uint8_t* calcModRMDigit(Operand* o1, int digit,
         }
 
         // may need to generated segment override prefix
-        *pso = o1->seg;
+        c->so = o1->seg;
 
         if ((o1->scale == 0) &&
                 (regGP64Index(o1->reg) != RI_SP) &&
@@ -169,7 +178,7 @@ uint8_t* calcModRMDigit(Operand* o1, int digit,
                         modrm |= 64;
                     }
                 }
-                if (r1 & 8) *prex |= REX_MASK_B;
+                if (r1 & 8) c->rex |= REX_MASK_B;
                 modrm |= (r1 & 7);
             }
         }
@@ -191,7 +200,7 @@ uint8_t* calcModRMDigit(Operand* o1, int digit,
                 ri = GP64RegEncoding(o1->ireg);
                 // offset 4 not allowed here, used for "no scaling"
                 assert(ri != 4);
-                if (ri & 8) *prex |= REX_MASK_X;
+                if (ri & 8) c->rex |= REX_MASK_X;
                 sib |= (ri & 7) <<3;
             }
 
@@ -212,31 +221,31 @@ uint8_t* calcModRMDigit(Operand* o1, int digit,
                     }
                 }
                 rb = GP64RegEncoding(o1->reg);
-                if (rb & 8) *prex |= REX_MASK_B;
+                if (rb & 8) c->rex |= REX_MASK_B;
                 sib |= (rb & 7);
             }
         }
 
         if (useSIB)
             modrm |= 4; // signal SIB in modrm
-        buf[o++] = modrm;
+        c->b[o++] = modrm;
         if (useSIB)
-            buf[o++] = sib;
+            c->b[o++] = sib;
         if (useDisp8)
-            buf[o++] = (int8_t) v;
+            c->b[o++] = (int8_t) v;
         if (useDisp32) {
-            *(int32_t*)(buf+o) = (int32_t) v;
+            *(int32_t*)(c->b+o) = (int32_t) v;
             o += 4;
         }
     }
 
-    *plen = o;
-    return buf;
+    c->blen = o;
 }
 
+// Generate bytes with ModRM encoding for operands <o1> and <o2>
+// Sets info in GContext <c>: b/len/rex/so
 static
-uint8_t* calcModRM(Operand* o1, Operand* o2,
-                   int* prex, OpSegOverride* pso, int* plen)
+void calcModRM(GContext* c, Operand* o1, Operand* o2)
 {
     int r2; // register offset encoding for operand 2
 
@@ -245,8 +254,11 @@ uint8_t* calcModRM(Operand* o1, Operand* o2,
     if (opIsGPReg(o2)) {
         assert(opIsReg(o1) || opIsInd(o1));
         r2 = GPRegEncoding(o2->reg);
-        if ((o2->reg.rt == RT_GP8) && (o2->reg.ri >= 4) && (o2->reg.ri < 8))
-            *prex |= 0x40; // empty REX mask for non-legacy 8-bit registers
+        if ( (o2->reg.rt == RT_GP8) &&
+             (o2->reg.ri >= 4) && (o2->reg.ri < 8) ) {
+            // empty REX mask for non-legacy 8-bit registers
+            c->rex |= 0x40;
+        }
     }
     else if (opIsVReg(o2)) {
         assert(opIsReg(o1) || opIsInd(o1));
@@ -254,19 +266,27 @@ uint8_t* calcModRM(Operand* o1, Operand* o2,
     }
     else assert(0);
 
-    if (r2 & 8) *prex |= REX_MASK_R;
-    return calcModRMDigit(o1, r2 & 7, prex, pso, plen);
+    if (r2 & 8) c->rex |= REX_MASK_R;
+    calcModRMDigit(c, o1, r2 & 7);
 }
 
 
 static
-int genPrefix(uint8_t* buf, int rex, OpSegOverride so)
+int genPrefix(GContext* c)
 {
+    uint8_t* buf = c->buf;
     int o = 0;
-    if (so == OSO_UseFS) buf[o++] = 0x64;
-    if (so == OSO_UseGS) buf[o++] = 0x65;
-    if (rex)
-        buf[o++] = 0x40 | rex;
+
+    if (c->ps & PS_66) buf[o++] = 0x66;
+    if (c->ps & PS_F2) buf[o++] = 0xF2;
+    if (c->ps & PS_F3) buf[o++] = 0xF3;
+    if (c->ps & PS_REXW) c->rex |= REX_MASK_W;
+
+    if (c->so == OSO_UseFS) buf[o++] = 0x64;
+    if (c->so == OSO_UseGS) buf[o++] = 0x65;
+
+    if (c->rex) buf[o++] = 0x40 | c->rex;
+
     return o;
 }
 
@@ -274,51 +294,46 @@ int genPrefix(uint8_t* buf, int rex, OpSegOverride so)
 #define GEN_66OnVT16  1
 
 // Generate instruction with operand encoding RM (o1: r/m, o2: r)
-// into buf, up to 2 opcodes (2 if opc2 >=0).
+// into c->buf, up to 2 opcodes (2 if opc2 >=0).
 // If result type (vt) is explicitly specified as "VT_Implicit", do not
 // automatically generate REX prefix depending on operand types.
 // Returns byte length of generated instruction.
 static
-int genModRM(uint8_t* buf, int opc, int opc2,
+int genModRM(GContext* c, int opc, int opc2,
              Operand* o1, Operand* o2, ValType vt, int flags)
 {
-    OpSegOverride so = OSO_None;
-    int rex = 0, len = 0;
+    uint8_t* buf = c->buf;
     int o = 0;
-    uint8_t* rmBuf;
 
-    rmBuf = calcModRM(o1, o2, &rex, &so, &len);
-    if (vt == VT_Implicit) rex &= ~REX_MASK_W;
-    if (vt == VT_Implicit_REXW) rex |= REX_MASK_W;
-    if ((flags & GEN_66OnVT16) && (opValType(o1) == VT_16)) buf[o++] = 0x66;
-    o += genPrefix(buf+o, rex, so);
+    calcModRM(c, o1, o2);
+    // with value type implicit given by instruction type (e.g. MMX/SSE),
+    //   clear REX_MASK_W if not explicitly requested
+    if ((vt == VT_Implicit) && ((c->ps & PS_REXW) == 0)) c->rex &= ~REX_MASK_W;
+    if ((flags & GEN_66OnVT16) && (opValType(o1) == VT_16)) c->ps |= PS_66;
+    o = genPrefix(c);
     buf[o++] = (uint8_t) opc;
     if (opc2 >=0)
         buf[o++] = (uint8_t) opc2;
-    while(len>0) {
-        buf[o++] = *rmBuf++;
-        len--;
-    }
+    for(int i=0; i < c->blen; i++)
+        buf[o++] = c->b[i];
+
     return o;
 }
 
 // Operand o1: r/m
 static
-int genDigitRM(uint8_t* buf, int opc, int digit, Operand* o1, int flags)
+int genDigitRM(GContext* c, int opc, int digit, Operand* o1, int flags)
 {
-    OpSegOverride so = OSO_None;
-    int rex = 0, len = 0;
-    int o = 0;
-    uint8_t* rmBuf;
+    uint8_t* buf = c->buf;
+    int o;
 
-    rmBuf = calcModRMDigit(o1, digit, &rex, &so, &len);
-    if ((flags & GEN_66OnVT16) && (opValType(o1) == VT_16)) buf[o++] = 0x66;
-    o += genPrefix(buf+o, rex, so);
+    calcModRMDigit(c, o1, digit);
+    if ((flags & GEN_66OnVT16) && (opValType(o1) == VT_16)) c->ps |= PS_66;
+    o = genPrefix(c);
     buf[o++] = (uint8_t) opc;
-    while(len>0) {
-        buf[o++] = *rmBuf++;
-        len--;
-    }
+    for(int i=0; i < c->blen; i++)
+        buf[o++] = c->b[i];
+
     return o;
 }
 
@@ -355,65 +370,58 @@ int appendI(uint8_t* buf, int o, Operand* op)
 
 // Operand o1: r/m, o2: r, o3: imm
 static
-int genModRMI(uint8_t* buf, int opc, int opc2,
+int genModRMI(GContext* c, int opc, int opc2,
               Operand* o1, Operand* o2, Operand* o3, int flags)
 {
-    OpSegOverride so = OSO_None;
-    int rex = 0, len = 0;
-    int o = 0;
-    uint8_t* rmBuf;
+    uint8_t* buf = c->buf;
+    int o;
 
-    rmBuf = calcModRM(o1, o2, &rex, &so, &len);
-    if ((flags & GEN_66OnVT16) && (opValType(o1) == VT_16)) buf[o++] = 0x66;
-    o += genPrefix(buf+o, rex, so);
+    calcModRM(c, o1, o2);
+    if ((flags & GEN_66OnVT16) && (opValType(o1) == VT_16)) c->ps |= PS_66;
+    o = genPrefix(c);
     buf[o++] = (uint8_t) opc;
     if (opc2 >=0)
         buf[o++] = (uint8_t) opc2;
-    while(len>0) {
-        buf[o++] = *rmBuf++;
-        len--;
-    }
+    for(int i=0; i < c->blen; i++)
+        buf[o++] = c->b[i];
+
     return appendI(buf, o, o3);
 }
 
 // Operand o1: r/m, o2: imm
 static
-int genDigitMI(uint8_t* buf, int opc, int digit,
+int genDigitMI(GContext* c, int opc, int digit,
                Operand* o1, Operand* o2, int flags)
 {
-    OpSegOverride so = OSO_None;
-    int rex = 0, len = 0;
-    int o = 0;
-    uint8_t* rmBuf;
+    uint8_t* buf = c->buf;
+    int o;
 
     assert(opIsImm(o2));
-    rmBuf = calcModRMDigit(o1, digit, &rex, &so, &len);
-    if ((flags & GEN_66OnVT16) && (opValType(o1) == VT_16)) buf[o++] = 0x66;
-    o += genPrefix(buf+o, rex, so);
+    calcModRMDigit(c, o1, digit);
+    if ((flags & GEN_66OnVT16) && (opValType(o1) == VT_16)) c->ps |= PS_66;
+    o = genPrefix(c);
     buf[o++] = (uint8_t) opc;
-    while(len>0) {
-        buf[o++] = *rmBuf++;
-        len--;
-    }
+    for(int i=0; i < c->blen; i++)
+        buf[o++] = c->b[i];
+
     return appendI(buf, o, o2);
 }
 
 // Operand o1: r (gets part of opcode), o2: imm
 static
-int genOI(uint8_t* buf, int opc, Operand* o1, Operand* o2, int flags)
+int genOI(GContext* c, int opc, Operand* o1, Operand* o2, int flags)
 {
-    int rex = 0;
+    uint8_t* buf = c->buf;
     int o = 0, r;
 
     assert(opIsReg(o1));
     assert(opIsImm(o2));
 
     r = GPRegEncoding(o1->reg);
-    if (r & 8) rex |= REX_MASK_B;
-    if (opValType(o1) == VT_64) rex |= REX_MASK_W;
-    if ((flags & GEN_66OnVT16) && (opValType(o1) == VT_16)) buf[o++] = 0x66;
-    if (rex)
-        buf[o++] = 0x40 | rex;
+    if (r & 8) c->rex |= REX_MASK_B;
+    if (opValType(o1) == VT_64) c->rex |= REX_MASK_W;
+    if ((flags & GEN_66OnVT16) && (opValType(o1) == VT_16)) c->ps |= PS_66;
+    o = genPrefix(c);
     buf[o++] = (uint8_t) (opc + (r & 7));
     return appendI(buf, o, o2);
 }
@@ -524,7 +532,6 @@ int genPop(GContext* cxt)
 static
 int genDec(GContext* cxt)
 {
-    uint8_t* buf = cxt->buf;
     Operand* dst =  &(cxt->instr->dst);
 
     switch(dst->type) {
@@ -533,7 +540,7 @@ int genDec(GContext* cxt)
     case OT_Reg32:
     case OT_Reg64:
       // use 'dec r/m 32/64' (0xFF/1)
-      return genDigitRM(buf, 0xFF, 1, dst, 0);
+      return genDigitRM(cxt, 0xFF, 1, dst, 0);
 
     default: return -1;
     }
@@ -543,7 +550,6 @@ int genDec(GContext* cxt)
 static
 int genInc(GContext* cxt)
 {
-    uint8_t* buf = cxt->buf;
     Operand* dst =  &(cxt->instr->dst);
 
     switch(dst->type) {
@@ -552,7 +558,7 @@ int genInc(GContext* cxt)
     case OT_Reg32:
     case OT_Reg64:
       // use 'inc r/m 32/64' (0xFF/0)
-      return genDigitRM(buf, 0xFF, 0, dst, 0);
+      return genDigitRM(cxt, 0xFF, 0, dst, 0);
 
     default: return -1;
     }
@@ -562,14 +568,13 @@ int genInc(GContext* cxt)
 static
 int genNeg(GContext* cxt)
 {
-    uint8_t* buf = cxt->buf;
     Operand* dst =  &(cxt->instr->dst);
 
     switch(dst->type) {
     case OT_Ind8:
     case OT_Reg8:
         // use 'neg r/m8' (0xF6/3)
-        return genDigitRM(buf, 0xF6, 3, dst, 0);
+        return genDigitRM(cxt, 0xF6, 3, dst, 0);
 
     case OT_Ind16:
     case OT_Ind32:
@@ -578,7 +583,7 @@ int genNeg(GContext* cxt)
     case OT_Reg32:
     case OT_Reg64:
       // use 'neg r/m 16/32/64' (0xF7/3)
-      return genDigitRM(buf, 0xF7, 3, dst, GEN_66OnVT16);
+      return genDigitRM(cxt, 0xF7, 3, dst, GEN_66OnVT16);
 
     default: return -1;
     }
@@ -589,7 +594,6 @@ int genNeg(GContext* cxt)
 static
 int genMov(GContext* cxt)
 {
-    uint8_t* buf = cxt->buf;
     Operand* src =  &(cxt->instr->src);
     Operand* dst =  &(cxt->instr->dst);
 
@@ -607,14 +611,14 @@ int genMov(GContext* cxt)
                 copyOperand(&eSrc, src);
                 eSrc.type = (src->type == OT_Reg32) ? OT_Reg64 : OT_Ind64;
                 // use 'movsx r64,r/m 32' (0x63)
-                return genModRM(buf, 0x63, -1, &eSrc, dst, VT_None, 0);
+                return genModRM(cxt, 0x63, -1, &eSrc, dst, VT_None, 0);
             }
             // fall through for regular 'mov r,r' with same operand sizes
         case OT_Ind32:
         case OT_Ind64:
             if (opValType(src) != opValType(dst)) return -1;
             // use 'mov r/m,r 32/64' (0x89 MR)
-            return genModRM(buf, 0x89, -1, dst, src, VT_None, 0);
+            return genModRM(cxt, 0x89, -1, dst, src, VT_None, 0);
 
         default: return -1;
         }
@@ -627,7 +631,7 @@ int genMov(GContext* cxt)
         case OT_Reg64:
             if (opValType(src) == opValType(dst)) {
                 // use 'mov r,r/m 32/64' (0x8B RM)
-                return genModRM(buf, 0x8B, -1, src, dst, VT_None, 0);
+                return genModRM(cxt, 0x8B, -1, src, dst, VT_None, 0);
             }
             else if ((opValType(src) == VT_32) &&
                      (opValType(dst) == VT_64)) {
@@ -635,7 +639,7 @@ int genMov(GContext* cxt)
                 copyOperand(&eSrc, src);
                 eSrc.type = (src->type == OT_Reg32) ? OT_Reg64 : OT_Ind64;
                 // use 'movsx r64,r/m 32' (0x63)
-                return genModRM(buf, 0x63, -1, &eSrc, dst, VT_None, 0);
+                return genModRM(cxt, 0x63, -1, &eSrc, dst, VT_None, 0);
             }
             break;
 
@@ -648,16 +652,16 @@ int genMov(GContext* cxt)
         case OT_Ind32:
         case OT_Ind64:
             // use 'mov r/m 32/64, imm32' (0xC7/0 MI)
-            return genDigitMI(buf, 0xC7, 0, dst, src, 0);
+            return genDigitMI(cxt, 0xC7, 0, dst, src, 0);
 
         case OT_Reg32:
         case OT_Reg64:
             if (src->val == 0) {
                 // setting to 0: use 'xor r/m,r 32/64' (0x31 MR)
-                return genModRM(buf, 0x31, -1, dst, dst, VT_None, 0);
+                return genModRM(cxt, 0x31, -1, dst, dst, VT_None, 0);
             }
             // use 'mov r/m 32/64, imm32' (0xC7/0)
-            return genDigitMI(buf, 0xC7, 0, dst, src, 0);
+            return genDigitMI(cxt, 0xC7, 0, dst, src, 0);
 
         default: return -1;
         }
@@ -669,10 +673,10 @@ int genMov(GContext* cxt)
         case OT_Reg64:
             if (src->val == 0) {
                 // setting to 0: use 'xor r/m,r 32/64' (0x31 MR)
-                return genModRM(buf, 0x31, -1, dst, dst, VT_None, 0);
+                return genModRM(cxt, 0x31, -1, dst, dst, VT_None, 0);
             }
             // use 'mov r64,imm64' (REX.W + 0xB8)
-            return genOI(buf, 0xB8, dst, src, 0);
+            return genOI(cxt, 0xB8, dst, src, 0);
 
         default: return -1;
         }
@@ -687,7 +691,6 @@ int genMov(GContext* cxt)
 static
 int genCMov(GContext* cxt)
 {
-    uint8_t* buf = cxt->buf;
     InstrType it = cxt->instr->type;
     Operand* src =  &(cxt->instr->src);
     Operand* dst =  &(cxt->instr->dst);
@@ -723,7 +726,7 @@ int genCMov(GContext* cxt)
             default: assert(0);
             }
             // use 'cmov r,r/m 32/64' (opc RM)
-            return genModRM(buf, opc, -1, src, dst, VT_None, 0);
+            return genModRM(cxt, opc, -1, src, dst, VT_None, 0);
             break;
 
         default: return -1;
@@ -738,7 +741,6 @@ int genCMov(GContext* cxt)
 static
 int genAdd(GContext* cxt)
 {
-    uint8_t* buf = cxt->buf;
     Operand* src =  &(cxt->instr->src);
     Operand* dst =  &(cxt->instr->dst);
 
@@ -762,12 +764,12 @@ int genAdd(GContext* cxt)
         case OT_Ind32:
         case OT_Ind64:
             // use 'add r/m,r 32/64' (0x01 MR)
-            return genModRM(buf, 0x01, -1, dst, src, VT_None, GEN_66OnVT16);
+            return genModRM(cxt, 0x01, -1, dst, src, VT_None, GEN_66OnVT16);
 
         case OT_Reg8:
         case OT_Ind8:
             // use 'add r/m,r 8' (0x00 MR)
-            return genModRM(buf, 0x00, -1, dst, src, VT_None, 0);
+            return genModRM(cxt, 0x00, -1, dst, src, VT_None, 0);
 
         default: return -1;
         }
@@ -781,13 +783,13 @@ int genAdd(GContext* cxt)
         switch(dst->type) {
         case OT_Reg8:
             // use 'add r,r/m 8' (0x02 RM)
-            return genModRM(buf, 0x02, -1, src, dst, VT_None, 0);
+            return genModRM(cxt, 0x02, -1, src, dst, VT_None, 0);
 
         case OT_Reg16:
         case OT_Reg32:
         case OT_Reg64:
             // use 'add r,r/m 16/32/64' (0x03 RM)
-            return genModRM(buf, 0x03, -1, src, dst, VT_None, GEN_66OnVT16);
+            return genModRM(cxt, 0x03, -1, src, dst, VT_None, GEN_66OnVT16);
 
         default: return -1;
         }
@@ -799,13 +801,14 @@ int genAdd(GContext* cxt)
         case OT_Reg8:
             if (dst->reg.ri == RI_A) {
                 // use 'add al,imm8' (0x04 I)
+                uint8_t* buf = cxt->buf;
                 buf[0] = 0x04;
                 return appendI(buf, 1, src);
             }
             // fall-through
         case OT_Ind8:
             // use 'add r/m 8,imm8' (0x80/0 MI)
-            return genDigitMI(buf, 0x80, 0, dst, src, 0);
+            return genDigitMI(cxt, 0x80, 0, dst, src, 0);
 
         case OT_Reg16:
         case OT_Reg32:
@@ -814,7 +817,7 @@ int genAdd(GContext* cxt)
         case OT_Ind32:
         case OT_Ind64:
             // use 'add r/m 16/32/64, imm8' (0x83/0 MI)
-            return genDigitMI(buf, 0x83, 0, dst, src, GEN_66OnVT16);
+            return genDigitMI(cxt, 0x83, 0, dst, src, GEN_66OnVT16);
 
         default: return -1;
         }
@@ -825,13 +828,14 @@ int genAdd(GContext* cxt)
         case OT_Reg16:
             if (dst->reg.ri == RI_A) {
                 // use 'add ax,imm16' (0x66 0x05 I)
+                uint8_t* buf = cxt->buf;
                 buf[0] = 0x66; buf[1] = 0x05;
                 return appendI(buf, 2, src);
             }
             // fall-through
         case OT_Ind16:
             // use 'add r/m 16,imm16' (0x81/0 MI)
-            return genDigitMI(buf, 0x81, 0, dst, src, GEN_66OnVT16);
+            return genDigitMI(cxt, 0x81, 0, dst, src, GEN_66OnVT16);
 
         default: return -1;
         }
@@ -844,6 +848,7 @@ int genAdd(GContext* cxt)
         case OT_Reg64:
             if (dst->reg.ri == RI_A) {
                 // use 'add eax/rax,imm32' (0x05 I)
+                uint8_t* buf = cxt->buf;
                 int o=0;
                 if (dst->type == OT_Reg64) buf[o++] = 0x40 | REX_MASK_W;
                 buf[o++] = 0x05;
@@ -853,7 +858,7 @@ int genAdd(GContext* cxt)
         case OT_Ind32:
         case OT_Ind64:
             // use 'add r/m 32/64, imm32' (0x81/0 MI)
-            return genDigitMI(buf, 0x81, 0, dst, src, 0);
+            return genDigitMI(cxt, 0x81, 0, dst, src, 0);
 
         default: return -1;
         }
@@ -867,7 +872,6 @@ int genAdd(GContext* cxt)
 static
 int genSub(GContext* cxt)
 {
-    uint8_t* buf = cxt->buf;
     Operand* src =  &(cxt->instr->src);
     Operand* dst =  &(cxt->instr->dst);
 
@@ -886,7 +890,7 @@ int genSub(GContext* cxt)
         case OT_Ind32:
         case OT_Ind64:
             // use 'sub r/m,r 32/64' (0x29 MR)
-            return genModRM(buf, 0x29, -1, dst, src, VT_None, 0);
+            return genModRM(cxt, 0x29, -1, dst, src, VT_None, 0);
 
         default: return -1;
         }
@@ -900,7 +904,7 @@ int genSub(GContext* cxt)
         case OT_Reg32:
         case OT_Reg64:
             // use 'sub r,r/m 32/64' (0x2B RM)
-            return genModRM(buf, 0x2B, -1, src, dst, VT_None, 0);
+            return genModRM(cxt, 0x2B, -1, src, dst, VT_None, 0);
 
         default: return -1;
         }
@@ -913,7 +917,7 @@ int genSub(GContext* cxt)
         case OT_Ind32:
         case OT_Ind64:
             // use 'sub r/m 32/64, imm8' (0x83/5 MI)
-            return genDigitMI(buf, 0x83, 5, dst, src, 0);
+            return genDigitMI(cxt, 0x83, 5, dst, src, 0);
 
         default: return -1;
         }
@@ -927,7 +931,7 @@ int genSub(GContext* cxt)
         case OT_Ind32:
         case OT_Ind64:
             // use 'sub r/m 32/64, imm32' (0x81/5 MI)
-            return genDigitMI(buf, 0x81, 5, dst, src, 0);
+            return genDigitMI(cxt, 0x81, 5, dst, src, 0);
 
         default: return -1;
         }
@@ -941,7 +945,6 @@ int genSub(GContext* cxt)
 static
 int genTest(GContext* cxt)
 {
-    uint8_t* buf = cxt->buf;
     Operand* src =  &(cxt->instr->src);
     Operand* dst =  &(cxt->instr->dst);
 
@@ -963,12 +966,12 @@ int genTest(GContext* cxt)
         case OT_Ind32:
         case OT_Ind64:
             // use 'test r/m,r 16/32/64' (0x85 MR)
-            return genModRM(buf, 0x85, -1, dst, src, VT_None, GEN_66OnVT16);
+            return genModRM(cxt, 0x85, -1, dst, src, VT_None, GEN_66OnVT16);
 
         case OT_Reg8:
         case OT_Ind8:
             // use 'test r/m,r 8' (0x84 MR)
-            return genModRM(buf, 0x84, -1, dst, src, VT_None, 0);
+            return genModRM(cxt, 0x84, -1, dst, src, VT_None, 0);
 
         default: return -1;
         }
@@ -979,13 +982,14 @@ int genTest(GContext* cxt)
         case OT_Reg8:
             if (dst->reg.ri == RI_A) {
                 // use 'test al,imm8' (0xA8 I)
+                uint8_t* buf = cxt->buf;
                 buf[0] = 0xA8;
                 return appendI(buf, 1, src);
             }
             // fall-through
         case OT_Ind8:
             // use 'test r/m 8,imm8' (0xF6/0 MI)
-            return genDigitMI(buf, 0xF6, 0, dst, src, 0);
+            return genDigitMI(cxt, 0xF6, 0, dst, src, 0);
 
         default: return -1;
         }
@@ -996,13 +1000,14 @@ int genTest(GContext* cxt)
         case OT_Reg16:
             if (dst->reg.ri == RI_A) {
                 // use 'test ax,imm8' (0x66 0xA9 I)
+                uint8_t* buf = cxt->buf;
                 buf[0] = 0x66; buf[1] = 0xA9;
                 return appendI(buf, 2, src);
             }
             // fall-through
         case OT_Ind16:
             // use 'test r/m 16,imm16' (0xF7/0 MI)
-            return genDigitMI(buf, 0xF7, 0, dst, src, GEN_66OnVT16);
+            return genDigitMI(cxt, 0xF7, 0, dst, src, GEN_66OnVT16);
 
         default: return -1;
         }
@@ -1016,6 +1021,7 @@ int genTest(GContext* cxt)
             if (dst->reg.ri == RI_A) {
                 // use 'test eax/rax,imm32' (0xA9 I)
                 int o=0;
+                uint8_t* buf = cxt->buf;
                 if (dst->type == OT_Reg64) buf[o++] = 0x40 | REX_MASK_W;
                 buf[o++] = 0xA9;
                 return appendI(buf, o, src);
@@ -1024,7 +1030,7 @@ int genTest(GContext* cxt)
         case OT_Ind32:
         case OT_Ind64:
             // use 'test r/m 16/32/64,imm16/32' (0xF7/0 MI)
-            return genDigitMI(buf, 0xF7, 0, dst, src, 0);
+            return genDigitMI(cxt, 0xF7, 0, dst, src, 0);
 
         default: return -1;
         }
@@ -1038,7 +1044,6 @@ int genTest(GContext* cxt)
 static
 int genIMul(GContext* cxt)
 {
-    uint8_t* buf = cxt->buf;
     Operand* src =  &(cxt->instr->src);
     Operand* dst =  &(cxt->instr->dst);
 
@@ -1056,7 +1061,7 @@ int genIMul(GContext* cxt)
         case OT_Reg32:
         case OT_Reg64:
             // use 'imul r,r/m 32/64' (0x0F 0xAF RM)
-            return genModRM(buf, 0x0F, 0xAF, src, dst, VT_None, 0);
+            return genModRM(cxt, 0x0F, 0xAF, src, dst, VT_None, 0);
 
         default: return -1;
         }
@@ -1067,7 +1072,7 @@ int genIMul(GContext* cxt)
         case OT_Reg32:
         case OT_Reg64:
             // use 'imul r,r/m 32/64,imm8' (0x6B/r RMI)
-            return genModRMI(buf, 0x6B, -1, dst, dst, src, 0);
+            return genModRMI(cxt, 0x6B, -1, dst, dst, src, 0);
 
         default: return -1;
         }
@@ -1079,7 +1084,7 @@ int genIMul(GContext* cxt)
         case OT_Reg32:
         case OT_Reg64:
             // use 'imul r,r/m 32/64,imm32' (0x69/r RMI)
-            return genModRMI(buf, 0x69, -1, dst, dst, src, 0);
+            return genModRMI(cxt, 0x69, -1, dst, dst, src, 0);
 
         default: return -1;
         }
@@ -1093,7 +1098,6 @@ int genIMul(GContext* cxt)
 static
 int genIDiv1(GContext* cxt)
 {
-    uint8_t* buf = cxt->buf;
     Operand* src =  &(cxt->instr->dst); // idiv src decoded into instr->dst
 
     switch(src->type) {
@@ -1102,7 +1106,7 @@ int genIDiv1(GContext* cxt)
     case OT_Reg64:
     case OT_Ind64:
         // use 'idiv r/m 32/64' (0xF7/7 M)
-        return genDigitRM(buf, 0xF7, 7, src, 0);
+        return genDigitRM(cxt, 0xF7, 7, src, 0);
 
     default: return -1;
     }
@@ -1113,7 +1117,6 @@ int genIDiv1(GContext* cxt)
 static
 int genXor(GContext* cxt)
 {
-    uint8_t* buf = cxt->buf;
     Operand* src =  &(cxt->instr->src);
     Operand* dst =  &(cxt->instr->dst);
 
@@ -1132,7 +1135,7 @@ int genXor(GContext* cxt)
         case OT_Reg64:
         case OT_Ind64:
             // use 'xor r/m,r 32/64' (0x31 MR)
-            return genModRM(buf, 0x31, -1, dst, src, VT_None, 0);
+            return genModRM(cxt, 0x31, -1, dst, src, VT_None, 0);
 
         default: return -1;
         }
@@ -1146,7 +1149,7 @@ int genXor(GContext* cxt)
         case OT_Reg32:
         case OT_Reg64:
             // use 'xor r,r/m 32/64' (0x33 RM)
-            return genModRM(buf, 0x33, -1, src, dst, VT_None, 0);
+            return genModRM(cxt, 0x33, -1, src, dst, VT_None, 0);
 
         default: return -1;
         }
@@ -1160,7 +1163,7 @@ int genXor(GContext* cxt)
         case OT_Ind32:
         case OT_Ind64:
             // use 'xor r/m 32/64, imm8' (0x83/6 MI)
-            return genDigitMI(buf, 0x83, 6, dst, src, 0);
+            return genDigitMI(cxt, 0x83, 6, dst, src, 0);
 
         default: return -1;
         }
@@ -1174,7 +1177,7 @@ int genXor(GContext* cxt)
         case OT_Ind32:
         case OT_Ind64:
             // use 'xor r/m 32/64, imm32' (0x81/6 MI)
-            return genDigitMI(buf, 0x81, 6, dst, src, 0);
+            return genDigitMI(cxt, 0x81, 6, dst, src, 0);
 
         default: return -1;
         }
@@ -1188,7 +1191,6 @@ int genXor(GContext* cxt)
 static
 int genOr(GContext* cxt)
 {
-    uint8_t* buf = cxt->buf;
     Operand* src =  &(cxt->instr->src);
     Operand* dst =  &(cxt->instr->dst);
 
@@ -1207,7 +1209,7 @@ int genOr(GContext* cxt)
         case OT_Reg64:
         case OT_Ind64:
             // use 'or r/m,r 32/64' (0x09 MR)
-            return genModRM(buf, 0x09, -1, dst, src, VT_None, 0);
+            return genModRM(cxt, 0x09, -1, dst, src, VT_None, 0);
 
         default: return -1;
         }
@@ -1221,7 +1223,7 @@ int genOr(GContext* cxt)
         case OT_Reg32:
         case OT_Reg64:
             // use 'or r,r/m 32/64' (0x0B RM)
-            return genModRM(buf, 0x0B, -1, src, dst, VT_None, 0);
+            return genModRM(cxt, 0x0B, -1, src, dst, VT_None, 0);
 
         default: return -1;
         }
@@ -1235,7 +1237,7 @@ int genOr(GContext* cxt)
         case OT_Ind32:
         case OT_Ind64:
             // use 'or r/m 32/64, imm8' (0x83/1 MI)
-            return genDigitMI(buf, 0x83, 1, dst, src, 0);
+            return genDigitMI(cxt, 0x83, 1, dst, src, 0);
 
         default: return -1;
         }
@@ -1249,7 +1251,7 @@ int genOr(GContext* cxt)
         case OT_Ind32:
         case OT_Ind64:
             // use 'or r/m 32/64, imm32' (0x81/1 MI)
-            return genDigitMI(buf, 0x81, 1, dst, src, 0);
+            return genDigitMI(cxt, 0x81, 1, dst, src, 0);
 
         default: return -1;
         }
@@ -1263,7 +1265,6 @@ int genOr(GContext* cxt)
 static
 int genAnd(GContext* cxt)
 {
-    uint8_t* buf = cxt->buf;
     Operand* src =  &(cxt->instr->src);
     Operand* dst =  &(cxt->instr->dst);
 
@@ -1287,12 +1288,12 @@ int genAnd(GContext* cxt)
         case OT_Ind32:
         case OT_Ind64:
             // use 'and r/m,r 16/32/64' (0x21 MR)
-            return genModRM(buf, 0x21, -1, dst, src, VT_None, GEN_66OnVT16);
+            return genModRM(cxt, 0x21, -1, dst, src, VT_None, GEN_66OnVT16);
 
         case OT_Reg8:
         case OT_Ind8:
             // use 'and r/m,r 8' (0x20 MR)
-            return genModRM(buf, 0x20, -1, dst, src, VT_None, 0);
+            return genModRM(cxt, 0x20, -1, dst, src, VT_None, 0);
 
         default: return -1;
         }
@@ -1307,13 +1308,13 @@ int genAnd(GContext* cxt)
         switch(dst->type) {
         case OT_Reg8:
             // use 'and r,r/m 8' (0x22 RM)
-            return genModRM(buf, 0x22, -1, src, dst, VT_None, 0);
+            return genModRM(cxt, 0x22, -1, src, dst, VT_None, 0);
 
         case OT_Reg16:
         case OT_Reg32:
         case OT_Reg64:
             // use 'and r,r/m 32/64' (0x23 RM)
-            return genModRM(buf, 0x23, -1, src, dst, VT_None, GEN_66OnVT16);
+            return genModRM(cxt, 0x23, -1, src, dst, VT_None, GEN_66OnVT16);
 
         default: return -1;
         }
@@ -1325,13 +1326,14 @@ int genAnd(GContext* cxt)
         case OT_Reg8:
             if (dst->reg.ri == RI_A) {
                 // use 'and al,imm8' (0x24 I)
+                uint8_t* buf = cxt->buf;
                 buf[0] = 0x24;
                 return appendI(buf, 1, src);
             }
             // fall-through
         case OT_Ind8:
             // use 'and r/m 8,imm8' (0x80/4 MI)
-            return genDigitMI(buf, 0x80, 4, dst, src, 0);
+            return genDigitMI(cxt, 0x80, 4, dst, src, 0);
 
         case OT_Reg16:
         case OT_Reg32:
@@ -1340,7 +1342,7 @@ int genAnd(GContext* cxt)
         case OT_Ind32:
         case OT_Ind64:
             // use 'and r/m 32/64, imm8' (0x83/4 MI)
-            return genDigitMI(buf, 0x83, 4, dst, src, GEN_66OnVT16);
+            return genDigitMI(cxt, 0x83, 4, dst, src, GEN_66OnVT16);
 
         default: return -1;
         }
@@ -1351,13 +1353,14 @@ int genAnd(GContext* cxt)
         case OT_Reg16:
             if (dst->reg.ri == RI_A) {
                 // use 'and ax,imm16' (0x66 0x25 I)
+                uint8_t* buf = cxt->buf;
                 buf[0] = 0x66; buf[1] = 0x25;
                 return appendI(buf, 2, src);
             }
             // fall-through
         case OT_Ind16:
             // use 'and r/m 16,imm16' (0x81/4 MI)
-            return genDigitMI(buf, 0x81, 4, dst, src, GEN_66OnVT16);
+            return genDigitMI(cxt, 0x81, 4, dst, src, GEN_66OnVT16);
 
         default: return -1;
         }
@@ -1372,6 +1375,7 @@ int genAnd(GContext* cxt)
             if (dst->reg.ri == RI_A) {
                 // use 'and eax/rax,imm32' (0x25 I)
                 int o=0;
+                uint8_t* buf = cxt->buf;
                 if (dst->type == OT_Reg64) buf[o++] = 0x40 | REX_MASK_W;
                 buf[o++] = 0x25;
                 return appendI(buf, o, src);
@@ -1380,7 +1384,7 @@ int genAnd(GContext* cxt)
         case OT_Ind32:
         case OT_Ind64:
             // use 'and r/m 32/64, imm32' (0x81/4 MI)
-            return genDigitMI(buf, 0x81, 4, dst, src, 0);
+            return genDigitMI(cxt, 0x81, 4, dst, src, 0);
 
         default: return -1;
         }
@@ -1395,7 +1399,6 @@ int genAnd(GContext* cxt)
 static
 int genShl(GContext* cxt)
 {
-    uint8_t* buf = cxt->buf;
     Operand* src =  &(cxt->instr->src);
     Operand* dst =  &(cxt->instr->dst);
 
@@ -1408,7 +1411,7 @@ int genShl(GContext* cxt)
         case OT_Reg64:
         case OT_Ind64:
             // use 'shl r/m 32/64, imm8' (0xC1/4 MI)
-            return genDigitMI(buf, 0xC1, 4, dst, src, 0);
+            return genDigitMI(cxt, 0xC1, 4, dst, src, 0);
 
         default: return -1;
         }
@@ -1422,7 +1425,6 @@ int genShl(GContext* cxt)
 static
 int genShr(GContext* cxt)
 {
-    uint8_t* buf = cxt->buf;
     Operand* src =  &(cxt->instr->src);
     Operand* dst =  &(cxt->instr->dst);
 
@@ -1435,7 +1437,7 @@ int genShr(GContext* cxt)
         case OT_Reg64:
         case OT_Ind64:
             // use 'shr r/m 32/64, imm8' (0xC1/5 MI)
-            return genDigitMI(buf, 0xC1, 5, dst, src, 0);
+            return genDigitMI(cxt, 0xC1, 5, dst, src, 0);
 
         default: return -1;
         }
@@ -1449,7 +1451,6 @@ int genShr(GContext* cxt)
 static
 int genSar(GContext* cxt)
 {
-    uint8_t* buf = cxt->buf;
     Operand* src =  &(cxt->instr->src);
     Operand* dst =  &(cxt->instr->dst);
 
@@ -1462,7 +1463,7 @@ int genSar(GContext* cxt)
         case OT_Reg64:
         case OT_Ind64:
             // use 'sar r/m 32/64, imm8' (0xC1/7 MI)
-            return genDigitMI(buf, 0xC1, 7, dst, src, 0);
+            return genDigitMI(cxt, 0xC1, 7, dst, src, 0);
 
         default: return -1;
         }
@@ -1477,7 +1478,6 @@ int genSar(GContext* cxt)
 static
 int genLea(GContext* cxt)
 {
-    uint8_t* buf = cxt->buf;
     Operand* src =  &(cxt->instr->src);
     Operand* dst =  &(cxt->instr->dst);
 
@@ -1486,7 +1486,7 @@ int genLea(GContext* cxt)
     case OT_Reg32:
     case OT_Reg64:
         // use 'lea r/m,r 32/64' (0x8d)
-        return genModRM(buf, 0x8d, -1, src, dst, VT_None, 0);
+        return genModRM(cxt, 0x8d, -1, src, dst, VT_None, 0);
 
     default: return -1;
     }
@@ -1525,7 +1525,6 @@ int genCqto(GContext* cxt)
 static
 int genCmp(GContext* cxt)
 {
-    uint8_t* buf = cxt->buf;
     Operand* src =  &(cxt->instr->src);
     Operand* dst =  &(cxt->instr->dst);
 
@@ -1545,7 +1544,7 @@ int genCmp(GContext* cxt)
         case OT_Reg64:
         case OT_Ind64:
             // use 'cmp r/m,r 32/64' (0x39 MR)
-            return genModRM(buf, 0x39, -1, dst, src, VT_None, 0);
+            return genModRM(cxt, 0x39, -1, dst, src, VT_None, 0);
 
         default: return -1;
         }
@@ -1560,7 +1559,7 @@ int genCmp(GContext* cxt)
         case OT_Reg32:
         case OT_Reg64:
             // use 'cmp r,r/m 32/64' (0x3B RM)
-            return genModRM(buf, 0x3B, -1, src, dst, VT_None, 0);
+            return genModRM(cxt, 0x3B, -1, src, dst, VT_None, 0);
 
         default: return -1;
         }
@@ -1574,7 +1573,7 @@ int genCmp(GContext* cxt)
         case OT_Ind32:
         case OT_Ind64:
             // use 'cmp r/m 32/64, imm8' (0x83/7 MI)
-            return genDigitMI(buf, 0x83, 7, dst, src, 0);
+            return genDigitMI(cxt, 0x83, 7, dst, src, 0);
 
         default: return -1;
         }
@@ -1588,7 +1587,7 @@ int genCmp(GContext* cxt)
         case OT_Ind32:
         case OT_Ind64:
             // use 'cmp r/m 32/64, imm32' (0x81/7 MI)
-            return genDigitMI(buf, 0x81, 7, dst, src, 0);
+            return genDigitMI(cxt, 0x81, 7, dst, src, 0);
 
         default: return -1;
         }
@@ -1604,44 +1603,44 @@ int genCmp(GContext* cxt)
 static
 int genPassThrough(GContext* cxt)
 {
-    uint8_t* buf = cxt->buf;
     Instr* instr = cxt->instr;
     ValType vt = instr->vtype;
     int o = 0;
 
     assert(instr->ptLen > 0);
-    if (instr->ptPSet & PS_66) buf[o++] = 0x66;
-    if (instr->ptPSet & PS_F2) buf[o++] = 0xF2;
-    if (instr->ptPSet & PS_F3) buf[o++] = 0xF3;
-    if (instr->ptPSet & PS_REXW) {
-        assert(vt == VT_Implicit);
-        vt = VT_Implicit_REXW;
-    }
-
-    // FIXME: REX prefix pass-through: combine with RM encoding changes
+    cxt->ps = instr->ptPSet;
 
     if (instr->ptLen < 2) instr->ptOpc[1] = -1;
     assert(instr->ptLen < 3);
 
     switch(instr->ptEnc) {
     case OE_MR:
-        o += genModRM(buf+o, instr->ptOpc[0], instr->ptOpc[1],
+        o += genModRM(cxt, instr->ptOpc[0], instr->ptOpc[1],
                 &(instr->dst), &(instr->src), vt, 0);
         break;
 
     case OE_RM:
-        o += genModRM(buf+o, instr->ptOpc[0], instr->ptOpc[1],
+        o += genModRM(cxt, instr->ptOpc[0], instr->ptOpc[1],
                 &(instr->src), &(instr->dst), vt, 0);
         break;
 
     default: assert(0);
     }
-
     return o;
 }
 
+// clear generation context for new instruction
+static
+void initGContext(GContext* c, uint8_t* buf, Instr* i)
+{
+    c->buf = buf;
+    c->instr = i;
 
-
+    c->rex = 0;
+    c->so = OSO_None;
+    c->ps = PS_No;
+    c->blen = 0;
+}
 
 // generate code for a captured BB
 // this sets cbb->addr1/cbb->size
@@ -1675,8 +1674,7 @@ GenerateError* generate(Rewriter* r, CBB* cbb)
         Instr* instr = cbb->instr + i;
 
         // pass generator requests via GContext to helpers
-        cxt.buf = reserveCodeStorage(r->cs, 15);
-        cxt.instr = instr;
+        initGContext(&cxt, reserveCodeStorage(r->cs, 15), instr);
         used = 0;
 
         if (instr->ptLen > 0) {
