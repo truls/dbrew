@@ -302,6 +302,7 @@ char* op2string(Operand* o, ValType t, FunctionConfig* fc)
     case OT_Reg64:
     case OT_Reg128:
     case OT_Reg256:
+    case OT_Reg512:
         off += sprintf(buf, "%%%s", regName(o->reg));
         break;
 
@@ -367,6 +368,7 @@ char* op2string(Operand* o, ValType t, FunctionConfig* fc)
     case OT_Ind64:
     case OT_Ind128:
     case OT_Ind256:
+    case OT_Ind512:
         switch(o->seg) {
         case OSO_None: break;
         case OSO_UseFS: off += sprintf(buf+off, "%%fs:"); break;
@@ -571,6 +573,24 @@ const char* instrName(InstrType it, int* pOpCount)
     case IT_CMOVGE:  n = "cmovge";  opCount = 2; break;
     case IT_CMOVLE:  n = "cmovle";  opCount = 2; break;
     case IT_CMOVG:   n = "cmovg";   opCount = 2; break;
+
+    case IT_VMOVSS:  n = "vmovss";  opCount = 2; break;
+    case IT_VMOVSD:  n = "vmovsd";  opCount = 2; break;
+    case IT_VMOVUPS: n = "vmovups"; opCount = 2; break;
+    case IT_VMOVUPD: n = "vmovupd"; opCount = 2; break;
+    case IT_VMOVAPS: n = "vmovaps"; opCount = 2; break;
+    case IT_VMOVAPD: n = "vmovapd"; opCount = 2; break;
+    case IT_VADDSS:  n = "vaddss";  opCount = 3; break;
+    case IT_VADDSD:  n = "vaddsd";  opCount = 3; break;
+    case IT_VADDPS:  n = "vaddps";  opCount = 3; break;
+    case IT_VADDPD:  n = "vaddpd";  opCount = 3; break;
+    case IT_VMULSS:  n = "vmulss";  opCount = 3; break;
+    case IT_VMULSD:  n = "vmulsd";  opCount = 3; break;
+    case IT_VMULPS:  n = "vmulps";  opCount = 3; break;
+    case IT_VMULPD:  n = "vmulpd";  opCount = 3; break;
+    case IT_VXORPS:  n = "vxorps";  opCount = 3; break;
+    case IT_VXORPD:  n = "vxorpd";  opCount = 3; break;
+
 
     default: n = "<Invalid>"; break;
     }

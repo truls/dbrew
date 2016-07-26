@@ -171,6 +171,13 @@ typedef enum _InstrType {
     // SSE Integer operations
     IT_PCMPEQB, IT_PCMPEQW, IT_PCMPEQD,
     IT_PMINUB, IT_PMOVMSKB, IT_PXOR, IT_PADDQ,
+
+    // AVX
+    IT_VMOVSS, IT_VMOVSD, IT_VMOVUPS, IT_VMOVUPD, IT_VMOVAPS, IT_VMOVAPD,
+    IT_VADDSS, IT_VADDSD, IT_VADDPS, IT_VADDPD,
+    IT_VMULSS, IT_VMULSD, IT_VMULPS, IT_VMULPD,
+    IT_VXORPS, IT_VXORPD,
+
     //
     IT_Max
 } InstrType;
@@ -202,6 +209,13 @@ typedef enum _OpSegOverride {
     OSO_None = 0, OSO_UseFS, OSO_UseGS
 } OpSegOverride;
 
+typedef enum _VexPrefix {
+    VEX_No = 0,
+    VEX_128, // Vex, length L=0: 128 bit
+    VEX_256, // Vex, length L=1: 256 bit
+    VEX_LIG, // Vex, ignore L setting (used in decoder)
+} VexPrefix;
+
 typedef struct _Operand {
     uint64_t val; // imm or displacement
     OpType type;
@@ -211,13 +225,13 @@ typedef struct _Operand {
     OpSegOverride seg; // with OP_Ind type
 } Operand;
 
-// for passthrough instructions
 typedef enum _OperandEncoding {
     OE_Invalid = 0,
     OE_None,
     OE_MR,  // 2 operands, ModRM byte, dest is reg or memory
     OE_RM,  // 2 operands, ModRM byte, src  is reg or memory
-    OE_RMI  // 3 operands, ModRM byte, src  is reg or memory, Immediate
+    OE_RMI, // 3 operands, ModRM byte, src  is reg or memory, Immediate
+    OE_RVM  // 3 operands, 2nd op is VEX vvvv reg
 } OperandEncoding;
 
 typedef enum _PrefixSet {

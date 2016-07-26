@@ -45,6 +45,8 @@ struct _DContext {
     uint64_t iaddr; // current instruction start address
 
     // decoded prefixes
+    VexPrefix vex;
+    int vex_vvvv; // vex register specifier
     bool hasRex;
     int rex; // REX prefix
     PrefixSet ps; // detected prefix set
@@ -330,10 +332,10 @@ void parseModRM(DContext* cxt, ValType vt, RegTypes rts,
     case VT_128:  ot = OT_Ind128;
         assert(rts & RTS_Op1VX); // never should happen
         break;
-    case VT_256:  ot = OT_Reg256;
+    case VT_256:  ot = OT_Ind256;
         assert(rts & RTS_Op1VY); // never should happen
         break;
-    case VT_512:  ot = OT_Reg512;
+    case VT_512:  ot = OT_Ind512;
         assert(rts & RTS_Op1VZ); // never should happen
         break;
     default:
@@ -421,6 +423,43 @@ void initDContext(DContext* cxt, Rewriter* r, DBB* dbb)
     setErrorNone((Error*) &(cxt->error));
 }
 
+static
+void decodeVex2(DContext* c, uint8_t b)
+{
+    c->vex = (b & 4) ? VEX_256 : VEX_128;
+    switch(b & 3) {
+    case 1: c->ps |= PS_66; break;
+    case 2: c->ps |= PS_F3; break;
+    case 3: c->ps |= PS_F2; break;
+    default: break;
+    }
+    c->vex_vvvv = 15 - ((b >> 3) & 15);
+    if ((b & 128) == 0) c->rex |= REX_MASK_R;
+    c->hasRex = true;
+    c->opc1 = 0x0F;
+}
+
+static
+void decodeVex3(DContext* c, uint8_t b1, uint8_t b2)
+{
+    c->vex = (b2 & 4) ? VEX_256 : VEX_128;
+    switch(b2 & 3) {
+    case 1: c->ps |= PS_66; break;
+    case 2: c->ps |= PS_F3; break;
+    case 3: c->ps |= PS_F2; break;
+    default: break;
+    }
+    c->vex_vvvv = 15 - ((b2 >> 3) & 15);
+    if ((b1 & 128) == 0) c->rex |= REX_MASK_R;
+    if ((b1 &  64) == 0) c->rex |= REX_MASK_X;
+    if ((b1 &  32) == 0) c->rex |= REX_MASK_B;
+    if ((b2 & 128) == 0) c->rex |= REX_MASK_W;
+    assert((b1 & 31) == 1); // 0x0F leading opcode
+    c->hasRex = true;
+    c->opc1 = 0x0F;
+}
+
+
 // possible prefixes:
 // - REX: bits extended 64bit architecture
 // - 2E : cs-segment override or branch not taken hint (Jcc)
@@ -434,6 +473,8 @@ void decodePrefixes(DContext* cxt)
     cxt->hasRex = false;
     cxt->segOv = OSO_None;
     cxt->ps = PS_No;
+    cxt->vex = VEX_No;
+    cxt->vex_vvvv = -1;
 
     cxt->opc1 = -1;
     cxt->opc2 = -1;
@@ -442,6 +483,21 @@ void decodePrefixes(DContext* cxt)
 
     while(1) {
         uint8_t b = cxt->f[cxt->off];
+
+        if (b == 0xC5) {
+            // 2-byte VEX prefix
+            cxt->off++;
+            decodeVex2(cxt, cxt->f[cxt->off++]);
+            break;
+        }
+        else if (b == 0xC4) {
+            // 3-byte VEX prefix
+            cxt->off++;
+            b = cxt->f[cxt->off++];
+            decodeVex3(cxt, b, cxt->f[cxt->off++]);
+            break;
+        }
+
         if ((b >= 0x40) && (b <= 0x4F)) {
             cxt->rex = b & 15;
             cxt->hasRex = true;
@@ -490,6 +546,8 @@ struct _OpcEntry {
 
 static OpcInfo opcTable[256];
 static OpcInfo opcTable0F[256];
+static OpcInfo opcTable0F_V128[256];
+static OpcInfo opcTable0F_V256[256];
 
 #define OPCENTRY_SIZE 1000
 static OpcEntry opcEntry[OPCENTRY_SIZE];
@@ -498,7 +556,7 @@ static OpcEntry opcEntry[OPCENTRY_SIZE];
 // if type already set, only check
 // returns start offset into opcEntry table
 static
-int setOpcInfo(int opc, OpcType t)
+int setOpcInfo(VexPrefix vp, int opc, OpcType t)
 {
     static int used = 0; // use count of opcEntry table
     OpcInfo* oi;
@@ -508,7 +566,12 @@ int setOpcInfo(int opc, OpcType t)
         oi = &(opcTable[opc]);
     }
     else if ((opc>=0x0F00) && (opc<=0x0FFF)) {
-        oi = &(opcTable0F[opc - 0x0F00]);
+        if (vp == VEX_128)
+            oi = &(opcTable0F_V128[opc - 0x0F00]);
+        else if (vp == VEX_256)
+            oi = &(opcTable0F_V256[opc - 0x0F00]);
+        else
+            oi = &(opcTable0F[opc - 0x0F00]);
     }
     else assert(0); // never should happen
 
@@ -534,10 +597,10 @@ int setOpcInfo(int opc, OpcType t)
 }
 
 static
-OpcEntry* getOpcEntry(int opc, OpcType t, int off)
+OpcEntry* getOpcEntry(VexPrefix vp, int opc, OpcType t, int off)
 {
     int count;
-    int start = setOpcInfo(opc, t);
+    int start = setOpcInfo(vp, opc, t);
     switch(t) {
     case OT_Single: count = 1; break;
     case OT_Four:   count = 4; break;
@@ -564,29 +627,47 @@ static
 OpcEntry* setOpc(int opc, InstrType it, ValType vt,
                  DecHandler h1, DecHandler h2, DecHandler h3)
 {
-    OpcEntry* e = getOpcEntry(opc, OT_Single, 0);
+    OpcEntry* e = getOpcEntry(VEX_No, opc, OT_Single, 0);
     initOpcEntry(e, it, vt, h1, h2, h3);
     return e;
 }
 
 // set handler for opcodes with instruction depending on 66/F2/f3 prefix
 static
-OpcEntry* setOpcP(int opc, PrefixSet ps,
+OpcEntry* setOpcPV(VexPrefix vp, int opc, PrefixSet ps,
                   InstrType it, ValType vt,
                   DecHandler h1, DecHandler h2, DecHandler h3)
 {
     int off;
     switch(ps) {
     case PS_No: off = 0; break;
-    case PS_66:   off = 1; break;
-    case PS_F3:   off = 2; break;
-    case PS_F2:   off = 3; break;
+    case PS_66: off = 1; break;
+    case PS_F3: off = 2; break;
+    case PS_F2: off = 3; break;
     default: assert(0); // never should happen
     }
 
-    OpcEntry* e = getOpcEntry(opc, OT_Four, off);
+    if (vp == VEX_LIG) {
+        // install same handlers at two entries (ignoring VEX L setting)
+        OpcEntry* e;
+        e = getOpcEntry(VEX_128, opc, OT_Four, off);
+        initOpcEntry(e, it, vt, h1, h2, h3);
+        e = getOpcEntry(VEX_128, opc, OT_Four, off);
+        initOpcEntry(e, it, vt, h1, h2, h3);
+        return 0; // return 0 with VEX_LIG request, to catch wrong use
+    }
+
+    OpcEntry* e = getOpcEntry(vp, opc, OT_Four, off);
     initOpcEntry(e, it, vt, h1, h2, h3);
     return e;
+}
+
+static
+OpcEntry* setOpcP(int opc, PrefixSet ps,
+                  InstrType it, ValType vt,
+                  DecHandler h1, DecHandler h2, DecHandler h3)
+{
+    return setOpcPV(VEX_No, opc, ps, it, vt, h1, h2, h3);
 }
 
 // set specific handler for opcode with given prefix
@@ -606,13 +687,23 @@ OpcEntry* setOpcH(int opc, DecHandler h)
 // set handler for opcodes using a sub-opcode group
 // use the digit sub-opcode for <off>
 static
+OpcEntry* setOpcGV(VexPrefix vp, int opc, int digit,
+                   InstrType it, ValType vt,
+                   DecHandler h1, DecHandler h2, DecHandler h3)
+{
+    OpcEntry* e = getOpcEntry(vp, opc, OT_Group, digit);
+    initOpcEntry(e, it, vt, h1, h2, h3);
+    return e;
+}
+
+// set handler for opcodes using a sub-opcode group
+// use the digit sub-opcode for <off>
+static
 OpcEntry* setOpcG(int opc, int digit,
                   InstrType it, ValType vt,
                   DecHandler h1, DecHandler h2, DecHandler h3)
 {
-    OpcEntry* e = getOpcEntry(opc, OT_Group, digit);
-    initOpcEntry(e, it, vt, h1, h2, h3);
-    return e;
+    return setOpcGV(VEX_No, opc, digit, it, vt, h1, h2, h3);
 }
 
 // set specific handler for opcode with sub-opcode digit
@@ -638,6 +729,10 @@ void markDecodeError(DContext* c, bool showDigit, ErrorType et)
     default:
         assert(0); // should never happen
     }
+
+    if (c->vex == VEX_128) o += sprintf(buf+o, " Vex128");
+    if (c->vex == VEX_256) o += sprintf(buf+o, " Vex256");
+
     if (c->ps & PS_66) o += sprintf(buf+o, " 0x66");
     if (c->ps & PS_F2) o += sprintf(buf+o, " 0xF2");
     if (c->ps & PS_F3) o += sprintf(buf+o, " 0xF3");
@@ -733,21 +828,48 @@ static void parseMR(DContext* c)
 // RM encoding for 2 vector registers, remember encoding for pass-through
 static void parseRMVV(DContext* c)
 {
-    // assume 128bit operand type for VV
-    c->vt = VT_128;
-    parseModRM(c, c->vt, RTS_VX_VX, &c->o2, &c->o1, 0);
+    // for parseModRM use VT_128 (MMX) if operand type is VT_32/VT_64
+    ValType vt = c->vt;
+    if ((vt == VT_32) || (vt == VT_64)) vt = VT_128;
+    RegTypes rts = (vt == VT_128) ? RTS_VX_VX : RTS_VY_VY;
+    parseModRM(c, vt, rts, &c->o2, &c->o1, 0);
     c->oe = OE_RM;
 }
 
 // MR encoding for 2 vector registers, remember encoding for pass-through
 static void parseMRVV(DContext* c)
 {
-    // assume 128bit operand type for VV
-    c->vt = VT_128;
-    parseModRM(c, c->vt, RTS_VX_VX, &c->o1, &c->o2, 0);
+    // for parseModRM use VT_128 (MMX) if operand type is VT_32/VT_64
+    ValType vt = c->vt;
+    if ((vt == VT_32) || (vt == VT_64)) vt = VT_128;
+    RegTypes rts = (vt == VT_128) ? RTS_VX_VX : RTS_VY_VY;
+    parseModRM(c, vt, rts, &c->o1, &c->o2, 0);
     c->oe = OE_MR;
 }
 
+// RVM ternary encoding for 3 vector registers (AVX)
+static void parseRVM(DContext* c)
+{
+    RegTypes rts;
+
+    // for parseModRM use VT_128 (MMX) if operand type is VT_32/VT_64
+    ValType vt = c->vt;
+    if ((vt == VT_32) || (vt == VT_64)) vt = VT_128;
+
+    if (vt == VT_128) {
+        rts = RTS_VX_VX;
+        c->o2.type = OT_Reg128;
+        c->o2.reg = getReg(RT_XMM, c->vex_vvvv);
+    } else if (c->vt == VT_256) {
+        rts = RTS_VY_VY;
+        c->o2.type = OT_Reg256;
+        c->o2.reg = getReg(RT_YMM, c->vex_vvvv);
+    } else
+        assert(0);
+
+    parseModRM(c, vt, rts, &c->o3, &c->o1, 0);
+    c->oe = OE_RVM;
+}
 
 // parse immediate into op 1 (for 64bit with imm32 signed extension)
 static void parseI1(DContext* c)
@@ -831,11 +953,16 @@ static void addBInsImp(DContext* c)
     c->ii = addBinaryOp(c->r, c, c->it, VT_Implicit, &c->o1, &c->o2);
 }
 
-
 // append ternary instruction
 static void addTInstr(DContext* c)
 {
     c->ii = addTernaryOp(c->r, c, c->it, c->vt, &c->o1, &c->o2, &c->o3);
+}
+
+// append ternary instruction with implicit type
+static void addTInsImp(DContext* c)
+{
+    c->ii = addTernaryOp(c->r, c, c->it, VT_Implicit, &c->o1, &c->o2, &c->o3);
 }
 
 // request exit from decoder
@@ -1701,8 +1828,10 @@ void initDecodeTables(void)
     done = true;
 
     for(int i = 0; i<256; i++) {
-        opcTable[i].t   = OT_Invalid;
-        opcTable0F[i].t = OT_Invalid;
+        opcTable[i].t        = OT_Invalid;
+        opcTable0F[i].t      = OT_Invalid;
+        opcTable0F_V128[i].t = OT_Invalid;
+        opcTable0F_V256[i].t = OT_Invalid;
     }
 
     // 0x00: add r/m8,r8 (MR, dst: r/m, src: r)
@@ -1967,14 +2096,28 @@ void initDecodeTables(void)
     setOpcH(0xFE, decode_FE);
     setOpcH(0xFF, decode_FF);
 
-    // 0x0F10/No: movups xmm1,xmm2/m128 (RM)
-    // 0x0F10/66: movupd xmm1,xmm2/m128 (RM)
     // 0x0F10/F3: movss xmm1,xmm2/m32 (RM)
     // 0x0F10/F2: movsd xmm1,xmm2/m64 (RM)
-    setOpcP(0x0F10, PS_No, IT_MOVUPS, VT_128, parseRMVV, addBInsImp, attach);
-    setOpcP(0x0F10, PS_66, IT_MOVUPD, VT_128, parseRMVV, addBInsImp, attach);
+    // 0x0F10/No: movups xmm1,xmm2/m128 (RM)
+    // 0x0F10/66: movupd xmm1,xmm2/m128 (RM)
     setOpcP(0x0F10, PS_F3, IT_MOVSS,  VT_32,  parseRMVV, addBInsImp, attach);
     setOpcP(0x0F10, PS_F2, IT_MOVSD,  VT_64,  parseRMVV, addBInsImp, attach);
+    setOpcP(0x0F10, PS_No, IT_MOVUPS, VT_128, parseRMVV, addBInsImp, attach);
+    setOpcP(0x0F10, PS_66, IT_MOVUPD, VT_128, parseRMVV, addBInsImp, attach);
+
+    // FIXME: vmovss/sd: convert to 3-operand form if memory is not involved
+    // VEX.LIG.F3.0F.WIG 10: vmovss xmm1,m64 (XM)
+    // VEX.LIG.F2.0F.WIG 10: vmovsd xmm1,m64 (XM)
+    // VEX.128.   0F.WIG 10: vmovups xmm1,xmm2/m128 (RM)
+    // VEX.128.66.0F.WIG 10: vmovupd xmm1,xmm2/m128 (RM)
+    // VEX.256.   0F.WIG 10: vmovups ymm1,ymm2/m256 (RM)
+    // VEX.256.66.0F.WIG 10: vmovupd ymm1,ymm2/m256 (RM)
+    setOpcPV(VEX_LIG, 0x0F10, PS_F3, IT_VMOVSS, VT_64, parseRMVV, addBInsImp, 0);
+    setOpcPV(VEX_LIG, 0x0F10, PS_F2, IT_VMOVSD, VT_64, parseRMVV, addBInsImp, 0);
+    setOpcPV(VEX_128, 0x0F10, PS_No, IT_VMOVUPS, VT_128, parseRMVV, addBInsImp, 0);
+    setOpcPV(VEX_128, 0x0F10, PS_66, IT_VMOVUPD, VT_128, parseRMVV, addBInsImp, 0);
+    setOpcPV(VEX_256, 0x0F10, PS_No, IT_VMOVUPS, VT_256, parseRMVV, addBInsImp, 0);
+    setOpcPV(VEX_256, 0x0F10, PS_66, IT_VMOVUPD, VT_256, parseRMVV, addBInsImp, 0);
 
     // 0x0F11/No: movups xmm1/m128,xmm2 (MR)
     // 0x0F11/66: movupd xmm1/m128,xmm2 (MR)
@@ -1985,6 +2128,19 @@ void initDecodeTables(void)
     setOpcP(0x0F11, PS_F3, IT_MOVSS,  VT_32,  parseMRVV, addBInsImp, attach);
     setOpcP(0x0F11, PS_F2, IT_MOVSD,  VT_64,  parseMRVV, addBInsImp, attach);
 
+    // VEX.LIG.F3.0F.WIG 11: vmovss m64,xmm1 (MR)
+    // VEX.LIG.F2.0F.WIG 11: vmovsd m64,xmm1 (MR)
+    // VEX.128.   0F.WIG 11: vmovups xmm1/m128,xmm2 (MR)
+    // VEX.128.66.0F.WIG 11: vmovupd xmm1/m128,xmm2 (MR)
+    // VEX.256.   0F.WIG 11: vmovups ymm1/m128,ymm2 (MR)
+    // VEX.256.66.0F.WIG 11: vmovupd ymm1/m128,ymm2 (MR)
+    setOpcPV(VEX_LIG, 0x0F11, PS_F3, IT_VMOVSS, VT_64, parseMRVV, addBInsImp, 0);
+    setOpcPV(VEX_LIG, 0x0F11, PS_F2, IT_VMOVSD, VT_64, parseMRVV, addBInsImp, 0);
+    setOpcPV(VEX_128, 0x0F11, PS_No, IT_VMOVUPS, VT_128, parseMRVV, addBInsImp, 0);
+    setOpcPV(VEX_128, 0x0F11, PS_66, IT_VMOVUPD, VT_128, parseMRVV, addBInsImp, 0);
+    setOpcPV(VEX_256, 0x0F11, PS_No, IT_VMOVUPS, VT_256, parseMRVV, addBInsImp, 0);
+    setOpcPV(VEX_256, 0x0F11, PS_66, IT_VMOVUPD, VT_256, parseMRVV, addBInsImp, 0);
+
     setOpcH(0x0F12, decode0F_12);
     setOpcH(0x0F13, decode0F_13);
     setOpcH(0x0F14, decode0F_14);
@@ -1992,8 +2148,29 @@ void initDecodeTables(void)
     setOpcH(0x0F16, decode0F_16);
     setOpcH(0x0F17, decode0F_17);
     setOpcH(0x0F1F, decode0F_1F);
+
     setOpcH(0x0F28, decode0F_28);
+
+    // VEX.128.   0F.WIG 28: vmovaps xmm1,xmm2/m128 (RM)
+    // VEX.128.66.0F.WIG 28: vmovapd xmm1,xmm2/m128 (RM)
+    // VEX.256.   0F.WIG 28: vmovaps ymm1,ymm2/m256 (RM)
+    // VEX.256.66.0F.WIG 28: vmovapd ymm1,ymm2/m256 (RM)
+    setOpcPV(VEX_128, 0x0F28, PS_No, IT_VMOVAPS, VT_128, parseRMVV, addBInsImp, 0);
+    setOpcPV(VEX_128, 0x0F28, PS_66, IT_VMOVAPD, VT_128, parseRMVV, addBInsImp, 0);
+    setOpcPV(VEX_256, 0x0F28, PS_No, IT_VMOVAPS, VT_256, parseRMVV, addBInsImp, 0);
+    setOpcPV(VEX_256, 0x0F28, PS_66, IT_VMOVAPD, VT_256, parseRMVV, addBInsImp, 0);
+
     setOpcH(0x0F29, decode0F_29);
+
+    // VEX.128.   0F.WIG 29: vmovaps xmm1/m128,xmm2 (MR)
+    // VEX.128.66.0F.WIG 29: vmovapd xmm1/m128,xmm2 (MR)
+    // VEX.256.   0F.WIG 29: vmovaps ymm1/m256,ymm2 (MR)
+    // VEX.256.66.0F.WIG 29: vmovapd ymm1/m256,ymm2 (MR)
+    setOpcPV(VEX_128, 0x0F29, PS_No, IT_VMOVAPS, VT_128, parseMRVV, addBInsImp, 0);
+    setOpcPV(VEX_128, 0x0F29, PS_66, IT_VMOVAPD, VT_128, parseMRVV, addBInsImp, 0);
+    setOpcPV(VEX_256, 0x0F29, PS_No, IT_VMOVAPS, VT_256, parseMRVV, addBInsImp, 0);
+    setOpcPV(VEX_256, 0x0F29, PS_66, IT_VMOVAPD, VT_256, parseMRVV, addBInsImp, 0);
+
     setOpcH(0x0F2E, decode0F_2E);
 
     // 0x0F40-0x0F4F: cmovcc r,r/m 16/32/64
@@ -2053,6 +2230,15 @@ void initDecodeTables(void)
     setOpcP(0x0F57, PS_No, IT_XORPS, VT_128, parseRMVV, addBInsImp, attach);
     setOpcP(0x0F57, PS_66, IT_XORPD, VT_128, parseRMVV, addBInsImp, attach);
 
+    // VEX.NDS.128.0F.WIG 57:    vxorps xmm1,xmm2,xmm3/m128 (RVM)
+    // VEX.NDS.256.0F.WIG 57:    vxorps ymm1,ymm2,ymm3/m256 (RVM)
+    // VEX.NDS.128.66.0F.WIG 57: vxorpd xmm1,xmm2,xmm3/m128 (RVM)
+    // VEX.NDS.256.66.0F.WIG 57: vxorpd ymm1,ymm2,ymm3/m256 (RVM)
+    setOpcPV(VEX_128, 0x0F57, PS_No, IT_VXORPS, VT_128, parseRVM, addTInsImp, 0);
+    setOpcPV(VEX_256, 0x0F57, PS_No, IT_VXORPS, VT_256, parseRVM, addTInsImp, 0);
+    setOpcPV(VEX_128, 0x0F57, PS_66, IT_VXORPD, VT_128, parseRVM, addTInsImp, 0);
+    setOpcPV(VEX_256, 0x0F57, PS_66, IT_VXORPD, VT_256, parseRVM, addTInsImp, 0);
+
     // 0x0F58/F3: addss xmm1,xmm2/m32 (RM)
     // 0x0F58/F2: addsd xmm1,xmm2/m64 (RM)
     // 0x0F58/No: addps xmm1,xmm2/m128 (RM)
@@ -2062,6 +2248,19 @@ void initDecodeTables(void)
     setOpcP(0x0F58, PS_No, IT_ADDPS, VT_128, parseRMVV, addBInsImp, 0);
     setOpcP(0x0F58, PS_66, IT_ADDPD, VT_128, parseRMVV, addBInsImp, 0);
 
+    // VEX.NDS.LIG.F3.0F.WIG 58: vaddss xmm1,xmm2,xmm3/m32 (RVM)
+    // VEX.NDS.LIG.F2.0F.WIG 58: vaddsd xmm1,xmm2,xmm3/m64 (RVM)
+    // VEX.NDS.128.0F.WIG 58:    vaddps xmm1,xmm2,xmm3/m128 (RVM)
+    // VEX.NDS.256.0F.WIG 58:    vaddps ymm1,ymm2,ymm3/m256 (RVM)
+    // VEX.NDS.128.66.0F.WIG 58: vaddpd xmm1,xmm2,xmm3/m128 (RVM)
+    // VEX.NDS.256.66.0F.WIG 58: vaddpd ymm1,ymm2,ymm3/m256 (RVM)
+    setOpcPV(VEX_LIG, 0x0F58, PS_F3, IT_VADDSS, VT_32, parseRVM, addTInsImp, 0);
+    setOpcPV(VEX_LIG, 0x0F58, PS_F2, IT_VADDSD, VT_64, parseRVM, addTInsImp, 0);
+    setOpcPV(VEX_128, 0x0F58, PS_No, IT_VADDPS, VT_128, parseRVM, addTInsImp, 0);
+    setOpcPV(VEX_256, 0x0F58, PS_No, IT_VADDPS, VT_256, parseRVM, addTInsImp, 0);
+    setOpcPV(VEX_128, 0x0F58, PS_66, IT_VADDPD, VT_128, parseRVM, addTInsImp, 0);
+    setOpcPV(VEX_256, 0x0F58, PS_66, IT_VADDPD, VT_256, parseRVM, addTInsImp, 0);
+
     // 0x0F59/F3: mulss xmm1,xmm2/m32 (RM)
     // 0x0F59/F2: mulsd xmm1,xmm2/m64 (RM)
     // 0x0F59/No: mulps xmm1,xmm2/m128 (RM)
@@ -2070,6 +2269,19 @@ void initDecodeTables(void)
     setOpcP(0x0F59, PS_F2, IT_MULSD, VT_64,  parseRMVV, addBInsImp, attach);
     setOpcP(0x0F59, PS_No, IT_MULPS, VT_128, parseRMVV, addBInsImp, attach);
     setOpcP(0x0F59, PS_66, IT_MULPD, VT_128, parseRMVV, addBInsImp, attach);
+
+    // VEX.NDS.LIG.F3.0F.WIG 59: vmulss xmm1,xmm2,xmm3/m32 (RVM)
+    // VEX.NDS.LIG.F2.0F.WIG 59: vmulsd xmm1,xmm2,xmm3/m64 (RVM)
+    // VEX.NDS.128.0F.WIG 59:    vmulps xmm1,xmm2,xmm3/m128 (RVM)
+    // VEX.NDS.256.0F.WIG 59:    vmulps ymm1,ymm2,ymm3/m256 (RVM)
+    // VEX.NDS.128.66.0F.WIG 59: vmulpd xmm1,xmm2,xmm3/m128 (RVM)
+    // VEX.NDS.256.66.0F.WIG 59: vmulpd ymm1,ymm2,ymm3/m256 (RVM)
+    setOpcPV(VEX_LIG, 0x0F59, PS_F3, IT_VMULSS, VT_32, parseRVM, addTInsImp, 0);
+    setOpcPV(VEX_LIG, 0x0F59, PS_F2, IT_VMULSD, VT_64, parseRVM, addTInsImp, 0);
+    setOpcPV(VEX_128, 0x0F59, PS_No, IT_VMULPS, VT_128, parseRVM, addTInsImp, 0);
+    setOpcPV(VEX_256, 0x0F59, PS_No, IT_VMULPS, VT_256, parseRVM, addTInsImp, 0);
+    setOpcPV(VEX_128, 0x0F59, PS_66, IT_VMULPD, VT_128, parseRVM, addTInsImp, 0);
+    setOpcPV(VEX_256, 0x0F59, PS_66, IT_VMULPD, VT_256, parseRVM, addTInsImp, 0);
 
     // 0x0F5C/F3: subss xmm1,xmm2/m32 (RM)
     // 0x0F5C/F2: subsd xmm1,xmm2/m64 (RM)
@@ -2182,7 +2394,7 @@ void initDecodeTables(void)
 DBB* dbrew_decode(Rewriter* r, uint64_t f)
 {
     DContext cxt;
-    int i, old_icount, opc;
+    int i, old_icount;
     DBB* dbb;
 
     if (f == 0) return 0; // nothing to decode
@@ -2213,16 +2425,27 @@ DBB* dbrew_decode(Rewriter* r, uint64_t f)
         decodePrefixes(&cxt);
 
         // parse opcode by running handlers defined in opcode tables
-        opc = cxt.f[cxt.off++];
-        cxt.opc1 = opc;
-        if (opc == 0x0F) {
-            // opcode starting with 0x0F
-            opc = cxt.f[cxt.off++];
-            cxt.opc2 = opc;
-            processOpc(&(opcTable0F[opc]), &cxt);
+
+        if (cxt.vex == VEX_128) {
+            assert(cxt.opc1 == 0x0F);
+            cxt.opc2 = cxt.f[cxt.off++];
+            processOpc(&(opcTable0F_V128[cxt.opc2]), &cxt);
         }
-        else
-          processOpc(&(opcTable[opc]), &cxt);
+        else if (cxt.vex == VEX_256) {
+            assert(cxt.opc1 == 0x0F);
+            cxt.opc2 = cxt.f[cxt.off++];
+            processOpc(&(opcTable0F_V256[cxt.opc2]), &cxt);
+        }
+        else {
+            cxt.opc1 = cxt.f[cxt.off++];
+            if (cxt.opc1 == 0x0F) {
+                // opcode starting with 0x0F
+                cxt.opc2 = cxt.f[cxt.off++];
+                processOpc(&(opcTable0F[cxt.opc2]), &cxt);
+            }
+            else
+                processOpc(&(opcTable[cxt.opc1]), &cxt);
+        }
 
         if (isErrorSet(&(cxt.error.e))) {
             // current "fall-back": output error, stop decoding
