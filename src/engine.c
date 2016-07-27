@@ -83,6 +83,7 @@ Rewriter* allocRewriter(void)
     r->showDecoding = false;
     r->showEmuState = false;
     r->showEmuSteps = false;
+    r->showOptSteps = false;
 
     return r;
 }
