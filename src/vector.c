@@ -82,19 +82,19 @@ uint64_t handleVectorCall(Rewriter* r, uint64_t f, EmuState* es)
     if (f == (uint64_t)dbrew_apply4_R8V8) {
 #ifdef __AVX__
         vr = VR_DoubleX4_RV;
-        rf = (uint64_t) AVX_apply4_R8V8;
+        rf = (uint64_t) apply4_R8V8_X4;
 #else
         vr = VR_DoubleX2_RV;
-        rf = (uint64_t) SSE_apply4_R8V8;
+        rf = (uint64_t) apply4_R8V8_X2;
 #endif
     }
     else if (f == (uint64_t)dbrew_apply4_R8V8V8) {
 #ifdef __AVX__
         vr = VR_DoubleX4_RVV;
-        rf = (uint64_t) AVX_apply4_R8V8V8;
+        rf = (uint64_t) apply4_R8V8V8_X4;
 #else
         vr = VR_DoubleX2_RVV;
-        rf = (uint64_t) SSE_apply4_R8V8V8;
+        rf = (uint64_t) apply4_R8V8V8_X2;
 #endif
     }
     else

@@ -68,52 +68,51 @@ void dbrew_apply4_R8V8V8(dbrew_func_R8V8V8_t f,
 
 // for dbrew_apply4_R8V8
 
-typedef __m128d (*dbrew_func_R8V8_SSE_t)(__m128d);
-void SSE_apply4_R8V8(uint64_t f, double* ov, double* iv)
+typedef __m128d (*dbrew_func_R8V8_X2_t)(__m128d);
+void apply4_R8V8_X2(uint64_t f, double* ov, double* iv)
 {
     // ov[0] = (f)(iv[0]);
     // ov[1] = (f)(iv[1]);
     // ov[2] = (f)(iv[2]);
     // ov[3] = (f)(iv[3]);
-    dbrew_func_R8V8_SSE_t vf = (dbrew_func_R8V8_SSE_t) f;
-    ((__m128d*)ov)[0] = (vf)( ((__m128d*)iv)[0] );
-    ((__m128d*)ov)[1] = (vf)( ((__m128d*)iv)[1] );
+    dbrew_func_R8V8_X2_t vf = (dbrew_func_R8V8_X2_t) f;
+    ((__m128d*)ov)[0] = (*vf)( ((__m128d*)iv)[0] );
+    ((__m128d*)ov)[1] = (*vf)( ((__m128d*)iv)[1] );
 }
 
 #ifdef __AVX__
-typedef __m256d (*dbrew_func_R8V8_AVX_t)(__m256d);
-void AVX_apply4_R8V8(uint64_t f, double* ov, double* iv)
+typedef __m256d (*dbrew_func_R8V8_X4_t)(__m256d);
+void apply4_R8V8_X4(uint64_t f, double* ov, double* iv)
 {
-    dbrew_func_R8V8_AVX_t vf = (dbrew_func_R8V8_AVX_t) f;
-    ((__m256d*)ov)[0] = (vf)( ((__m256d*)iv)[0] );
+    dbrew_func_R8V8_X4_t vf = (dbrew_func_R8V8_X4_t) f;
+    ((__m256d*)ov)[0] = (*vf)( ((__m256d*)iv)[0] );
 }
 #endif
 
 
 // for dbrew_apply4_R8V8
 
-typedef __m128d (*dbrew_func_R8V8V8_SSE_t)(__m128d,__m128d);
-
-void SSE_apply4_R8V8V8(uint64_t f, double* ov, double* i1v, double* i2v)
+typedef __m128d (*dbrew_func_R8V8V8_X2_t)(__m128d,__m128d);
+void apply4_R8V8V8_X2(uint64_t f, double* ov, double* i1v, double* i2v)
 {
     // ov[0] = (f)(i1v[0], i2v[0]);
     // ov[1] = (f)(i1v[1], i2v[1]);
     // ov[2] = (f)(i1v[2], i2v[2]);
     // ov[3] = (f)(i1v[3], i2v[3]);
-    dbrew_func_R8V8V8_SSE_t vf = (dbrew_func_R8V8V8_SSE_t) f;
-    ((__m128d*)ov)[0] = (vf)( ((__m128d*)i1v)[0], ((__m128d*)i2v)[0] );
-    ((__m128d*)ov)[1] = (vf)( ((__m128d*)i1v)[1], ((__m128d*)i2v)[1] );
+    dbrew_func_R8V8V8_X2_t vf = (dbrew_func_R8V8V8_X2_t) f;
+    ((__m128d*)ov)[0] = (*vf)( ((__m128d*)i1v)[0], ((__m128d*)i2v)[0] );
+    ((__m128d*)ov)[1] = (*vf)( ((__m128d*)i1v)[1], ((__m128d*)i2v)[1] );
 }
 
 #ifdef __AVX__
-typedef __m256d (*dbrew_func_R8V8V8_AVX_t)(__m256d,__m256d);
-void AVX_apply4_R8V8V8(uint64_t f, double* ov, double* i1v, double* i2v)
+typedef __m256d (*dbrew_func_R8V8V8_X4_t)(__m256d,__m256d);
+void apply4_R8V8V8_X4(uint64_t f, double* ov, double* i1v, double* i2v)
 {
     // ov[0] = (f)(i1v[0], i2v[0]);
     // ov[1] = (f)(i1v[1], i2v[1]);
     // ov[2] = (f)(i1v[2], i2v[2]);
     // ov[3] = (f)(i1v[3], i2v[3]);
-    dbrew_func_R8V8V8_AVX_t vf = (dbrew_func_R8V8V8_AVX_t) f;
-    ((__m256d*)ov)[0] = (vf)( ((__m256d*)i1v)[0], ((__m256d*)i2v)[0] );
+    dbrew_func_R8V8V8_X4_t vf = (dbrew_func_R8V8V8_X4_t) f;
+    ((__m256d*)ov)[0] = (*vf)( ((__m256d*)i1v)[0], ((__m256d*)i2v)[0] );
 }
 #endif
