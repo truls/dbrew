@@ -213,7 +213,7 @@ uint64_t dbrew_rewrite(Rewriter* r, ...)
     if (e) {
         // on error, return original function
         logError(e, (char*) "Stopped rewriting; return original");
-        return r->func;
+        r->generatedCodeAddr = r->func;
     }
 
     return r->generatedCodeAddr;

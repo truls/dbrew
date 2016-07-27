@@ -101,8 +101,16 @@ uint64_t handleVectorCall(Rewriter* r, uint64_t f, EmuState* es)
         assert(0);
 
     // re-direct from scalar to vectorized kernel (function pointer in par1)
-    es->reg[RI_DI] = convertToVector(r, es->reg[RI_DI], vr);
-
+    uint64_t func = es->reg[RI_DI];
+    uint64_t vfunc = convertToVector(r, func, vr);
+    if (vfunc == func) {
+        // vector expansion did not work: error
+        if (r->showEmuSteps)
+            printf("Error: expansion of %lx failed; no redirection\n", func);
+        // call original DBrew snippet
+        return f;
+    }
+    es->reg[RI_DI] = vfunc;
     return rf;
 }
 
