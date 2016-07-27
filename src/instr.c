@@ -595,6 +595,7 @@ void copyInstr(Instr* dst, Instr* src)
     dst->ptLen = src->ptLen;
     if (src->ptLen > 0) {
         dst->ptPSet = src->ptPSet;
+        dst->ptVexP = src->ptVexP;
         dst->ptEnc  = src->ptEnc;
         dst->ptSChange = src->ptSChange;
         for(int j=0; j < src->ptLen; j++)
@@ -654,8 +655,8 @@ void initTernaryInstr(Instr* i, InstrType it,
 }
 
 
-void attachPassthrough(Instr* i, PrefixSet set,
-                       OperandEncoding enc, StateChange sc,
+void attachPassthrough(Instr* i, VexPrefix vp,
+                       PrefixSet set, OperandEncoding enc, StateChange sc,
                        int b1, int b2, int b3)
 {
     // catch previous decode error
@@ -665,6 +666,7 @@ void attachPassthrough(Instr* i, PrefixSet set,
     i->ptEnc = enc;
     i->ptSChange = sc;
     i->ptPSet = set;
+    i->ptVexP = vp;
     assert(b1 >= 0); // never should happen
     i->ptLen++;
     i->ptOpc[0] = (uint8_t) b1;

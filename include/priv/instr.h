@@ -272,6 +272,7 @@ struct _Instr {
 
     // annotation for pass-through (not used when ptLen == 0)
     int ptLen;
+    VexPrefix ptVexP;
     PrefixSet ptPSet;
     uint8_t ptOpc[3];
     OperandEncoding ptEnc;
@@ -323,7 +324,7 @@ void initBinaryInstr(Instr* i, InstrType it, ValType vt,
                      Operand *o1, Operand *o2);
 void initTernaryInstr(Instr* i, InstrType it,
                       Operand *o1, Operand *o2, Operand* o3);
-void attachPassthrough(Instr* i, PrefixSet set,
+void attachPassthrough(Instr* i, VexPrefix vp, PrefixSet set,
                        OperandEncoding enc, StateChange sc,
                        int b1, int b2, int b3);
 

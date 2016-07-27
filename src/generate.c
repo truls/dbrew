@@ -34,6 +34,8 @@ struct _GContext {
     GenerateError* e;
 
     // information passed among generator functions
+    VexPrefix vp;
+    int vvvv;
     PrefixSet ps;
     int rex;
     OpSegOverride so;
@@ -282,24 +284,60 @@ int genPrefix(GContext* c)
     uint8_t* buf = c->buf;
     int o = 0;
 
-    if (c->ps & PS_66) buf[o++] = 0x66;
-    if (c->ps & PS_F2) buf[o++] = 0xF2;
-    if (c->ps & PS_F3) buf[o++] = 0xF3;
-    if (c->ps & PS_REXW) c->rex |= REX_MASK_W;
-
     if (c->so == OSO_UseFS) buf[o++] = 0x64;
     if (c->so == OSO_UseGS) buf[o++] = 0x65;
+    if (c->ps & PS_REXW) {
+        c->rex |= REX_MASK_W;
+        c->ps &= ~PS_REXW;
+    }
 
-    if (c->rex) buf[o++] = 0x40 | c->rex;
+    if (c->vp == VEX_No) {
+        // legacy
+        if (c->ps & PS_66) buf[o++] = 0x66;
+        if (c->ps & PS_F2) buf[o++] = 0xF2;
+        if (c->ps & PS_F3) buf[o++] = 0xF3;
+        if (c->rex) buf[o++] = 0x40 | c->rex;
+        return o;
+    }
 
+    // Vex
+    assert((c->vp == VEX_128) || (c->vp == VEX_256));
+    assert((c->opc & 0xFF00) == 0x0F00); // opcode 2 byte starting with 0x0F
+    c->opc = c->opc & 0xFF; // do not generate the leading 0x0F
+    uint8_t b = ((15 - c->vvvv) << 3) | ((c->vp == VEX_128) ? 0:4);
+    switch(c->ps) {
+    case PS_66: b |= 1; break;
+    case PS_F3: b |= 2; break;
+    case PS_F2: b |= 3; break;
+    case PS_No: break;
+    default: assert(0);
+    }
+    if ((c->rex & (REX_MASK_X | REX_MASK_B | REX_MASK_W)) == 0) {
+        // 2-byte vex prefix enough
+        b |= (c->rex & REX_MASK_R) ? 0:128; // inverted;
+        buf[o++] = 0xC5;
+        buf[o++] = b;
+    }
+    else {
+        // 3-byte vex prefix
+        int b0 = 1; // 0x0F leading opcode byte
+        b0 |= (c->rex & REX_MASK_R) ? 0:128; // inverted;
+        b0 |= (c->rex & REX_MASK_X) ? 0:64; // inverted;
+        b0 |= (c->rex & REX_MASK_B) ? 0:32; // inverted;
+        b |= (c->rex & REX_MASK_W) ? 0:128; // inverted;
+        buf[o++] = 0xC4;
+        buf[o++] = b0;
+        buf[o++] = b;
+    }
     return o;
 }
 
 // append bytes for opcode and operands
 static
-int appendOO(GContext* c, int o, int opc)
+int appendOO(GContext* c, int o)
 {
     uint8_t* buf = c->buf;
+    int opc = c->opc;
     if (opc > 255) {
         assert(opc < 65536);
         buf[o++] = (uint8_t) (opc >> 8);
@@ -335,8 +373,9 @@ int genModRM(GContext* c, int opc,
     //   clear REX_MASK_W if not explicitly requested
     if ((vt == VT_Implicit) && ((c->ps & PS_REXW) == 0)) c->rex &= ~REX_MASK_W;
     if ((flags & GEN_66OnVT16) && (opValType(o1) == VT_16)) c->ps |= PS_66;
+    c->opc = opc;
     o = genPrefix(c);
-    o = appendOO(c, o, opc);
+    o = appendOO(c, o);
 
     return o;
 }
@@ -350,8 +389,9 @@ int genDigitRM(GContext* c, int opc,
 
     calcModRMDigit(c, o1, digit);
     if ((flags & GEN_66OnVT16) && (opValType(o1) == VT_16)) c->ps |= PS_66;
+    c->opc = opc;
     o = genPrefix(c);
-    o = appendOO(c, o, opc);
+    o = appendOO(c, o);
 
     return o;
 }
@@ -397,8 +437,9 @@ int genModRMI(GContext* c, int opc,
 
     calcModRM(c, o1, o2);
     if ((flags & GEN_66OnVT16) && (opValType(o1) == VT_16)) c->ps |= PS_66;
+    c->opc = opc;
     o = genPrefix(c);
-    o = appendOO(c, o, opc);
+    o = appendOO(c, o);
 
     return appendI(buf, o, o3);
 }
@@ -414,8 +455,9 @@ int genDigitMI(GContext* c, int opc,
     assert(opIsImm(o2));
     calcModRMDigit(c, o1, digit);
     if ((flags & GEN_66OnVT16) && (opValType(o1) == VT_16)) c->ps |= PS_66;
+    c->opc = opc;
     o = genPrefix(c);
-    o = appendOO(c, o, opc);
+    o = appendOO(c, o);
 
     return appendI(buf, o, o2);
 }
@@ -434,9 +476,10 @@ int genOI(GContext* c, int opc, Operand* o1, Operand* o2, int flags)
     if (r & 8) c->rex |= REX_MASK_B;
     if (opValType(o1) == VT_64) c->rex |= REX_MASK_W;
     if ((flags & GEN_66OnVT16) && (opValType(o1) == VT_16)) c->ps |= PS_66;
-    o = genPrefix(c);
     assert((opc < 256) && ((opc&7)==0));
-    o = appendOO(c, o, opc + (r & 7));
+    c->opc = opc + (r & 7);
+    o = genPrefix(c);
+    o = appendOO(c, o);
     return appendI(buf, o, o2);
 }
 
@@ -1667,6 +1710,7 @@ int genPassThrough(GContext* cxt)
 
     assert(instr->ptLen > 0);
     cxt->ps = instr->ptPSet;
+    cxt->vp = instr->ptVexP;
 
     assert(instr->ptLen < 3);
     if (instr->ptLen < 2)
@@ -1677,6 +1721,12 @@ int genPassThrough(GContext* cxt)
     switch(instr->ptEnc) {
     case OE_MR:
         o += genModRM(cxt, opc, &(instr->dst), &(instr->src), vt, 0);
+        break;
+
+    case OE_RVM:
+        assert(opIsVReg(&(instr->src)));
+        cxt->vvvv = instr->src.reg.ri;
+        o += genModRM(cxt, opc, &(instr->src2), &(instr->dst), vt, 0);
         break;
 
     case OE_RM:
@@ -1695,6 +1745,8 @@ void initGContext(GContext* c, uint8_t* buf, Instr* i)
     c->buf = buf;
     c->instr = i;
 
+    c->vp = VEX_No;
+    c->vvvv = 0; // must be 0 to not produce bad code in Vex prefix
     c->rex = 0;
     c->so = OSO_None;
     c->ps = PS_No;

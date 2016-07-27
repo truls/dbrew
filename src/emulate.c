@@ -1658,6 +1658,7 @@ void capturePassThrough(RContext* c, Instr* orig, EmuState* es)
     i.ptLen  = orig->ptLen;
     i.ptEnc  = orig->ptEnc;
     i.ptPSet = orig->ptPSet;
+    i.ptVexP = orig->ptVexP;
     for(int j=0; j<orig->ptLen; j++)
         i.ptOpc[j] = orig->ptOpc[j];
 
@@ -1672,9 +1673,22 @@ void capturePassThrough(RContext* c, Instr* orig, EmuState* es)
         applyStaticToInd(&(i.dst), es);
         break;
 
-    case OE_RM:
-        assert(opIsReg(&(orig->src)) || opIsInd(&(orig->src)));
+    case OE_RVM:
+        // used with AVX, 2nd operand is vector register
         assert(opIsReg(&(orig->dst)));
+        assert(opIsReg(&(orig->src)));
+        assert(opIsReg(&(orig->src2)) || opIsInd(&(orig->src2)));
+
+        i.form = OF_3;
+        copyOperand( &(i.dst), &(orig->dst));
+        copyOperand( &(i.src), &(orig->src));
+        copyOperand( &(i.src2), &(orig->src2));
+        applyStaticToInd(&(i.src2), es);
+        break;
+
+    case OE_RM:
+        assert(opIsReg(&(orig->dst)));
+        assert(opIsReg(&(orig->src)) || opIsInd(&(orig->src)));
 
         i.form = OF_2;
         copyOperand( &(i.dst), &(orig->dst));

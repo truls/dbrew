@@ -974,9 +974,10 @@ static void reqExit(DContext* c)
 // attach pass-through information
 static void attach(DContext* c)
 {
-    attachPassthrough(c->ii, c->ps, c->oe, SC_None,
-                      c->opc1, c->opc2, -1);
+    attachPassthrough(c->ii, c->vex,
+                      c->ps, c->oe, SC_None, c->opc1, c->opc2, -1);
 }
+
 
 // opcode-specific decode handlers
 
@@ -1000,7 +1001,7 @@ void decode0F_12(DContext* c)
     }
     parseModRM(c, VT_64, RTS_VX_VX, &c->o2, &c->o1, 0);
     c->ii = addBinaryOp(c->r, c, c->it, VT_Implicit, &c->o1, &c->o2);
-    attachPassthrough(c->ii, c->ps, OE_RM, SC_None, 0x0F, 0x12, -1);
+    attachPassthrough(c->ii, VEX_No, c->ps, OE_RM, SC_None, 0x0F, 0x12, -1);
 }
 
 static
@@ -1017,7 +1018,7 @@ void decode0F_13(DContext* c)
     }
     parseModRM(c, VT_64, RTS_VX_VX, &c->o1, &c->o2, 0);
     c->ii = addBinaryOp(c->r, c, c->it, VT_Implicit, &c->o1, &c->o2);
-    attachPassthrough(c->ii, c->ps, OE_MR, SC_None, 0x0F, 0x13, -1);
+    attachPassthrough(c->ii, VEX_No, c->ps, OE_MR, SC_None, 0x0F, 0x13, -1);
 }
 
 static
@@ -1032,7 +1033,7 @@ void decode0F_14(DContext* c)
     }
     parseModRM(c, VT_128, RTS_VX_VX, &c->o2, &c->o1, 0);
     c->ii = addBinaryOp(c->r, c, c->it, VT_Implicit, &c->o1, &c->o2);
-    attachPassthrough(c->ii, c->ps, OE_RM, SC_None, 0x0F, 0x14, -1);
+    attachPassthrough(c->ii, VEX_No, c->ps, OE_RM, SC_None, 0x0F, 0x14, -1);
 }
 
 static
@@ -1047,7 +1048,7 @@ void decode0F_15(DContext* c)
     }
     parseModRM(c, VT_128, RTS_VX_VX, &c->o2, &c->o1, 0);
     c->ii = addBinaryOp(c->r, c, c->it, VT_Implicit, &c->o1, &c->o2);
-    attachPassthrough(c->ii, c->ps, OE_RM, SC_None, 0x0F, 0x15, -1);
+    attachPassthrough(c->ii, VEX_No, c->ps, OE_RM, SC_None, 0x0F, 0x15, -1);
 }
 
 static
@@ -1064,7 +1065,7 @@ void decode0F_16(DContext* c)
     }
     parseModRM(c, VT_128, RTS_VX_VX, &c->o2, &c->o1, 0);
     c->ii = addBinaryOp(c->r, c, c->it, VT_Implicit, &c->o1, &c->o2);
-    attachPassthrough(c->ii, c->ps, OE_RM, SC_None, 0x0F, 0x16, -1);
+    attachPassthrough(c->ii, VEX_No, c->ps, OE_RM, SC_None, 0x0F, 0x16, -1);
 }
 
 static
@@ -1081,7 +1082,7 @@ void decode0F_17(DContext* c)
     }
     parseModRM(c, VT_64, RTS_VX_VX, &c->o1, &c->o2, 0);
     c->ii = addBinaryOp(c->r, c, c->it, VT_Implicit, &c->o1, &c->o2);
-    attachPassthrough(c->ii, c->ps, OE_MR, SC_None, 0x0F, 0x17, -1);
+    attachPassthrough(c->ii, VEX_No, c->ps, OE_MR, SC_None, 0x0F, 0x17, -1);
 }
 
 static
@@ -1115,7 +1116,7 @@ void decode0F_28(DContext* c)
     }
     parseModRM(c, c->vt, RTS_VX_VX, &c->o2, &c->o1, 0);
     c->ii = addBinaryOp(c->r, c, c->it, VT_Implicit, &c->o1, &c->o2);
-    attachPassthrough(c->ii, c->ps, OE_RM, SC_None, 0x0F, 0x28, -1);
+    attachPassthrough(c->ii, VEX_No, c->ps, OE_RM, SC_None, 0x0F, 0x28, -1);
 }
 
 static
@@ -1130,7 +1131,7 @@ void decode0F_29(DContext* c)
     }
     parseModRM(c, c->vt, RTS_VX_VX, &c->o1, &c->o2, 0);
     c->ii = addBinaryOp(c->r, c, c->it, VT_Implicit, &c->o1, &c->o2);
-    attachPassthrough(c->ii, c->ps, OE_MR, SC_None, 0x0F, 0x29, -1);
+    attachPassthrough(c->ii, VEX_No, c->ps, OE_MR, SC_None, 0x0F, 0x29, -1);
 }
 
 static
@@ -1140,7 +1141,7 @@ void decode0F_2E(DContext* c)
     // ucomisd xmm1,xmm2/m64 (RM)
     parseModRM(c, VT_64, RTS_VX_VX, &c->o2, &c->o1, 0);
     c->ii = addBinaryOp(c->r, c, IT_UCOMISD, VT_Implicit, &c->o1, &c->o2);
-    attachPassthrough(c->ii, PS_66, OE_RM, SC_None, 0x0F, 0x2E, -1);
+    attachPassthrough(c->ii, VEX_No, PS_66, OE_RM, SC_None, 0x0F, 0x2E, -1);
 }
 
 // 0x40: cmovo   r,r/m 16/32/64
@@ -1194,7 +1195,7 @@ void decode0F_6E_P66(DContext* c)
     parseModRM(c, c->vt, RTS_G_VX, &c->o2, &c->o1, 0);
     c->ii = addBinaryOp(c->r, c, c->it, VT_Implicit, &c->o1, &c->o2);
     if (c->rex & REX_MASK_W) c->ps |= PS_REXW; // pass-through REX_W setting
-    attachPassthrough(c->ii, c->ps, OE_RM, SC_dstDyn, 0x0F, 0x6E, -1);
+    attachPassthrough(c->ii, VEX_No, c->ps, OE_RM, SC_dstDyn, 0x0F, 0x6E, -1);
 }
 
 
@@ -1209,7 +1210,7 @@ void decode0F_74(DContext* c)
     }
     parseModRM(c, c->vt, RTS_VX_VX, &c->o2, &c->o1, 0);
     c->ii = addBinaryOp(c->r, c, IT_PCMPEQB, VT_Implicit, &c->o1, &c->o2);
-    attachPassthrough(c->ii, c->ps, OE_RM, SC_None, 0x0F, 0x74, -1);
+    attachPassthrough(c->ii, VEX_No, c->ps, OE_RM, SC_None, 0x0F, 0x74, -1);
 }
 
 static
@@ -1234,7 +1235,7 @@ void decode0F_7E(DContext* c)
     }
     c->ii = addBinaryOp(c->r, c, c->it, VT_Implicit, &c->o1, &c->o2);
     if (c->rex & REX_MASK_W) c->ps |= PS_REXW; // pass-through REX_W setting
-    attachPassthrough(c->ii, c->ps, c->oe, SC_dstDyn, 0x0F, 0x7E, -1);
+    attachPassthrough(c->ii, VEX_No, c->ps, c->oe, SC_dstDyn, 0x0F, 0x7E, -1);
 }
 
 static
@@ -1253,7 +1254,7 @@ void decode0F_7F(DContext* c)
     }
     parseModRM(c, c->vt, RTS_VX_VX, &c->o1, &c->o2, 0);
     c->ii = addBinaryOp(c->r, c, c->it, VT_Implicit, &c->o1, &c->o2);
-    attachPassthrough(c->ii, c->ps, OE_MR, SC_None, 0x0F, 0x7F, -1);
+    attachPassthrough(c->ii, VEX_No, c->ps, OE_MR, SC_None, 0x0F, 0x7F, -1);
 }
 
 // 0x80: jo rel32
@@ -1351,7 +1352,7 @@ void decode0F_D4(DContext* c)
     c->vt = (c->ps & PS_66) ? VT_128 : VT_64;
     parseModRM(c, c->vt, RTS_VX_VX, &c->o2, &c->o1, 0);
     c->ii = addBinaryOp(c->r, c, IT_PADDQ, VT_Implicit, &c->o1, &c->o2);
-    attachPassthrough(c->ii, c->ps, OE_RM, SC_None, 0x0F, 0xD4, -1);
+    attachPassthrough(c->ii, VEX_No, c->ps, OE_RM, SC_None, 0x0F, 0xD4, -1);
 }
 
 static
@@ -1361,7 +1362,7 @@ void decode0F_D6(DContext* c)
     assert(c->ps == PS_66);
     parseModRM(c, VT_64, RTS_VX_VX, &c->o1, &c->o2, 0);
     c->ii = addBinaryOp(c->r, c, IT_MOVQ, VT_Implicit, &c->o1, &c->o2);
-    attachPassthrough(c->ii, c->ps, OE_MR, SC_None, 0x0F, 0xD6, -1);
+    attachPassthrough(c->ii, VEX_No, c->ps, OE_MR, SC_None, 0x0F, 0xD6, -1);
 }
 
 static
@@ -1372,7 +1373,7 @@ void decode0F_D7(DContext* c)
     parseModRM(c, c->vt, RTS_VX_G, &c->o2, &c->o1, 0);
     opOverwriteType(&c->o1, VT_32); // result always 32bit
     c->ii = addBinaryOp(c->r, c, IT_PMOVMSKB, VT_32, &c->o1, &c->o2);
-    attachPassthrough(c->ii, (PrefixSet)(c->ps & PS_66), OE_RM, SC_dstDyn,
+    attachPassthrough(c->ii, VEX_No, (PrefixSet)(c->ps & PS_66), OE_RM, SC_dstDyn,
                       0x0F, 0xD7, -1);
 }
 
@@ -1383,7 +1384,7 @@ void decode0F_DA(DContext* c)
     c->vt = (c->ps & PS_66) ? VT_128 : VT_64;
     parseModRM(c, c->vt, RTS_VX_VX, &c->o2, &c->o1, 0);
     c->ii = addBinaryOp(c->r, c, IT_PMINUB, VT_Implicit, &c->o1, &c->o2);
-    attachPassthrough(c->ii, (PrefixSet)(c->ps & PS_66), OE_RM, SC_None,
+    attachPassthrough(c->ii, VEX_No, (PrefixSet)(c->ps & PS_66), OE_RM, SC_None,
                       0x0F, 0xDA, -1);
 }
 
@@ -1396,7 +1397,7 @@ void decode0F_EF(DContext* c)
     c->vt = (c->ps & PS_66) ? VT_128 : VT_64;
     parseModRM(c, c->vt, rts, &c->o2, &c->o1, 0);
     c->ii = addBinaryOp(c->r, c, IT_PXOR, VT_Implicit, &c->o1, &c->o2);
-    attachPassthrough(c->ii, (PrefixSet)(c->ps & PS_66), OE_RM, SC_None,
+    attachPassthrough(c->ii, VEX_No, (PrefixSet)(c->ps & PS_66), OE_RM, SC_None,
                       0x0F, 0xEF, -1);
 }
 
@@ -2112,12 +2113,12 @@ void initDecodeTables(void)
     // VEX.128.66.0F.WIG 10: vmovupd xmm1,xmm2/m128 (RM)
     // VEX.256.   0F.WIG 10: vmovups ymm1,ymm2/m256 (RM)
     // VEX.256.66.0F.WIG 10: vmovupd ymm1,ymm2/m256 (RM)
-    setOpcPV(VEX_LIG, 0x0F10, PS_F3, IT_VMOVSS, VT_64, parseRMVV, addBInsImp, 0);
-    setOpcPV(VEX_LIG, 0x0F10, PS_F2, IT_VMOVSD, VT_64, parseRMVV, addBInsImp, 0);
-    setOpcPV(VEX_128, 0x0F10, PS_No, IT_VMOVUPS, VT_128, parseRMVV, addBInsImp, 0);
-    setOpcPV(VEX_128, 0x0F10, PS_66, IT_VMOVUPD, VT_128, parseRMVV, addBInsImp, 0);
-    setOpcPV(VEX_256, 0x0F10, PS_No, IT_VMOVUPS, VT_256, parseRMVV, addBInsImp, 0);
-    setOpcPV(VEX_256, 0x0F10, PS_66, IT_VMOVUPD, VT_256, parseRMVV, addBInsImp, 0);
+    setOpcPV(VEX_LIG, 0x0F10, PS_F3, IT_VMOVSS, VT_64, parseRMVV, addBInsImp, attach);
+    setOpcPV(VEX_LIG, 0x0F10, PS_F2, IT_VMOVSD, VT_64, parseRMVV, addBInsImp, attach);
+    setOpcPV(VEX_128, 0x0F10, PS_No, IT_VMOVUPS, VT_128, parseRMVV, addBInsImp, attach);
+    setOpcPV(VEX_128, 0x0F10, PS_66, IT_VMOVUPD, VT_128, parseRMVV, addBInsImp, attach);
+    setOpcPV(VEX_256, 0x0F10, PS_No, IT_VMOVUPS, VT_256, parseRMVV, addBInsImp, attach);
+    setOpcPV(VEX_256, 0x0F10, PS_66, IT_VMOVUPD, VT_256, parseRMVV, addBInsImp, attach);
 
     // 0x0F11/No: movups xmm1/m128,xmm2 (MR)
     // 0x0F11/66: movupd xmm1/m128,xmm2 (MR)
@@ -2134,12 +2135,12 @@ void initDecodeTables(void)
     // VEX.128.66.0F.WIG 11: vmovupd xmm1/m128,xmm2 (MR)
     // VEX.256.   0F.WIG 11: vmovups ymm1/m128,ymm2 (MR)
     // VEX.256.66.0F.WIG 11: vmovupd ymm1/m128,ymm2 (MR)
-    setOpcPV(VEX_LIG, 0x0F11, PS_F3, IT_VMOVSS, VT_64, parseMRVV, addBInsImp, 0);
-    setOpcPV(VEX_LIG, 0x0F11, PS_F2, IT_VMOVSD, VT_64, parseMRVV, addBInsImp, 0);
-    setOpcPV(VEX_128, 0x0F11, PS_No, IT_VMOVUPS, VT_128, parseMRVV, addBInsImp, 0);
-    setOpcPV(VEX_128, 0x0F11, PS_66, IT_VMOVUPD, VT_128, parseMRVV, addBInsImp, 0);
-    setOpcPV(VEX_256, 0x0F11, PS_No, IT_VMOVUPS, VT_256, parseMRVV, addBInsImp, 0);
-    setOpcPV(VEX_256, 0x0F11, PS_66, IT_VMOVUPD, VT_256, parseMRVV, addBInsImp, 0);
+    setOpcPV(VEX_LIG, 0x0F11, PS_F3, IT_VMOVSS, VT_64, parseMRVV, addBInsImp, attach);
+    setOpcPV(VEX_LIG, 0x0F11, PS_F2, IT_VMOVSD, VT_64, parseMRVV, addBInsImp, attach);
+    setOpcPV(VEX_128, 0x0F11, PS_No, IT_VMOVUPS, VT_128, parseMRVV, addBInsImp, attach);
+    setOpcPV(VEX_128, 0x0F11, PS_66, IT_VMOVUPD, VT_128, parseMRVV, addBInsImp, attach);
+    setOpcPV(VEX_256, 0x0F11, PS_No, IT_VMOVUPS, VT_256, parseMRVV, addBInsImp, attach);
+    setOpcPV(VEX_256, 0x0F11, PS_66, IT_VMOVUPD, VT_256, parseMRVV, addBInsImp, attach);
 
     setOpcH(0x0F12, decode0F_12);
     setOpcH(0x0F13, decode0F_13);
@@ -2155,10 +2156,10 @@ void initDecodeTables(void)
     // VEX.128.66.0F.WIG 28: vmovapd xmm1,xmm2/m128 (RM)
     // VEX.256.   0F.WIG 28: vmovaps ymm1,ymm2/m256 (RM)
     // VEX.256.66.0F.WIG 28: vmovapd ymm1,ymm2/m256 (RM)
-    setOpcPV(VEX_128, 0x0F28, PS_No, IT_VMOVAPS, VT_128, parseRMVV, addBInsImp, 0);
-    setOpcPV(VEX_128, 0x0F28, PS_66, IT_VMOVAPD, VT_128, parseRMVV, addBInsImp, 0);
-    setOpcPV(VEX_256, 0x0F28, PS_No, IT_VMOVAPS, VT_256, parseRMVV, addBInsImp, 0);
-    setOpcPV(VEX_256, 0x0F28, PS_66, IT_VMOVAPD, VT_256, parseRMVV, addBInsImp, 0);
+    setOpcPV(VEX_128, 0x0F28, PS_No, IT_VMOVAPS, VT_128, parseRMVV, addBInsImp, attach);
+    setOpcPV(VEX_128, 0x0F28, PS_66, IT_VMOVAPD, VT_128, parseRMVV, addBInsImp, attach);
+    setOpcPV(VEX_256, 0x0F28, PS_No, IT_VMOVAPS, VT_256, parseRMVV, addBInsImp, attach);
+    setOpcPV(VEX_256, 0x0F28, PS_66, IT_VMOVAPD, VT_256, parseRMVV, addBInsImp, attach);
 
     setOpcH(0x0F29, decode0F_29);
 
@@ -2166,10 +2167,10 @@ void initDecodeTables(void)
     // VEX.128.66.0F.WIG 29: vmovapd xmm1/m128,xmm2 (MR)
     // VEX.256.   0F.WIG 29: vmovaps ymm1/m256,ymm2 (MR)
     // VEX.256.66.0F.WIG 29: vmovapd ymm1/m256,ymm2 (MR)
-    setOpcPV(VEX_128, 0x0F29, PS_No, IT_VMOVAPS, VT_128, parseMRVV, addBInsImp, 0);
-    setOpcPV(VEX_128, 0x0F29, PS_66, IT_VMOVAPD, VT_128, parseMRVV, addBInsImp, 0);
-    setOpcPV(VEX_256, 0x0F29, PS_No, IT_VMOVAPS, VT_256, parseMRVV, addBInsImp, 0);
-    setOpcPV(VEX_256, 0x0F29, PS_66, IT_VMOVAPD, VT_256, parseMRVV, addBInsImp, 0);
+    setOpcPV(VEX_128, 0x0F29, PS_No, IT_VMOVAPS, VT_128, parseMRVV, addBInsImp, attach);
+    setOpcPV(VEX_128, 0x0F29, PS_66, IT_VMOVAPD, VT_128, parseMRVV, addBInsImp, attach);
+    setOpcPV(VEX_256, 0x0F29, PS_No, IT_VMOVAPS, VT_256, parseMRVV, addBInsImp, attach);
+    setOpcPV(VEX_256, 0x0F29, PS_66, IT_VMOVAPD, VT_256, parseMRVV, addBInsImp, attach);
 
     setOpcH(0x0F2E, decode0F_2E);
 
@@ -2234,10 +2235,10 @@ void initDecodeTables(void)
     // VEX.NDS.256.0F.WIG 57:    vxorps ymm1,ymm2,ymm3/m256 (RVM)
     // VEX.NDS.128.66.0F.WIG 57: vxorpd xmm1,xmm2,xmm3/m128 (RVM)
     // VEX.NDS.256.66.0F.WIG 57: vxorpd ymm1,ymm2,ymm3/m256 (RVM)
-    setOpcPV(VEX_128, 0x0F57, PS_No, IT_VXORPS, VT_128, parseRVM, addTInsImp, 0);
-    setOpcPV(VEX_256, 0x0F57, PS_No, IT_VXORPS, VT_256, parseRVM, addTInsImp, 0);
-    setOpcPV(VEX_128, 0x0F57, PS_66, IT_VXORPD, VT_128, parseRVM, addTInsImp, 0);
-    setOpcPV(VEX_256, 0x0F57, PS_66, IT_VXORPD, VT_256, parseRVM, addTInsImp, 0);
+    setOpcPV(VEX_128, 0x0F57, PS_No, IT_VXORPS, VT_128, parseRVM, addTInsImp, attach);
+    setOpcPV(VEX_256, 0x0F57, PS_No, IT_VXORPS, VT_256, parseRVM, addTInsImp, attach);
+    setOpcPV(VEX_128, 0x0F57, PS_66, IT_VXORPD, VT_128, parseRVM, addTInsImp, attach);
+    setOpcPV(VEX_256, 0x0F57, PS_66, IT_VXORPD, VT_256, parseRVM, addTInsImp, attach);
 
     // 0x0F58/F3: addss xmm1,xmm2/m32 (RM)
     // 0x0F58/F2: addsd xmm1,xmm2/m64 (RM)
@@ -2254,12 +2255,12 @@ void initDecodeTables(void)
     // VEX.NDS.256.0F.WIG 58:    vaddps ymm1,ymm2,ymm3/m256 (RVM)
     // VEX.NDS.128.66.0F.WIG 58: vaddpd xmm1,xmm2,xmm3/m128 (RVM)
     // VEX.NDS.256.66.0F.WIG 58: vaddpd ymm1,ymm2,ymm3/m256 (RVM)
-    setOpcPV(VEX_LIG, 0x0F58, PS_F3, IT_VADDSS, VT_32, parseRVM, addTInsImp, 0);
-    setOpcPV(VEX_LIG, 0x0F58, PS_F2, IT_VADDSD, VT_64, parseRVM, addTInsImp, 0);
-    setOpcPV(VEX_128, 0x0F58, PS_No, IT_VADDPS, VT_128, parseRVM, addTInsImp, 0);
-    setOpcPV(VEX_256, 0x0F58, PS_No, IT_VADDPS, VT_256, parseRVM, addTInsImp, 0);
-    setOpcPV(VEX_128, 0x0F58, PS_66, IT_VADDPD, VT_128, parseRVM, addTInsImp, 0);
-    setOpcPV(VEX_256, 0x0F58, PS_66, IT_VADDPD, VT_256, parseRVM, addTInsImp, 0);
+    setOpcPV(VEX_LIG, 0x0F58, PS_F3, IT_VADDSS, VT_32, parseRVM, addTInsImp, attach);
+    setOpcPV(VEX_LIG, 0x0F58, PS_F2, IT_VADDSD, VT_64, parseRVM, addTInsImp, attach);
+    setOpcPV(VEX_128, 0x0F58, PS_No, IT_VADDPS, VT_128, parseRVM, addTInsImp, attach);
+    setOpcPV(VEX_256, 0x0F58, PS_No, IT_VADDPS, VT_256, parseRVM, addTInsImp, attach);
+    setOpcPV(VEX_128, 0x0F58, PS_66, IT_VADDPD, VT_128, parseRVM, addTInsImp, attach);
+    setOpcPV(VEX_256, 0x0F58, PS_66, IT_VADDPD, VT_256, parseRVM, addTInsImp, attach);
 
     // 0x0F59/F3: mulss xmm1,xmm2/m32 (RM)
     // 0x0F59/F2: mulsd xmm1,xmm2/m64 (RM)
@@ -2276,12 +2277,12 @@ void initDecodeTables(void)
     // VEX.NDS.256.0F.WIG 59:    vmulps ymm1,ymm2,ymm3/m256 (RVM)
     // VEX.NDS.128.66.0F.WIG 59: vmulpd xmm1,xmm2,xmm3/m128 (RVM)
     // VEX.NDS.256.66.0F.WIG 59: vmulpd ymm1,ymm2,ymm3/m256 (RVM)
-    setOpcPV(VEX_LIG, 0x0F59, PS_F3, IT_VMULSS, VT_32, parseRVM, addTInsImp, 0);
-    setOpcPV(VEX_LIG, 0x0F59, PS_F2, IT_VMULSD, VT_64, parseRVM, addTInsImp, 0);
-    setOpcPV(VEX_128, 0x0F59, PS_No, IT_VMULPS, VT_128, parseRVM, addTInsImp, 0);
-    setOpcPV(VEX_256, 0x0F59, PS_No, IT_VMULPS, VT_256, parseRVM, addTInsImp, 0);
-    setOpcPV(VEX_128, 0x0F59, PS_66, IT_VMULPD, VT_128, parseRVM, addTInsImp, 0);
-    setOpcPV(VEX_256, 0x0F59, PS_66, IT_VMULPD, VT_256, parseRVM, addTInsImp, 0);
+    setOpcPV(VEX_LIG, 0x0F59, PS_F3, IT_VMULSS, VT_32, parseRVM, addTInsImp, attach);
+    setOpcPV(VEX_LIG, 0x0F59, PS_F2, IT_VMULSD, VT_64, parseRVM, addTInsImp, attach);
+    setOpcPV(VEX_128, 0x0F59, PS_No, IT_VMULPS, VT_128, parseRVM, addTInsImp, attach);
+    setOpcPV(VEX_256, 0x0F59, PS_No, IT_VMULPS, VT_256, parseRVM, addTInsImp, attach);
+    setOpcPV(VEX_128, 0x0F59, PS_66, IT_VMULPD, VT_128, parseRVM, addTInsImp, attach);
+    setOpcPV(VEX_256, 0x0F59, PS_66, IT_VMULPD, VT_256, parseRVM, addTInsImp, attach);
 
     // 0x0F5C/F3: subss xmm1,xmm2/m32 (RM)
     // 0x0F5C/F2: subsd xmm1,xmm2/m64 (RM)
