@@ -73,7 +73,7 @@ Rewriter* allocRewriter(void)
     r->cc = 0;
     r->vreq = VR_None;
     r->es = 0;
-
+    r->next = 0;
     r->ePool = 0;
 
     // optimization passes
