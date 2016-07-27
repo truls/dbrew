@@ -69,6 +69,11 @@ void markError(GContext* c, ErrorType et, const char* d)
 /* x86_64 code generation
  */
 
+// flags for genModRM/genDigitRM
+
+#define GEN_66OnVT16  1
+// default operand size is 64bit
+#define GEN_DefOpVT64 2
 // helpers for operand encodings
 
 // return 0 - 15 for AL/AX/EAX/RAX - R15
@@ -100,7 +105,7 @@ int VRegEncoding(Reg r)
 // Generate bytes with ModRM encoding for operand <o> and 3-bit <digit>.
 // Sets info in GContext <c>: b/len/rex/so
 static
-void calcModRMDigit(GContext* c, Operand* o1, int digit)
+void calcModRMDigit(GContext* c, Operand* o1, int digit, int flags)
 {
     int modrm, r1;
     int o = 0;
@@ -110,7 +115,9 @@ void calcModRMDigit(GContext* c, Operand* o1, int digit)
     assert(opIsReg(o1) || opIsInd(o1));
 
     vt = opValType(o1);
-    if (vt == VT_64) c->rex |= REX_MASK_W;
+    if ((flags & GEN_DefOpVT64) == 0) {
+        if (vt == VT_64) c->rex |= REX_MASK_W;
+    }
 
     modrm = (digit & 7) << 3;
 
@@ -274,7 +281,7 @@ void calcModRM(GContext* c, Operand* o1, Operand* o2)
     else assert(0);
 
     if (r2 & 8) c->rex |= REX_MASK_R;
-    calcModRMDigit(c, o1, r2 & 7);
+    calcModRMDigit(c, o1, r2 & 7, 0);
 }
 
 
@@ -354,8 +361,6 @@ int appendOO(GContext* c, int o)
 }
 
 
-// flags for genModRM/genDigitRM
-#define GEN_66OnVT16  1
 
 // Generate instruction with operand encoding RM (o1: r/m, o2: r)
 // into c->buf, up to 2 opcodes (2 if opc2 >=0).
@@ -387,7 +392,7 @@ int genDigitRM(GContext* c, int opc,
 {
     int o;
 
-    calcModRMDigit(c, o1, digit);
+    calcModRMDigit(c, o1, digit, flags);
     if ((flags & GEN_66OnVT16) && (opValType(o1) == VT_16)) c->ps |= PS_66;
     c->opc = opc;
     o = genPrefix(c);
@@ -453,7 +458,7 @@ int genDigitMI(GContext* c, int opc,
     int o;
 
     assert(opIsImm(o2));
-    calcModRMDigit(c, o1, digit);
+    calcModRMDigit(c, o1, digit, flags);
     if ((flags & GEN_66OnVT16) && (opValType(o1) == VT_16)) c->ps |= PS_66;
     c->opc = opc;
     o = genPrefix(c);
@@ -582,19 +587,30 @@ int genRet(GContext* cxt)
 static
 int genPush(GContext* cxt)
 {
+    int r;
     uint8_t* buf = cxt->buf;
     Operand* o =  &(cxt->instr->dst);
 
-    if (o->type != OT_Reg64) return -1;
-    int r = GP64RegEncoding(o->reg);
-    if (r > 7) {
-        assert(r < 16);
-        buf[0] = 0x41; // REX with MASK_B
-        buf[1] = 0x50 + r - 8;
-        return 2;
+    switch(o->type) {
+    case OT_Reg64:
+        r = GP64RegEncoding(o->reg);
+        if (r > 7) {
+            assert(r < 16);
+            buf[0] = 0x41; // REX with MASK_B
+            buf[1] = 0x50 + r - 8;
+            return 2;
+        }
+        buf[0] = 0x50 + r;
+        return 1;
+
+    case OT_Ind64:
+        // use 'push r/m 64' (0xFF/6)
+        return genDigitRM(cxt, 0xFF, 6, o, GEN_DefOpVT64);
+
+    default:
+        break;
     }
-    buf[0] = 0x50 + r;
-    return 1;
+    return -1;
 }
 
 static
@@ -1719,6 +1735,12 @@ int genPassThrough(GContext* cxt)
         opc = (instr->ptOpc[0] << 8) | instr->ptOpc[1];
 
     switch(instr->ptEnc) {
+    case OE_None:
+        cxt->opc = opc;
+        o = genPrefix(cxt);
+        o = appendOO(cxt, o);
+        break;
+
     case OE_MR:
         o += genModRM(cxt, opc, &(instr->dst), &(instr->src), vt, 0);
         break;

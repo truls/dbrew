@@ -590,7 +590,8 @@ const char* instrName(InstrType it, int* pOpCount)
     case IT_VMULPD:  n = "vmulpd";  opCount = 3; break;
     case IT_VXORPS:  n = "vxorps";  opCount = 3; break;
     case IT_VXORPD:  n = "vxorpd";  opCount = 3; break;
-
+    case IT_VZEROALL:n = "vzeroall";opCount = 0; break;
+    case IT_VZEROUPPER: n = "vzeroupper"; opCount = 0; break;
 
     default: n = "<Invalid>"; break;
     }

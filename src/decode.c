@@ -475,6 +475,7 @@ void decodePrefixes(DContext* cxt)
     cxt->ps = PS_No;
     cxt->vex = VEX_No;
     cxt->vex_vvvv = -1;
+    cxt->oe = OE_None;
 
     cxt->opc1 = -1;
     cxt->opc2 = -1;
@@ -2335,6 +2336,9 @@ void initDecodeTables(void)
     //setOpcP(0x0F74, PS_No, IT_PCMPEQB, VT_64,  parseRMVV, addBInsImp, attach);
     //setOpcP(0x0F74, PS_66, IT_PCMPEQB, VT_128, parseRMVV, addBInsImp, attach);
     setOpcH(0x0F74, decode0F_74);
+
+    setOpcPV(VEX_128, 0x0F77, PS_No, IT_VZEROUPPER, VT_None, addSInstr, attach, 0);
+    setOpcPV(VEX_256, 0x0F77, PS_No, IT_VZEROALL, VT_None, addSInstr, attach, 0);
 
     // 0x0F7C/66: haddpd xmm1,xmm2/m128 (RM)
     // 0x0F7C/F2: haddps xmm1,xmm2/m128 (RM)

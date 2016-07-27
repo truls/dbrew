@@ -1663,6 +1663,9 @@ void capturePassThrough(RContext* c, Instr* orig, EmuState* es)
         i.ptOpc[j] = orig->ptOpc[j];
 
     switch(orig->ptEnc) {
+    case OE_None:
+        break;
+
     case OE_MR:
         assert(opIsReg(&(orig->dst)) || opIsInd(&(orig->dst)));
         assert(opIsReg(&(orig->src)));
@@ -2455,6 +2458,7 @@ void emulateInstr(RContext* c)
 
     case IT_PUSH:
         switch(instr->dst.type) {
+        case OT_Ind32:
         case OT_Reg32:
         case OT_Imm32:
             es->reg[RI_SP] -= 4;
@@ -2465,6 +2469,7 @@ void emulateInstr(RContext* c)
                 capture(c, instr);
             break;
 
+        case OT_Ind64:
         case OT_Reg64:
             es->reg[RI_SP] -= 8;
             addr = emuValue(es->reg[RI_SP], VT_64, es->reg_state[RI_SP]);
