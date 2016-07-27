@@ -148,13 +148,34 @@ void doVec(RContext* c, Instr* dst, Instr* src)
         if ((vrt1 == VRT_DoubleX2) && (vrt2 == VRT_DoubleX2)) {
             dst->type = IT_ADDPD;
         }
-        else if ((vrt1 == VRT_DoubleX4) && (vrt2 == VRT_DoubleX4))
-            dst->type = IT_ADDPD; // FIXME: AVX
         else {
             assert((vrt1 != VRT_DoubleX2) && (vrt1 != VRT_DoubleX4));
             assert((vrt2 != VRT_DoubleX2) && (vrt2 != VRT_DoubleX4));
         }
         break;
+
+    case IT_VADDSD:
+        ri1 = opIsVReg(&(src->dst)) ? regVIndex(src->dst.reg) : RI_None;
+        vrt1 = (ri1 != RI_None) ? vrt[ri1] : VRT_Unknown;
+        ri2 = opIsVReg(&(src->src)) ? regVIndex(src->src.reg) : RI_None;
+        vrt2 = (ri2 != RI_None) ? vrt[ri2] : VRT_Unknown;
+
+        if ((vrt1 == VRT_DoubleX2) && (vrt2 == VRT_DoubleX2)) {
+            dst->type = IT_VADDPD;
+            dst->ptLen = 0;
+            attachPassthrough(dst, VEX_128, PS_66, OE_RVM, SC_None, 0x0F, 0x58, -1);
+        }
+        else if ((vrt1 == VRT_DoubleX4) && (vrt2 == VRT_DoubleX4)) {
+            dst->type = IT_VADDPD;
+            dst->ptLen = 0;
+            attachPassthrough(dst, VEX_256, PS_66, OE_RVM, SC_None, 0x0F, 0x58, -1);
+        }
+        else {
+            assert((vrt1 != VRT_DoubleX2) && (vrt1 != VRT_DoubleX4));
+            assert((vrt2 != VRT_DoubleX2) && (vrt2 != VRT_DoubleX4));
+        }
+        break;
+
     case IT_HINT_CALL:
     case IT_HINT_RET:
     case IT_RET:
