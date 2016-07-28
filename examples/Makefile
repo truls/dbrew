@@ -3,9 +3,10 @@ CPPFLAGS=-I../include
 LDLIBS=-L.. -ldbrew
 
 # optimization flags should be the same as for DBrew snippets.
-# thus, the Makefile from the top directory overrides CFLAGS for this.
+# thus, the Makefile from the top directory overrides OPTS for this.
 # this is to avoid e.g. SSE/AVX transition penalties
-CFLAGS=-O2
+OPTS=-O2 -mavx
+CFLAGS=-std=gnu99 $(OPTS)
 
 all: $(EXAMPLES)
 

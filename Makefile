@@ -16,7 +16,7 @@ CFLAGS=-g -std=gnu99 -Iinclude -Iinclude/priv $(WFLAGS)
 LDFLAGS=-g
 
 # options for compiling DBrew snippets
-SOPTS = -O2 -mavx
+SOPTS=-O2 -mavx
 
 SRCS = $(wildcard src/*.c)
 OBJS = $(SRCS:.c=.o)
@@ -37,7 +37,7 @@ src/snippets.o: src/snippets.c
 	$(CC) $(CFLAGS) $(SOPTS) -c $< -o $@
 
 examples: libdbrew.a
-	cd examples && $(MAKE) CFLAGS='$(SOPTS)'
+	cd examples && $(MAKE) OPTS='$(SOPTS)'
 
 clean:
 	rm -rf *~ *.o $(OBJS) libdbrew.a
