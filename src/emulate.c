@@ -1808,6 +1808,7 @@ void emulateRet(RContext* c)
     }
 }
 
+
 // return 0 to fall through to next instruction, or return address to jump to
 void emulateInstr(RContext* c)
 {
@@ -1892,20 +1893,6 @@ void emulateInstr(RContext* c)
             initSimpleInstr(&i, IT_HINT_CALL);
             capture(c, &i);
         }
-
-        // special handling for known functions
-        if ((v1.val == (uint64_t) makeDynamic) &&
-            msIsStatic(es->reg_state[RI_DI])) {
-            // update register value to static value
-            Instr i;
-            initBinaryInstr(&i, IT_MOV, VT_64,
-                            getRegOp(getReg(RT_GP64, RI_DI)),
-                            getImmOp(VT_64, es->reg[RI_DI]));
-            capture(c, &i);
-            initMetaState(&(es->reg_state[RI_DI]), CS_DYNAMIC);
-        }
-        if (v1.val == (uint64_t) makeStatic)
-            initMetaState(&(es->reg_state[RI_DI]), CS_STATIC2);
 
         // address to jump to
         c->exit = v1.val;
@@ -2627,5 +2614,28 @@ void emulateInstr(RContext* c)
     }
 }
 
+// process call or jump to known location
+// this may result in a redirection by returning another target address
+uint64_t processKnownTargets(RContext* c, uint64_t f)
+{
+    EmuState* es = c->r->es;
 
+    // special handling for known functions
+    if ((f == (uint64_t) makeDynamic) &&
+            msIsStatic(es->reg_state[RI_DI])) {
+        // update register value to static value
+        Instr i;
+        initBinaryInstr(&i, IT_MOV, VT_64,
+                        getRegOp(getReg(RT_GP64, RI_DI)),
+                        getImmOp(VT_64, es->reg[RI_DI]));
+        capture(c, &i);
+        initMetaState(&(es->reg_state[RI_DI]), CS_DYNAMIC);
+    }
+
+    if (f == (uint64_t) makeStatic) {
+        initMetaState(&(es->reg_state[RI_DI]), CS_STATIC2);
+    }
+
+    return f;
+}
 

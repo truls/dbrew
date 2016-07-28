@@ -77,4 +77,7 @@ CBB* createCBBfromDBB(Rewriter* r, DBB* src);
 // Returns 0 if no error, otherwise pointer to Error struct
 void emulateInstr(RContext*);
 
+// process call or jump to known location
+uint64_t processKnownTargets(RContext* c, uint64_t f);
+
 #endif // EMULATE_H

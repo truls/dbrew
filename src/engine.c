@@ -155,17 +155,18 @@ void freeRewriter(Rewriter* r)
 }
 
 
-//----------------------------------------------------------
-// Rewrite engine
-
-/**
+/*----------------------------------------------------------
+ * Rewrite engine
+ *
  * Trace/emulate binary code of configured function and capture
  * instructions which need to be kept in the rewritten version.
  * This needs to keep track of the status of values stored in registers
  * (including flags) and on the stack.
  * Captured instructions are collected in multiple CBBs.
- *
- * See dbrew_emulate to see how to call this from a function
+ */
+
+
+/* See dbrew_emulate to see how to call this from a function
  * which acts almost as drop-in replacement (only one additional par).
  *
  * The state can be accessed as c->es afterwards (e.g. for the return
@@ -300,7 +301,7 @@ Error* emulateAndCapture(Rewriter* r, int parCount, uint64_t* par)
                 return cxt.e;
             }
 
-            nextbb_addr = cxt.exit;
+            nextbb_addr = processKnownTargets(&cxt, cxt.exit);
 
             if (r->showEmuState) {
                 if (nextbb_addr != 0) es->regIP = nextbb_addr;
