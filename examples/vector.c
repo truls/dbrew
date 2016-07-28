@@ -21,6 +21,9 @@ double copy_kernel(double v)
 
 void vcopy(double* dst, double* src, int n)
 {
+#if 0
+    dbrew_apply4_R8V8(copy_kernel, dst, src);
+#else
     while(n>3) {
         dbrew_apply4_R8V8(copy_kernel, dst, src);
         dst += 4;
@@ -31,6 +34,7 @@ void vcopy(double* dst, double* src, int n)
         *dst++ = *src++;
         n--;
     }
+#endif
 }
 
 
@@ -43,6 +47,9 @@ double add_kernel(double v1, double v2)
 
 void vadd(double* dst, double* src1, double* src2, int n)
 {
+#if 0
+    dbrew_apply4_R8V8V8(add_kernel, dst, src1, src2);
+#else
     while(n>3) {
         dbrew_apply4_R8V8V8(add_kernel, dst, src1, src2);
         dst += 4;
@@ -54,6 +61,7 @@ void vadd(double* dst, double* src1, double* src2, int n)
         *dst++ = add_kernel(*src1++, *src2++);
         n--;
     }
+#endif
 }
 
 
@@ -80,11 +88,16 @@ void decode_func(Rewriter* r, const char* n)
 
 int main(int argc, char* argv[])
 {
-    double t1, t2, t3, t4;
+    double t1, t2, t3, t4, t5;
     int arg = 1, len = 0, iters = 0, verb = 0, run = 1;
-    if ((argc>arg) && (strcmp(argv[arg],"-v")==0)) { verb++; arg++; }
-    if ((argc>arg) && (strcmp(argv[arg],"-v")==0)) { verb++; arg++; }
-    if ((argc>arg) && (strcmp(argv[arg],"-n")==0)) { run = 0; arg++; }
+    while(argc>arg) {
+        if      (strcmp(argv[arg],"-v")==0)  verb++;
+        else if (strcmp(argv[arg],"-vv")==0) verb+=2;
+        else if (strcmp(argv[arg],"-n")==0)  run = 0;
+        else
+            break;
+        arg++;
+    }
     if (argc>arg) { len   = atoi(argv[arg]); arg++; }
     if (argc>arg) { iters = atoi(argv[arg]); arg++; }
     if (len == 0) len = 10000;
@@ -103,13 +116,33 @@ int main(int argc, char* argv[])
 
     // Gnerate vectorized variants & run against naive/original
 
-    Rewriter* r1 = dbrew_new();
-    if (verb>1) dbrew_verbose(r1, true, true, true);
-    dbrew_set_function(r1, (uint64_t) vcopy);
-    dbrew_config_parcount(r1, 3);
-    dbrew_config_force_unknown(r1, 0);
-    vcopy_t vcopy2 = (vcopy_t) dbrew_rewrite(r1, a, b, len);
-    if (verb) decode_func(r1, "vcopy2");
+#if __AVX__
+    bool do32 = true;
+#else
+    bool do32 = false;
+#endif
+
+    vcopy_t vcopy16, vcopy32;
+
+    Rewriter* rc16 = dbrew_new();
+    if (verb>1) dbrew_verbose(rc16, true, true, true);
+    dbrew_set_function(rc16, (uint64_t) vcopy);
+    dbrew_config_parcount(rc16, 3);
+    dbrew_config_force_unknown(rc16, 0);
+    dbrew_set_vectorsize(rc16, 16);
+    vcopy16 = (vcopy_t) dbrew_rewrite(rc16, a, b, len);
+    if (verb) decode_func(rc16, "vcopy16");
+
+    if (do32) {
+        Rewriter* rc32 = dbrew_new();
+        if (verb>1) dbrew_verbose(rc32, true, true, true);
+        dbrew_set_function(rc32, (uint64_t) vcopy);
+        dbrew_config_parcount(rc32, 3);
+        dbrew_config_force_unknown(rc32, 0);
+        dbrew_set_vectorsize(rc32, 32);
+        vcopy32 = (vcopy_t) dbrew_rewrite(rc32, a, b, len);
+        if (verb) decode_func(rc32, "vcopy32");
+    }
 
     printf("Running %d iterations of vcopy ...\n", iters);
     t1 = wtime();
@@ -124,20 +157,42 @@ int main(int argc, char* argv[])
     t3 = wtime();
     if (run)
         for(int iter = 0; iter < iters; iter++)
-            vcopy2(a, b, len);
+            vcopy16(a, b, len);
     t4 = wtime();
-    printf("  naive: %.3f s, un-rewritten: %.3f s, rewritten: %.3f s\n",
+    if (do32 && run)
+        for(int iter = 0; iter < iters; iter++)
+            vcopy32(a, b, len);
+    t5 = wtime();
+    printf("  naive: %.3f s, un-rewritten: %.3f s, rewritten-16: %.3f s",
            t2-t1, t3-t2, t4-t3);
+    if (do32)
+        printf(", rewritten-32: %.3f s", t5-t4);
+    printf("\n");
 
-    Rewriter* r2 = dbrew_new();
-    if (verb>1) dbrew_verbose(r2, true, true, true);
-    dbrew_set_function(r2, (uint64_t) vadd);
-    dbrew_config_parcount(r2, 4);
-    dbrew_config_force_unknown(r2, 0);
-    vadd_t vadd2 = (vadd_t) dbrew_rewrite(r2, a, b, c, len);
-    if (verb) decode_func(r2, "vadd2");
 
-    double sum1 = 0.0, sum2 = 0.0, sum3 = 0.0;
+    vadd_t vadd16, vadd32;
+
+    Rewriter* ra16 = dbrew_new();
+    if (verb>1) dbrew_verbose(ra16, true, true, true);
+    dbrew_set_function(ra16, (uint64_t) vadd);
+    dbrew_config_parcount(ra16, 4);
+    dbrew_config_force_unknown(ra16, 0);
+    dbrew_set_vectorsize(ra16, 16);
+    vadd16 = (vadd_t) dbrew_rewrite(ra16, a, b, c, len);
+    if (verb) decode_func(ra16, "vadd16");
+
+    if (do32) {
+        Rewriter* ra32 = dbrew_new();
+        if (verb>1) dbrew_verbose(ra32, true, true, true);
+        dbrew_set_function(ra32, (uint64_t) vadd);
+        dbrew_config_parcount(ra32, 4);
+        dbrew_config_force_unknown(ra32, 0);
+        dbrew_set_vectorsize(ra32, 32);
+        vadd32 = (vadd_t) dbrew_rewrite(ra32, a, b, c, len);
+        if (verb) decode_func(ra32, "vadd32");
+    }
+
+    double sum1 = 0.0, sum2 = 0.0, sum3 = 0.0, sum4 = 0.0;
     printf("Running %d iterations of vadd ...\n", iters);
     t1 = wtime();
     for(int iter = 0; iter < iters; iter++) {
@@ -153,11 +208,20 @@ int main(int argc, char* argv[])
     t3 = wtime();
     if (run)
         for(int iter = 0; iter < iters; iter++)
-            vadd2(a, b, c, len);
+            vadd16(a, b, c, len);
     for(int i = 0; i < len; i++) sum3 += a[i];
     t4 = wtime();
-    printf("  naive: %.3f s, un-rewritten: %.3f s, rewritten: %.3f s\n",
+    if (do32 && run)
+        for(int iter = 0; iter < iters; iter++)
+            vadd32(a, b, c, len);
+    for(int i = 0; i < len; i++) sum4 += a[i];
+    t5 = wtime();
+
+    printf("  naive: %.3f s, un-rewritten: %.3f s, rewritten-16: %.3f s",
            t2-t1, t3-t2, t4-t3);
-    printf("  sum naive: %f, sum rewritten: %f\n",
-           sum1, sum3);
+    if (do32)
+        printf(", rewritten-32: %.3f s", t5-t4);
+    printf("\n");
+    printf("  sum naive: %f, sum rewritten-16: %f, sum rewritten-16: %f\n",
+           sum1, sum3, sum4);
 }

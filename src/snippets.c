@@ -123,16 +123,21 @@ void apply4_R8V8_X2(uint64_t f, double* ov, double* iv)
 }
 
 #ifdef __AVX__
-#endif
-
-#ifdef __AVX__
 typedef __m256d (*dbrew_func_R8V8_X4_t)(__m256d);
 void apply4_R8V8_X4(uint64_t f, double* ov, double* iv)
 {
     dbrew_func_R8V8_X4_t vf = (dbrew_func_R8V8_X4_t) f;
+#if 0
+    // only works with 32-byte aligned iv/ov (TODO: provide both variants)
     ((__m256d*)ov)[0] = (*vf)( ((__m256d*)iv)[0] );
-}
+#else
+    // use intrinsics for generation of instructions coping with unalignedness
+    __m256d i = _mm256_loadu_pd(iv);
+    __m256d o = (*vf)(i);
+    _mm256_storeu_pd(ov, o);
 #endif
+}
+#endif // __AVX__
 
 
 // for dbrew_apply4_R8V8
@@ -153,11 +158,16 @@ void apply4_R8V8V8_X2(uint64_t f, double* ov, double* i1v, double* i2v)
 typedef __m256d (*dbrew_func_R8V8V8_X4_t)(__m256d,__m256d);
 void apply4_R8V8V8_X4(uint64_t f, double* ov, double* i1v, double* i2v)
 {
-    // ov[0] = (f)(i1v[0], i2v[0]);
-    // ov[1] = (f)(i1v[1], i2v[1]);
-    // ov[2] = (f)(i1v[2], i2v[2]);
-    // ov[3] = (f)(i1v[3], i2v[3]);
     dbrew_func_R8V8V8_X4_t vf = (dbrew_func_R8V8V8_X4_t) f;
+#if 0
+    // only works with 32-byte aligned iv/ov (TODO: provide both variants)
     ((__m256d*)ov)[0] = (*vf)( ((__m256d*)i1v)[0], ((__m256d*)i2v)[0] );
-}
+#else
+    // use intrinsics for generation of instructions coping with unalignedness
+    __m256d i1 = _mm256_loadu_pd(i1v);
+    __m256d i2 = _mm256_loadu_pd(i2v);
+    __m256d o = (*vf)(i1, i2);
+    _mm256_storeu_pd(ov, o);
 #endif
+}
+#endif // __AVX__
