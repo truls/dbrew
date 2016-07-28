@@ -34,25 +34,6 @@
 #include "generate.h"
 #include "vector.h"
 
-/**
- * Functions which may be used in code to be rewritten
-*/
-
-// mark a passed-through value as dynamic
-
-__attribute__ ((noinline))
-uint64_t makeDynamic(uint64_t v)
-{
-    return v;
-}
-
-// mark a passed-through value as static
-
-__attribute__ ((noinline))
-uint64_t makeStatic(uint64_t v)
-{
-    return v;
-}
 
 /**
  * DBrew API functions

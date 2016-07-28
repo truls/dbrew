@@ -38,43 +38,23 @@
  */
 
 
-// used to restrict configuration of expansion factor
-int maxVectorBytes(void)
+// mark a passed-through value as dynamic
+
+__attribute__ ((noinline))
+uint64_t makeDynamic(uint64_t v)
 {
-#ifdef __AVX__
-    return 32;
-#else
-    return 16; // SSE
-#endif
+    return v;
 }
 
-uint64_t expandedVectorVariant(uint64_t f, int s, VectorizeReq* vr)
+// mark a passed-through value as static
+
+__attribute__ ((noinline))
+uint64_t makeStatic(uint64_t v)
 {
-    if (s == 16) {
-        if (f == (uint64_t)dbrew_apply4_R8V8) {
-            *vr = VR_DoubleX2_RV;
-            return (uint64_t) apply4_R8V8_X2;
-        }
-        else if (f == (uint64_t)dbrew_apply4_R8V8V8) {
-            *vr = VR_DoubleX2_RVV;
-            return (uint64_t) apply4_R8V8V8_X2;
-        }
-    }
-#ifdef __AVX__
-    else if (s == 32) {
-        if (f == (uint64_t)dbrew_apply4_R8V8) {
-            *vr = VR_DoubleX4_RV;
-            return (uint64_t) apply4_R8V8_X4;
-        }
-        else if (f == (uint64_t)dbrew_apply4_R8V8V8) {
-            *vr = VR_DoubleX4_RVV;
-            return (uint64_t) apply4_R8V8V8_X4;
-        }
-    }
-#endif
-    assert(0);
-    return 0;
+    return v;
 }
+
+
 
 /* Vector API:
  * The rewriter will try to generated vectorized variants from a given
@@ -171,3 +151,44 @@ void apply4_R8V8V8_X4(uint64_t f, double* ov, double* i1v, double* i2v)
 #endif
 }
 #endif // __AVX__
+
+
+// helper functions
+
+// used to restrict configuration of expansion factor
+int maxVectorBytes(void)
+{
+#ifdef __AVX__
+    return 32;
+#else
+    return 16; // SSE
+#endif
+}
+
+uint64_t expandedVectorVariant(uint64_t f, int s, VectorizeReq* vr)
+{
+    if (s == 16) {
+        if (f == (uint64_t)dbrew_apply4_R8V8) {
+            *vr = VR_DoubleX2_RV;
+            return (uint64_t) apply4_R8V8_X2;
+        }
+        else if (f == (uint64_t)dbrew_apply4_R8V8V8) {
+            *vr = VR_DoubleX2_RVV;
+            return (uint64_t) apply4_R8V8V8_X2;
+        }
+    }
+#ifdef __AVX__
+    else if (s == 32) {
+        if (f == (uint64_t)dbrew_apply4_R8V8) {
+            *vr = VR_DoubleX4_RV;
+            return (uint64_t) apply4_R8V8_X4;
+        }
+        else if (f == (uint64_t)dbrew_apply4_R8V8V8) {
+            *vr = VR_DoubleX4_RVV;
+            return (uint64_t) apply4_R8V8V8_X4;
+        }
+    }
+#endif
+    assert(0);
+    return 0;
+}
