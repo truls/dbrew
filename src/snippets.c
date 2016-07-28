@@ -21,6 +21,7 @@
 #include "dbrew.h"
 #include "vector.h"
 
+#include <assert.h>
 #include <immintrin.h>
 
 /*
@@ -31,8 +32,49 @@
  * to help rewriting, and DBrew can arbitrarly replace their
  * instructions, e.g. make a NOP instruction out of it or substitue
  * with other variants.
+ *
+ * This file always should be compiled with optimizations flags ("-O2 -mavx"),
+ * as the functions may end up being embedded into rewritten code.
  */
 
+
+// used to restrict configuration of expansion factor
+int maxVectorBytes(void)
+{
+#ifdef __AVX__
+    return 32;
+#else
+    return 16; // SSE
+#endif
+}
+
+uint64_t expandedVectorVariant(uint64_t f, int s, VectorizeReq* vr)
+{
+    if (s == 16) {
+        if (f == (uint64_t)dbrew_apply4_R8V8) {
+            *vr = VR_DoubleX2_RV;
+            return (uint64_t) apply4_R8V8_X2;
+        }
+        else if (f == (uint64_t)dbrew_apply4_R8V8V8) {
+            *vr = VR_DoubleX2_RVV;
+            return (uint64_t) apply4_R8V8V8_X2;
+        }
+    }
+#ifdef __AVX__
+    else if (s == 32) {
+        if (f == (uint64_t)dbrew_apply4_R8V8) {
+            *vr = VR_DoubleX4_RV;
+            return (uint64_t) apply4_R8V8_X4;
+        }
+        else if (f == (uint64_t)dbrew_apply4_R8V8V8) {
+            *vr = VR_DoubleX4_RVV;
+            return (uint64_t) apply4_R8V8V8_X4;
+        }
+    }
+#endif
+    assert(0);
+    return 0;
+}
 
 /* Vector API:
  * The rewriter will try to generated vectorized variants from a given
@@ -79,6 +121,9 @@ void apply4_R8V8_X2(uint64_t f, double* ov, double* iv)
     ((__m128d*)ov)[0] = (*vf)( ((__m128d*)iv)[0] );
     ((__m128d*)ov)[1] = (*vf)( ((__m128d*)iv)[1] );
 }
+
+#ifdef __AVX__
+#endif
 
 #ifdef __AVX__
 typedef __m256d (*dbrew_func_R8V8_X4_t)(__m256d);

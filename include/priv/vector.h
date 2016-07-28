@@ -25,6 +25,9 @@
 uint64_t handleVectorCall(Rewriter *r, uint64_t f, EmuState* es);
 void runVectorization(RContext* c);
 
+int maxVectorBytes(void);
+uint64_t expandedVectorVariant(uint64_t f, int s, VectorizeReq* vr);
+
 // replacement functions
 
 // for dbrew_apply4_R8V8

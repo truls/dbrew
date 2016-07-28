@@ -190,6 +190,12 @@ uint64_t dbrew_rewrite_func(uint64_t f, ...);
 typedef double (*dbrew_func_R8V8_t)(double);
 typedef double (*dbrew_func_R8V8V8_t)(double, double);
 
+// Configuration for expansion requests.
+// <s> is size in bytes of vector registers to use; default is 16.
+// May be set to 32 for AVX.
+// Returns actual value used; this can differ from requested.
+int dbrew_set_vectorsize(Rewriter *r, int s);
+
 // 4x call f (signature double => double) and map to input/output vector iv/ov
 void dbrew_apply4_R8V8(dbrew_func_R8V8_t f, double* ov, double* iv);
 // 4x call f (signature double,double => double) and map to vectors i1v,i2v,ov

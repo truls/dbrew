@@ -54,7 +54,8 @@ uint64_t convertToVector(Rewriter* r, uint64_t func, VectorizeReq vreq)
 
     if (r->showEmuSteps) {
         dbrew_verbose(rr, true, true, true);
-        printf("Generating vectorized variant of %lx\n", func);
+        printf("Generating vectorized variant of %lx for %d-byte vectors\n",
+               func, r->vectorsize);
     }
     dbrew_set_function(rr, func);
     rr->vreq = vreq;
@@ -76,29 +77,11 @@ uint64_t convertToVector(Rewriter* r, uint64_t func, VectorizeReq vreq)
 
 uint64_t handleVectorCall(Rewriter* r, uint64_t f, EmuState* es)
 {
-    uint64_t rf; // redirect original vector API call to this variant
+    uint64_t rf;
     VectorizeReq vr;
 
-    if (f == (uint64_t)dbrew_apply4_R8V8) {
-#ifdef __AVX__
-        vr = VR_DoubleX4_RV;
-        rf = (uint64_t) apply4_R8V8_X4;
-#else
-        vr = VR_DoubleX2_RV;
-        rf = (uint64_t) apply4_R8V8_X2;
-#endif
-    }
-    else if (f == (uint64_t)dbrew_apply4_R8V8V8) {
-#ifdef __AVX__
-        vr = VR_DoubleX4_RVV;
-        rf = (uint64_t) apply4_R8V8V8_X4;
-#else
-        vr = VR_DoubleX2_RVV;
-        rf = (uint64_t) apply4_R8V8V8_X2;
-#endif
-    }
-    else
-        assert(0);
+     // redirect original vector API call to this variant
+    rf = expandedVectorVariant(f, r->vectorsize, &vr);
 
     // re-direct from scalar to vectorized kernel (function pointer in par1)
     uint64_t func = es->reg[RI_DI];

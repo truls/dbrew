@@ -238,6 +238,7 @@ struct _Rewriter {
 
     // vectorization config
     VectorizeReq vreq;
+    int vectorsize;
 
     // structs for emulator & capture config
     CaptureConfig* cc;

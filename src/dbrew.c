@@ -153,6 +153,15 @@ int dbrew_generated_size(Rewriter* r)
     return r->generatedCodeSize;
 }
 
+int dbrew_set_vectorsize(Rewriter* r, int s)
+{
+    int m = maxVectorBytes();
+    if (s > m) s = m;
+    assert((s == 16) || (s==32));
+
+    r->vectorsize = s;
+    return s;
+}
 
 //-----------------------------------------------------------------
 // convenience functions, using defaults
