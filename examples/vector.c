@@ -37,6 +37,14 @@ void vcopy(double* dst, double* src, int n)
 #endif
 }
 
+__attribute__ ((noinline))
+void naive_vcopy(double* dst, double* src, int n)
+{
+    int i;
+    for(i = 0; i < n; i++)
+        dst[i] = src[i];
+}
+
 
 // vadd
 
@@ -62,6 +70,14 @@ void vadd(double* dst, double* src1, double* src2, int n)
         n--;
     }
 #endif
+}
+
+__attribute__ ((noinline))
+void naive_vadd(double* dst, double* src1, double* src2, int n)
+{
+    int i;
+    for(i = 0; i < n; i++)
+        dst[i] = src1[i] + src2[i];
 }
 
 
@@ -148,8 +164,7 @@ int main(int argc, char* argv[])
     t1 = wtime();
     for(int iter = 0; iter < iters; iter++) {
         b[0] = (double) iter; // prohibit loop exchange
-        for(int i = 0; i < len; i++)
-            a[i] = b[i];
+        naive_vcopy(a, b, len);
     }
     t2 = wtime();
     for(int iter = 0; iter < iters; iter++)
@@ -197,8 +212,7 @@ int main(int argc, char* argv[])
     t1 = wtime();
     for(int iter = 0; iter < iters; iter++) {
         b[0] = (double) iter; // prohibit loop exchange
-        for(int i = 0; i < len; i++)
-            a[i] = b[i] + c[i];
+        naive_vadd(a, b, c, len);
     }
     for(int i = 0; i < len; i++) sum1 += a[i];
     t2 = wtime();
