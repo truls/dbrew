@@ -1,3 +1,7 @@
+# Explicitly set to gcc. Still can be overwritten by environment variable
+# Reason: later we check for GCC, and 'cc' may be configured not to be gcc (?)
+CC=gcc
+
 WFLAGS_BASE=-Wall -Wextra -Wmissing-field-initializers -Wunused-parameter \
             -Wold-style-definition -Wmissing-declarations -Wmissing-prototypes \
             -Wredundant-decls -Wmissing-noreturn -Wshadow -Wpointer-arith \
@@ -15,8 +19,18 @@ WFLAGS2=-Wswitch-enum -Wswitch -Waggregate-return
 CFLAGS=-g -std=gnu99 -Iinclude -Iinclude/priv $(WFLAGS)
 LDFLAGS=-g
 
-# options for compiling DBrew snippets
-SOPTS=-O2 -mavx
+# always compile examples and DBrew snippets with optimizations
+# this allows other DBrew code to still be debuggable
+OPTFLAGS=-O2 -mavx
+
+# some snippets 'switch' to AVX mode. hack to avoid 32-byte stack alignment
+# FIXME: rewriter should move such stack alignment to outermost level
+# clang does not know these options
+ifeq ($(CC),gcc)
+SNIPPETSFLAGS=$(OPTFLAGS) -mno-vzeroupper -mpreferred-stack-boundary=5
+else
+SNIPPETSFLAGS=$(OPTFLAGS)
+endif
 
 SRCS = $(wildcard src/*.c)
 OBJS = $(SRCS:.c=.o)
@@ -34,10 +48,10 @@ test: libdbrew.a
 	$(MAKE) test -C tests
 
 src/snippets.o: src/snippets.c
-	$(CC) $(CFLAGS) $(SOPTS) -c $< -o $@
+	$(CC) $(CFLAGS) $(SNIPPETSFLAGS) -c $< -o $@
 
 examples: libdbrew.a
-	cd examples && $(MAKE) OPTS='$(SOPTS)'
+	cd examples && $(MAKE) OPTS='$(OPTFLAGS)'
 
 clean:
 	rm -rf *~ *.o $(OBJS) libdbrew.a
