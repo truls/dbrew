@@ -37,3 +37,7 @@ void apply4_R8V8_X4(uint64_t f, double* ov, double* iv);
 // for dbrew_apply4_R8V8V8
 void apply4_R8V8V8_X2(uint64_t f, double* ov, double* i1v, double* i2v);
 void apply4_R8V8V8_X4(uint64_t f, double* ov, double* i1v, double* i2v);
+
+// for dbrew_apply4_R8P8
+void apply4_R8P8_X2(uint64_t f, double* ov, double* iv);
+void apply4_R8P8_X4(uint64_t f, double* ov, double* iv);

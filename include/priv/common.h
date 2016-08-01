@@ -139,8 +139,10 @@ typedef enum _VectorizeReq {
     VR_None = 0,
     VR_DoubleX2_RV,  // scalar double => 2x double vector, ret + par1
     VR_DoubleX2_RVV, // scalar double => 2x double vector, ret + par1 + par2
+    VR_DoubleX2_RP,  // scalar double => 2x double vector, ret + par1 pointer
     VR_DoubleX4_RV,  // scalar double => 4x double vector, ret + par1
-    VR_DoubleX4_RVV  // scalar double => 4x double vector, ret + par1 + par2
+    VR_DoubleX4_RVV, // scalar double => 4x double vector, ret + par1 + par2
+    VR_DoubleX4_RP   // scalar double => 4x double vector, ret + par1 pointer
 } VectorizeReq;
 
 

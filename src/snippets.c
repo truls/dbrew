@@ -83,6 +83,19 @@ void dbrew_apply4_R8V8V8(dbrew_func_R8V8V8_t f,
     ov[3] = (f)(i1v[3], i2v[3]);
 }
 
+// 4x call f (signature *double => double) and map to successive pointers/vector
+// R8P8:
+// "8-byte return value, parameter 1 is pointer to 8-byte element"
+__attribute__ ((noinline))
+void dbrew_apply4_R8P8(dbrew_func_R8P8_t f,
+                       double* ov, double* iv)
+{
+    ov[0] = (f)(iv + 0);
+    ov[1] = (f)(iv + 1);
+    ov[2] = (f)(iv + 2);
+    ov[3] = (f)(iv + 3);
+}
+
 
 //
 // replacement functions
@@ -120,7 +133,7 @@ void apply4_R8V8_X4(uint64_t f, double* ov, double* iv)
 #endif // __AVX__
 
 
-// for dbrew_apply4_R8V8
+// for dbrew_apply4_R8V8V8
 
 typedef __m128d (*dbrew_func_R8V8V8_X2_t)(__m128d,__m128d);
 void apply4_R8V8V8_X2(uint64_t f, double* ov, double* i1v, double* i2v)
@@ -153,6 +166,38 @@ void apply4_R8V8V8_X4(uint64_t f, double* ov, double* i1v, double* i2v)
 #endif // __AVX__
 
 
+// for dbrew_apply4_R8P8
+
+typedef __m128d (*dbrew_func_R8P8_X2_t)(__m128d*);
+void apply4_R8P8_X2(uint64_t f, double* ov, double* iv)
+{
+    // ov[0] = (f)(iv + 0);
+    // ov[1] = (f)(iv + 1);
+    // ov[2] = (f)(iv + 2);
+    // ov[3] = (f)(iv + 3);
+    dbrew_func_R8P8_X2_t vf = (dbrew_func_R8P8_X2_t) f;
+    ((__m128d*)ov)[0] = (*vf)( ((__m128d*)iv) + 0 );
+    ((__m128d*)ov)[1] = (*vf)( ((__m128d*)iv) + 1 );
+}
+
+#ifdef __AVX__
+typedef __m256d (*dbrew_func_R8P8_X4_t)(__m256d*);
+void apply4_R8P8_X4(uint64_t f, double* ov, double* iv)
+{
+    dbrew_func_R8P8_X4_t vf = (dbrew_func_R8P8_X4_t) f;
+#if 0
+    // only works with 32-byte aligned iv/ov (TODO: provide both variants)
+    ((__m256d*)ov)[0] = (*vf)( ((__m256d*)iv) );
+#else
+    // use intrinsics for generation of instructions coping with unalignedness
+    __m256d o = (*vf)( ((__m256d*)iv) );
+    _mm256_storeu_pd(ov, o);
+#endif
+}
+#endif // __AVX__
+
+
+
 // helper functions
 
 // used to restrict configuration of expansion factor
@@ -176,6 +221,10 @@ uint64_t expandedVectorVariant(uint64_t f, int s, VectorizeReq* vr)
             *vr = VR_DoubleX2_RVV;
             return (uint64_t) apply4_R8V8V8_X2;
         }
+        else if (f == (uint64_t)dbrew_apply4_R8P8) {
+            *vr = VR_DoubleX2_RP;
+            return (uint64_t) apply4_R8P8_X2;
+        }
     }
 #ifdef __AVX__
     else if (s == 32) {
@@ -186,6 +235,10 @@ uint64_t expandedVectorVariant(uint64_t f, int s, VectorizeReq* vr)
         else if (f == (uint64_t)dbrew_apply4_R8V8V8) {
             *vr = VR_DoubleX4_RVV;
             return (uint64_t) apply4_R8V8V8_X4;
+        }
+        else if (f == (uint64_t)dbrew_apply4_R8P8) {
+            *vr = VR_DoubleX4_RP;
+            return (uint64_t) apply4_R8P8_X4;
         }
     }
 #endif

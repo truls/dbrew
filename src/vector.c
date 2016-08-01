@@ -65,8 +65,10 @@ uint64_t convertToVector(Rewriter* r, uint64_t func, VectorizeReq vreq)
     switch(vreq) {
     case VR_DoubleX2_RV:  pCount = 1; hasVReturn = true; break;
     case VR_DoubleX2_RVV: pCount = 2; hasVReturn = true; break;
+    case VR_DoubleX2_RP:  pCount = 1; hasVReturn = true; break;
     case VR_DoubleX4_RV:  pCount = 1; hasVReturn = true; break;
     case VR_DoubleX4_RVV: pCount = 2; hasVReturn = true; break;
+    case VR_DoubleX4_RP:  pCount = 1; hasVReturn = true; break;
     default: assert(0);
     }
     if (hasVReturn)
@@ -103,10 +105,13 @@ uint64_t handleVectorCall(Rewriter* r, uint64_t f, EmuState* es)
 //
 
 typedef enum _VecRegType {
-    VRT_Unknown = 0,
+    VRT_Invalid = 0,
+    VRT_Unknown,
     VRT_Double,    // lower double set
     VRT_DoubleX2,  // original scalar double vectorized to 2 doubles
     VRT_DoubleX4,  // original scalar double vectorized to 4 doubles
+    VRT_PtrDoubleX2, // pointer to double => pointer to 2 doubles
+    VRT_PtrDoubleX4, // pointer to double => pointer to 4 doubles
 } VecRegType;
 
 // maintain expansion state of 16 vector registers
@@ -199,29 +204,52 @@ void vecPass(RContext* c, CBB* cbb)
 
 void runVectorization(RContext* c)
 {
-    int i, pCount;
-    bool vRet;
-    VecRegType expType;
+    int i;
+    VecRegType retType;
     Rewriter* r = c->r;
 
     assert(r->vreq != VR_None);
-    switch(r->vreq) {
-    case VR_DoubleX2_RV:  expType = VRT_DoubleX2; vRet = true; pCount = 1; break;
-    case VR_DoubleX2_RVV: expType = VRT_DoubleX2; vRet = true; pCount = 2; break;
-    case VR_DoubleX4_RV:  expType = VRT_DoubleX4; vRet = true; pCount = 1; break;
-    case VR_DoubleX4_RVV: expType = VRT_DoubleX4; vRet = true; pCount = 2; break;
-    default: break;
-    }
 
+    // tagging for xmm/ymm registers
     for(i=0; i<16; i++) vrt[i] = VRT_Unknown;
-    if (pCount>0) vrt[0] = expType;
-    if (pCount>1) vrt[1] = expType;
+    retType = VRT_Unknown;
+
+    switch(r->vreq) {
+    case VR_None: break;
+    case VR_DoubleX2_RV:
+        vrt[0] = VRT_DoubleX2;
+        retType = VRT_DoubleX2;
+        break;
+    case VR_DoubleX2_RVV:
+        vrt[0] = VRT_DoubleX2;
+        vrt[1] = VRT_DoubleX2;
+        retType = VRT_DoubleX2;
+        break;
+    case VR_DoubleX2_RP:
+        vrt[0] = VRT_PtrDoubleX2;
+        retType = VRT_DoubleX2;
+        break;
+    case VR_DoubleX4_RV:
+        vrt[0] = VRT_DoubleX4;
+        retType = VRT_DoubleX4;
+        break;
+    case VR_DoubleX4_RVV:
+        vrt[0] = VRT_DoubleX4;
+        vrt[1] = VRT_DoubleX4;
+        retType = VRT_DoubleX4;
+        break;
+    case VR_DoubleX4_RP:
+        vrt[0] = VRT_PtrDoubleX4;
+        retType = VRT_DoubleX4;
+        break;
+    default: assert(0);
+    }
 
     assert(r->capBBCount == 1);
     vecPass(c, r->capBB);
     if (c->e) return;
 
     // check for expanded return value
-    if (vRet)
-        assert(vrt[0] == expType);
+    if (retType != VRT_Invalid)
+        assert(vrt[0] == retType);
 }
