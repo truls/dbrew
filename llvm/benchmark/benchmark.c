@@ -337,6 +337,7 @@ benchmark_init_dbrew(StencilFunction fn)
     dbrew_set_capture_capacity(r, 100000, 100, 10000);
     dbrew_set_function(r, (uintptr_t) fn);
     dbrew_config_staticpar(r, 0);
+    dbrew_config_parcount(r, 4);
 
     return r;
 }
