@@ -70,7 +70,19 @@ matrix:
       env:
         - COMPILERC=clang
         - COMPILERCXX=clang++
-        - CLANGV=3.8.0
+        - CLANGV=3.8.1
+      addons:
+        apt:
+          sources:
+            - ubuntu-toolchain-r-test
+          packages:
+            - libstdc++6-4.9-dbg
+            - python3
+    - compiler: clang
+      env:
+        - COMPILERC=clang
+        - COMPILERCXX=clang++
+        - CLANGV=3.9.0
       addons:
         apt:
           sources:
