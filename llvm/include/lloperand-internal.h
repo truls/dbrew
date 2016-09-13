@@ -57,9 +57,13 @@ enum OperandDataType {
      **/
     OP_VI64,
     /**
-     * \brief Single Real, length chosen appropriately
+     * \brief Single 32-bit Real
      **/
-    OP_SF,
+    OP_SF32,
+    /**
+     * \brief Single 64-bit Real
+     **/
+    OP_SF64,
     /**
      * \brief Vector of floats
      **/

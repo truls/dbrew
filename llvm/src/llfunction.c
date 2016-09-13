@@ -244,14 +244,24 @@ ll_function_new_definition(uintptr_t address, LLConfig* config, LLState* state)
     LLVMValueRef params = LLVMGetFirstParam(function->llvmFunction);
 
     // Set all registers to undef first.
-    for (Reg i = Reg_AX; i < Reg_Max; i++)
-        ll_set_register(i, LLVMGetUndef(i < Reg_X0 ? i64 : iVec), state);
+    for (int i = 0; i < RI_GPMax; i++)
+        ll_set_register(getReg(RT_GP64, i), LLVMGetUndef(i64), state);
+
+    for (int i = 0; i < RI_XMMMax; i++)
+        ll_set_register(getReg(RT_XMM, i), LLVMGetUndef(iVec), state);
 
     for (int i = 0; i < RFLAG_Max; i++)
         ll_basic_block_set_flag(initialBB, i, LLVMGetUndef(i1));
 
 
-    Reg gpRegs[6] = { Reg_DI, Reg_SI, Reg_DX, Reg_CX, Reg_8, Reg_9 };
+    Reg gpRegs[6] = {
+        getReg(RT_GP64, RI_DI),
+        getReg(RT_GP64, RI_SI),
+        getReg(RT_GP64, RI_D),
+        getReg(RT_GP64, RI_C),
+        getReg(RT_GP64, RI_8),
+        getReg(RT_GP64, RI_9),
+    };
     int gpRegOffset = 0;
     int fpRegOffset = 0;
     for (size_t i = 0; i < paramCount; i++)
@@ -261,14 +271,14 @@ ll_function_new_definition(uintptr_t address, LLConfig* config, LLState* state)
         if (paramTypeKind == LLVMPointerTypeKind)
         {
             LLVMValueRef intValue = LLVMBuildPtrToInt(state->builder, params, i64, "");
-            ll_operand_store(OP_SI, ALIGN_MAXIMUM, getRegOp(VT_64, gpRegs[gpRegOffset++]), REG_DEFAULT, intValue, state);
+            ll_operand_store(OP_SI, ALIGN_MAXIMUM, getRegOp(gpRegs[gpRegOffset++]), REG_DEFAULT, intValue, state);
         }
         else if (paramTypeKind == LLVMIntegerTypeKind)
-            ll_operand_store(OP_SI, ALIGN_MAXIMUM, getRegOp(VT_64, gpRegs[gpRegOffset++]), REG_DEFAULT, params, state);
+            ll_operand_store(OP_SI, ALIGN_MAXIMUM, getRegOp(gpRegs[gpRegOffset++]), REG_DEFAULT, params, state);
         else if (paramTypeKind == LLVMFloatTypeKind)
-            ll_operand_store(OP_SF, ALIGN_MAXIMUM, getRegOp(VT_32, Reg_X0 + (fpRegOffset++)), REG_ZERO_UPPER, params, state);
+            ll_operand_store(OP_SF32, ALIGN_MAXIMUM, getRegOp(getReg(RT_XMM, RI_XMM0 + (fpRegOffset++))), REG_ZERO_UPPER, params, state);
         else if (paramTypeKind == LLVMDoubleTypeKind)
-            ll_operand_store(OP_SF, ALIGN_MAXIMUM, getRegOp(VT_64, Reg_X0 + (fpRegOffset++)), REG_ZERO_UPPER, params, state);
+            ll_operand_store(OP_SF64, ALIGN_MAXIMUM, getRegOp(getReg(RT_XMM, RI_XMM0 + (fpRegOffset++))), REG_ZERO_UPPER, params, state);
         else
             warn_if_reached();
 
@@ -279,7 +289,7 @@ ll_function_new_definition(uintptr_t address, LLConfig* config, LLState* state)
     LLVMValueRef stackSize = LLVMConstInt(i64, config->stackSize, false);
     LLVMValueRef stack = LLVMBuildArrayAlloca(state->builder, i8, stackSize, "");
     LLVMValueRef sp = LLVMBuildGEP(state->builder, stack, &stackSize, 1, "");
-    ll_basic_block_set_register(initialBB, Reg_SP, LLVMBuildPtrToInt(state->builder, sp, i64, "sp"));
+    ll_basic_block_set_register(initialBB, getReg(RT_GP64, RI_SP), LLVMBuildPtrToInt(state->builder, sp, i64, "sp"));
 
     LLVMSetAlignment(stack, 16);
 

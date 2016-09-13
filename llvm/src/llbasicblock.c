@@ -95,11 +95,16 @@ struct LLBasicBlock {
     /**
      * \brief The LLVM values of the architectural general purpose registers
      *
-     * Ordering: 16 GP regs (i64), IP reg (i64), vector registers).
-     * The registers always store integers of an appropriate length.
+     * The registers always store integers with 64 bits length.
+     **/
+    LLVMValueRef gpRegisters[RI_GPMax];
+
+    /**
+     * \brief The LLVM values of the SSE registers
+     *
      * The vector length depends on #LL_VECTOR_REGISTER_SIZE.
      **/
-    LLVMValueRef registers[Reg_Max - Reg_AX];
+    LLVMValueRef sseRegisters[RI_XMMMax];
 
     /**
      * \brief The LLVM values of the architectural general purpose registers
@@ -107,9 +112,19 @@ struct LLBasicBlock {
     LLVMValueRef flags[RFLAG_Max];
 
     /**
+     * \brief The LLVM value of the current instruction address
+     **/
+    LLVMValueRef ipRegister;
+
+    /**
      * \brief The phi nodes for the registers
      **/
-    LLVMValueRef phiNodesRegisters[Reg_Max - Reg_AX];
+    LLVMValueRef phiNodesGpRegisters[RI_GPMax];
+
+    /**
+     * \brief The phi nodes for the registers
+     **/
+    LLVMValueRef phiNodesSseRegisters[RI_XMMMax];
 
     /**
      * \brief The phi nodes for the flags
@@ -421,13 +436,20 @@ ll_basic_block_build_ir(LLBasicBlock* bb, LLState* state)
 
     LLVMPositionBuilderAtEnd(state->builder, bb->llvmBB);
 
-    for (int i = 0; i < Reg_Max - Reg_AX; i++)
+    for (int i = 0; i < RI_GPMax; i++)
     {
-        int length = i < Reg_X0 - Reg_AX ? 64 : LL_VECTOR_REGISTER_SIZE;
-        phiNode = LLVMBuildPhi(state->builder, LLVMIntTypeInContext(state->context, length), "");
+        phiNode = LLVMBuildPhi(state->builder, LLVMInt64TypeInContext(state->context), "");
 
-        bb->registers[i] = phiNode;
-        bb->phiNodesRegisters[i] = phiNode;
+        bb->gpRegisters[i] = phiNode;
+        bb->phiNodesGpRegisters[i] = phiNode;
+    }
+
+    for (int i = 0; i < RI_XMMMax; i++)
+    {
+        phiNode = LLVMBuildPhi(state->builder, LLVMIntTypeInContext(state->context, LL_VECTOR_REGISTER_SIZE), "");
+
+        bb->sseRegisters[i] = phiNode;
+        bb->phiNodesSseRegisters[i] = phiNode;
     }
 
     for (int i = 0; i < RFLAG_Max; i++)
@@ -480,52 +502,78 @@ ll_basic_block_fill_phis(LLBasicBlock* bb)
     LLVMValueRef values[bb->predCount];
     LLVMBasicBlockRef bbs[bb->predCount];
 
-    for (int j = 0; j < Reg_Max - Reg_AX; j++)
+    for (int j = 0; j < RI_GPMax; j++)
     {
-        bool isUndef = true;
-
         for (size_t i = 0; i < bb->predCount; i++)
         {
             bbs[i] = bb->preds[i]->llvmBB;
-            values[i] = bb->preds[i]->registers[j];
-
-            isUndef = isUndef && (LLVMIsUndef(values[i]) || values[i] == bb->phiNodesRegisters[j]);
+            values[i] = bb->preds[i]->gpRegisters[j];
         }
 
-        LLVMAddIncoming(bb->phiNodesRegisters[j], values, bbs, bb->predCount);
+        LLVMAddIncoming(bb->phiNodesGpRegisters[j], values, bbs, bb->predCount);
+    }
 
-        // Stylistic improvement: remove phis which are actually undef
-        if (isUndef || j == Reg_IP - Reg_AX)
+    for (int j = 0; j < RI_XMMMax; j++)
+    {
+        for (size_t i = 0; i < bb->predCount; i++)
         {
-            LLVMValueRef phiNode = bb->phiNodesRegisters[j];
-            LLVMValueRef undef = LLVMGetUndef(LLVMTypeOf(bb->phiNodesRegisters[j]));
-
-            LLVMReplaceAllUsesWith(phiNode, undef);
-            LLVMInstructionEraseFromParent(phiNode);
-
-            if (bb->registers[j] == phiNode)
-            {
-                bb->registers[j] = undef;
-            }
-
-            bb->phiNodesRegisters[j] = undef;
+            bbs[i] = bb->preds[i]->llvmBB;
+            values[i] = bb->preds[i]->sseRegisters[j];
         }
+
+        LLVMAddIncoming(bb->phiNodesSseRegisters[j], values, bbs, bb->predCount);
     }
 
     for (int j = 0; j < RFLAG_Max; j++)
     {
-        bool isUndef = true;
-
         for (size_t i = 0; i < bb->predCount; i++)
         {
             bbs[i] = bb->preds[i]->llvmBB;
             values[i] = bb->preds[i]->flags[j];
-
-            isUndef = isUndef && (LLVMIsUndef(values[i]) || values[i] == bb->phiNodesFlags[j]);
         }
 
         LLVMAddIncoming(bb->phiNodesFlags[j], values, bbs, bb->predCount);
     }
+}
+
+/**
+ * Get a pointer for a given register in the appropriate register file.
+ *
+ * \private
+ *
+ * \author Alexis Engelke
+ *
+ * \param bb The basic block
+ * \param reg The register
+ * \returns A pointer to the LLVM value in the register file.
+ **/
+static LLVMValueRef*
+ll_basic_block_get_register_ptr(LLBasicBlock* bb, Reg reg)
+{
+    switch (reg.rt)
+    {
+        case RT_GP8:
+        case RT_GP16:
+        case RT_GP32:
+        case RT_GP64:
+        case RT_GP8Leg:
+            return &bb->gpRegisters[reg.ri];
+        case RT_XMM:
+        case RT_YMM:
+            return &bb->sseRegisters[reg.ri];
+        case RT_IP:
+            return &bb->ipRegister;
+        case RT_Flag:
+        case RT_X87:
+        case RT_MMX:
+        case RT_ZMM:
+        case RT_Max:
+        case RT_None:
+        default:
+            warn_if_reached();
+    }
+
+    return NULL;
 }
 
 /**
@@ -542,7 +590,7 @@ ll_basic_block_fill_phis(LLBasicBlock* bb)
 LLVMValueRef
 ll_basic_block_get_register(LLBasicBlock* bb, Reg reg)
 {
-    return bb->registers[reg - Reg_AX];
+    return *ll_basic_block_get_register_ptr(bb, reg);
 }
 
 /**
@@ -559,7 +607,8 @@ ll_basic_block_get_register(LLBasicBlock* bb, Reg reg)
 void
 ll_basic_block_set_register(LLBasicBlock* bb, Reg reg, LLVMValueRef value)
 {
-    bb->registers[reg - Reg_AX] = value;
+    LLVMValueRef* registerPtr = ll_basic_block_get_register_ptr(bb, reg);
+    *registerPtr = value;
 }
 
 /**

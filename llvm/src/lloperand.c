@@ -47,6 +47,47 @@
 #define SHUFFLE_VECTOR
 
 /**
+ * Infer the size of the operand.
+ *
+ * \private
+ *
+ * \author Alexis Engelke
+ *
+ * \param dataType The data type
+ * \param operand The operand
+ * \returns The bit length of the operand
+ **/
+static int
+ll_operand_get_type_length(OperandDataType dataType, Operand* operand)
+{
+    int bits = -1;
+
+    switch (dataType)
+    {
+        case OP_SI:
+        case OP_VI8:
+        case OP_VI64:
+        case OP_VI32:
+        case OP_VF32:
+        case OP_VF64:
+            bits = opTypeWidth(operand);
+            break;
+        case OP_SF32:
+            bits = 32;
+            break;
+        case OP_SF64:
+            bits = 64;
+            break;
+        default:
+            warn_if_reached();
+            break;
+
+    }
+
+    return bits;
+}
+
+/**
  * Infer the LLVM type from the requested data type and the number of bits.
  *
  * \private
@@ -86,13 +127,11 @@ ll_operand_get_type(OperandDataType dataType, int bits, LLState* state)
             else
                 warn_if_reached();
             break;
-        case OP_SF:
-            if (bits == 32)
-                type = LLVMFloatTypeInContext(state->context);
-            else if (bits == 64)
-                type = LLVMDoubleTypeInContext(state->context);
-            else
-                warn_if_reached();
+        case OP_SF32:
+            type = LLVMFloatTypeInContext(state->context);
+            break;
+        case OP_SF64:
+            type = LLVMDoubleTypeInContext(state->context);
             break;
         case OP_VF32:
             if (bits % 32 == 0)
@@ -269,7 +308,7 @@ ll_operand_get_address(OperandDataType dataType, Operand* operand, LLState* stat
 
     LLVMTypeRef pointerType;
     int addrspace;
-    int bits = opTypeWidth(operand);
+    int bits = ll_operand_get_type_length(dataType, operand);
 
     switch (operand->seg)
     {
@@ -293,7 +332,7 @@ ll_operand_get_address(OperandDataType dataType, Operand* operand, LLState* stat
     // Optimized method to improve alias analysis which then allows vectorization
     if ((operand->scale % (bits / 8)) == 0 && (((int64_t) operand->val) % (bits / 8)) == 0)
     {
-        if (operand->reg != Reg_None)
+        if (operand->reg.rt != RT_None)
         {
             result = LLVMBuildSExtOrBitCast(state->builder, ll_get_register(operand->reg, state), i64, "");
 
@@ -331,7 +370,7 @@ ll_operand_get_address(OperandDataType dataType, Operand* operand, LLState* stat
         // Inefficient pointer computations for programs which do strange things
         result = LLVMConstInt(i64, operand->val, false);
 
-        if (operand->reg != Reg_None)
+        if (operand->reg.rt != RT_None)
         {
             LLVMValueRef offset = LLVMBuildSExtOrBitCast(state->builder, ll_get_register(operand->reg, state), i64, "");
             result = LLVMBuildAdd(state->builder, result, offset, "");
@@ -369,9 +408,10 @@ ll_operand_get_address(OperandDataType dataType, Operand* operand, LLState* stat
 LLVMValueRef
 ll_operand_load(OperandDataType dataType, Alignment alignment, Operand* operand, LLState* state)
 {
+    int bits = ll_operand_get_type_length(dataType, operand);
     LLVMValueRef result = NULL;
     LLVMValueRef address;
-    LLVMTypeRef type = ll_operand_get_type(dataType, opTypeWidth(operand), state);
+    LLVMTypeRef type = ll_operand_get_type(dataType, bits, state);
 
     switch (operand->type)
     {
@@ -387,9 +427,10 @@ ll_operand_load(OperandDataType dataType, Alignment alignment, Operand* operand,
         case OT_Reg64:
         case OT_Reg128:
         case OT_Reg256:
+        case OT_Reg512:
             {
                 LLVMValueRef reg = ll_get_register(operand->reg, state);
-                result = ll_cast_from_int(reg, dataType, opTypeWidth(operand), state);
+                result = ll_cast_from_int(reg, dataType, bits, state);
             }
             break;
         case OT_Ind8:
@@ -398,10 +439,11 @@ ll_operand_load(OperandDataType dataType, Alignment alignment, Operand* operand,
         case OT_Ind64:
         case OT_Ind128:
         case OT_Ind256:
+        case OT_Ind512:
             address = ll_operand_get_address(dataType, operand, state);
             result = LLVMBuildLoad(state->builder, address, "");
             if (alignment == ALIGN_MAXIMUM)
-                LLVMSetAlignment(result, opTypeWidth(operand) / 8);
+                LLVMSetAlignment(result, bits / 8);
             else
                 LLVMSetAlignment(result, alignment);
             break;
@@ -434,8 +476,8 @@ ll_operand_store(OperandDataType dataType, Alignment alignment, Operand* operand
     LLVMValueRef result;
 
     LLVMTypeRef i64 = LLVMInt64TypeInContext(state->context);
-    unsigned int operandWidth = opTypeWidth(operand);
-    LLVMTypeRef operandIntType = LLVMIntTypeInContext(state->context, opTypeWidth(operand));
+    int operandWidth = ll_operand_get_type_length(dataType, operand);
+    LLVMTypeRef operandIntType = LLVMIntTypeInContext(state->context, operandWidth);
 
     switch (operand->type)
     {
@@ -445,8 +487,10 @@ ll_operand_store(OperandDataType dataType, Alignment alignment, Operand* operand
         case OT_Reg64:
         case OT_Reg128:
         case OT_Reg256:
+        case OT_Reg512:
             {
-                int regWidth = operand->reg < Reg_X0 ? 64 : LL_VECTOR_REGISTER_SIZE;
+                int regWidth = operand->reg.rt == RT_XMM ? LL_VECTOR_REGISTER_SIZE : 64;
+                // int regWidth = operand->reg < Reg_X0 ? 64 : LL_VECTOR_REGISTER_SIZE;
 
                 LLVMTypeRef regType = LLVMIntTypeInContext(state->context, regWidth);
 
@@ -521,7 +565,7 @@ ll_operand_store(OperandDataType dataType, Alignment alignment, Operand* operand
                 ll_set_register(operand->reg, result, state);
 
                 char buffer[20];
-                int len = snprintf(buffer, sizeof(buffer), "asm.reg.%s", regName(operand->reg, operand->type));
+                int len = snprintf(buffer, sizeof(buffer), "asm.reg.%s", regName(operand->reg));
                 LLVMSetMetadata(result, LLVMGetMDKindIDInContext(state->context, buffer, len), state->emptyMD);
             }
             break;
@@ -531,11 +575,12 @@ ll_operand_store(OperandDataType dataType, Alignment alignment, Operand* operand
         case OT_Ind64:
         case OT_Ind128:
         case OT_Ind256:
+        case OT_Ind512:
             address = ll_operand_get_address(dataType, operand, state);
             result = LLVMBuildBitCast(state->builder, value, LLVMGetElementType(LLVMTypeOf(address)), "");
             result = LLVMBuildStore(state->builder, result, address);
             if (alignment == ALIGN_MAXIMUM)
-                LLVMSetAlignment(result, opTypeWidth(operand) / 8);
+                LLVMSetAlignment(result, operandWidth / 8);
             else
                 LLVMSetAlignment(result, alignment);
             break;
@@ -554,7 +599,14 @@ ll_operand_store(OperandDataType dataType, Alignment alignment, Operand* operand
 void
 ll_operand_construct_args(LLVMTypeRef fnType, LLVMValueRef* args, LLState* state)
 {
-    Reg gpRegisters[6] = { Reg_DI, Reg_SI, Reg_DX, Reg_CX, Reg_8, Reg_9 };
+    Reg gpRegisters[6] = {
+        getReg(RT_GP64, RI_DI),
+        getReg(RT_GP64, RI_SI),
+        getReg(RT_GP64, RI_D),
+        getReg(RT_GP64, RI_C),
+        getReg(RT_GP64, RI_8),
+        getReg(RT_GP64, RI_9),
+    };
     int gpRegisterIndex = 0;
 
     size_t argCount = LLVMCountParamTypes(fnType);
