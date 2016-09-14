@@ -31,7 +31,7 @@ LDFLAGS = `$(LLVM_CONFIG) --ldflags` -g
 LLVM_MODULES = bitwriter core ipo mcjit scalaropts support vectorize x86codegen
 LDLIBS = `$(LLVM_CONFIG) --libs $(LLVM_MODULES)` -lstdc++ -lm -lz -ldl -lpthread -ltinfo
 # `$(LLVM_CONFIG) --system-libs`
-# LDLIBS = -lLLVM-3.7
+# LDLIBS = -lLLVM-3.8
 
 SRCS_C = $(wildcard src/*.c)
 SRCS_CXX = $(wildcard src/*.cc)

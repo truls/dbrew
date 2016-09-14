@@ -1,7 +1,7 @@
 ; ModuleID = '<llengine>'
 target triple = "x86_64-pc-linux-gnu"
 
-; Function Attrs: nounwind
+; Function Attrs: norecurse nounwind
 define i64 @test(i8* noalias nocapture, i8* noalias nocapture readnone) #0 {
   %3 = bitcast i8* %0 to <4 x float>*
   %4 = load <4 x float>, <4 x float>* %3, align 8
@@ -11,7 +11,7 @@ define i64 @test(i8* noalias nocapture, i8* noalias nocapture readnone) #0 {
   ret i64 0
 }
 
-attributes #0 = { nounwind }
+attributes #0 = { norecurse nounwind }
 
 Result: 0 2.000000 2.000000 3.000000 3.000000
 Result: 0 2.000000 2.000000 3.000000 3.000000

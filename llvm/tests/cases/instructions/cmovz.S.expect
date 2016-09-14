@@ -1,7 +1,7 @@
 ; ModuleID = '<llengine>'
 target triple = "x86_64-pc-linux-gnu"
 
-; Function Attrs: nounwind readnone
+; Function Attrs: norecurse nounwind readnone
 define i64 @test(i8* readnone, i8*) #0 {
   %3 = ptrtoint i8* %1 to i64, !asm.reg.rsi !0
   %4 = icmp eq i8* %0, null
@@ -9,7 +9,7 @@ define i64 @test(i8* readnone, i8*) #0 {
   ret i64 %5
 }
 
-attributes #0 = { nounwind readnone }
+attributes #0 = { norecurse nounwind readnone }
 
 !0 = !{}
 

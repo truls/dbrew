@@ -3,7 +3,7 @@ target triple = "x86_64-pc-linux-gnu"
 
 @__ll_global_base__ = external global i8
 
-; Function Attrs: nounwind
+; Function Attrs: norecurse nounwind
 define i64 @test(i8* noalias nocapture) #0 {
   %2 = bitcast i8* %0 to <2 x i64>*
   %3 = load <2 x i64>, <2 x i64>* bitcast (i8* @__ll_global_base__ to <2 x i64>*), align 8
@@ -13,7 +13,7 @@ define i64 @test(i8* noalias nocapture) #0 {
   ret i64 0
 }
 
-attributes #0 = { nounwind }
+attributes #0 = { norecurse nounwind }
 
 Result: 0 11 22 3 4 5 6 7 8
 Result: 0 11 22 3 4 5 6 7 8

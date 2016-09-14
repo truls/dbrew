@@ -1,7 +1,7 @@
 ; ModuleID = '<llengine>'
 target triple = "x86_64-pc-linux-gnu"
 
-; Function Attrs: nounwind readonly
+; Function Attrs: norecurse nounwind readonly
 define i64 @test(i8* noalias, i8* noalias nocapture readonly, i64, i64) #0 {
   %5 = bitcast i8* %0 to i64*
   %6 = load i64, i64* %5, align 8, !asm.reg.r11 !0
@@ -47,7 +47,7 @@ define i64 @test(i8* noalias, i8* noalias nocapture readonly, i64, i64) #0 {
   br i1 %37, label %12, label %16
 }
 
-attributes #0 = { nounwind readonly }
+attributes #0 = { norecurse nounwind readonly }
 
 !0 = !{}
 

@@ -1,14 +1,14 @@
 ; ModuleID = '<llengine>'
 target triple = "x86_64-pc-linux-gnu"
 
-; Function Attrs: nounwind readnone
+; Function Attrs: norecurse nounwind readnone
 define i64 @test(i64) #0 {
   %2 = icmp sgt i64 %0, 0
   %3 = select i1 %2, i64 %0, i64 0
   ret i64 %3
 }
 
-attributes #0 = { nounwind readnone }
+attributes #0 = { norecurse nounwind readnone }
 
 Result: 10
 Result: 10

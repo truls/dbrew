@@ -1,12 +1,12 @@
 ; ModuleID = '<llengine>'
 target triple = "x86_64-pc-linux-gnu"
 
-; Function Attrs: nounwind readnone
+; Function Attrs: norecurse nounwind readnone
 define i64 @__dbrew__(i8* readnone, i8* nocapture readnone, i8* nocapture readnone, i8* nocapture readnone, i8* nocapture readnone, i8* nocapture readnone) #0 {
   %7 = icmp ne i8* %0, null
   %8 = zext i1 %7 to i64
   ret i64 %8
 }
 
-attributes #0 = { nounwind readnone }
+attributes #0 = { norecurse nounwind readnone }
 

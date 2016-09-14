@@ -93,7 +93,7 @@ matrix:
 
 # TODO: Eventually cache clang
 install:
-  - export LLVM_VERSION=3.7.1
+  - export LLVM_VERSION=3.8.0
   - if [ -n "$CLANGV" ]; then mkdir $HOME/clang+llvm-$CLANGV; fi
   - if [ -n "$CLANGV" ]; then export PATH=$HOME/clang+llvm-$CLANGV/bin:$PATH; fi
   - if [ -n "$CLANGV" ]; then export LD_LIBRARY_PATH=$HOME/clang+llvm-$CLANGV/lib:$LD_LIBRARY_PATH; fi
@@ -115,6 +115,7 @@ install:
   - $LLVM_CONFIG --libs
   - $LLVM_CONFIG --system-libs
   - $LLVM_CONFIG --components
+  - $LLVM_CONFIG --shared-mode
 
 script:
   - make -j4 CI=1 LLVM_CONFIG=$LLVM_CONFIG CC=$COMPILERC

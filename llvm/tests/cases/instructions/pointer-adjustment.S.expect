@@ -1,7 +1,7 @@
 ; ModuleID = '<llengine>'
 target triple = "x86_64-pc-linux-gnu"
 
-; Function Attrs: nounwind
+; Function Attrs: norecurse nounwind
 define i64 @test(i8* noalias) #0 {
   %2 = ptrtoint i8* %0 to i64, !asm.reg.rdi !0
   %3 = bitcast i8* %0 to i64*
@@ -46,7 +46,7 @@ define i64 @test(i8* noalias) #0 {
   ret i64 0
 }
 
-attributes #0 = { nounwind }
+attributes #0 = { norecurse nounwind }
 
 !0 = !{}
 
