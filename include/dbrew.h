@@ -95,8 +95,12 @@
 #ifndef DBREW_H
 #define DBREW_H
 
-#include <stdint.h>
 #include <stdbool.h>
+#include <stdint.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 typedef void (*void_func)(void);
 
@@ -205,5 +209,8 @@ void dbrew_apply4_R8V8V8(dbrew_func_R8V8V8_t f,
 // 4x call f (signature double* => double), map to input array pointers/output vector
 void dbrew_apply4_R8P8(dbrew_func_R8P8_t f, double* ov, double* iv);
 
+#ifdef __cplusplus
+}
+#endif
 
 #endif // DBREW_H
