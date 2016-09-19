@@ -89,7 +89,7 @@ static
 int GP64RegEncoding(Reg r)
 {
     assert(r.rt == RT_GP64);
-    assert((r.ri >= 0) && (r.ri < RI_GPMax));
+    assert(r.ri < RI_GPMax);
     return r.ri;
 }
 

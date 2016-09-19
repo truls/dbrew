@@ -131,7 +131,7 @@ bool regTypeIsV(RegType rt)
 bool regIsGP(Reg r)
 {
     if (regTypeIsGP(r.rt)) {
-        assert((r.ri >= 0) && (r.ri < RI_GPMax));
+        assert(r.ri < RI_GPMax);
         return true;
     }
     return false;
@@ -141,14 +141,14 @@ bool regIsV(Reg r)
 {
     switch(r.rt) {
     case RT_MMX:
-        assert((r.ri >= 0) && (r.ri < RI_MMMax));
+        assert(r.ri < RI_MMMax);
         break;
     case RT_XMM:
     case RT_YMM:
-        assert((r.ri >= 0) && (r.ri < RI_XMMMax));
+        assert(r.ri < RI_XMMMax);
         break;
     case RT_ZMM:
-        assert((r.ri >= 0) && (r.ri < RI_ZMMMax));
+        assert(r.ri < RI_ZMMMax);
         break;
     default:
         return false;
@@ -160,7 +160,7 @@ bool regIsV(Reg r)
 RegIndex regGP64Index(Reg r)
 {
     if (r.rt == RT_GP64) {
-        assert((r.ri >= 0) && (r.ri < RI_GPMax));
+        assert(r.ri < RI_GPMax);
         return r.ri;
     }
     return RI_None;
@@ -170,7 +170,7 @@ RegIndex regGP64Index(Reg r)
 RegIndex regVIndex(Reg r)
 {
     if ((r.rt == RT_XMM) || (r.rt == RT_YMM) || (r.rt == RT_ZMM)) {
-        assert((r.ri >= 0) && (r.ri < RI_XMMMax));
+        assert(r.ri < RI_XMMMax);
         return r.ri;
     }
     return RI_None;
@@ -186,7 +186,7 @@ Reg getReg(RegType rt, RegIndex ri)
         break;
     case RT_GP8Leg:
     case RT_MMX:
-        assert((ri >= 0) && (ri<8));
+        assert(ri < 8);
         break;
     case RT_GP8:
     case RT_GP16:
@@ -194,7 +194,7 @@ Reg getReg(RegType rt, RegIndex ri)
     case RT_GP64:
     case RT_XMM:
     case RT_YMM:
-        assert((ri >= 0) && (ri<16));
+        assert(ri < 16);
         break;
     default:
         assert(0);
