@@ -1,5 +1,6 @@
 
 INTERLINES=32
+LLVM_CONFIG=llvm-config
 
 WFLAGS_BASE=-Wall -Wextra -Wmissing-field-initializers -Wunused-parameter \
 			-Wold-style-definition -Wmissing-declarations -Wmissing-prototypes \
@@ -9,19 +10,21 @@ WFLAGS_BASE=-Wall -Wextra -Wmissing-field-initializers -Wunused-parameter \
 			-Wmissing-include-dirs -Wundef -Wmissing-format-attribute \
 			-Wswitch-enum -Wswitch -Waggregate-return
 
+LLVM_MODULES = bitwriter core ipo mcjit scalaropts support vectorize x86codegen
+
 CFLAGS=-g -std=c99 -I../include -I../../include/priv -I../../include $(WFLAGS) \
-	   -D__STDC_CONSTANT_MACROS -D__STDC_LIMIT_MACROS -D_POSIX_C_SOURCE=200809 \
+	   `$(LLVM_CONFIG) --cppflags` -D_POSIX_C_SOURCE=200809 \
 	   -DSTENCIL_INTERLINES=$(INTERLINES) -O3 -msse2 -msse3 -mssse3
-LDFLAGS=-g -L/usr/lib64/llvm
-LDLIBS=-lLLVM-3.8  ../../libdbrew.a ../libdbrew-llvm.a
+LDFLAGS = `$(LLVM_CONFIG) --ldflags` -g
+LDLIBS = `$(LLVM_CONFIG) --libs $(LLVM_MODULES)` -lstdc++ -lm -lz -ldl -lpthread -ltinfo
 
 all: benchmark-$(INTERLINES).o benchmark-line-$(INTERLINES).o
 
 benchmark-$(INTERLINES).o:
-	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ benchmark.c timer.c $(LDLIBS)
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ benchmark.c timer.c ../../libdbrew.a ../libdbrew-llvm.a $(LDLIBS)
 
 benchmark-line-$(INTERLINES).o: benchmark-line.c timer.c Makefile
-	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ benchmark-line.c timer.c $(LDLIBS)
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ benchmark-line.c timer.c ../../libdbrew.a ../libdbrew-llvm.a $(LDLIBS)
 
 .PHONY: clean
 clean:
