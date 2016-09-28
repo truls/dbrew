@@ -15,12 +15,13 @@ CFLAGS=-g -std=c99 -I../include -I../../include/priv -I../../include $(WFLAGS) \
 LDFLAGS=-g -L/usr/lib64/llvm
 LDLIBS=-lLLVM-3.8  ../../libdbrew.a ../libdbrew-llvm.a
 
-SRCS = $(wildcard *.c)
-
-all: benchmark-$(INTERLINES).o
+all: benchmark-$(INTERLINES).o benchmark-line-$(INTERLINES).o
 
 benchmark-$(INTERLINES).o:
-	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(SRCS) $(LDLIBS)
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ benchmark.c timer.c $(LDLIBS)
+
+benchmark-line-$(INTERLINES).o: benchmark-line.c timer.c Makefile
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ benchmark-line.c timer.c $(LDLIBS)
 
 .PHONY: clean
 clean:
