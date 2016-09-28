@@ -1,4 +1,4 @@
-# Explicitly set to gcc. Still can be overwritten by environment variable
+# Explicitly set to gcc. Overwrite with "make CC=..." (e.g. in Travis)
 # Reason: later we check for GCC, and 'cc' may be configured not to be gcc (?)
 CC=gcc
 
