@@ -663,6 +663,12 @@ ll_generate_instruction(Instr* instr, LLState* state)
                 ll_operand_store(OP_VF32, ALIGN_MAXIMUM, &instr->dst, REG_KEEP_UPPER, result, state);
             }
             break;
+        case IT_MOVHPD:
+            operand1 = ll_operand_load(OP_VF64, ALIGN_MAXIMUM, &instr->dst, state);
+            operand2 = ll_operand_load(OP_SF64, ALIGN_MAXIMUM, &instr->src, state);
+            result = LLVMBuildInsertElement(state->builder, operand1, operand2, LLVMConstInt(i64, 1, false), "");
+            ll_operand_store(OP_VF32, ALIGN_MAXIMUM, &instr->dst, REG_KEEP_UPPER, result, state);
+            break;
         case IT_ADDSS:
             operand1 = ll_operand_load(OP_SF32, ALIGN_MAXIMUM, &instr->dst, state);
             operand2 = ll_operand_load(OP_SF32, ALIGN_MAXIMUM, &instr->src, state);
@@ -877,7 +883,6 @@ ll_generate_instruction(Instr* instr, LLState* state)
         case IT_DIV:
         case IT_UCOMISD:
         case IT_MOVDQU:
-        case IT_MOVHPD:
         case IT_UNPCKHPS:
         case IT_UNPCKHPD:
         case IT_PMINUB:
