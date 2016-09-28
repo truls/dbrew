@@ -425,6 +425,58 @@ ll_flags_set_bit(LLVMValueRef result, LLState* state)
 }
 
 /**
+ * Set the flags for a increment operation. The flag cache will be invalidated.
+ *
+ * \private
+ *
+ * \author Alexis Engelke
+ *
+ * \param result The result of the operation
+ * \param lhs The operand to increment
+ * \param state The module state
+ **/
+void
+ll_flags_set_inc(LLVMValueRef result, LLVMValueRef lhs, LLState* state)
+{
+    LLVMValueRef rhs = LLVMConstInt(LLVMTypeOf(lhs), 1, false);
+
+    ll_flags_set_af(result, lhs, rhs, state);
+    ll_flags_set_zf(result, state);
+    ll_flags_set_sf(result, state);
+    ll_flags_set_of_add(result, lhs, rhs, state);
+    ll_flags_set_pf(result, state);
+
+    LLFlagCache* flagCache = ll_get_flag_cache(state);
+    flagCache->valid = false;
+}
+
+/**
+ * Set the flags for a decrement operation. The flag cache will be invalidated.
+ *
+ * \private
+ *
+ * \author Alexis Engelke
+ *
+ * \param result The result of the operation
+ * \param lhs The operand to decrement
+ * \param state The module state
+ **/
+void
+ll_flags_set_dec(LLVMValueRef result, LLVMValueRef lhs, LLState* state)
+{
+    LLVMValueRef rhs = LLVMConstInt(LLVMTypeOf(lhs), 1, false);
+
+    ll_flags_set_af(result, lhs, rhs, state);
+    ll_flags_set_zf(result, state);
+    ll_flags_set_sf(result, state);
+    ll_flags_set_of_sub(result, lhs, rhs, state);
+    ll_flags_set_pf(result, state);
+
+    LLFlagCache* flagCache = ll_get_flag_cache(state);
+    flagCache->valid = false;
+}
+
+/**
  * Invalidate the flags and the flag cache.
  *
  * \private

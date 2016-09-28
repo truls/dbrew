@@ -412,16 +412,14 @@ ll_generate_instruction(Instr* instr, LLState* state)
             operand1 = ll_operand_load(OP_SI, ALIGN_MAXIMUM, &instr->dst, state);
             operand2 = LLVMConstInt(LLVMTypeOf(operand1), 1, false);
             result = LLVMBuildAdd(state->builder, operand1, operand2, "");
-            ll_flags_invalidate(state);
-            // ll_flags_set_inc(result, operand1, state);
+            ll_flags_set_inc(result, operand1, state);
             ll_operand_store(OP_SI, ALIGN_MAXIMUM, &instr->dst, REG_DEFAULT, result, state);
             break;
         case IT_DEC:
             operand1 = ll_operand_load(OP_SI, ALIGN_MAXIMUM, &instr->dst, state);
             operand2 = LLVMConstInt(LLVMTypeOf(operand1), 1, false);
             result = LLVMBuildSub(state->builder, operand1, operand2, "");
-            ll_flags_invalidate(state);
-            // ll_flags_set_dec(result, operand1, state);
+            ll_flags_set_dec(result, operand1, state);
             ll_operand_store(OP_SI, ALIGN_MAXIMUM, &instr->dst, REG_DEFAULT, result, state);
             break;
         case IT_ADD:
