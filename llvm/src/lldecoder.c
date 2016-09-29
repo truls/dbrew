@@ -45,8 +45,6 @@
  * @{
  **/
 
-#ifdef NO_INSTRUCTION_DEDUP
-
 /**
  * Decode a basic block at the given address. This function calls itself
  * recursively.
@@ -64,7 +62,7 @@
  * \returns The decoded basic block, which is ready-to-use
  **/
 static LLBasicBlock*
-ll_decode_basic_block(Rewriter* dbrewDecoder, uintptr_t address, LLState* state)
+ll_decode_basic_block_naive(Rewriter* dbrewDecoder, uintptr_t address, LLState* state)
 {
     for (size_t i = 0; i < state->currentFunction->u.definition.bbCount; i++)
     {
@@ -87,17 +85,15 @@ ll_decode_basic_block(Rewriter* dbrewDecoder, uintptr_t address, LLState* state)
     LLBasicBlock* fallThrough = NULL;
 
     if (instrIsJcc(type) || type == IT_CALL)
-        fallThrough = ll_decode_basic_block(dbrewDecoder, lastInstr->addr + lastInstr->len, state);
+        fallThrough = ll_decode_basic_block_naive(dbrewDecoder, lastInstr->addr + lastInstr->len, state);
 
     if (type == IT_JMP || instrIsJcc(type))
-        next = ll_decode_basic_block(dbrewDecoder, lastInstr->dst.val, state);
+        next = ll_decode_basic_block_naive(dbrewDecoder, lastInstr->dst.val, state);
 
     ll_basic_block_add_branches(bb, next, fallThrough);
 
     return bb;
 }
-
-#else
 
 /**
  * Decode a basic block at the given address. This function calls itself
@@ -137,7 +133,7 @@ ll_decode_basic_block(Rewriter* dbrewDecoder, uintptr_t address, LLState* state)
  * \returns The decoded basic block, which is ready-to-use
  **/
 static LLBasicBlock*
-ll_decode_basic_block(Rewriter* dbrewDecoder, uintptr_t address, LLState* state)
+ll_decode_basic_block_dedup(Rewriter* dbrewDecoder, uintptr_t address, LLState* state)
 {
     for (size_t i = 0; i < state->currentFunction->u.definition.bbCount; i++)
     {
@@ -182,14 +178,10 @@ ll_decode_basic_block(Rewriter* dbrewDecoder, uintptr_t address, LLState* state)
     LLBasicBlock* fallThrough = NULL;
 
     if (instrIsJcc(type) || type == IT_CALL)
-    {
-        fallThrough = ll_decode_basic_block(dbrewDecoder, lastInstr->addr + lastInstr->len, state);
-    }
+        fallThrough = ll_decode_basic_block_dedup(dbrewDecoder, lastInstr->addr + lastInstr->len, state);
 
     if (type == IT_JMP || instrIsJcc(type))
-    {
-        next = ll_decode_basic_block(dbrewDecoder, lastInstr->dst.val, state);
-    }
+        next = ll_decode_basic_block_dedup(dbrewDecoder, lastInstr->dst.val, state);
 
     // It may happen that bb has been split in the meantime.
     for (size_t i = 0; i < state->currentFunction->u.definition.bbCount; i++)
@@ -213,8 +205,6 @@ ll_decode_basic_block(Rewriter* dbrewDecoder, uintptr_t address, LLState* state)
     return bb;
 }
 
-#endif
-
 /**
  * Decode a function at the given address.
  *
@@ -232,7 +222,11 @@ ll_decode_function(Rewriter* dbrewDecoder, uintptr_t address, LLConfig* config, 
     LLFunction* function = ll_function_new_definition(address, config, state);
 
     state->currentFunction = function;
-    ll_decode_basic_block(dbrewDecoder, address, state);
+
+    if (config->disableInstrDedup)
+        ll_decode_basic_block_naive(dbrewDecoder, address, state);
+    else
+        ll_decode_basic_block_dedup(dbrewDecoder, address, state);
 
     if (ll_function_build_ir(function, state))
     {

@@ -53,6 +53,13 @@ struct LLConfig {
      * \brief Whether the function is private
      **/
     bool private;
+
+    /**
+     * \brief Whether to disable instruction deduplication.
+     *
+     * This option only has effect when used with #ll_decode_function.
+     **/
+    bool disableInstrDedup;
 };
 
 typedef struct LLConfig LLConfig;
