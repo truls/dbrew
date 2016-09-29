@@ -105,6 +105,7 @@ ll_engine_init(void)
     state->globalOffsetBase = 0;
     state->enableUnsafePointerOptimizations = false;
     state->enableOverflowIntrinsics = false;
+    state->enableFastMath = false;
 
     return state;
 }
@@ -147,6 +148,22 @@ void
 ll_engine_enable_overflow_intrinsics(LLState* state, bool enable)
 {
     state->enableOverflowIntrinsics = enable;
+}
+
+/**
+ * Enable unsafe floating-point optimizations, similar to -ffast-math.
+ *
+ * This function must be called before the IR of the function is built.
+ *
+ * \author Alexis Engelke
+ *
+ * \param state The module state
+ * \param enable Whether unsafe floating-point optimizations may be performed
+ **/
+void
+ll_engine_enable_fast_math(LLState* state, bool enable)
+{
+    state->enableFastMath = enable;
 }
 
 /**

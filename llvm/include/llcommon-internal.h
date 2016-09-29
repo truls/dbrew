@@ -115,6 +115,11 @@ struct LLState {
      * \brief Whether overflow intrinsics should be used.
      **/
     bool enableOverflowIntrinsics;
+    /**
+     * \brief Whether unsafe floating-point optimizations may be applied.
+     * Corresponds to -ffast-math.
+     **/
+    bool enableFastMath;
 };
 
 #endif

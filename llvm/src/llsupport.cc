@@ -25,6 +25,7 @@
 #include <llvm/IR/DataLayout.h>
 #include <llvm/IR/Intrinsics.h>
 #include <llvm/IR/Module.h>
+#include <llvm/IR/Operator.h>
 #include <llvm/Transforms/IPO/PassManagerBuilder.h>
 #include <llvm-c/Transforms/PassManagerBuilder.h>
 
@@ -88,6 +89,13 @@ ll_support_pass_manager_builder_set_enable_vectorize(LLVMPassManagerBuilderRef P
     Builder->BBVectorize = value;
     Builder->SLPVectorize = value;
     Builder->LoopVectorize = value;
+}
+
+extern "C"
+void
+ll_support_enable_fast_math(LLVMValueRef value)
+{
+    llvm::unwrap<llvm::Instruction>(value)->setHasUnsafeAlgebra(true);
 }
 
 /**

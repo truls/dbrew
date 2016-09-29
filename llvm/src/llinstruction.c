@@ -673,72 +673,96 @@ ll_generate_instruction(Instr* instr, LLState* state)
             operand1 = ll_operand_load(OP_SF32, ALIGN_MAXIMUM, &instr->dst, state);
             operand2 = ll_operand_load(OP_SF32, ALIGN_MAXIMUM, &instr->src, state);
             result = LLVMBuildFAdd(state->builder, operand1, operand2, "");
+            if (state->enableFastMath)
+                ll_support_enable_fast_math(result);
             ll_operand_store(OP_SF32, ALIGN_MAXIMUM, &instr->dst, REG_KEEP_UPPER, result, state);
             break;
         case IT_ADDSD:
             operand1 = ll_operand_load(OP_SF64, ALIGN_MAXIMUM, &instr->dst, state);
             operand2 = ll_operand_load(OP_SF64, ALIGN_MAXIMUM, &instr->src, state);
             result = LLVMBuildFAdd(state->builder, operand1, operand2, "");
+            if (state->enableFastMath)
+                ll_support_enable_fast_math(result);
             ll_operand_store(OP_SF64, ALIGN_MAXIMUM, &instr->dst, REG_KEEP_UPPER, result, state);
             break;
         case IT_ADDPS:
             operand1 = ll_operand_load(OP_VF32, ALIGN_MAXIMUM, &instr->dst, state);
             operand2 = ll_operand_load(OP_VF32, ALIGN_MAXIMUM, &instr->src, state);
             result = LLVMBuildFAdd(state->builder, operand1, operand2, "");
+            if (state->enableFastMath)
+                ll_support_enable_fast_math(result);
             ll_operand_store(OP_VF32, ALIGN_MAXIMUM, &instr->dst, REG_KEEP_UPPER, result, state);
             break;
         case IT_ADDPD:
             operand1 = ll_operand_load(OP_VF64, ALIGN_MAXIMUM, &instr->dst, state);
             operand2 = ll_operand_load(OP_VF64, ALIGN_MAXIMUM, &instr->src, state);
             result = LLVMBuildFAdd(state->builder, operand1, operand2, "");
+            if (state->enableFastMath)
+                ll_support_enable_fast_math(result);
             ll_operand_store(OP_VF64, ALIGN_MAXIMUM, &instr->dst, REG_KEEP_UPPER, result, state);
             break;
         case IT_SUBSS:
             operand1 = ll_operand_load(OP_SF32, ALIGN_MAXIMUM, &instr->dst, state);
             operand2 = ll_operand_load(OP_SF32, ALIGN_MAXIMUM, &instr->src, state);
             result = LLVMBuildFSub(state->builder, operand1, operand2, "");
+            if (state->enableFastMath)
+                ll_support_enable_fast_math(result);
             ll_operand_store(OP_SF32, ALIGN_MAXIMUM, &instr->dst, REG_KEEP_UPPER, result, state);
             break;
         case IT_SUBSD:
             operand1 = ll_operand_load(OP_SF64, ALIGN_MAXIMUM, &instr->dst, state);
             operand2 = ll_operand_load(OP_SF64, ALIGN_MAXIMUM, &instr->src, state);
             result = LLVMBuildFSub(state->builder, operand1, operand2, "");
+            if (state->enableFastMath)
+                ll_support_enable_fast_math(result);
             ll_operand_store(OP_SF64, ALIGN_MAXIMUM, &instr->dst, REG_KEEP_UPPER, result, state);
             break;
         case IT_SUBPS:
             operand1 = ll_operand_load(OP_VF32, ALIGN_MAXIMUM, &instr->dst, state);
             operand2 = ll_operand_load(OP_VF32, ALIGN_MAXIMUM, &instr->src, state);
             result = LLVMBuildFSub(state->builder, operand1, operand2, "");
+            if (state->enableFastMath)
+                ll_support_enable_fast_math(result);
             ll_operand_store(OP_VF32, ALIGN_MAXIMUM, &instr->dst, REG_KEEP_UPPER, result, state);
             break;
         case IT_SUBPD:
             operand1 = ll_operand_load(OP_VF64, ALIGN_MAXIMUM, &instr->dst, state);
             operand2 = ll_operand_load(OP_VF64, ALIGN_MAXIMUM, &instr->src, state);
             result = LLVMBuildFSub(state->builder, operand1, operand2, "");
+            if (state->enableFastMath)
+                ll_support_enable_fast_math(result);
             ll_operand_store(OP_VF64, ALIGN_MAXIMUM, &instr->dst, REG_KEEP_UPPER, result, state);
             break;
         case IT_MULSS:
             operand1 = ll_operand_load(OP_SF32, ALIGN_MAXIMUM, &instr->dst, state);
             operand2 = ll_operand_load(OP_SF32, ALIGN_MAXIMUM, &instr->src, state);
             result = LLVMBuildFMul(state->builder, operand1, operand2, "");
+            if (state->enableFastMath)
+                ll_support_enable_fast_math(result);
             ll_operand_store(OP_SF32, ALIGN_MAXIMUM, &instr->dst, REG_KEEP_UPPER, result, state);
             break;
         case IT_MULSD:
             operand1 = ll_operand_load(OP_SF64, ALIGN_MAXIMUM, &instr->dst, state);
             operand2 = ll_operand_load(OP_SF64, ALIGN_MAXIMUM, &instr->src, state);
             result = LLVMBuildFMul(state->builder, operand1, operand2, "");
+            if (state->enableFastMath)
+                ll_support_enable_fast_math(result);
             ll_operand_store(OP_SF64, ALIGN_MAXIMUM, &instr->dst, REG_KEEP_UPPER, result, state);
             break;
         case IT_MULPS:
             operand1 = ll_operand_load(OP_VF32, ALIGN_MAXIMUM, &instr->dst, state);
             operand2 = ll_operand_load(OP_VF32, ALIGN_MAXIMUM, &instr->src, state);
             result = LLVMBuildFMul(state->builder, operand1, operand2, "");
+            if (state->enableFastMath)
+                ll_support_enable_fast_math(result);
             ll_operand_store(OP_VF32, ALIGN_MAXIMUM, &instr->dst, REG_KEEP_UPPER, result, state);
             break;
         case IT_MULPD:
             operand1 = ll_operand_load(OP_VF64, ALIGN_MAXIMUM, &instr->dst, state);
             operand2 = ll_operand_load(OP_VF64, ALIGN_MAXIMUM, &instr->src, state);
             result = LLVMBuildFMul(state->builder, operand1, operand2, "");
+            if (state->enableFastMath)
+                ll_support_enable_fast_math(result);
             ll_operand_store(OP_VF64, ALIGN_MAXIMUM, &instr->dst, REG_KEEP_UPPER, result, state);
             break;
         case IT_XORPS:

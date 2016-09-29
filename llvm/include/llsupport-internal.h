@@ -45,6 +45,7 @@ typedef enum LLSupportIntrinsics LLSupportIntrinsics;
 
 LLVMValueRef ll_support_get_intrinsic(LLVMModuleRef, LLSupportIntrinsics, LLVMTypeRef*, unsigned);
 void ll_support_pass_manager_builder_set_enable_vectorize(LLVMPassManagerBuilderRef, LLVMBool);
+void ll_support_enable_fast_math(LLVMValueRef);
 
 #ifdef __cplusplus
 }
