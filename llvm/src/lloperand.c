@@ -168,8 +168,9 @@ ll_operand_get_type(OperandDataType dataType, int bits, LLState* state)
  * \returns The casted value to an appropriate type
  **/
 static LLVMValueRef
-ll_cast_from_int(LLVMValueRef value, OperandDataType dataType, int bits, LLState* state)
+ll_cast_from_int(LLVMValueRef value, OperandDataType dataType, Operand* operand, LLState* state)
 {
+    int bits = ll_operand_get_type_length(dataType, operand);
     LLVMValueRef result;
     LLVMTypeRef target = ll_operand_get_type(dataType, bits, state);
     LLVMTypeKind targetKind = LLVMGetTypeKind(target);
@@ -245,6 +246,9 @@ ll_cast_from_int(LLVMValueRef value, OperandDataType dataType, int bits, LLState
         else
         {
             targetIntType = LLVMIntTypeInContext(state->context, targetLength);
+
+            if (operand->reg.rt == RT_GP8Leg && operand->reg.ri >= RI_AH && operand->reg.ri < RI_R8L)
+                value = LLVMBuildLShr(state->builder, value, LLVMConstInt(LLVMTypeOf(value), 8, false), "");
 
             if (valueLength < targetLength)
                 result = LLVMBuildSExtOrBitCast(state->builder, value, targetIntType, "");
@@ -430,7 +434,7 @@ ll_operand_load(OperandDataType dataType, Alignment alignment, Operand* operand,
         case OT_Reg512:
             {
                 LLVMValueRef reg = ll_get_register(operand->reg, state);
-                result = ll_cast_from_int(reg, dataType, bits, state);
+                result = ll_cast_from_int(reg, dataType, operand, state);
             }
             break;
         case OT_Ind8:
@@ -497,9 +501,30 @@ ll_operand_store(OperandDataType dataType, Alignment alignment, Operand* operand
                 switch (zeroHandling)
                 {
                     case REG_DEFAULT:
-                        // TODO: Handle ax, al, ah, where the upper part is preserved.
-                        result = LLVMBuildSExtOrBitCast(state->builder, value, operandIntType, "");
-                        result = LLVMBuildZExtOrBitCast(state->builder, result, regType, "");
+                        value = LLVMBuildSExtOrBitCast(state->builder, value, operandIntType, "");
+                        value = LLVMBuildZExtOrBitCast(state->builder, value, regType, "");
+                        if (operand->reg.rt == RT_GP32 || operand->reg.rt == RT_GP64)
+                            result = value;
+                        else
+                        {
+                            LLVMValueRef current = ll_get_register(operand->reg, state);
+
+                            uint64_t mask = 0;
+                            if (operand->reg.rt == RT_GP8Leg && operand->reg.ri >= RI_AH && operand->reg.ri < RI_R8L)
+                            {
+                                mask = 0xff00;
+                                value = LLVMBuildShl(state->builder, value, LLVMConstInt(LLVMTypeOf(value), 8, false), "");
+                            }
+                            else if (operand->reg.rt == RT_GP8 || operand->reg.rt == RT_GP8Leg)
+                                mask = 0xff;
+                            else if (operand->reg.rt == RT_GP16)
+                                mask = 0xffff;
+                            else
+                                warn_if_reached();
+
+                            LLVMValueRef masked = LLVMBuildAnd(state->builder, current, LLVMConstInt(i64, ~mask, false), "");
+                            result = LLVMBuildOr(state->builder, masked, value, "");
+                        }
                         break;
                     case REG_ZERO_UPPER:
                         result = LLVMBuildBitCast(state->builder, value, operandIntType, "");

@@ -556,7 +556,10 @@ ll_basic_block_get_register_ptr(LLBasicBlock* bb, Reg reg)
         case RT_GP16:
         case RT_GP32:
         case RT_GP64:
+            return &bb->gpRegisters[reg.ri];
         case RT_GP8Leg:
+            if (reg.ri >= RI_AH && reg.ri < RI_R8L)
+                return &bb->gpRegisters[reg.ri - RI_AH];
             return &bb->gpRegisters[reg.ri];
         case RT_XMM:
         case RT_YMM:
