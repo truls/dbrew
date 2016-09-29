@@ -1,0 +1,13 @@
+; ModuleID = '<llengine>'
+target triple = "x86_64-pc-linux-gnu"
+
+; Function Attrs: norecurse nounwind readnone
+define i64 @test(i64) #0 {
+  %2 = and i64 %0, 4294967295
+  ret i64 %2
+}
+
+attributes #0 = { norecurse nounwind readnone }
+
+Result: 10
+Result: 10

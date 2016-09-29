@@ -235,11 +235,17 @@ ll_generate_instruction(Instr* instr, LLState* state)
         ////////////////////////////////////////////////////////////////////////
 
         case IT_MOV:
-        case IT_MOVD:
-        case IT_MOVQ:
         case IT_MOVSX:
             operand1 = ll_operand_load(OP_SI, ALIGN_MAXIMUM, &instr->src, state);
             ll_operand_store(OP_SI, ALIGN_MAXIMUM, &instr->dst, REG_DEFAULT, operand1, state);
+            break;
+        case IT_MOVD:
+        case IT_MOVQ:
+            operand1 = ll_operand_load(OP_SI, ALIGN_MAXIMUM, &instr->src, state);
+            if (opIsVReg(&instr->dst))
+                ll_operand_store(OP_SI, ALIGN_MAXIMUM, &instr->dst, REG_ZERO_UPPER, operand1, state);
+            else
+                ll_operand_store(OP_SI, ALIGN_MAXIMUM, &instr->dst, REG_DEFAULT, operand1, state);
             break;
         case IT_MOVZX:
             operand1 = ll_operand_load(OP_SI, ALIGN_MAXIMUM, &instr->src, state);
