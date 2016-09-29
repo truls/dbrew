@@ -208,35 +208,9 @@ ll_cast_from_int(LLVMValueRef value, OperandDataType dataType, Operand* operand,
     }
     else
     {
-        LLVMTypeRef targetIntType;
-
-        int targetLength;
-
         // This is specific to x86-64: All floating-point registers we use are
         // vector registers.
-        bool useVector = false;
-
-        if (targetKind == LLVMFloatTypeKind)
-        {
-            targetLength = 32;
-            useVector = true;
-        }
-        else if (targetKind == LLVMDoubleTypeKind)
-        {
-            targetLength = 64;
-            useVector = true;
-        }
-        else if (targetKind == LLVMIntegerTypeKind)
-        {
-            targetLength = LLVMGetIntTypeWidth(target);
-        }
-        else
-        {
-            targetLength = 0;
-            warn_if_reached();
-        }
-
-        if (useVector)
+        if (targetKind != LLVMIntegerTypeKind)
         {
             LLVMTypeRef vectorType = LLVMVectorType(target, valueLength / bits);
             LLVMValueRef vector = LLVMBuildBitCast(state->builder, value, vectorType, "");
@@ -245,15 +219,10 @@ ll_cast_from_int(LLVMValueRef value, OperandDataType dataType, Operand* operand,
         }
         else
         {
-            targetIntType = LLVMIntTypeInContext(state->context, targetLength);
-
             if (operand->reg.rt == RT_GP8Leg && operand->reg.ri >= RI_AH && operand->reg.ri < RI_R8L)
                 value = LLVMBuildLShr(state->builder, value, LLVMConstInt(LLVMTypeOf(value), 8, false), "");
 
-            if (valueLength < targetLength)
-                result = LLVMBuildSExtOrBitCast(state->builder, value, targetIntType, "");
-            else
-                result = LLVMBuildTruncOrBitCast(state->builder, value, targetIntType, "");
+            result = LLVMBuildTruncOrBitCast(state->builder, value, target, "");
         }
     }
 
@@ -530,10 +499,10 @@ ll_operand_get_address(OperandDataType dataType, Operand* operand, LLState* stat
 LLVMValueRef
 ll_operand_load(OperandDataType dataType, Alignment alignment, Operand* operand, LLState* state)
 {
-    int bits = ll_operand_get_type_length(dataType, operand);
+    int operandWidth = ll_operand_get_type_length(dataType, operand);
     LLVMValueRef result = NULL;
     LLVMValueRef address;
-    LLVMTypeRef type = ll_operand_get_type(dataType, bits, state);
+    LLVMTypeRef type = ll_operand_get_type(dataType, operandWidth, state);
 
     switch (operand->type)
     {
@@ -565,7 +534,7 @@ ll_operand_load(OperandDataType dataType, Alignment alignment, Operand* operand,
             address = ll_operand_get_address(dataType, operand, state);
             result = LLVMBuildLoad(state->builder, address, "");
             if (alignment == ALIGN_MAXIMUM)
-                LLVMSetAlignment(result, bits / 8);
+                LLVMSetAlignment(result, operandWidth / 8);
             else
                 LLVMSetAlignment(result, alignment);
             break;
