@@ -462,6 +462,8 @@ ll_function_add_basic_block(LLFunction* function, LLBasicBlock* bb)
  * Build the IR for a defined function. This function must be called at most
  * once.
  *
+ * \private
+ *
  * \author Alexis Engelke
  *
  * \param function The function

@@ -216,8 +216,7 @@ ll_decode_basic_block(Rewriter* dbrewDecoder, uintptr_t address, LLState* state)
 #endif
 
 /**
- * Decode a function at the given address. This only adds the declaration to the
- * module, the body needs to be built with #ll_function_build_ir.
+ * Decode a function at the given address.
  *
  * \author Alexis Engelke
  *
@@ -234,6 +233,12 @@ ll_decode_function(Rewriter* dbrewDecoder, uintptr_t address, LLConfig* config, 
 
     state->currentFunction = function;
     ll_decode_basic_block(dbrewDecoder, address, state);
+
+    if (ll_function_build_ir(function, state))
+    {
+        ll_function_dispose(function);
+        return NULL;
+    }
 
     return function;
 }

@@ -109,5 +109,6 @@ struct LLFunction {
 
 LLFunction* ll_function_new_definition(uintptr_t, LLConfig*, LLState*);
 void ll_function_add_basic_block(LLFunction*, LLBasicBlock*);
+bool ll_function_build_ir(LLFunction*, LLState*);
 
 #endif

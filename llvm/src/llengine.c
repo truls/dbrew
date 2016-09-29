@@ -167,32 +167,6 @@ ll_engine_dispose(LLState* state)
     free(state);
 }
 
-// bool
-// ll_engine_handle_function(LLState* state, LLFunction* function)
-// {
-//     char* errors;
-//     bool hasError;
-
-//     ll_function_build_ir(function, state);
-
-//     // Verify the new function
-//     // TODO: Decide whether to use LLVMVerifyFunction here instead.
-//     hasError = LLVMVerifyModule(state->module, LLVMReturnStatusAction, &errors);
-
-//     if (hasError)
-//     {
-//         critical("Errors while verifying the LLVM IR: %s", errors);
-//         free(errors);
-//         LLVMDumpModule(state->module);
-
-//         return true;
-//     }
-
-//     ll_engine_dump(state);
-
-//     return false;
-// }
-
 /**
  * Optimize all functions in the module.
  *

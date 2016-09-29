@@ -391,7 +391,7 @@ benchmark_run2(const BenchmarkArgs* args, const BenchmarkStencilConfig* config)
             case BENCHMARK_LLVM:
                 {
                     LLFunction* llfn = ll_decode_function(r, (uintptr_t) stencilfn, &llconfig, state);
-                    assert(!ll_function_build_ir(llfn, state));
+                    assert(llfn != NULL);
                     ll_engine_optimize(state, 3);
                     if (i == 0 && args->decodeGenerated)
                         ll_engine_dump(state);
@@ -401,7 +401,7 @@ benchmark_run2(const BenchmarkArgs* args, const BenchmarkStencilConfig* config)
             case BENCHMARK_LLVM_FIXED:
                 {
                     LLFunction* llfn = ll_decode_function(r, (uintptr_t) stencilfn, &llconfig, state);
-                    assert(!ll_function_build_ir(llfn, state));
+                    assert(llfn != NULL);
                     if (arg0 != NULL)
                         llfn = ll_function_specialize(llfn, 0, (uintptr_t) arg0, 0x100, state);
                     ll_engine_optimize(state, 3);
@@ -414,7 +414,7 @@ benchmark_run2(const BenchmarkArgs* args, const BenchmarkStencilConfig* config)
                 {
                     processed = (StencilFunction) dbrew_llvm_rewrite(r, arg0, arg1, arg2, 20);
                     LLFunction* llfn = ll_decode_function(r, (uintptr_t) processed, &llconfig, state);
-                    assert(!ll_function_build_ir(llfn, state));
+                    assert(llfn != NULL);
                     ll_engine_optimize(state, 3);
                     if (i == 0 && args->decodeGenerated)
                         ll_engine_dump(state);

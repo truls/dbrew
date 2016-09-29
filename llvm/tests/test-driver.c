@@ -164,27 +164,13 @@ test_llvm_generation(bool debug)
     ll_function_declare((uintptr_t) &test_add, 0221, "test_add", state);
     LLFunction* function = ll_decode_function(dbrewDecoder, (uintptr_t) testCase.function, &config, state);
 
-
     if (function != NULL)
     {
-        bool hasError = ll_function_build_ir(function, state);
-
         if (debug)
-        {
             ll_engine_dump(state);
-        }
 
-        if (hasError)
-        {
-            function = NULL;
-        }
-        else
-        {
-            ll_engine_optimize(state, 3);
-            ll_engine_dump(state);
-            // void* fn = ll_function_get_pointer(function, state);
-            // ll_decode_function(dbrewDecoder, (uintptr_t) fn, &config, state);
-        }
+        ll_engine_optimize(state, 3);
+        ll_engine_dump(state);
     }
 
     // Print correct output/behavior
