@@ -4,9 +4,10 @@
     .globl  test
     .type   test, @function
 test:
-    movlpd xmm0, [rdi]
-    movhpd xmm0, [rsi]
-    movupd [rdi], xmm0
+    movhps xmm1, [rdi]
+    movups xmm0, [rsi]
+    movups [rdi], xmm0
+    movhps [rdi], xmm1
 
     xor eax, eax
 
@@ -17,5 +18,5 @@ test:
 testCase:
     .quad 4
     .quad test
-    .quad TEST_DRIVER_DOUBLE_ARRAY
+    .quad TEST_DRIVER_FLOAT_ARRAY
     .quad 01122
