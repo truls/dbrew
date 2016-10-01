@@ -5,10 +5,7 @@
 #include <string.h>
 
 #include <dbrew.h>
-#include <llcommon.h>
-#include <lldecoder.h>
-#include <llengine.h>
-#include <llfunction.h>
+#include <dbrew-llvm.h>
 
 #define _CSRC
 #include "test-common.h"
