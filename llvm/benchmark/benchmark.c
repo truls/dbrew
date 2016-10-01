@@ -12,8 +12,9 @@
 
 #include "timer.h"
 
-typedef void(*StencilFunction)(void*, void*, void*, uint64_t);
-typedef void(*TestParameters)(void**, void**, void**);
+typedef void(*StencilFunction)(void*, double* restrict, double* restrict, uint64_t);
+typedef void(*StencilLineFunction)(void*, double* restrict, double* restrict, uint64_t, StencilFunction);
+typedef void(*ParameterSetupFunction)(void**, void**, void**);
 typedef void(*TestFunction)(void*, StencilFunction, double*, double*);
 
 
@@ -51,53 +52,19 @@ SortedStencil s5s = {1, {{0.25,4,&(s5.p[0])}}};
 #define STENCIL_OFFSET(base,x,y) ((base) + (y) * ((STENCIL_N) + 1) + (x))
 
 
-static
-// inline
-void
-stencil_inner_native_interleaved(void* a, double* restrict b, double* restrict c, uint64_t index)
-{
-    c[index] = 0.25 * (b[STENCIL_OFFSET(index, 0, -1)] + b[STENCIL_OFFSET(index, 0, 1)] + b[STENCIL_OFFSET(index, -1, 0)] + b[STENCIL_OFFSET(index, 1, 0)]);
-    c[index+1] = 0.25 * (b[STENCIL_OFFSET(index+1, 0, -1)] + b[STENCIL_OFFSET(index+1, 0, 1)] + b[STENCIL_OFFSET(index+1, -1, 0)] + b[STENCIL_OFFSET(index+1, 1, 0)]);
-}
 
 static
-// inline
+inline
 void
-stencil_inner_native(void* a, double* restrict b, double* restrict c, uint64_t index)
+stencil_element_native(void* __attribute__((unused)) a, double* restrict b, double* restrict c, uint64_t index)
 {
     c[index] = 0.25 * (b[STENCIL_OFFSET(index, 0, -1)] + b[STENCIL_OFFSET(index, 0, 1)] + b[STENCIL_OFFSET(index, -1, 0)] + b[STENCIL_OFFSET(index, 1, 0)]);
 }
 
 static
-// inline
+inline
 void
-stencil_inner_native2(Stencil* restrict s, double* restrict b, double* restrict c, uint64_t index)
-{
-    stencil_inner_native(s, b, c, index);
-    stencil_inner_native(s, b, c, index+1);
-}
-
-static
-// inline
-void
-stencil_inner_struct_interleaved(Stencil* restrict s, double* restrict b, double* restrict c, uint64_t index)
-{
-    double result1 = 0;
-    double result2 = 0;
-    for(uint64_t i = 0; i < s->points; i++)
-    {
-        StencilPoint* p = s->p + i;
-        result1 += p->factor * b[STENCIL_OFFSET(index, p->xdiff, p->ydiff)];
-        result2 += p->factor * b[STENCIL_OFFSET(index+1, p->xdiff, p->ydiff)];
-    }
-    c[index] = result1;
-    c[index+1] = result2;
-}
-
-static
-// inline
-void
-stencil_inner_struct(Stencil* restrict s, double* restrict b, double* restrict c, uint64_t index)
+stencil_element_struct(Stencil* restrict s, double* restrict b, double* restrict c, uint64_t index)
 {
     double result1 = 0;
     for(uint64_t i = 0; i < s->points; i++)
@@ -109,44 +76,9 @@ stencil_inner_struct(Stencil* restrict s, double* restrict b, double* restrict c
 }
 
 static
-// inline
+inline
 void
-stencil_inner_struct2(Stencil* restrict s, double* restrict b, double* restrict c, uint64_t index)
-{
-    stencil_inner_struct(s, b, c, index);
-    stencil_inner_struct(s, b, c, index+1);
-}
-
-static
-// inline
-void
-stencil_inner_sorted_struct_interleaved(SortedStencil* restrict s, double* restrict b, double* restrict c, uint64_t index)
-{
-    double result1 = 0, sum1 = 0;
-    double result2 = 0, sum2 = 0;
-    for (uint64_t i = 0; i < s->factors; i++)
-    {
-        StencilFactor* sf = s->f + i;
-        StencilPoint* p = sf->p;
-        sum1 = b[STENCIL_OFFSET(index, p->xdiff, p->ydiff)];
-        sum2 = b[STENCIL_OFFSET(index+1, p->xdiff, p->ydiff)];
-        for (uint64_t j = 1; j < sf->points; j++)
-        {
-            p = sf->p + j;
-            sum1 += b[STENCIL_OFFSET(index, p->xdiff, p->ydiff)];
-            sum2 += b[STENCIL_OFFSET(index+1, p->xdiff, p->ydiff)];
-        }
-        result1 += sf->factor * sum1;
-        result2 += sf->factor * sum2;
-    }
-    c[index] = result1;
-    c[index+1] = result2;
-}
-
-static
-// inline
-void
-stencil_inner_sorted_struct(SortedStencil* restrict s, double* restrict b, double* restrict c, uint64_t index)
+stencil_element_sorted_struct(SortedStencil* restrict s, double* restrict b, double* restrict c, uint64_t index)
 {
     double result1 = 0, sum1 = 0;
     for (uint64_t i = 0; i < s->factors; i++)
@@ -165,56 +97,84 @@ stencil_inner_sorted_struct(SortedStencil* restrict s, double* restrict b, doubl
 }
 
 static
-// inline
 void
-stencil_inner_sorted_struct2(SortedStencil* restrict s, double* restrict b, double* restrict c, uint64_t index)
+stencil_line_native(void* a, double* restrict b, double* restrict c, uint64_t index, StencilFunction __attribute__((unused)) fn)
 {
-    stencil_inner_sorted_struct(s, b, c, index);
-    stencil_inner_sorted_struct(s, b, c, index+1);
+    uint64_t j;
+    for (j = 1; j < STENCIL_N; ++j)
+    {
+        stencil_element_native(a, b, c, STENCIL_OFFSET(index, j, 0));
+    }
+}
+
+static
+void
+stencil_line_struct(void* a, double* restrict b, double* restrict c, uint64_t index, StencilFunction __attribute__((unused)) fn)
+{
+    uint64_t j;
+    for (j = 1; j < STENCIL_N; ++j)
+    {
+        stencil_element_struct(a, b, c, STENCIL_OFFSET(index, j, 0));
+    }
+}
+
+static
+void
+stencil_line_sorted_struct(void* a, double* restrict b, double* restrict c, uint64_t index, StencilFunction __attribute__((unused)) fn)
+{
+    uint64_t j;
+    for (j = 1; j < STENCIL_N; ++j)
+    {
+        stencil_element_sorted_struct(a, b, c, STENCIL_OFFSET(index, j, 0));
+    }
+}
+
+static
+void
+stencil_line_dbrew(void* a, double* restrict b, double* restrict c, uint64_t index, StencilFunction fn)
+{
+    uint64_t j;
+    for (j = 1; j < STENCIL_N; ++j)
+    {
+        fn(a, b, c, STENCIL_OFFSET(index, j, 0));
+    }
 }
 
 static void
 compute_jacobi(void* restrict a, StencilFunction fn, double* restrict b, double* restrict c)
 {
     uint64_t i, j;
-    for (uint64_t iter = 0; iter < 256; iter = iter + 1)
+    for (uint64_t iter = 0; iter < 1000; iter = iter + 1)
     {
         double* temp = c;
         c = b;
         b = temp;
 
         for (i = 1; i < STENCIL_N; i = i + 1)
-        {
             for (j = 1; j < STENCIL_N; j = j + 1)
                 fn(a, b, c, STENCIL_INDEX(j, i));
-        }
     }
 }
 
 static void
-compute_jacobi2(void* restrict a, StencilFunction fn, double* restrict b, double* restrict c)
+compute_jacobi_line(void* restrict a, StencilLineFunction fn, double* restrict b, double* restrict c)
 {
-    uint64_t i, j;
-    for (uint64_t iter = 0; iter < 256; iter = iter + 1)
+    uint64_t i;
+    for (uint64_t iter = 0; iter < 1000; iter = iter + 1)
     {
         double* temp = c;
         c = b;
         b = temp;
 
         for (i = 1; i < STENCIL_N; i = i + 1)
-        {
-            uint64_t c0 = ((uint64_t*)c)[STENCIL_INDEX(0, i)];
-            fn(a, b, c, STENCIL_INDEX(0, i));
-            ((uint64_t*)c)[STENCIL_INDEX(0, i)] = c0;
-            for (j = 2; j < STENCIL_N; j = j + 2)
-                fn(a, b, c, STENCIL_INDEX(j, i));
-        }
+            fn(a, b, c, STENCIL_INDEX(0, i), NULL);
     }
 }
 
+
 static
 void
-init_matrix(void** matrixIn, void** matrixOut)
+init_matrix(double** matrixIn, double** matrixOut)
 {
     double* b = malloc(sizeof(double) * (STENCIL_N + 1) * (STENCIL_N + 1));
     for (int i = 0; i <= STENCIL_N; i++) {
@@ -239,30 +199,6 @@ init_matrix(void** matrixIn, void** matrixOut)
 }
 
 static void
-prepare_stencil_native(void** arg0, void** arg1, void** arg2)
-{
-    init_matrix(arg1, arg2);
-
-    *arg0 = NULL;
-}
-
-static void
-prepare_stencil_struct(void** arg0, void** arg1, void** arg2)
-{
-    init_matrix(arg1, arg2);
-
-    *arg0 = &s5;
-}
-
-static void
-prepare_stencil_sorted_struct(void** arg0, void** arg1, void** arg2)
-{
-    init_matrix(arg1, arg2);
-
-    *arg0 = &s5s;
-}
-
-static void
 print_matrix(double* b)
 {
     printf("Matrix:\n");
@@ -279,7 +215,6 @@ print_matrix(double* b)
 }
 
 
-
 enum BenchmarkMode {
     BENCHMARK_PLAIN,
     BENCHMARK_DBREW,
@@ -292,34 +227,26 @@ enum BenchmarkMode {
 typedef enum BenchmarkMode BenchmarkMode;
 
 struct BenchmarkArgs {
-    size_t iterationCount;
-    size_t runCount;
     BenchmarkMode mode;
+    size_t runCount;
     bool decodeGenerated;
+    bool useLineKernel;
 };
 
 typedef struct BenchmarkArgs BenchmarkArgs;
 
 struct BenchmarkStencilConfig {
-    TestFunction wrapper;
-    StencilFunction fn;
-    TestParameters params;
+    void* kernelfn;
+    void* linefn;
+    void* data;
 };
 
 typedef struct BenchmarkStencilConfig BenchmarkStencilConfig;
 
 static const BenchmarkStencilConfig benchmarkConfigs[] = {
-    { compute_jacobi, (StencilFunction) stencil_inner_native, prepare_stencil_native },
-    { compute_jacobi2, (StencilFunction) stencil_inner_native2, prepare_stencil_native },
-    { compute_jacobi2, (StencilFunction) stencil_inner_native_interleaved, prepare_stencil_native },
-
-    { compute_jacobi, (StencilFunction) stencil_inner_struct, prepare_stencil_struct },
-    { compute_jacobi2, (StencilFunction) stencil_inner_struct2, prepare_stencil_struct },
-    { compute_jacobi2, (StencilFunction) stencil_inner_struct_interleaved, prepare_stencil_struct },
-
-    { compute_jacobi, (StencilFunction) stencil_inner_sorted_struct, prepare_stencil_sorted_struct },
-    { compute_jacobi2, (StencilFunction) stencil_inner_sorted_struct2, prepare_stencil_sorted_struct },
-    { compute_jacobi2, (StencilFunction) stencil_inner_sorted_struct_interleaved, prepare_stencil_sorted_struct },
+    { (StencilFunction) stencil_element_native, stencil_line_native, NULL },
+    { (StencilFunction) stencil_element_struct, stencil_line_struct, &s5 },
+    { (StencilFunction) stencil_element_sorted_struct, stencil_line_sorted_struct, &s5s },
 };
 
 
@@ -327,28 +254,41 @@ JTimer timerTotal, timerCompile, timerRun;
 
 static
 Rewriter*
-benchmark_init_dbrew(StencilFunction fn)
+benchmark_init_dbrew(bool useLineKernel, StencilFunction fn)
 {
     Rewriter* r = dbrew_new();
-    // dbrew_set_ver
     dbrew_verbose(r, false, false, false);
     dbrew_optverbose(r, false);
     dbrew_set_decoding_capacity(r, 100000, 100);
     dbrew_set_capture_capacity(r, 100000, 100, 10000);
-    dbrew_set_function(r, (uintptr_t) fn);
-    dbrew_config_staticpar(r, 0);
-    dbrew_config_parcount(r, 4);
+
+    if (useLineKernel)
+    {
+        dbrew_set_function(r, (uintptr_t) stencil_line_dbrew);
+        dbrew_config_staticpar(r, 0);
+        dbrew_config_staticpar(r, 4);
+        dbrew_config_parcount(r, 5);
+        dbrew_config_force_unknown(r, 0);
+    }
+    else
+    {
+        dbrew_set_function(r, (uintptr_t) fn);
+        dbrew_config_staticpar(r, 0);
+        dbrew_config_parcount(r, 4);
+    }
 
     return r;
 }
 
 static
 void
-benchmark_run2(const BenchmarkArgs* args, const BenchmarkStencilConfig* config)
+benchmark_run2(bool isFirst, const BenchmarkArgs* args, const BenchmarkStencilConfig* config)
 {
-    void* arg0;
-    void* arg1;
-    void* arg2;
+    void* arg0 = config->data;
+
+    double* arg1;
+    double* arg2;
+    init_matrix(&arg1, &arg2);
 
     LLConfig llconfig = {
         .name = "test",
@@ -357,145 +297,151 @@ benchmark_run2(const BenchmarkArgs* args, const BenchmarkStencilConfig* config)
     };
 
     LLState* state = NULL;
+    LLFunction* llfn = NULL;
     Rewriter* r = NULL;
 
-    TestParameters params = config->params;
-    TestFunction testfn = config->wrapper;
-    StencilFunction stencilfn = config->fn;
+    uintptr_t baseFunction = (uintptr_t) (args->useLineKernel ? config->linefn : config->kernelfn);
+    uintptr_t processedFunction;
 
-    for (size_t i = 0; i < args->iterationCount; i++)
+    JTimerCont(&timerTotal);
+    JTimerCont(&timerCompile);
+
+    if (args->mode != BENCHMARK_PLAIN)
     {
-        params(&arg0, &arg1, &arg2);
+        r = benchmark_init_dbrew(args->useLineKernel, config->kernelfn);
+        dbrew_optverbose(r, args->decodeGenerated);
+    }
 
-        JTimerCont(&timerTotal);
-        JTimerCont(&timerCompile);
+    if (args->mode == BENCHMARK_LLVM || args->mode == BENCHMARK_LLVM_FIXED || args->mode == BENCHMARK_DBREW_LLVM_TWICE)
+    {
+        state = ll_engine_init();
+        ll_engine_enable_unsafe_pointer_optimizations(state, true);
+    }
 
-        StencilFunction processed;
+    switch (args->mode)
+    {
+        case BENCHMARK_PLAIN:
+            processedFunction = baseFunction;
+            break;
 
-        if (args->mode != BENCHMARK_PLAIN) r = benchmark_init_dbrew(stencilfn);
+        case BENCHMARK_DBREW:
+            processedFunction = dbrew_rewrite(r, arg0, arg1, arg2, 20, config->kernelfn);
+            break;
 
-        if (args->mode == BENCHMARK_LLVM || args->mode == BENCHMARK_LLVM_FIXED || args->mode == BENCHMARK_DBREW_LLVM_TWICE)
-        {
-            state = ll_engine_init();
-            ll_engine_enable_unsafe_pointer_optimizations(state, true);
-        }
+        case BENCHMARK_DBREW_LLVM:
+            processedFunction = dbrew_llvm_rewrite(r, arg0, arg1, arg2, 20, config->kernelfn);
+            break;
 
-        switch (args->mode)
-        {
-            case BENCHMARK_PLAIN:
-                processed = stencilfn;
-                break;
-            case BENCHMARK_DBREW:
-                processed = (StencilFunction) dbrew_rewrite(r, arg0, arg1, arg2, 20);
-                break;
-            case BENCHMARK_LLVM:
-                {
-                    LLFunction* llfn = ll_decode_function(r, (uintptr_t) stencilfn, &llconfig, state);
-                    assert(llfn != NULL);
-                    ll_engine_optimize(state, 3);
-                    if (i == 0 && args->decodeGenerated)
-                        ll_engine_dump(state);
-                    processed = ll_function_get_pointer(llfn, state);
-                }
-                break;
-            case BENCHMARK_LLVM_FIXED:
-                {
-                    LLFunction* llfn = ll_decode_function(r, (uintptr_t) stencilfn, &llconfig, state);
-                    assert(llfn != NULL);
-                    if (arg0 != NULL)
-                        llfn = ll_function_specialize(llfn, 0, (uintptr_t) arg0, 0x100, state);
-                    ll_engine_optimize(state, 3);
-                    if (i == 0 && args->decodeGenerated)
-                        ll_engine_dump(state);
-                    processed = ll_function_get_pointer(llfn, state);
-                }
-                break;
-            case BENCHMARK_DBREW_LLVM_TWICE:
-                {
-                    processed = (StencilFunction) dbrew_llvm_rewrite(r, arg0, arg1, arg2, 20);
-                    LLFunction* llfn = ll_decode_function(r, (uintptr_t) processed, &llconfig, state);
-                    assert(llfn != NULL);
-                    ll_engine_optimize(state, 3);
-                    if (i == 0 && args->decodeGenerated)
-                        ll_engine_dump(state);
-                    processed = ll_function_get_pointer(llfn, state);
-                }
-                break;
-            case BENCHMARK_DBREW_LLVM:
-                processed = (StencilFunction) dbrew_llvm_rewrite(r, arg0, arg1, arg2, 20);
-                break;
-            default:
-                assert(0);
-        }
+        case BENCHMARK_LLVM:
+            llfn = ll_decode_function(r, baseFunction, &llconfig, state);
+            assert(llfn != NULL);
+            break;
 
+        case BENCHMARK_LLVM_FIXED:
+            llfn = ll_decode_function(r, baseFunction, &llconfig, state);
+            assert(llfn != NULL);
 
-        JTimerStop(&timerCompile);
+            if (arg0 != NULL)
+                llfn = ll_function_specialize(llfn, 0, (uintptr_t) arg0, 0x100, state);
+            break;
 
-        if (i == 0 && args->decodeGenerated)
-        {
-            JTimerStop(&timerTotal);
-            if (state == NULL) state = ll_engine_init();
-            if (r == NULL) r = benchmark_init_dbrew(stencilfn);
-            dbrew_verbose(r, true, false, false);
-            ll_decode_function(r, (uintptr_t) processed, &llconfig, state);
-            JTimerCont(&timerTotal);
-        }
+        case BENCHMARK_DBREW_LLVM_TWICE:
+            processedFunction = dbrew_llvm_rewrite(r, arg0, arg1, arg2, 20, config->kernelfn);
 
-        JTimerCont(&timerRun);
-        for (size_t runs = 0; runs < args->runCount; runs++)
-            testfn(arg0, processed, arg1, arg2);
+            llfn = ll_decode_function(r, processedFunction, &llconfig, state);
+            assert(llfn != NULL);
+            break;
 
-        JTimerStop(&timerRun);
+        default:
+            assert(0);
+    }
+
+    if (args->mode == BENCHMARK_LLVM || args->mode == BENCHMARK_LLVM_FIXED || args->mode == BENCHMARK_DBREW_LLVM_TWICE)
+    {
+        ll_engine_optimize(state, 3);
+        processedFunction = (uintptr_t) ll_function_get_pointer(llfn, state);
+
+        if (args->decodeGenerated)
+            ll_engine_dump(state);
+    }
+
+    JTimerStop(&timerCompile);
+
+    if (args->decodeGenerated)
+    {
         JTimerStop(&timerTotal);
 
-        // Smoke test to see whether results seem to be correct.
-        if (i == 0)
-            printf("matrix(n-1,n-1) = %f\n", ((double*)arg2)[STENCIL_INDEX(STENCIL_N-1, STENCIL_N-1)]);
+        if (state == NULL)
+            state = ll_engine_init();
 
-        if (state != NULL) {
-            ll_engine_dispose(state);
-            state = NULL;
-        }
-        free(arg1);
-        free(arg2);
-        if (r != NULL)
-        {
-            dbrew_free(r);
-            r = NULL;
-        }
+        if (r == NULL)
+            r = benchmark_init_dbrew(true, NULL);
+
+        // Print out decoded assembly.
+        dbrew_verbose(r, true, false, false);
+        ll_decode_function(r, (uintptr_t) processedFunction, &llconfig, state);
+
+        JTimerCont(&timerTotal);
     }
+
+    JTimerCont(&timerRun);
+    if (args->useLineKernel)
+        for (size_t runs = 0; runs < args->runCount; runs++)
+            compute_jacobi_line(arg0, (StencilLineFunction) processedFunction, arg1, arg2);
+    else
+        for (size_t runs = 0; runs < args->runCount; runs++)
+            compute_jacobi(arg0, (StencilFunction) processedFunction, arg1, arg2);
+    JTimerStop(&timerRun);
+    JTimerStop(&timerTotal);
+
+    // Smoke test to see whether results seem to be correct.
+    if (isFirst)
+        printf("matrix(n-1,n-1) = %f\n", arg2[STENCIL_INDEX(STENCIL_N-1, STENCIL_N-1)]);
+
+    free(arg1);
+    free(arg2);
+
+    if (state != NULL)
+        ll_engine_dispose(state);
+
+    if (r != NULL)
+        dbrew_free(r);
 }
 
 int
 main(int argc, char** argv)
 {
     if (argc < 5) {
-        printf("Usage: %s [config] [mode] [compiles] [runs per compile] ([decode generated])", argv[0]);
+        printf("Usage: %s [config] [mode] [compiles] [runs per compile] ([decode generated])\n", argv[0]);
         return 1;
     }
+
+    size_t configIndex = atoi(argv[1]);
+    configIndex = configIndex % (2 * sizeof(benchmarkConfigs) / sizeof(BenchmarkStencilConfig));
+
     bool decodeGenerated = false;
     if (argc >= 6)
         decodeGenerated = atoi(argv[5]) != 0;
 
     BenchmarkArgs args = {
         .mode = atoi(argv[2]),
-        .iterationCount = atoi(argv[3]),
         .runCount = atoi(argv[4]),
         .decodeGenerated = decodeGenerated,
+        .useLineKernel = configIndex % 2,
     };
 
-    int configIndex = atoi(argv[1]);
-    if (configIndex >= 9 || configIndex < 0)
+    size_t iterationCount = atoi(argv[3]);
+
+    const BenchmarkStencilConfig* config = &benchmarkConfigs[configIndex / 2];
+
+    for (size_t i = 0; i < iterationCount; i++)
     {
-        return 75;
+        benchmark_run2(i == 0, &args, config);
+        args.decodeGenerated = false;
     }
 
-    const BenchmarkStencilConfig* config = &benchmarkConfigs[configIndex];
-
-    benchmark_run2(&args, config);
-
-    printf("Mode %d Config %d Times %f %f %f\n", args.mode, configIndex, JTimerRead(&timerTotal), JTimerRead(&timerCompile), JTimerRead(&timerRun));
-    printf("Normalized %f %f %f\n", JTimerRead(&timerTotal) / args.iterationCount, JTimerRead(&timerCompile) / args.iterationCount, JTimerRead(&timerRun) / args.iterationCount);
+    printf("Mode %d Config %lu Times %f %f %f\n", args.mode, configIndex, JTimerRead(&timerTotal), JTimerRead(&timerCompile), JTimerRead(&timerRun));
+    printf("Normalized %f %f %f\n", JTimerRead(&timerTotal) / iterationCount, JTimerRead(&timerCompile) / iterationCount, JTimerRead(&timerRun) / iterationCount);
 
     return 0;
 }

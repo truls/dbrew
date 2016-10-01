@@ -18,17 +18,14 @@ CFLAGS=-g -std=c99 -I../include -I../../include/priv -I../../include $(WFLAGS) \
 LDFLAGS = `$(LLVM_CONFIG) --ldflags` -g
 LDLIBS = `$(LLVM_CONFIG) --libs $(LLVM_MODULES)` -lstdc++ -lm -lz -ldl -lpthread -ltinfo
 
-all: benchmark-$(INTERLINES).o benchmark-line-$(INTERLINES).o
+all: benchmark-$(INTERLINES).o
 
-benchmark-$(INTERLINES).o:
+benchmark-$(INTERLINES).o: benchmark.c timer.c Makefile
 	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ benchmark.c timer.c ../../libdbrew.a ../libdbrew-llvm.a $(LDLIBS)
-
-benchmark-line-$(INTERLINES).o: benchmark-line.c timer.c Makefile
-	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ benchmark-line.c timer.c ../../libdbrew.a ../libdbrew-llvm.a $(LDLIBS)
 
 .PHONY: clean
 clean:
-	rm -f $(OBJS) benchmark-*.o
+	rm -f benchmark-*.o
 
 .PHONY: benchmark
 benchmark:

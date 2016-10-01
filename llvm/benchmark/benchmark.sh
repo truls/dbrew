@@ -1,26 +1,42 @@
+#!/bin/bash
 
-RUNS=1
-COMPILES=1
+if [ $# -ne 3 ]
+then
+    echo "Usage: `basename $0` resultsdir executable iterations"
+    exit 1
+fi
 
-mkdir -p results
+resultsdir=$1
+gatherfile=$resultsdir/gather-run.out
+executable=$2
+RUNS=$3
+FPREC=4
 
-for interlines in 0
+mkdir -p $resultsdir
+cp $executable $resultsdir/executable
+: > $gatherfile
+
+for mode in 0 1 2 3 4 5
 do
-    make INTERLINES=$interlines
-    for mode in 0 1 2 3 4 5
+    for config in 0 1 2 3 4 5
     do
-        for config in 0 1 2 3 4 5 6 7 8
-        do
-            echo "Running $interlines-$mode-$config"
-            ./benchmark-$interlines.o $config $mode 1 $RUNS 2>/dev/null > results/run-$interlines-$mode-$config.out
-            ./benchmark-$interlines.o $config $mode 1 $RUNS 2>/dev/null >> results/run-$interlines-$mode-$config.out
-            ./benchmark-$interlines.o $config $mode 1 $RUNS 2>/dev/null >> results/run-$interlines-$mode-$config.out
-            ./benchmark-$interlines.o $config $mode $COMPILES 0 2>/dev/null > results/compiles-$interlines-$mode-$config.out
-            ./benchmark-$interlines.o $config $mode $COMPILES 0 2>/dev/null >> results/compiles-$interlines-$mode-$config.out
-            ./benchmark-$interlines.o $config $mode $COMPILES 0 2>/dev/null >> results/compiles-$interlines-$mode-$config.out
+        echo "Running $mode-$config ($RUNS)"
+        file=$resultsdir/run-$mode-$config.out
+        compilefile=$resultsdir/compile-$mode-$config.out
+        $resultsdir/executable $config $mode 1 $RUNS 2>/dev/null > $file
+        $resultsdir/executable $config $mode 1 $RUNS 2>/dev/null >> $file
+        $resultsdir/executable $config $mode 1 $RUNS 2>/dev/null >> $file
+        $resultsdir/executable $config $mode 1 0 1 2> /dev/null > $compilefile
 
-            # For debugging
-            ./benchmark-$interlines.o $config $mode 1 0 1 2>/dev/null > results/assembly-$interlines-$mode-$config.out
+        times=`grep Mode "${file}" | cut -d " " -f8`
+        sum=0.; count=0; meant=-1
+        for t in $times; do
+            sum=`echo "scale=${FPREC}; ${sum} + ${t}" | bc`
+            count=`echo "${count} + 1" | bc`
         done
+        if [[ $sum > 0. ]] ; then
+            meant=`echo "scale=${FPREC}; ${sum} / ${count}" | bc`
+        fi
+        echo $mode $config $RUNS $meant >> $gatherfile
     done
 done
