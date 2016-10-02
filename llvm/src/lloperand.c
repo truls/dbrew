@@ -45,6 +45,7 @@
  **/
 
 #define SHUFFLE_VECTOR
+#define VECTOR_ZEXT_SHUFFLE
 
 /**
  * Infer the size of the operand.
@@ -247,101 +248,106 @@ ll_cast_to_int(LLVMValueRef value, OperandDataType dataType, Operand* operand, P
 {
     int regWidth = operand->reg.rt == RT_XMM ? LL_VECTOR_REGISTER_SIZE : 64;
     LLVMTypeRef regType = LLVMIntTypeInContext(state->context, regWidth);
-
-    LLVMValueRef result;
-
+    LLVMTypeRef valueType = LLVMTypeOf(value);
+    LLVMTypeRef i32 = LLVMInt32TypeInContext(state->context);
     LLVMTypeRef i64 = LLVMInt64TypeInContext(state->context);
+
     int operandWidth = ll_operand_get_type_length(dataType, operand);
     LLVMTypeRef operandIntType = LLVMIntTypeInContext(state->context, operandWidth);
 
-    switch (zeroHandling)
+    LLVMValueRef current = ll_get_register(operand->reg, state);
+    LLVMValueRef result = NULL;
+
+    if (zeroHandling == REG_DEFAULT)
     {
-        case REG_DEFAULT:
-            value = LLVMBuildSExtOrBitCast(state->builder, value, operandIntType, "");
-            value = LLVMBuildZExtOrBitCast(state->builder, value, regType, "");
-            if (operand->reg.rt == RT_GP32 || operand->reg.rt == RT_GP64)
-                result = value;
-            else
+        if (!opIsGPReg(operand))
+            warn_if_reached();
+
+        value = LLVMBuildSExtOrBitCast(state->builder, value, operandIntType, "");
+        value = LLVMBuildZExtOrBitCast(state->builder, value, regType, "");
+        if (operand->reg.rt == RT_GP32 || operand->reg.rt == RT_GP64)
+            result = value;
+        else
+        {
+            uint64_t mask = 0;
+            if (operand->reg.rt == RT_GP8Leg && operand->reg.ri >= RI_AH && operand->reg.ri < RI_R8L)
             {
-                LLVMValueRef current = ll_get_register(operand->reg, state);
-
-                uint64_t mask = 0;
-                if (operand->reg.rt == RT_GP8Leg && operand->reg.ri >= RI_AH && operand->reg.ri < RI_R8L)
-                {
-                    mask = 0xff00;
-                    value = LLVMBuildShl(state->builder, value, LLVMConstInt(LLVMTypeOf(value), 8, false), "");
-                }
-                else if (operand->reg.rt == RT_GP8 || operand->reg.rt == RT_GP8Leg)
-                    mask = 0xff;
-                else if (operand->reg.rt == RT_GP16)
-                    mask = 0xffff;
-                else
-                    warn_if_reached();
-
-                LLVMValueRef masked = LLVMBuildAnd(state->builder, current, LLVMConstInt(i64, ~mask, false), "");
-                result = LLVMBuildOr(state->builder, masked, value, "");
+                mask = 0xff00;
+                value = LLVMBuildShl(state->builder, value, LLVMConstInt(regType, 8, false), "");
             }
-            break;
-        case REG_ZERO_UPPER:
-            result = LLVMBuildBitCast(state->builder, value, operandIntType, "");
-            result = LLVMBuildZExtOrBitCast(state->builder, result, regType, "");
-            break;
-        case REG_KEEP_UPPER:
-            if (LLVMGetTypeKind(LLVMTypeOf(value)) == LLVMVectorTypeKind)
-            {
-                int elementCount = LLVMGetVectorSize(LLVMTypeOf(value));
-                int totalCount = elementCount * regWidth / operandWidth;
+            else if (operand->reg.rt == RT_GP8 || operand->reg.rt == RT_GP8Leg)
+                mask = 0xff;
+            else if (operand->reg.rt == RT_GP16)
+                mask = 0xffff;
+            else
+                warn_if_reached();
 
-                LLVMValueRef resultVector;
-
-                if (elementCount != totalCount)
-                {
-                    LLVMValueRef current = ll_get_register(operand->reg, state);
-                    LLVMTypeRef vectorType = LLVMVectorType(LLVMGetElementType(LLVMTypeOf(value)), totalCount);
-                    LLVMValueRef vectorCurrent = LLVMBuildBitCast(state->builder, current, vectorType, "");
-#ifdef SHUFFLE_VECTOR
-                    LLVMTypeRef i32 = LLVMInt32TypeInContext(state->context);
-                    LLVMValueRef maskElements[totalCount];
-                    for (int i = 0; i < elementCount; i++)
-                        maskElements[i] = LLVMConstInt(i32, i, false);
-                    for (int i = elementCount; i < totalCount; i++)
-                        maskElements[i] = LLVMGetUndef(i32);
-                    LLVMValueRef mask = LLVMConstVector(maskElements, totalCount);
-                    LLVMValueRef enlarged = LLVMBuildShuffleVector(state->builder, value, LLVMGetUndef(LLVMTypeOf(value)), mask, "");
-
-                    for (int i = elementCount; i < totalCount; i++)
-                        maskElements[i] = LLVMConstInt(i32, totalCount + i, false);
-                    mask = LLVMConstVector(maskElements, totalCount);
-                    resultVector = LLVMBuildShuffleVector(state->builder, enlarged, vectorCurrent, mask, "");
-#else
-                    resultVector = vectorCurrent;
-                    for (int i = 0; i < elementCount; i++)
-                    {
-                        LLVMValueRef index = LLVMConstInt(i64, i, false);
-                        LLVMValueRef element = LLVMBuildExtractElement(state->builder, value, index, "");
-                        resultVector = LLVMBuildInsertElement(state->builder, resultVector, element, index, "");
-                    }
+            LLVMValueRef masked = LLVMBuildAnd(state->builder, current, LLVMConstInt(i64, ~mask, false), "");
+            result = LLVMBuildOr(state->builder, masked, value, "");
+        }
+    }
+#ifndef VECTOR_ZEXT_SHUFFLE
+    else if (zeroHandling == REG_ZERO_UPPER)
+    {
+        result = LLVMBuildBitCast(state->builder, value, operandIntType, "");
+        result = LLVMBuildZExtOrBitCast(state->builder, result, regType, "");
+    }
 #endif
-                }
-                else
-                    resultVector = value;
+    else if (zeroHandling == REG_ZERO_UPPER || zeroHandling == REG_KEEP_UPPER)
+    {
+        if (!opIsVReg(operand))
+            warn_if_reached();
 
-                result = LLVMBuildBitCast(state->builder, resultVector, regType, "");
-            }
-            else
+        if (zeroHandling == REG_ZERO_UPPER)
+            current = LLVMConstNull(regType);
+
+        if (LLVMGetTypeKind(valueType) == LLVMVectorTypeKind)
+        {
+            int elementCount = LLVMGetVectorSize(valueType);
+            int totalCount = elementCount * regWidth / operandWidth;
+
+            if (elementCount != totalCount)
             {
-                LLVMValueRef current = ll_get_register(operand->reg, state);
-                LLVMTypeRef vectorType = LLVMVectorType(LLVMTypeOf(value), regWidth / operandWidth);
+                LLVMTypeRef vectorType = LLVMVectorType(LLVMGetElementType(valueType), totalCount);
                 LLVMValueRef vectorCurrent = LLVMBuildBitCast(state->builder, current, vectorType, "");
 
-                LLVMValueRef constZero = LLVMConstInt(i64, 0, false);
-                LLVMValueRef exchanged = LLVMBuildInsertElement(state->builder, vectorCurrent, value, constZero, "");
-                result = LLVMBuildBitCast(state->builder, exchanged, regType, "");
+#ifdef SHUFFLE_VECTOR
+                LLVMValueRef maskElements[totalCount];
+                for (int i = 0; i < totalCount; i++)
+                    maskElements[i] = LLVMConstInt(i32, i, false);
+                LLVMValueRef mask = LLVMConstVector(maskElements, totalCount);
+                LLVMValueRef enlarged = LLVMBuildShuffleVector(state->builder, value, LLVMGetUndef(valueType), mask, "");
+
+                for (int i = elementCount; i < totalCount; i++)
+                    maskElements[i] = LLVMConstInt(i32, totalCount + i, false);
+                mask = LLVMConstVector(maskElements, totalCount);
+                result = LLVMBuildShuffleVector(state->builder, enlarged, vectorCurrent, mask, "");
+#else
+                result = vectorCurrent;
+                for (int i = 0; i < elementCount; i++)
+                {
+                    LLVMValueRef index = LLVMConstInt(i64, i, false);
+                    LLVMValueRef element = LLVMBuildExtractElement(state->builder, value, index, "");
+                    result = LLVMBuildInsertElement(state->builder, result, element, index, "");
+                }
+#endif
             }
-            break;
-        default:
-            warn_if_reached();
+            else
+                result = value;
+        }
+        else
+        {
+            LLVMTypeRef vectorType = LLVMVectorType(valueType, regWidth / operandWidth);
+            LLVMValueRef vectorCurrent = LLVMBuildBitCast(state->builder, current, vectorType, "");
+
+            LLVMValueRef constZero = LLVMConstInt(i64, 0, false);
+            result = LLVMBuildInsertElement(state->builder, vectorCurrent, value, constZero, "");
+        }
+
+        result = LLVMBuildBitCast(state->builder, result, regType, "");
     }
+    else
+        warn_if_reached();
 
     return result;
 }
