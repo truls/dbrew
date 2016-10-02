@@ -32,7 +32,6 @@
 #include <llsupport-internal.h>
 
 /**
- * \ingroup LLSupport
  * \defgroup LLSupport Support
  * \brief Support functions for the LLVM API
  *
@@ -91,6 +90,15 @@ ll_support_pass_manager_builder_set_enable_vectorize(LLVMPassManagerBuilderRef P
     Builder->LoopVectorize = value;
 }
 
+/**
+ * Enable unsafe algebra on the result of a floating-point instruction.
+ *
+ * \private
+ *
+ * \author Alexis Engelke
+ *
+ * \param value The result of a supported floating-point instruction
+ **/
 extern "C"
 void
 ll_support_enable_fast_math(LLVMValueRef value)

@@ -38,7 +38,6 @@
 #include <llfunction-internal.h>
 
 /**
- * \ingroup LLDecoder
  * \defgroup LLDecoder Decoder
  * \brief Decode assembly functions
  *

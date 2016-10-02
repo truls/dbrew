@@ -42,8 +42,8 @@
 #include <llsupport-internal.h>
 
 /**
- * \ingroup LLInstruction
  * \defgroup LLInstruction Instruction
+ * \brief Handling of X86-64 instructions
  *
  * @{
  **/
@@ -191,6 +191,8 @@ ll_generate_pop(Operand* operand, LLState* state)
 
 /**
  * Handling of an instruction.
+ *
+ * \todo Support other return types than i64, float and double
  *
  * \private
  *

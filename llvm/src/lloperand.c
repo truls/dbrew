@@ -37,7 +37,6 @@
 #include <llcommon-internal.h>
 
 /**
- * \ingroup LLOperand
  * \defgroup LLOperand Operand
  * \brief Handling of instruction operands
  *

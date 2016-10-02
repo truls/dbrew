@@ -37,7 +37,6 @@
 #include <llfunction-internal.h>
 
 /**
- * \ingroup LLBasicBlock
  * \defgroup LLBasicBlock Basic Block
  * \brief Representation of a basic block
  *

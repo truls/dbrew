@@ -47,7 +47,6 @@
 #include <llsupport-internal.h>
 
 /**
- * \ingroup LLEngine
  * \defgroup LLEngine Engine
  * \brief Common public APIs and State management
  *
@@ -60,8 +59,7 @@
  *
  * \author Alexis Engelke
  *
- * \param config The Configuration
- * \returns The module state
+ * \returns A new module
  **/
 LLState*
 ll_engine_init(void)

@@ -70,6 +70,7 @@ enum {
 
 /**
  * \ingroup LLBasicBlock
+ * \brief Flag cache storing additional information about the flag register
  **/
 struct LLFlagCache {
     /**

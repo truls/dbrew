@@ -38,7 +38,6 @@
 #include <lloperand-internal.h>
 
 /**
- * \ingroup LLFunction
  * \defgroup LLFunction Function
  * \brief Representation of a function
  *
@@ -168,6 +167,7 @@ ll_function_declare_llvm(uint64_t packedType, const char* name, LLState* state)
  * \author Alexis Engelke
  *
  * \param address The address of the function
+ * \param type The encoded type of the function
  * \param name The name of the function
  * \param state The module state
  * \returns The declared function

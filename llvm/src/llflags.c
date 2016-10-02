@@ -37,7 +37,6 @@
 #include <llsupport-internal.h>
 
 /**
- * \ingroup LLFlags
  * \defgroup LLFlags Flags
  * \brief Computation of X86 flags
  *
@@ -54,7 +53,7 @@
  * \author Alexis Engelke
  *
  * \param type The instruction type
- * \param type The base instruction type (this is the overflow variant)
+ * \param base The base instruction type (this is the overflow variant)
  * \param state The module state
  **/
 LLVMValueRef
