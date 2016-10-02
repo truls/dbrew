@@ -176,7 +176,7 @@ ll_generate_pop(Operand* operand, LLState* state)
     LLVMValueRef value = LLVMBuildLoad(state->builder, castedPtr, "");
     LLVMSetAlignment(value, 8);
 
-    ll_operand_store(OP_SI, ALIGN_MAXIMUM, operand, true, value, state);
+    ll_operand_store(OP_SI, ALIGN_MAXIMUM, operand, REG_DEFAULT, value, state);
 
     // Advance Stack pointer via a GEP
     LLVMValueRef constAdd = LLVMConstInt(i64, 8, false);
