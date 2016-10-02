@@ -181,31 +181,24 @@ ll_cast_from_int(LLVMValueRef value, OperandDataType dataType, Operand* operand,
 
     if (targetKind == LLVMVectorTypeKind)
     {
-#ifdef SHUFFLE_VECTOR
         int targetSize = LLVMGetVectorSize(target);
-        LLVMTypeRef elementType = LLVMGetElementType(target);
-
-        LLVMValueRef shuffleScalars[targetSize];
-
-        for (int i = 0; i < targetSize; i++)
-        {
-            shuffleScalars[i] = LLVMConstInt(i32, i, false);
-        }
-
         int totalCount = targetSize * valueLength / bits;
+
+        LLVMTypeRef elementType = LLVMGetElementType(target);
         LLVMTypeRef vectorType = LLVMVectorType(elementType, totalCount);
         LLVMValueRef vector = LLVMBuildBitCast(state->builder, value, vectorType, "");
-        LLVMValueRef mask = LLVMConstVector(shuffleScalars, targetSize);
 
-        result = LLVMBuildShuffleVector(state->builder, vector, LLVMGetUndef(vectorType), mask, "");
-#else
-        if (valueLength > bits)
+        if (totalCount > targetSize)
         {
-            value = LLVMBuildTruncOrBitCast(state->builder, value, LLVMIntTypeInContext(state->context, bits), "");
-        }
+            LLVMValueRef maskElements[targetSize];
+            for (int i = 0; i < targetSize; i++)
+                maskElements[i] = LLVMConstInt(i32, i, false);
 
-        result = LLVMBuildBitCast(state->builder, value, target, "");
-#endif
+            LLVMValueRef mask = LLVMConstVector(maskElements, targetSize);
+            result = LLVMBuildShuffleVector(state->builder, vector, LLVMGetUndef(vectorType), mask, "");
+        }
+        else
+            result = vector;
     }
     else
     {
