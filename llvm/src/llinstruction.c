@@ -111,72 +111,55 @@ ll_value_is_pointer(LLVMValueRef value, LLState* state)
 }
 
 /**
- * Handling of a push instruction.
+ * Handling of push, pop and leave instructions.
  *
- * \todo Handle pushing of words (16 bits)
- *
- * \private
- *
- * \author Alexis Engelke
- *
- * \param instr The push instruction
- * \param state The module state
- **/
-static void
-ll_generate_push(Operand* operand, LLState* state)
-{
-    LLVMTypeRef i64 = LLVMInt64TypeInContext(state->context);
-    LLVMTypeRef pi64 = LLVMPointerType(i64, 0);
-
-    LLVMValueRef value = ll_operand_load(OP_SI, ALIGN_MAXIMUM, operand, state);
-    value = LLVMBuildSExtOrBitCast(state->builder, value, i64, "");
-
-    // Get pointer to current top of stack
-    LLVMValueRef spReg = ll_get_register(getReg(RT_GP64, RI_SP), state);
-    LLVMValueRef sp = LLVMBuildIntToPtr(state->builder, spReg, pi64, "");
-
-    // Decrement Stack Pointer via a GEP instruction
-    LLVMValueRef constSub = LLVMConstInt(i64, -1, false);
-    LLVMValueRef newSp = LLVMBuildGEP(state->builder, sp, &constSub, 1, "");
-
-    // Store the new value
-    LLVMBuildStore(state->builder, value, newSp);
-
-    // Cast back to int for register store
-    LLVMValueRef newSpReg = LLVMBuildPtrToInt(state->builder, newSp, i64, "");
-    LLVMSetMetadata(newSpReg, LLVMGetMDKindIDInContext(state->context, "asm.reg.rsp", 11), state->emptyMD);
-
-    ll_set_register(getReg(RT_GP64, RI_SP), newSpReg, state);
-}
-
-/**
- * Handling of a pop instruction.
- *
- * \todo Handle popping of words (16 bits)
+ * \todo Handle 16 bit integers
  *
  * \private
  *
  * \author Alexis Engelke
  *
- * \param operand The operand of the pop instruction
+ * \param instr The instruction
  * \param state The module state
  **/
 static void
-ll_generate_pop(Operand* operand, LLState* state)
+ll_generate_instruction_stack(Instr* instr, LLState* state)
 {
     LLVMTypeRef i64 = LLVMInt64TypeInContext(state->context);
     LLVMTypeRef pi64 = LLVMPointerType(i64, 0);
 
-    LLVMValueRef spReg = ll_get_register(getReg(RT_GP64, RI_SP), state);
+    // In case of a leave instruction, we basically pop the new base pointer
+    // from RBP and store the new value as stack pointer.
+    RegIndex spRegIndex = instr->type == IT_LEAVE ? RI_BP : RI_SP;
+    LLVMValueRef spReg = ll_get_register(getReg(RT_GP64, spRegIndex), state);
     LLVMValueRef sp = LLVMBuildIntToPtr(state->builder, spReg, pi64, "");
+    LLVMValueRef newSp = NULL;
 
-    LLVMValueRef value = LLVMBuildLoad(state->builder, sp, "");
+    if (instr->type == IT_PUSH)
+    {
+        // Decrement Stack Pointer via a GEP instruction
+        LLVMValueRef constSub = LLVMConstInt(i64, -1, false);
+        newSp = LLVMBuildGEP(state->builder, sp, &constSub, 1, "");
 
-    ll_operand_store(OP_SI, ALIGN_MAXIMUM, operand, REG_DEFAULT, value, state);
+        LLVMValueRef value = ll_operand_load(OP_SI, ALIGN_MAXIMUM, &instr->dst, state);
+        value = LLVMBuildSExtOrBitCast(state->builder, value, i64, "");
+        LLVMBuildStore(state->builder, value, newSp);
+    }
+    else if (instr->type == IT_POP || instr->type == IT_LEAVE)
+    {
+        Operand* operand = instr->type == IT_LEAVE
+            ? getRegOp(getReg(RT_GP64, RI_BP))
+            : &instr->dst;
 
-    // Advance Stack pointer via a GEP
-    LLVMValueRef constAdd = LLVMConstInt(i64, 1, false);
-    LLVMValueRef newSp = LLVMBuildGEP(state->builder, sp, &constAdd, 1, "");
+        LLVMValueRef value = LLVMBuildLoad(state->builder, sp, "");
+        ll_operand_store(OP_SI, ALIGN_MAXIMUM, operand, REG_DEFAULT, value, state);
+
+        // Advance Stack pointer via a GEP
+        LLVMValueRef constAdd = LLVMConstInt(i64, 1, false);
+        newSp = LLVMBuildGEP(state->builder, sp, &constAdd, 1, "");
+    }
+    else
+        warn_if_reached();
 
     // Cast back to int for register store
     LLVMValueRef newSpReg = LLVMBuildPtrToInt(state->builder, newSp, i64, "");
@@ -383,15 +366,9 @@ ll_generate_instruction(Instr* instr, LLState* state)
         ////////////////////////////////////////////////////////////////////////
 
         case IT_LEAVE:
-            operand1 = ll_operand_load(OP_SI, ALIGN_MAXIMUM, getRegOp(getReg(RT_GP64, RI_BP)), state);
-            ll_operand_store(OP_SI, ALIGN_MAXIMUM, getRegOp(getReg(RT_GP64, RI_SP)), REG_DEFAULT, operand1, state);
-            ll_generate_pop(getRegOp(getReg(RT_GP64, RI_BP)), state);
-            break;
         case IT_PUSH:
-            ll_generate_push(&instr->dst, state);
-            break;
         case IT_POP:
-            ll_generate_pop(&instr->dst, state);
+            ll_generate_instruction_stack(instr, state);
             break;
 
         ////////////////////////////////////////////////////////////////////////
