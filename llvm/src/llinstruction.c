@@ -123,26 +123,24 @@ ll_value_is_pointer(LLVMValueRef value, LLState* state)
  * \param state The module state
  **/
 static void
-ll_generate_push(Instr* instr, LLState* state)
+ll_generate_push(Operand* operand, LLState* state)
 {
-    LLVMTypeRef i8 = LLVMInt8TypeInContext(state->context);
     LLVMTypeRef i64 = LLVMInt64TypeInContext(state->context);
+    LLVMTypeRef pi64 = LLVMPointerType(i64, 0);
 
-    LLVMValueRef value = ll_operand_load(OP_SI, ALIGN_MAXIMUM, &instr->dst, state);
+    LLVMValueRef value = ll_operand_load(OP_SI, ALIGN_MAXIMUM, operand, state);
     value = LLVMBuildSExtOrBitCast(state->builder, value, i64, "");
 
     // Get pointer to current top of stack
     LLVMValueRef spReg = ll_get_register(getReg(RT_GP64, RI_SP), state);
-    LLVMValueRef sp = LLVMBuildIntToPtr(state->builder, spReg, LLVMPointerType(i8, 0), "");
+    LLVMValueRef sp = LLVMBuildIntToPtr(state->builder, spReg, pi64, "");
 
     // Decrement Stack Pointer via a GEP instruction
-    LLVMValueRef constSub = LLVMConstInt(i64, -8, false);
+    LLVMValueRef constSub = LLVMConstInt(i64, -1, false);
     LLVMValueRef newSp = LLVMBuildGEP(state->builder, sp, &constSub, 1, "");
 
     // Store the new value
-    LLVMValueRef castedPtr = LLVMBuildBitCast(state->builder, newSp, LLVMPointerType(i64, 0), "");
-    LLVMValueRef store = LLVMBuildStore(state->builder, value, castedPtr);
-    LLVMSetAlignment(store, 8);
+    LLVMBuildStore(state->builder, value, newSp);
 
     // Cast back to int for register store
     LLVMValueRef newSpReg = LLVMBuildPtrToInt(state->builder, newSp, i64, "");
@@ -166,20 +164,18 @@ ll_generate_push(Instr* instr, LLState* state)
 static void
 ll_generate_pop(Operand* operand, LLState* state)
 {
-    LLVMTypeRef i8 = LLVMInt8TypeInContext(state->context);
     LLVMTypeRef i64 = LLVMInt64TypeInContext(state->context);
+    LLVMTypeRef pi64 = LLVMPointerType(i64, 0);
 
     LLVMValueRef spReg = ll_get_register(getReg(RT_GP64, RI_SP), state);
-    LLVMValueRef sp = LLVMBuildIntToPtr(state->builder, spReg, LLVMPointerType(i8, 0), "");
+    LLVMValueRef sp = LLVMBuildIntToPtr(state->builder, spReg, pi64, "");
 
-    LLVMValueRef castedPtr = LLVMBuildBitCast(state->builder, sp, LLVMPointerType(i64, 0), "");
-    LLVMValueRef value = LLVMBuildLoad(state->builder, castedPtr, "");
-    LLVMSetAlignment(value, 8);
+    LLVMValueRef value = LLVMBuildLoad(state->builder, sp, "");
 
     ll_operand_store(OP_SI, ALIGN_MAXIMUM, operand, REG_DEFAULT, value, state);
 
     // Advance Stack pointer via a GEP
-    LLVMValueRef constAdd = LLVMConstInt(i64, 8, false);
+    LLVMValueRef constAdd = LLVMConstInt(i64, 1, false);
     LLVMValueRef newSp = LLVMBuildGEP(state->builder, sp, &constAdd, 1, "");
 
     // Cast back to int for register store
@@ -392,7 +388,7 @@ ll_generate_instruction(Instr* instr, LLState* state)
             ll_generate_pop(getRegOp(getReg(RT_GP64, RI_BP)), state);
             break;
         case IT_PUSH:
-            ll_generate_push(instr, state);
+            ll_generate_push(&instr->dst, state);
             break;
         case IT_POP:
             ll_generate_pop(&instr->dst, state);
