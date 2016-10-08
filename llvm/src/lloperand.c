@@ -238,11 +238,9 @@ ll_cast_from_int(LLVMValueRef value, OperandDataType dataType, Operand* operand,
 static LLVMValueRef
 ll_cast_to_int(LLVMValueRef value, OperandDataType dataType, Operand* operand, PartialRegisterHandling zeroHandling, LLState* state)
 {
-    int regWidth = operand->reg.rt == RT_XMM ? LL_VECTOR_REGISTER_SIZE : 64;
-    LLVMTypeRef regType = LLVMIntTypeInContext(state->context, regWidth);
-    LLVMTypeRef valueType = LLVMTypeOf(value);
     LLVMTypeRef i32 = LLVMInt32TypeInContext(state->context);
     LLVMTypeRef i64 = LLVMInt64TypeInContext(state->context);
+    LLVMTypeRef iVec = LLVMIntTypeInContext(state->context, LL_VECTOR_REGISTER_SIZE);
 
     int operandWidth = ll_operand_get_type_length(dataType, operand);
     LLVMTypeRef operandIntType = LLVMIntTypeInContext(state->context, operandWidth);
@@ -256,7 +254,7 @@ ll_cast_to_int(LLVMValueRef value, OperandDataType dataType, Operand* operand, P
             warn_if_reached();
 
         value = LLVMBuildSExtOrBitCast(state->builder, value, operandIntType, "");
-        value = LLVMBuildZExtOrBitCast(state->builder, value, regType, "");
+        value = LLVMBuildZExtOrBitCast(state->builder, value, i64, "");
         if (operand->reg.rt == RT_GP32 || operand->reg.rt == RT_GP64)
             result = value;
         else
@@ -265,7 +263,7 @@ ll_cast_to_int(LLVMValueRef value, OperandDataType dataType, Operand* operand, P
             if (operand->reg.rt == RT_GP8Leg && operand->reg.ri >= RI_AH && operand->reg.ri < RI_R8L)
             {
                 mask = 0xff00;
-                value = LLVMBuildShl(state->builder, value, LLVMConstInt(regType, 8, false), "");
+                value = LLVMBuildShl(state->builder, value, LLVMConstInt(i64, 8, false), "");
             }
             else if (operand->reg.rt == RT_GP8 || operand->reg.rt == RT_GP8Leg)
                 mask = 0xff;
@@ -282,7 +280,7 @@ ll_cast_to_int(LLVMValueRef value, OperandDataType dataType, Operand* operand, P
     else if (zeroHandling == REG_ZERO_UPPER)
     {
         result = LLVMBuildBitCast(state->builder, value, operandIntType, "");
-        result = LLVMBuildZExtOrBitCast(state->builder, result, regType, "");
+        result = LLVMBuildZExtOrBitCast(state->builder, result, iVec, "");
     }
 #endif
     else if (zeroHandling == REG_ZERO_UPPER || zeroHandling == REG_KEEP_UPPER)
@@ -291,13 +289,16 @@ ll_cast_to_int(LLVMValueRef value, OperandDataType dataType, Operand* operand, P
             warn_if_reached();
 
         if (zeroHandling == REG_ZERO_UPPER)
-            current = LLVMConstNull(regType);
+            current = LLVMConstNull(iVec);
 
-        if (LLVMGetTypeKind(valueType) == LLVMVectorTypeKind)
+        LLVMTypeRef valueType = LLVMTypeOf(value);
+        bool valueIsVector = LLVMGetTypeKind(valueType) == LLVMVectorTypeKind;
+
+        int elementCount = valueIsVector ? LLVMGetVectorSize(valueType) : 1;
+        int totalCount = elementCount * LL_VECTOR_REGISTER_SIZE / operandWidth;
+
+        if (valueIsVector)
         {
-            int elementCount = LLVMGetVectorSize(valueType);
-            int totalCount = elementCount * regWidth / operandWidth;
-
             if (elementCount != totalCount)
             {
                 LLVMTypeRef vectorType = LLVMVectorType(LLVMGetElementType(valueType), totalCount);
@@ -329,14 +330,14 @@ ll_cast_to_int(LLVMValueRef value, OperandDataType dataType, Operand* operand, P
         }
         else
         {
-            LLVMTypeRef vectorType = LLVMVectorType(valueType, regWidth / operandWidth);
+            LLVMTypeRef vectorType = LLVMVectorType(valueType, totalCount);
             LLVMValueRef vectorCurrent = LLVMBuildBitCast(state->builder, current, vectorType, "");
 
             LLVMValueRef constZero = LLVMConstInt(i64, 0, false);
             result = LLVMBuildInsertElement(state->builder, vectorCurrent, value, constZero, "");
         }
 
-        result = LLVMBuildBitCast(state->builder, result, regType, "");
+        result = LLVMBuildBitCast(state->builder, result, iVec, "");
     }
     else
         warn_if_reached();
