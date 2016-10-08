@@ -449,10 +449,20 @@ ll_operand_get_address(OperandDataType dataType, Operand* operand, LLState* stat
             int factor = operand->scale / (bits / 8);
             LLVMValueRef offset = LLVMBuildSExtOrBitCast(state->builder, ll_get_register(operand->ireg, state), i64, "");
 
-            if (factor != 1)
-                offset = LLVMBuildMul(state->builder, offset, LLVMConstInt(i64, factor, false), "");
+            if (LLVMIsNull(result))
+            {
+                // Fallback to inttoptr if this is definitly not-a-pointer.
+                // Therefore, we don't need to use ll_get_global_offset.
+                offset = LLVMBuildMul(state->builder, offset, LLVMConstInt(i64, operand->scale, false), "");
+                result = LLVMBuildIntToPtr(state->builder, offset, pointerType, "");
+            }
+            else
+            {
+                if (factor != 1)
+                    offset = LLVMBuildMul(state->builder, offset, LLVMConstInt(i64, factor, false), "");
 
-            result = LLVMBuildGEP(state->builder, result, &offset, 1, "");
+                result = LLVMBuildGEP(state->builder, result, &offset, 1, "");
+            }
         }
     }
     else

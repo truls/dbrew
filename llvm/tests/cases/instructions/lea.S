@@ -6,6 +6,9 @@
 test:
     lea rdi, [rdi * 8]
     lea rax, [rdi * 4]
+    mov rcx, 10
+    lea rcx, [rcx * 8]
+    add rax, rcx
     ret
 
     .align 8
