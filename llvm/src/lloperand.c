@@ -593,9 +593,12 @@ ll_operand_store(OperandDataType dataType, Alignment alignment, Operand* operand
                 result = ll_cast_to_int(value, dataType, operand, zeroHandling, state);
                 ll_set_register(operand->reg, result, state);
 
-                char buffer[20];
-                int len = snprintf(buffer, sizeof(buffer), "asm.reg.%s", regName(operand->reg));
-                LLVMSetMetadata(result, LLVMGetMDKindIDInContext(state->context, buffer, len), state->emptyMD);
+                if (!LLVMIsConstant(result))
+                {
+                    char buffer[20];
+                    int len = snprintf(buffer, sizeof(buffer), "asm.reg.%s", regName(operand->reg));
+                    LLVMSetMetadata(result, LLVMGetMDKindIDInContext(state->context, buffer, len), state->emptyMD);
+                }
             }
             break;
         case OT_Ind8:
