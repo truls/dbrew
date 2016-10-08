@@ -352,16 +352,17 @@ ll_cast_to_int(LLVMValueRef value, OperandDataType dataType, Operand* operand, P
  * \author Alexis Engelke
  *
  * \param constGlobal The constant global address
+ * \param pointerType The type of the pointer
  * \param state The module state
- * \returns An i8 pointer which represents the address
+ * \returns A pointer of the given type which represents the address
  **/
 static LLVMValueRef
-ll_get_global_offset(LLVMValueRef constGlobal, LLState* state)
+ll_get_global_offset(LLVMValueRef constGlobal, LLVMTypeRef pointerType, LLState* state)
 {
     uintptr_t ptr = LLVMConstIntGetZExtValue(constGlobal);
 
     if (ptr == 0)
-        return LLVMConstPointerNull(LLVMInt8TypeInContext(state->context));
+        return LLVMConstPointerNull(pointerType);
 
     if (state->globalOffsetBase == 0)
     {
@@ -372,8 +373,9 @@ ll_get_global_offset(LLVMValueRef constGlobal, LLState* state)
 
     uintptr_t offset = ptr - state->globalOffsetBase;
     LLVMValueRef llvmOffset = LLVMConstInt(LLVMInt32TypeInContext(state->context), offset, false);
+    LLVMValueRef pointer = LLVMBuildGEP(state->builder, state->globalBase, &llvmOffset, 1, "");
 
-    return LLVMBuildGEP(state->builder, state->globalBase, &llvmOffset, 1, "");
+    return LLVMBuildPointerCast(state->builder, pointer, pointerType, "");
 }
 
 /**
@@ -425,7 +427,7 @@ ll_operand_get_address(OperandDataType dataType, Operand* operand, LLState* stat
             result = LLVMBuildSExtOrBitCast(state->builder, ll_get_register(operand->reg, state), i64, "");
 
             if (LLVMIsConstant(result))
-                result = LLVMBuildBitCast(state->builder, ll_get_global_offset(result, state), pointerType, "");
+                result = ll_get_global_offset(result, pointerType, state);
             else
                 result = LLVMBuildIntToPtr(state->builder, result, pointerType, "");
 
@@ -438,8 +440,7 @@ ll_operand_get_address(OperandDataType dataType, Operand* operand, LLState* stat
         }
         else
         {
-            result = ll_get_global_offset(LLVMConstInt(i64, operand->val, false), state);
-            result = LLVMBuildBitCast(state->builder, result, pointerType, "");
+            result = ll_get_global_offset(LLVMConstInt(i64, operand->val, false), pointerType, state);
         }
 
         if (operand->scale != 0)
@@ -473,7 +474,7 @@ ll_operand_get_address(OperandDataType dataType, Operand* operand, LLState* stat
         }
 
         if (LLVMIsConstant(result))
-            result = LLVMBuildBitCast(state->builder, ll_get_global_offset(result, state), pointerType, "");
+            result = ll_get_global_offset(result, pointerType, state);
         else
             result = LLVMBuildIntToPtr(state->builder, result, pointerType, "");
     }
