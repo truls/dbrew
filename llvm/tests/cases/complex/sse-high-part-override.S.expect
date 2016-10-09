@@ -13,7 +13,7 @@ define i64 @test(i8* noalias nocapture, i8* noalias nocapture readonly) #0 {
   %10 = insertelement <2 x double> %4, double %9, i64 0
   store <2 x double> %10, <2 x double>* %3, align 16
   %11 = bitcast i8* %0 to double*
-  %12 = fadd double %8, %9
+  %12 = fadd double %9, %8
   store double %12, double* %11, align 8
   ret i64 0
 }

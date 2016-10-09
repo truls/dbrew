@@ -1,7 +1,7 @@
 ; ModuleID = '<llengine>'
 target triple = "x86_64-pc-linux-gnu"
 
-; Function Attrs: inlinehint norecurse nounwind readnone
+; Function Attrs: inlinehint nounwind readnone
 define i64 @test(i64) #0 {
   %2 = icmp eq i64 %0, 0, !asm.flag.zf !0
   br i1 %2, label %14, label %3
@@ -24,7 +24,7 @@ define i64 @test(i64) #0 {
   ret i64 %15
 }
 
-attributes #0 = { inlinehint norecurse nounwind readnone }
+attributes #0 = { inlinehint nounwind readnone }
 
 !0 = !{}
 
