@@ -10,7 +10,7 @@ test:
     mov [rbp - 8], rdi
     mov rax, [rbp - 8]
     add rax, 10
-    pop rbp
+    leave
     ret
 
     .align 8
