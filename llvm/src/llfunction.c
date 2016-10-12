@@ -340,8 +340,8 @@ ll_function_specialize(LLFunction* base, uintptr_t index, uintptr_t value, size_
 
     LLVMValueRef fixed;
 
-    // Last check is for sanity.
-    if (length != 0 && length < 0x200)
+    // Last check is for sanity, 1 MiB should be enough
+    if (length != 0 && length < 0x100000)
     {
         LLVMTypeRef arrayType = LLVMArrayType(i64, length / 8);
         LLVMValueRef qwords[length / 8];
