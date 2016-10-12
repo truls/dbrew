@@ -99,11 +99,13 @@ ll_engine_init(void)
         return NULL;
     }
 
-    state->emptyMD = LLVMMDNodeInContext(state->context, NULL, 0); //LLVMMDStringInContext(state->context, "", 0);
+    state->emptyMD = LLVMMDNodeInContext(state->context, NULL, 0);
+    state->unrollMD = ll_support_metadata_loop_unroll(state->context);
     state->globalOffsetBase = 0;
     state->enableUnsafePointerOptimizations = false;
     state->enableOverflowIntrinsics = false;
     state->enableFastMath = false;
+    state->enableFullLoopUnroll = false;
 
     return state;
 }
@@ -162,6 +164,20 @@ void
 ll_engine_enable_fast_math(LLState* state, bool enable)
 {
     state->enableFastMath = enable;
+}
+
+/**
+ * Force loop unrolling whenever possible.
+ *
+ * \author Alexis Engelke
+ *
+ * \param state The module state
+ * \param enable Whether force loop unrolling
+ **/
+void
+ll_engine_enable_full_loop_unroll(LLState* state, bool enable)
+{
+    state->enableFullLoopUnroll = enable;
 }
 
 /**

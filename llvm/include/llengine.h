@@ -39,6 +39,7 @@ void ll_engine_dispose(LLState*);
 void ll_engine_enable_unsafe_pointer_optimizations(LLState*, bool);
 void ll_engine_enable_overflow_intrinsics(LLState*, bool);
 void ll_engine_enable_fast_math(LLState*, bool);
+void ll_engine_enable_full_loop_unroll(LLState*, bool);
 
 // bool ll_engine_handle_function(LLState*, LLFunction*);
 void ll_engine_optimize(LLState*, int);

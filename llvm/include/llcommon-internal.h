@@ -89,6 +89,11 @@ struct LLState {
     LLVMValueRef emptyMD;
 
     /**
+     * \brief The loop unrolling metadata
+     **/
+    LLVMValueRef unrollMD;
+
+    /**
      * \brief The current function
      **/
     LLFunction* currentFunction;
@@ -120,6 +125,10 @@ struct LLState {
      * Corresponds to -ffast-math.
      **/
     bool enableFastMath;
+    /**
+     * \brief Whether to force full loop unrolling on all loops
+     **/
+    bool enableFullLoopUnroll;
 };
 
 #endif

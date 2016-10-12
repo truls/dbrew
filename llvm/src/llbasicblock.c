@@ -471,15 +471,20 @@ ll_basic_block_build_ir(LLBasicBlock* bb, LLState* state)
     else if (bb->instrCount != 0)
         endType = bb->instrs[bb->instrCount - 1].type;
 
+    LLVMValueRef branch = NULL;
+
     if (instrIsJcc(endType))
     {
         LLVMValueRef cond = ll_flags_condition(endType, IT_JO, state);
-        LLVMBuildCondBr(state->builder, cond, bb->nextBranch->llvmBB, bb->nextFallThrough->llvmBB);
+        branch = LLVMBuildCondBr(state->builder, cond, bb->nextBranch->llvmBB, bb->nextFallThrough->llvmBB);
     }
     else if (endType == IT_JMP)
-        LLVMBuildBr(state->builder, bb->nextBranch->llvmBB);
+        branch = LLVMBuildBr(state->builder, bb->nextBranch->llvmBB);
     else if (endType != IT_RET && endType != IT_Invalid) // Any other instruction which is not a terminator
-        LLVMBuildBr(state->builder, bb->nextFallThrough->llvmBB);
+        branch = LLVMBuildBr(state->builder, bb->nextFallThrough->llvmBB);
+
+    if (state->enableFullLoopUnroll && branch != NULL)
+        LLVMSetMetadata(branch, LLVMGetMDKindIDInContext(state->context, "llvm.loop", 9), state->unrollMD);
 }
 
 /**
