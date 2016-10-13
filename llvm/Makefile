@@ -8,7 +8,7 @@ WFLAGS_BASE=-Wall -Wextra -Wmissing-field-initializers -Wunused-parameter \
             -Wmissing-include-dirs -Wundef -Wmissing-format-attribute \
             -Wswitch-enum -Wswitch
 WFLAGS_CXX_BASE=-Wall -Wextra -Wmissing-field-initializers \
-                -Wmissing-declarations -Winit-self -Waggregate-return \
+                -Wmissing-declarations -Winit-self \
                 -Wredundant-decls -Wshadow -Wpointer-arith \
                 -Wwrite-strings -Winline -Wformat-nonliteral -Wformat-security \
                 -Wmissing-include-dirs -Wmissing-format-attribute -Wswitch \
