@@ -8,12 +8,13 @@ LDLIBS=-L.. -ldbrew
 OPTS=-O2 -mavx
 CFLAGS=-std=gnu99 $(OPTS)
 
-## flags dependent on compiler, CC may be overwritten
-CC=gcc
-ifeq ($(CC),gcc)
+## no PIE: flags dependent on compiler/version
+ifeq ($(shell $(CC) --version | head -c 3),gcc)
  CFLAGS  += -fno-pie
- LDFLAGS += -no-pie
-else ifeq ($(CC),clang)
+ ifeq ($(shell expr `$(CC) -dumpversion | cut -f1 -d.` \>= 5),1)
+  LDFLAGS += -no-pie
+ endif
+else ifeq ($(shell $(CC) --version | head -c 5),clang)
  CFLAGS += -fno-pie
 else
  $(error Compiler $(CC) not supported)

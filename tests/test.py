@@ -3,6 +3,7 @@
 from subprocess import call, Popen, PIPE
 import argparse
 import fnmatch
+import re
 import os
 import sys
 import difflib
@@ -94,11 +95,15 @@ class TestCase:
             "driver": self.driver
         }
 
-        # force tests to switch off PIE (as our Makefiles do)
-        if substs["cc"] == "gcc":
-            substs["ccflags"] = substs["ccflags"] + " -fno-pie -no-pie"
-        elif substs["cc"] == "clang":
-            substs["ccflags"] = substs["ccflags"] + " -fno-pie"
+        # switch off PIE
+        match = re.search('^(gcc|clang)', substs["cc"])
+        if match:
+            substs["ccflags"] += " -fno-pie"
+            if match.group(1) == 'gcc':
+                s = Popen([substs["cc"], "-dumpversion"],stdout=PIPE).communicate();
+                v = s[0].decode("utf-8")[0];
+                if int(v) > 4:
+                    substs["ccflags"] += " -no-pie"
         else:
             print("FAIL (Compiler " + substs["cc"] + " not supported)")
             self.status = TestCase.FAILED

@@ -24,20 +24,21 @@ LDFLAGS=-g
 OPTFLAGS=-O2 -mavx
 
 ## flags dependent on compiler
-ifeq ($(CC),gcc)
- # GCC
+ifeq ($(shell $(CC) --version | head -c 3),gcc)
+ # gcc
  CFLAGS  += -fno-pie
- LDFLAGS += -no-pie
+ ifeq ($(shell expr `$(CC) -dumpversion | cut -f1 -d.` \>= 5),1)
+  LDFLAGS += -no-pie
+ endif
 
  # some snippets 'switch' to AVX mode. hack to avoid 32-byte stack alignment
  # FIXME: rewriter should move such stack alignment to outermost level
  # clang does not know these options
  SNIPPETSFLAGS=$(OPTFLAGS) -mno-vzeroupper -mpreferred-stack-boundary=5
 
-else ifeq ($(CC),clang)
- # clang (other compilers not supported)
+else ifeq ($(shell $(CC) --version | head -c 5),clang)
+ # clang
  CFLAGS += -fno-pie
-
  SNIPPETSFLAGS=$(OPTFLAGS)
 else
  $(error Compiler $(CC) not supported)
