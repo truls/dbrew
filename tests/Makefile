@@ -1,9 +1,12 @@
+# can be overwritten
+CC=gcc
+
 .PHONY: all test store clean
 
 all: test
 
 test:
-	./test.py
+	CC=$(CC) ./test.py
 
 store:
 	./test.py --store

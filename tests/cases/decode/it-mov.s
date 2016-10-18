@@ -1,5 +1,4 @@
 //!driver = test-driver-decode.c
-//!cc = cc
 .intel_syntax noprefix
     .text
     .globl  f1

@@ -23,13 +23,24 @@ LDFLAGS=-g
 # this allows other DBrew code to still be debuggable
 OPTFLAGS=-O2 -mavx
 
-# some snippets 'switch' to AVX mode. hack to avoid 32-byte stack alignment
-# FIXME: rewriter should move such stack alignment to outermost level
-# clang does not know these options
+## flags dependent on compiler
 ifeq ($(CC),gcc)
-SNIPPETSFLAGS=$(OPTFLAGS) -mno-vzeroupper -mpreferred-stack-boundary=5
+ # GCC
+ CFLAGS  += -fno-pie
+ LDFLAGS += -no-pie
+
+ # some snippets 'switch' to AVX mode. hack to avoid 32-byte stack alignment
+ # FIXME: rewriter should move such stack alignment to outermost level
+ # clang does not know these options
+ SNIPPETSFLAGS=$(OPTFLAGS) -mno-vzeroupper -mpreferred-stack-boundary=5
+
+else ifeq ($(CC),clang)
+ # clang (other compilers not supported)
+ CFLAGS += -fno-pie
+
+ SNIPPETSFLAGS=$(OPTFLAGS)
 else
-SNIPPETSFLAGS=$(OPTFLAGS)
+ $(error Compiler $(CC) not supported)
 endif
 
 SRCS = $(wildcard src/*.c)
@@ -45,13 +56,13 @@ libdbrew.a: $(OBJS)
 	ar rcs libdbrew.a $(OBJS)
 
 test: libdbrew.a
-	$(MAKE) test -C tests
+	$(MAKE) test -C tests CC=$(CC)
 
 src/snippets.o: src/snippets.c
 	$(CC) $(CFLAGS) $(SNIPPETSFLAGS) -c $< -o $@
 
 examples: libdbrew.a
-	cd examples && $(MAKE) OPTS='$(OPTFLAGS)'
+	cd examples && $(MAKE) OPTS='$(OPTFLAGS)' CC=$(CC)
 
 clean:
 	rm -rf *~ *.o $(OBJS) libdbrew.a

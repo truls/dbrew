@@ -8,6 +8,17 @@ LDLIBS=-L.. -ldbrew
 OPTS=-O2 -mavx
 CFLAGS=-std=gnu99 $(OPTS)
 
+## flags dependent on compiler, CC may be overwritten
+CC=gcc
+ifeq ($(CC),gcc)
+ CFLAGS  += -fno-pie
+ LDFLAGS += -no-pie
+else ifeq ($(CC),clang)
+ CFLAGS += -fno-pie
+else
+ $(error Compiler $(CC) not supported)
+endif
+
 all: $(EXAMPLES)
 
 stencil: stencil.o ../libdbrew.a

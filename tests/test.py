@@ -93,6 +93,17 @@ class TestCase:
             "ofile": self.objFile,
             "driver": self.driver
         }
+
+        # force tests to switch off PIE (as our Makefiles do)
+        if substs["cc"] == "gcc":
+            substs["ccflags"] = substs["ccflags"] + " -fno-pie -no-pie"
+        elif substs["cc"] == "clang":
+            substs["ccflags"] = substs["ccflags"] + " -fno-pie"
+        else:
+            print("FAIL (Compiler " + substs["cc"] + " not supported)")
+            self.status = TestCase.FAILED
+            raise TestFailException()
+
         compileDef = "{cc} {ccflags} -o {outfile} {infile} {driver} {dbrew}"
         compileArgs = self.getProperty("compile", compileDef).format(**substs)
         if self.verbose > 0:
