@@ -1,4 +1,10 @@
 *.o
 *.a
 *.out
+
+# ignore stuff from various IDEs
 dbrew.creator.user
+.vscode
+
+# ignore any local experiments in tmp/
+tmp
