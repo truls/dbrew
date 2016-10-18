@@ -1,7 +1,3 @@
-# Explicitly set to gcc. Overwrite with "make CC=..." (e.g. in Travis)
-# Reason: later we check for GCC, and 'cc' may be configured not to be gcc (?)
-CC=gcc
-
 WFLAGS_BASE=-Wall -Wextra -Wmissing-field-initializers -Wunused-parameter \
             -Wold-style-definition -Wmissing-declarations -Wmissing-prototypes \
             -Wredundant-decls -Wmissing-noreturn -Wshadow -Wpointer-arith \
@@ -24,8 +20,10 @@ LDFLAGS=-g
 OPTFLAGS=-O2 -mavx
 
 ## flags dependent on compiler
-ifeq ($(shell $(CC) --version | head -c 3),gcc)
- # gcc
+CCNAME:=$(strip $(shell $(CC) --version | head -c 3))
+ifeq ($(CCNAME),$(filter $(CCNAME),gcc cc))
+ # gcc/cc
+ $(info ** gcc detected: $(CC))
  CFLAGS  += -fno-pie
  ifeq ($(shell expr `$(CC) -dumpversion | cut -f1 -d.` \>= 5),1)
   LDFLAGS += -no-pie
@@ -38,6 +36,7 @@ ifeq ($(shell $(CC) --version | head -c 3),gcc)
 
 else ifeq ($(shell $(CC) --version | head -c 5),clang)
  # clang
+ $(info ** clang detected: $(CC))
  CFLAGS += -fno-pie
  SNIPPETSFLAGS=$(OPTFLAGS)
 else
