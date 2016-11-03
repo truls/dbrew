@@ -26,7 +26,7 @@ ifeq ($(CCNAME),$(filter $(CCNAME),gcc cc icc))
  $(info ** gcc compatible compiler detected: $(CC))
  CFLAGS  += -fno-pie
  ifeq ($(shell expr `$(CC) -dumpversion | cut -f1 -d.` \>= 5),1)
-  LDFLAGS += -no-pie
+  LDFLAGS += -fno-pie
  endif
 
  # some snippets 'switch' to AVX mode. hack to avoid 32-byte stack alignment
