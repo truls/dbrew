@@ -5,6 +5,10 @@
 # ignore stuff from various IDEs
 dbrew.creator.user
 .vscode
+.projectile
+GPATH
+GRTAGS
+GTAGS
 
 # ignore any local experiments in tmp/
 tmp
