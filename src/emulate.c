@@ -1009,6 +1009,7 @@ void setStackState(EmuState* es, EmuValue* off, ValType vt, MetaState ms)
 static
 void setStackValue(EmuState* es, EmuValue* v, EmuValue* off)
 {
+
     uint16_t* a16;
     uint32_t* a32;
     uint64_t* a64;
