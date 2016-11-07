@@ -1213,8 +1213,10 @@ void getOpAddr(EmuValue* v, EmuState* es, Operand* o)
     v->val = o->val;
     initMetaState(&(v->state), CS_STATIC);
 
-    if (o->reg.rt != RT_None)
+    if (o->reg.rt != RT_None) {
+        printf("This is reg\n");
         addRegToValue(v, es, o->reg, 1);
+    }
 
     if (o->scale > 0)
         addRegToValue(v, es, o->ireg, o->scale);
@@ -1993,6 +1995,7 @@ void processInstr(RContext* c, Instr* instr)
         }
 
         // address to jump to
+        printf("Jumping to: %lu\n", v1.val);
         c->exit = v1.val;
         break;
     }
