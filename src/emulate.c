@@ -1132,28 +1132,11 @@ static
 void addRegToValue(EmuValue* v, EmuState* es, Reg r, int scale)
 {
     if (r.rt == RT_None) return;
-    printf("Register type: %d %d %lu %lu\n", r.rt, scale, v->val,
-    es->reg[r.ri]);
-    assert(r.rt == RT_GP64 ||
-           r.rt == RT_IP);
+    assert(r.rt == RT_GP64);
 
-    switch (r.rt) {
-    case RT_GP64:
-        v->state.cState = combineState(v->state.cState,
-                                       es->reg_state[r.ri].cState, 0);
-        printf("Reg value %d\n", r.ri);//es->reg[r.ri]);
-        v->val += scale * es->reg[r.ri];
-        break;
-    case RT_IP:
-        v->state.cState = combineState(v->state.cState,
-                                       es->regIP_state.cState, 0);
-        printf("Reg value %d\n", r.ri);//es->reg[r.ri]);
-        v->val += scale * es->regIP;
-        break;
-    default:
-        assert(0);
-    }
-
+    v->state.cState = combineState(v->state.cState,
+                                   es->reg_state[r.ri].cState, 0);
+    v->val += scale * es->reg[r.ri];
 }
 
 // get resulting address (and state) for memory operands
@@ -1168,10 +1151,8 @@ void getOpAddr(EmuValue* v, EmuState* es, Operand* o)
     v->val = o->val;
     initMetaState(&(v->state), CS_STATIC);
 
-    if (o->reg.rt != RT_None) {
-        printf("This is reg\n");
+    if (o->reg.rt != RT_None)
         addRegToValue(v, es, o->reg, 1);
-    }
 
     if (o->scale > 0)
         addRegToValue(v, es, o->ireg, o->scale);
@@ -1827,7 +1808,6 @@ void emulateRet(RContext* c)
         es->reg[RI_SP] += 8;
 
         if (v.val != es->ret_stack[es->depth]) {
-            printf("%#010lx %#010lx", v.val, es->ret_stack[es->depth]);
             setEmulatorError(c, ET_BadOperands, "Return address modified");
             return;
         }
@@ -1923,7 +1903,6 @@ void emulateInstr(RContext* c)
         }
 
         // address to jump to
-        printf("Jumping to: %lu\n", v1.val);
         c->exit = v1.val;
         break;
 
