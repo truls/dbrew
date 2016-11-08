@@ -103,7 +103,7 @@ class TestCase:
                 s = Popen([substs["cc"], "-dumpversion"],stdout=PIPE).communicate();
                 v = s[0].decode("utf-8")[0];
                 if int(v) > 4:
-                    substs["ccflags"] += " -fno-pie"
+                    substs["ccflags"] += " -no-pie"
         else:
             print("FAIL (Compiler " + substs["cc"] + " not supported)")
             self.status = TestCase.FAILED

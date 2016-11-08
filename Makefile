@@ -12,7 +12,7 @@ endif
 
 WFLAGS2=-Wswitch-enum -Wswitch -Waggregate-return
 
-CFLAGS=-g -std=gnu99 -Iinclude -Iinclude/priv $(WFLAGS)
+CFLAGS=-g -std=gnu99 -Werror -Iinclude -Iinclude/priv $(WFLAGS)
 LDFLAGS=-g
 
 # always compile examples and DBrew snippets with optimizations
@@ -26,7 +26,7 @@ ifeq ($(CCNAME),$(filter $(CCNAME),gcc cc))
  $(info ** gcc detected: $(CC))
  CFLAGS  += -fno-pie
  ifeq ($(shell expr `$(CC) -dumpversion | cut -f1 -d.` \>= 5),1)
-  LDFLAGS += -fno-pie
+  LDFLAGS += -no-pie
  endif
 
  # some snippets 'switch' to AVX mode. hack to avoid 32-byte stack alignment
@@ -45,12 +45,12 @@ endif
 
 SRCS = $(wildcard src/*.c)
 OBJS = $(SRCS:.c=.o)
-HEADERS = $(wildcard include/*.h)
+HEADERS = $(wildcard include/*.h include/priv/*.h)
 
 SUBDIRS=tests examples
 .PHONY: $(SUBDIRS)
 
-all: libdbrew.a $(SUBDIRS)
+all: libdbrew.a $(SUBDIRS) $(HEADERS)
 
 libdbrew.a: $(OBJS)
 	ar rcs libdbrew.a $(OBJS)
