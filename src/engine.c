@@ -101,7 +101,7 @@ void initRewriter(Rewriter* r)
 
     if (r->decBB == 0) {
         // default
-        if (r->decBBCapacity == 0) r->decBBCapacity = 100;
+        if (r->decBBCapacity == 0) r->decBBCapacity = 50;
         r->decBB = (DBB*) malloc(sizeof(DBB) * r->decBBCapacity);
     }
     r->decBBCount = 0;
