@@ -1,6 +1,6 @@
 EXAMPLES = stencil matrix strcmp simple vector
 CPPFLAGS=-I../include
-LDLIBS=-L.. -ldbrew
+#LDLIBS=-L.. -ldbrew # with libs, dependencies do not work
 
 # optimization flags should be the same as for DBrew snippets.
 # thus, the Makefile from the top directory overrides OPTS for this.
@@ -10,8 +10,8 @@ CFLAGS=-std=gnu99 $(OPTS)
 
 ## no PIE: flags dependent on compiler/version
 CCNAME:=$(strip $(shell $(CC) --version | head -c 3))
-ifeq ($(CCNAME),$(filter $(CCNAME),gcc cc))
- $(info ** gcc detected: $(CC))
+ifeq ($(CCNAME),$(filter $(CCNAME),gcc cc icc))
+ $(info ** gcc compatible compiler detected: $(CC))
  CFLAGS  += -fno-pie
  ifeq ($(shell expr `$(CC) -dumpversion | cut -f1 -d.` \>= 5),1)
   LDFLAGS += -no-pie
