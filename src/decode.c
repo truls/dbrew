@@ -869,12 +869,6 @@ static void parseRVM(DContext* c)
     c->oe = OE_RVM;
 }
 
-// parse immediate into op 1 (for 64bit with imm32 signed extension)
-//static void parseI1(DContext* c)
-//{
-//    parseImm(c, c->vt, &c->o1, false);
-//}
-
 // parse immediate into op 2 (for 64bit with imm32 signed extension)
 static void parseI2(DContext* c)
 {
@@ -932,12 +926,6 @@ static void addSInstr(DContext* c)
 {
     c->ii = addSimple(c->r, c, c->it, c->vt);
 }
-
-// append unary instruction
-//static void addUInstr(DContext* c)
-//{
-//    c->ii = addUnaryOp(c->r, c, c->it, &c->o1);
-//}
 
 // append binary instruction
 static void addBInstr(DContext* c)
