@@ -75,7 +75,7 @@ CBB* createCBBfromDBB(Rewriter* r, DBB* src);
 // emulate a given instruction in a given emulation state (in RContext).
 // Capture it if not static. Set exit variable in RContext on jump.
 // Returns 0 if no error, otherwise pointer to Error struct
-void emulateInstr(RContext*);
+void processInstr(RContext*, Instr *instr);
 
 // process call or jump to known location
 uint64_t processKnownTargets(RContext* c, uint64_t f);

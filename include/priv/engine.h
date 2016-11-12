@@ -31,7 +31,6 @@ typedef struct _RContext RContext;
 struct _RContext
 {
     Rewriter* r;
-    Instr* instr;
     uint64_t exit;
     Error* e;
 };

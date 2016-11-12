@@ -293,10 +293,8 @@ Error* emulateAndCapture(Rewriter* r, int parCount, uint64_t* par)
             // for RIP-relative accesses
             es->regIP = instr->addr + instr->len;
 
-            cxt.instr = instr;
             cxt.exit = 0;
-
-            emulateInstr(&cxt);
+            processInstr(&cxt, instr);
             if (cxt.e) {
                 assert(isErrorSet(cxt.e));
                 r->capBBCount = 0;
