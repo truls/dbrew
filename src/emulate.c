@@ -1752,7 +1752,8 @@ void captureJcc(RContext* c, InstrType it,
 // Emulator for instruction types
 
 static
-void setEmulatorError(RContext* c, ErrorType et, const char* d)
+void setEmulatorError(RContext* c, Instr* instr,
+                      ErrorType et, const char* d)
 {
     static Error e;
     static char buf[100];
@@ -1761,10 +1762,10 @@ void setEmulatorError(RContext* c, ErrorType et, const char* d)
         d = buf;
         if (et == ET_UnsupportedInstr)
             sprintf(buf, "Instruction not implemented for %s",
-                    instr2string(c->instr,0,0));
+                    instr2string(instr, 0, 0));
         else if (et == ET_UnsupportedOperands)
             sprintf(buf, "Operand types not implemented for %s",
-                    instr2string(c->instr,0,0));
+                    instr2string(instr, 0, 0));
         else
             d = 0;
     }
@@ -1773,7 +1774,7 @@ void setEmulatorError(RContext* c, ErrorType et, const char* d)
 }
 
 static
-void emulateRet(RContext* c)
+void emulateRet(RContext* c, Instr* instr)
 {
     Rewriter* r = c->r;
     EmuState* es = c->r->es;
@@ -1801,7 +1802,8 @@ void emulateRet(RContext* c)
         es->reg[RI_SP] += 8;
 
         if (v.val != es->ret_stack[es->depth]) {
-            setEmulatorError(c, ET_BadOperands, "Return address modified");
+            setEmulatorError(c, instr,
+                             ET_BadOperands, "Return address modified");
             return;
         }
         // return to address
@@ -1809,9 +1811,9 @@ void emulateRet(RContext* c)
     }
 }
 
-
-// return 0 to fall through to next instruction, or return address to jump to
-void emulateInstr(RContext* c)
+// process an instruction
+// if this changes control flow, c.exit is set accordingly
+void processInstr(RContext* c, Instr* instr)
 {
     EmuValue vres, v1, v2, addr;
     CaptureState cs;
@@ -1819,7 +1821,6 @@ void emulateInstr(RContext* c)
 
     Rewriter* r = c->r;
     EmuState* es = c->r->es;
-    Instr* instr = c->instr;
 
     if (instr->ptLen > 0) {
         // memory addressing in captured instructions depends on emu state
@@ -1854,7 +1855,7 @@ void emulateInstr(RContext* c)
             break;
 
         default:
-            setEmulatorError(c, ET_UnsupportedOperands, 0);
+            setEmulatorError(c, instr, ET_UnsupportedOperands, 0);
             return;
         }
 
@@ -1869,12 +1870,13 @@ void emulateInstr(RContext* c)
         // TODO: keep call. For now, we always inline
         getOpValue(&v1, es, &(instr->dst));
         if (es->depth >= MAX_CALLDEPTH) {
-            setEmulatorError(c, ET_BufferOverflow, "Call depth too deep");
+            setEmulatorError(c, instr, ET_BufferOverflow,
+                             "Call depth too deep");
             return;
         }
         if (!msIsStatic(v1.state)) {
             // call target must be known
-            setEmulatorError(c, ET_UnsupportedOperands,
+            setEmulatorError(c, instr, ET_UnsupportedOperands,
                              "Call to unknown target not supported");
             return;
         }
@@ -1924,7 +1926,7 @@ void emulateInstr(RContext* c)
             es->reg[RI_D] = (es->reg[RI_A] & (1ul<<62)) ? ((uint64_t)-1) : 0;
             break;
         default:
-            setEmulatorError(c, ET_UnsupportedOperands, 0);
+            setEmulatorError(c, instr, ET_UnsupportedOperands, 0);
             return;
         }
         es->reg_state[RI_D] = es->reg_state[RI_A];
@@ -1987,7 +1989,7 @@ void emulateInstr(RContext* c)
             break;
 
         default:
-            setEmulatorError(c, ET_UnsupportedOperands, 0);
+            setEmulatorError(c, instr, ET_UnsupportedOperands, 0);
             return;
         }
         captureUnaryOp(c, instr, es, &v1);
@@ -2014,7 +2016,7 @@ void emulateInstr(RContext* c)
             break;
 
         default:
-            setEmulatorError(c, ET_UnsupportedOperands, 0);
+            setEmulatorError(c, instr, ET_UnsupportedOperands, 0);
             return;
         }
 
@@ -2060,7 +2062,7 @@ void emulateInstr(RContext* c)
             break;
 
         default:
-            setEmulatorError(c, ET_UnsupportedOperands, 0);
+            setEmulatorError(c, instr, ET_UnsupportedOperands, 0);
             return;
         }
 
@@ -2086,7 +2088,7 @@ void emulateInstr(RContext* c)
             break;
 
         default:
-            setEmulatorError(c, ET_UnsupportedOperands, 0);
+            setEmulatorError(c, instr, ET_UnsupportedOperands, 0);
             return;
         }
         captureUnaryOp(c, instr, es, &v1);
@@ -2279,7 +2281,7 @@ void emulateInstr(RContext* c)
 
     case IT_JMP:
         if (instr->dst.type != OT_Imm64) {
-            setEmulatorError(c, ET_UnsupportedOperands, 0);
+            setEmulatorError(c, instr, ET_UnsupportedOperands, 0);
             return;
         }
 
@@ -2301,13 +2303,13 @@ void emulateInstr(RContext* c)
             }
             break;
         default:
-            setEmulatorError(c, ET_UnsupportedOperands, 0);
+            setEmulatorError(c, instr, ET_UnsupportedOperands, 0);
             return;
         }
 
         if (!msIsStatic(v1.state)) {
             // call target must be known
-            setEmulatorError(c, ET_BufferOverflow,
+            setEmulatorError(c, instr, ET_BufferOverflow,
                              "Call to unknown target not supported");
             return;
         }
@@ -2386,7 +2388,7 @@ void emulateInstr(RContext* c)
             break;
 
         default:
-            setEmulatorError(c, ET_UnsupportedOperands, 0);
+            setEmulatorError(c, instr, ET_UnsupportedOperands, 0);
             return;
         }
         break;
@@ -2410,7 +2412,7 @@ void emulateInstr(RContext* c)
             break;
 
         default:
-            setEmulatorError(c, ET_UnsupportedOperands, 0);
+            setEmulatorError(c, instr, ET_UnsupportedOperands, 0);
             return;
         }
         captureUnaryOp(c, instr, es, &v1);
@@ -2439,7 +2441,7 @@ void emulateInstr(RContext* c)
             break;
 
         default:
-            setEmulatorError(c, ET_UnsupportedOperands, 0);
+            setEmulatorError(c, instr, ET_UnsupportedOperands, 0);
             return;
         }
         break;
@@ -2468,13 +2470,13 @@ void emulateInstr(RContext* c)
             break;
 
         default:
-            setEmulatorError(c, ET_UnsupportedOperands, 0);
+            setEmulatorError(c, instr, ET_UnsupportedOperands, 0);
             return;
         }
         break;
 
     case IT_RET:
-        emulateRet(c);
+        emulateRet(c, instr);
         break;
 
     case IT_SHL:
@@ -2525,7 +2527,7 @@ void emulateInstr(RContext* c)
             break;
 
         default:
-            setEmulatorError(c, ET_UnsupportedOperands, 0);
+            setEmulatorError(c, instr, ET_UnsupportedOperands, 0);
             return;
         }
         v1.state.cState = combineState(v1.state.cState, v2.state.cState, 0);
@@ -2563,7 +2565,7 @@ void emulateInstr(RContext* c)
             break;
 
         default:
-            setEmulatorError(c, ET_UnsupportedOperands, 0);
+            setEmulatorError(c, instr, ET_UnsupportedOperands, 0);
             return;
         }
 
@@ -2611,7 +2613,7 @@ void emulateInstr(RContext* c)
         break;
 
     default:
-        setEmulatorError(c, ET_UnsupportedInstr, 0);
+        setEmulatorError(c, instr, ET_UnsupportedInstr, 0);
     }
 }
 
