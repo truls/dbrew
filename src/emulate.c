@@ -1284,11 +1284,11 @@ void setOpValue(EmuValue* v, EmuState* es, Operand* o)
     }
 }
 
-// Do we maintain capture state for a value pointed to by an operand?
-// Returns false for memory locations not on stack or when stack offset
+// Do we track the state for a value pointed to by an operand?
+// Returns false for memory locations not on stack or when the stack offset
 //  is not static/known.
 static
-bool keepsCaptureState(EmuState* es, Operand* o)
+bool opStateIsTracked(EmuState* es, Operand* o)
 {
     EmuValue addr;
     EmuValue off;
@@ -1345,7 +1345,7 @@ void captureMov(RContext* c, Instr* orig, EmuState* es, EmuValue* res)
     o = &(orig->src);
     if (msIsStatic(res->state)) {
         // no need to update data if capture state is maintained
-        if (keepsCaptureState(es, &(orig->dst))) return;
+        if (opStateIsTracked(es, &(orig->dst))) return;
 
         // source is static, use immediate
         o = getImmOp(res->type, res->val);
@@ -1454,7 +1454,7 @@ void captureBinaryOp(RContext* c, Instr* orig, EmuState* es, EmuValue* res)
         }
         else {
             // no need to update data if capture state is maintained
-            if (keepsCaptureState(es, &(orig->dst))) return;
+            if (opStateIsTracked(es, &(orig->dst))) return;
         }
         // if result is known and goes to memory, generate imm store
         initBinaryInstr(&i, IT_MOV, res->type,
@@ -1467,7 +1467,7 @@ void captureBinaryOp(RContext* c, Instr* orig, EmuState* es, EmuValue* res)
     // if dst (= 2.op) known/constant and a reg/stack, we need to update it
     // example: %eax += %ebx with %eax known to be 5  =>  %eax=5, %eax+=%ebx
     getOpValue(&opval, es, &(orig->dst));
-    if (keepsCaptureState(es, &(orig->dst)) && msIsStatic(opval.state)) {
+    if (opStateIsTracked(es, &(orig->dst)) && msIsStatic(opval.state)) {
 
         // - instead of adding src to 0, we can move the src to dst
         // - instead of multiply src with 1, move
