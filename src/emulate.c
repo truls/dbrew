@@ -955,7 +955,7 @@ void getStackValue(EmuState* es, EmuValue* v, EmuValue* off)
 
     switch(v->type) {
     case VT_16:
-        v->val = *(uint32_t*) (es->stack + off->val);
+        v->val = *(uint16_t*) (es->stack + off->val);
         count = 2;
         break;
 
@@ -1112,6 +1112,7 @@ void setMemValue(EmuValue* v, EmuValue* addr, EmuState* es, ValType t,
                  int shouldBeStack)
 {
     EmuValue off;
+    uint16_t* a16;
     uint32_t* a32;
     uint64_t* a64;
     bool isOnStack;
@@ -1126,6 +1127,10 @@ void setMemValue(EmuValue* v, EmuValue* addr, EmuState* es, ValType t,
     assert(!shouldBeStack);
 
     switch(t) {
+    case VT_16:
+        a16 = (uint16_t*) addr->val;
+        *a16 = (uint16_t) v->val;
+
     case VT_32:
         a32 = (uint32_t*) addr->val;
         *a32 = (uint32_t) v->val;
@@ -2496,6 +2501,8 @@ void processInstr(RContext* c, Instr* instr)
         case OT_Imm8:
         case OT_Imm32:
         case OT_Imm64:
+        case OT_Imm8:
+        case OT_Imm32:
             es->reg[RI_SP] -= 8;
             addr = emuValue(es->reg[RI_SP], VT_64, es->reg_state[RI_SP]);
             getOpValue(&v1, es, &(instr->dst));
