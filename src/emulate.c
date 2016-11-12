@@ -1866,7 +1866,7 @@ void processInstr(RContext* c, Instr* instr)
         setOpValue(&v1, es, &(instr->dst));
         break;
 
-    case IT_CALL:
+    case IT_CALL: {
         // TODO: keep call. For now, we always inline
         getOpValue(&v1, es, &(instr->dst));
         if (es->depth >= MAX_CALLDEPTH) {
@@ -1881,18 +1881,18 @@ void processInstr(RContext* c, Instr* instr)
             return;
         }
 
-        // push address of instruction after CALL onto stack
-        es->reg[RI_SP] -= 8;
-        addr = emuValue(es->reg[RI_SP], VT_64, es->reg_state[RI_SP]);
-        initMetaState(&(v2.state), CS_DYNAMIC);
-        v2.type = VT_64;
-        v2.val = instr->addr + instr->len;
-        setMemValue(&v2, &addr, es, VT_64, 1);
+        Instr i;
+        Operand o;
 
-        es->ret_stack[es->depth++] = v2.val;
+        // push address of instruction after CALL onto stack
+        copyOperand(&o, getImmOp(VT_64, instr->addr + instr->len));
+        initUnaryInstr(&i, IT_PUSH, &o);
+        processInstr(c, &i);
+        if (c->e) return; // error
+
+        es->ret_stack[es->depth++] = o.val;
 
         if (r->addInliningHints) {
-            Instr i;
             initSimpleInstr(&i, IT_HINT_CALL);
             capture(c, &i);
         }
@@ -1900,6 +1900,7 @@ void processInstr(RContext* c, Instr* instr)
         // address to jump to
         c->exit = v1.val;
         break;
+    }
 
     case IT_CLTQ:
         switch(instr->vtype) {
@@ -2459,6 +2460,7 @@ void processInstr(RContext* c, Instr* instr)
 
         case OT_Ind64:
         case OT_Reg64:
+        case OT_Imm64:
             es->reg[RI_SP] -= 8;
             addr = emuValue(es->reg[RI_SP], VT_64, es->reg_state[RI_SP]);
             getOpValue(&v1, es, &(instr->dst));
