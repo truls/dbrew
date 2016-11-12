@@ -2339,21 +2339,19 @@ void processInstr(RContext* c, Instr* instr)
         // leave = mov rbp,rsp + pop rbp
 
         Instr i;
-        // mov rbp,rsp
-        initSimpleInstr(&i, IT_MOV);
-        copyOperand( &(i.src), getRegOp(getReg(RT_GP64, RI_BP)) );
-        copyOperand( &(i.dst), getRegOp(getReg(RT_GP64, RI_SP)) );
-        getOpValue(&v1, es, &(i.src));
-        setOpValue(&v1, es, &(i.dst));
-        captureMov(c, &i, es, &v1);
+        Operand src, dst;
+
+        // mov rbp,rsp (restore stack pointer)
+        copyOperand( &src, getRegOp(getReg(RT_GP64, RI_BP)) );
+        copyOperand( &dst, getRegOp(getReg(RT_GP64, RI_SP)) );
+        initBinaryInstr(&i, IT_MOV, VT_None, &dst, &src);
+        processInstr(c, &i);
+        if (c->e) return; // error
+
         // pop rbp
         initUnaryInstr(&i, IT_POP, getRegOp(getReg(RT_GP64, RI_BP)));
-        addr = emuValue(es->reg[RI_SP], VT_64, es->reg_state[RI_SP]);
-        getMemValue(&v1, &addr, es, VT_64, 1);
-        setOpValue(&v1, es, &(i.dst));
-        es->reg[RI_SP] += 8;
-        if (!msIsStatic(v1.state))
-            capture(c, &i);
+        processInstr(c, &i);
+        if (c->e) return; // error
         break;
     }
 
