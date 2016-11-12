@@ -1,0 +1,43 @@
+>>> Testcase known par = 1.
+Saving current emulator state: new with esID 0
+Capture 'H-call' (into test|0 + 0)
+Processing BB (test|0)
+Emulation Static State (esID 0, call depth 0):
+  Registers: %rsp (R 0), %rdi (0x1)
+  Flags: (none)
+  Stack: (none)
+Decoding BB test ...
+                test:  55                    push    %rbp
+              test+1:  48 89 e5              mov     %rsp,%rbp
+              test+4:  48 89 f8              mov     %rdi,%rax
+              test+7:  c9                    leave  
+              test+8:  c3                    ret    
+Emulate 'test: push %rbp'
+Capture 'push %rbp' (into test|0 + 1)
+Emulate 'test+1: mov %rsp,%rbp'
+Capture 'mov %rsp,%rbp' (into test|0 + 2)
+Emulate 'test+4: mov %rdi,%rax'
+Emulate 'test+7: leave'
+Capture 'mov %rbp,%rsp' (into test|0 + 3)
+Capture 'pop %rbp' (into test|0 + 4)
+Emulate 'test+8: ret'
+Capture 'H-ret' (into test|0 + 5)
+Capture 'mov $0x1,%rax' (into test|0 + 6)
+Capture 'ret' (into test|0 + 7)
+Generating code for BB test|0 (8 instructions)
+  I 0 : H-call                           (test|0)+0   
+  I 1 : push    %rbp                     (test|0)+0    55
+  I 2 : mov     %rsp,%rbp                (test|0)+1    48 89 e5
+  I 3 : mov     %rbp,%rsp                (test|0)+4    48 89 ec
+  I 4 : pop     %rbp                     (test|0)+7    5d
+  I 5 : H-ret                            (test|0)+8   
+  I 6 : mov     $0x1,%rax                (test|0)+8    48 c7 c0 01 00 00 00
+  I 7 : ret                              (test|0)+15   c3
+Generated: 16 bytes (pass1: 42)
+BB gen (6 instructions):
+                 gen:  55                    push    %rbp
+               gen+1:  48 89 e5              mov     %rsp,%rbp
+               gen+4:  48 89 ec              mov     %rbp,%rsp
+               gen+7:  5d                    pop     %rbp
+               gen+8:  48 c7 c0 01 00 00 00  mov     $0x1,%rax
+              gen+15:  c3                    ret    
