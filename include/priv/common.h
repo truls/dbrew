@@ -160,6 +160,19 @@ typedef enum _FlagType {
     FT_Max
 } FlagType;
 
+typedef enum _FlagSet {
+    FS_None     = 0,
+    FS_Carry    = 1,
+    FS_Zero     = 2,
+    FS_Sign     = 4,
+    FS_Overflow = 8,
+    FS_Parity   = 16
+} FlagSet;
+
+#define FS_CZSOP (FS_Carry|FS_Zero|FS_Sign|FS_Overflow|FS_Parity)
+#define FS_CO    (FS_Carry|FS_Overflow)
+#define FS_ZSP   (FS_Zero|FS_Sign|FS_Parity)
+
 // a single value with type and capture state
 typedef struct _EmuValue {
     uint64_t val;
