@@ -760,6 +760,23 @@ uint32_t parity_tab[8] =
 #define PARITY(x)   (((parity_tab[(x) / 32] >> ((x) % 32)) & 1) == 0)
 #define XOR2(x)     (((x) ^ ((x)>>1)) & 0x1)
 
+
+static
+void setFlagsState(EmuState* es, int flagSet, CaptureState cs)
+{
+    if (flagSet & FS_Carry)
+        initMetaState(&(es->flag_state[FT_Carry]   ), cs);
+    if (flagSet & FS_Zero)
+        initMetaState(&(es->flag_state[FT_Zero]    ), cs);
+    if (flagSet & FS_Sign)
+        initMetaState(&(es->flag_state[FT_Sign]    ), cs);
+    if (flagSet & FS_Overflow)
+        initMetaState(&(es->flag_state[FT_Overflow]), cs);
+    if (flagSet & FS_Parity)
+        initMetaState(&(es->flag_state[FT_Parity]  ), cs);
+}
+
+
 // set flags for operation "v1 - v2"
 static
 CaptureState setFlagsSub(EmuState* es, EmuValue* v1, EmuValue* v2)
@@ -768,11 +785,7 @@ CaptureState setFlagsSub(EmuState* es, EmuValue* v1, EmuValue* v2)
     uint64_t r, bc, d, s;
 
     st = combineState4Flags(v1->state.cState, v2->state.cState);
-    initMetaState(&(es->flag_state[FT_Carry]   ), st);
-    initMetaState(&(es->flag_state[FT_Zero]    ), st);
-    initMetaState(&(es->flag_state[FT_Sign]    ), st);
-    initMetaState(&(es->flag_state[FT_Overflow]), st);
-    initMetaState(&(es->flag_state[FT_Parity]  ), st);
+    setFlagsState(es, FS_CZSOP, st);
 
     assert(v1->type == v2->type);
 
@@ -805,6 +818,7 @@ CaptureState setFlagsSub(EmuState* es, EmuValue* v1, EmuValue* v2)
     return st;
 }
 
+
 // set flags for operation "v1 + v2"
 static
 void setFlagsAdd(EmuState* es, EmuValue* v1, EmuValue* v2)
@@ -813,11 +827,7 @@ void setFlagsAdd(EmuState* es, EmuValue* v1, EmuValue* v2)
     uint64_t r, cc, d, s;
 
     st = combineState4Flags(v1->state.cState, v2->state.cState);
-    initMetaState(&(es->flag_state[FT_Carry]   ), st);
-    initMetaState(&(es->flag_state[FT_Zero]    ), st);
-    initMetaState(&(es->flag_state[FT_Sign]    ), st);
-    initMetaState(&(es->flag_state[FT_Overflow]), st);
-    initMetaState(&(es->flag_state[FT_Parity]  ), st);
+    setFlagsState(es, FS_CZSOP, st);
 
     assert(v1->type == v2->type);
 
@@ -868,12 +878,9 @@ CaptureState setFlagsBit(EmuState* es, InstrType it,
     // carry/overflow always cleared
     es->flag[FT_Carry] = 0;
     es->flag[FT_Overflow] = 0;
-    initMetaState(&(es->flag_state[FT_Carry]), CS_STATIC);
-    initMetaState(&(es->flag_state[FT_Overflow]), CS_STATIC);
+    setFlagsState(es, FS_CO, CS_STATIC);
 
-    initMetaState(&(es->flag_state[FT_Zero]), s);
-    initMetaState(&(es->flag_state[FT_Sign]), s);
-    initMetaState(&(es->flag_state[FT_Parity]), s);
+    setFlagsState(es, FS_ZSP, s);
 
     switch(it) {
     case IT_AND: res = v1->val & v2->val; break;
