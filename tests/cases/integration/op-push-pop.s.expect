@@ -12,12 +12,12 @@ Decoding BB test ...
               test+7:  6a f0                 pushb   $0xf0
               test+9:  48 c7 c3 bb 0b 00 00  mov     $0xbbb,%rbx
              test+16:  66 53                 push    %bx
-             test+18:  68 cc 0c 00 00        pushl   $0xccc
-             test+23:  48 bb dd dd dd dd dd  mov     $0xdddddddddddd,%rbx
-             test+30:  dd 00 00            
-             test+33:  53                    push    %rbx
-             test+34:  41 59                 pop     %r9
-             test+36:  5a                    pop     %rdx
+             test+18:  66 68 cc 0c           pushw   $0xccc
+             test+22:  48 bb dd dd dd dd dd  mov     $0xdddddddddddd,%rbx
+             test+29:  dd 00 00            
+             test+32:  53                    push    %rbx
+             test+33:  41 59                 pop     %r9
+             test+35:  66 5a                 pop     %dx
              test+37:  66 59                 pop     %cx
              test+39:  41 5a                 pop     %r10
              test+41:  5b                    pop     %rbx
@@ -33,11 +33,11 @@ Emulate 'test+2: pushl $0xff555556'
 Emulate 'test+7: pushb $0xf0'
 Emulate 'test+9: mov $0xbbb,%rbx'
 Emulate 'test+16: push %bx'
-Emulate 'test+18: pushl $0xccc'
-Emulate 'test+23: mov $0xdddddddddddd,%rbx'
-Emulate 'test+33: push %rbx'
-Emulate 'test+34: pop %r9'
-Emulate 'test+36: pop %rdx'
+Emulate 'test+18: pushw $0xccc'
+Emulate 'test+22: mov $0xdddddddddddd,%rbx'
+Emulate 'test+32: push %rbx'
+Emulate 'test+33: pop %r9'
+Emulate 'test+35: pop %dx'
 Emulate 'test+37: pop %cx'
 Emulate 'test+39: pop %r10'
 Emulate 'test+41: pop %rbx'
