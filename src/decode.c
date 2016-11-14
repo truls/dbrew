@@ -1512,6 +1512,26 @@ void decode_68(DContext* c)
 }
 
 static
+void decode_68(DContext* c)
+{
+    // 0x68: push imm32
+    // 0x66 0x68: push imm16
+    switch (c->ps) {
+    case PS_66:
+        c->vt = VT_16;
+        break;
+    case PS_No:
+        c->vt = VT_32;
+        break;
+    default:
+        markDecodeError(c, false, ET_BadPrefix);
+        return;
+    }
+    parseImm(c, c->vt, &c->o1, false);
+    addUnaryOp(c->r, c, IT_PUSH, &c->o1);
+}
+
+static
 void decode_70(DContext* c)
 {
     // 0x70: jo rel8
