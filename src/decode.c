@@ -1514,21 +1514,38 @@ void decode_68(DContext* c)
 static
 void decode_68(DContext* c)
 {
+    // 0x6A: push imm8
     // 0x68: push imm32
     // 0x66 0x68: push imm16
-    switch (c->ps) {
-    case PS_66:
-        c->vt = VT_16;
+    ValType vt;
+    switch (c->opc1) {
+    case 0x68:
+        switch (c->ps) {
+        case PS_66:
+            c->vt = VT_16;
+            vt = VT_16;
+            break;
+        case PS_No:
+            c->vt = VT_64;
+            vt = VT_32;
+            break;
+        default:
+            markDecodeError(c, false, ET_BadPrefix);
+            return;
+        }
         break;
-    case PS_No:
-        c->vt = VT_32;
+    case 0x6A:
+        c->vt = VT_64;
+        vt = VT_8;
         break;
     default:
-        markDecodeError(c, false, ET_BadPrefix);
-        return;
+        assert(0);
     }
-    parseImm(c, c->vt, &c->o1, false);
-    addUnaryOp(c->r, c, IT_PUSH, &c->o1);
+    parseImm(c, vt, &c->o1, false);
+    Instr* i = addUnaryOp(c->r, c, IT_PUSH, &c->o1);
+    // Set specific vtype since the the size of the operand being manipulated by
+    // an unop defaults to the type of its operand. This is not the case for push.
+    i->vtype = c->vt;
 }
 
 static
