@@ -872,12 +872,6 @@ static void parseRVM(DContext* c)
     c->oe = OE_RVM;
 }
 
-// parse immediate into op 1 (for 64bit with imm32 signed extension)
-static void parseI1(DContext* c)
-{
-    parseImm(c, c->vt, &c->o1, false);
-}
-
 // parse immediate into op 2 (for 64bit with imm32 signed extension)
 static void parseI2(DContext* c)
 {
@@ -934,12 +928,6 @@ static void parseMI_8se(DContext* c)
 static void addSInstr(DContext* c)
 {
     c->ii = addSimple(c->r, c, c->it);
-}
-
-// append unary instruction
-static void addUInstr(DContext* c)
-{
-    c->ii = addUnaryOp(c->r, c, c->it, &c->o1);
 }
 
 // append binary instruction
@@ -1447,21 +1435,38 @@ void decode_63(DContext* c)
 static
 void decode_68(DContext* c)
 {
+    // 0x6A: push imm8
     // 0x68: push imm32
     // 0x66 0x68: push imm16
-    switch (c->ps) {
-    case PS_66:
-        c->vt = VT_16;
+    ValType vt;
+    switch (c->opc1) {
+    case 0x68:
+        switch (c->ps) {
+        case PS_66:
+            c->vt = VT_16;
+            vt = VT_16;
+            break;
+        case PS_No:
+            c->vt = VT_64;
+            vt = VT_32;
+            break;
+        default:
+            markDecodeError(c, false, ET_BadPrefix);
+            return;
+        }
         break;
-    case PS_No:
-        c->vt = VT_32;
+    case 0x6A:
+        c->vt = VT_64;
+        vt = VT_8;
         break;
     default:
-        markDecodeError(c, false, ET_BadPrefix);
-        return;
+        assert(0);
     }
-    parseImm(c, c->vt, &c->o1, false);
-    addUnaryOp(c->r, c, IT_PUSH, &c->o1);
+    parseImm(c, vt, &c->o1, false);
+    Instr* i = addUnaryOp(c->r, c, IT_PUSH, &c->o1);
+    // Set specific vtype since the the size of the operand being manipulated by
+    // an unop defaults to the type of its operand. This is not the case for push.
+    i->vtype = c->vt;
 }
 
 static
@@ -1986,7 +1991,7 @@ void initDecodeTables(void)
     // 0x68: push imm16/imm32
     // 0x6A: push imm8
     setOpcH(0x68, decode_68);
-    setOpc(0x6A, IT_PUSH, VT_8,  parseI1, addUInstr, 0);
+    setOpcH(0x6A, decode_68);
 
     // 0x69: imul r,r/m16/32/64,imm16/32/32se (RMI)
     // 0x6B: imul r,r/m16/32/64,imm8se (RMI)

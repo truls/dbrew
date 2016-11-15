@@ -7,9 +7,9 @@ Emulation Static State (esID 0, call depth 0):
   Flags: (none)
   Stack: (none)
 Decoding BB test ...
-                test:  6a 5b                 pushb   $0x5b
-              test+2:  68 56 55 55 ff        pushl   $0xff555556
-              test+7:  6a f0                 pushb   $0xf0
+                test:  6a 5b                 pushq   $0x5b
+              test+2:  68 56 55 55 ff        pushq   $0xffffffffff555556
+              test+7:  6a f0                 pushq   $0xfffffffffffffff0
               test+9:  48 c7 c3 bb 0b 00 00  mov     $0xbbb,%rbx
              test+16:  66 53                 push    %bx
              test+18:  66 68 cc 0c           pushw   $0xccc
@@ -28,9 +28,9 @@ Decoding BB test ...
              test+52:  48 01 c8              add     %rcx,%rax
              test+55:  48 01 d0              add     %rdx,%rax
              test+58:  c3                    ret    
-Emulate 'test: pushb $0x5b'
-Emulate 'test+2: pushl $0xff555556'
-Emulate 'test+7: pushb $0xf0'
+Emulate 'test: pushq $0x5b'
+Emulate 'test+2: pushq $0xffffffffff555556'
+Emulate 'test+7: pushq $0xfffffffffffffff0'
 Emulate 'test+9: mov $0xbbb,%rbx'
 Emulate 'test+16: push %bx'
 Emulate 'test+18: pushw $0xccc'
