@@ -1,4 +1,4 @@
-BB f1gen (53 instructions):
+BB f1gen (57 instructions):
                f1gen:  c5 fa 58 d1           vaddss  %xmm1,%xmm0,%xmm2
              f1gen+4:  c5 fb 58 d1           vaddsd  %xmm1,%xmm0,%xmm2
              f1gen+8:  c5 f8 58 d1           vaddps  %xmm1,%xmm0,%xmm2
@@ -37,18 +37,22 @@ BB f1gen (53 instructions):
            f1gen+140:  c5 f9 28 00           vmovapd (%rax),%xmm0
            f1gen+144:  c5 f8 10 00           vmovups (%rax),%xmm0
            f1gen+148:  c5 f9 10 00           vmovupd (%rax),%xmm0
-           f1gen+152:  c5 fa 11 00           vmovss  %xmm0,(%rax)
-           f1gen+156:  c5 fb 11 00           vmovsd  %xmm0,(%rax)
-           f1gen+160:  c5 f8 29 00           vmovaps %xmm0,(%rax)
-           f1gen+164:  c5 f9 29 00           vmovapd %xmm0,(%rax)
-           f1gen+168:  c5 f8 11 00           vmovups %xmm0,(%rax)
-           f1gen+172:  c5 f9 11 00           vmovupd %xmm0,(%rax)
-           f1gen+176:  c5 fc 28 00           vmovaps (%rax),%ymm0
-           f1gen+180:  c5 fd 28 00           vmovapd (%rax),%ymm0
-           f1gen+184:  c5 fc 10 00           vmovups (%rax),%ymm0
-           f1gen+188:  c5 fd 10 00           vmovupd (%rax),%ymm0
-           f1gen+192:  c5 fc 29 00           vmovaps %ymm0,(%rax)
-           f1gen+196:  c5 fd 29 00           vmovapd %ymm0,(%rax)
-           f1gen+200:  c5 fc 11 00           vmovups %ymm0,(%rax)
-           f1gen+204:  c5 fd 11 00           vmovupd %ymm0,(%rax)
-           f1gen+208:  c3                    ret    
+           f1gen+152:  c5 fa 6f 00           vmovdqu (%rax),%xmm0
+           f1gen+156:  c5 fa 11 00           vmovss  %xmm0,(%rax)
+           f1gen+160:  c5 fb 11 00           vmovsd  %xmm0,(%rax)
+           f1gen+164:  c5 f8 29 00           vmovaps %xmm0,(%rax)
+           f1gen+168:  c5 f9 29 00           vmovapd %xmm0,(%rax)
+           f1gen+172:  c5 f8 11 00           vmovups %xmm0,(%rax)
+           f1gen+176:  c5 f9 11 00           vmovupd %xmm0,(%rax)
+           f1gen+180:  c5 fa 7f 00           vmovdqu %xmm0,(%rax)
+           f1gen+184:  c5 fc 28 00           vmovaps (%rax),%ymm0
+           f1gen+188:  c5 fd 28 00           vmovapd (%rax),%ymm0
+           f1gen+192:  c5 fc 10 00           vmovups (%rax),%ymm0
+           f1gen+196:  c5 fd 10 00           vmovupd (%rax),%ymm0
+           f1gen+200:  c5 fe 6f 00           vmovdqu (%rax),%ymm0
+           f1gen+204:  c5 fc 29 00           vmovaps %ymm0,(%rax)
+           f1gen+208:  c5 fd 29 00           vmovapd %ymm0,(%rax)
+           f1gen+212:  c5 fc 11 00           vmovups %ymm0,(%rax)
+           f1gen+216:  c5 fd 11 00           vmovupd %ymm0,(%rax)
+           f1gen+220:  c5 fe 7f 00           vmovdqu %ymm0,(%rax)
+           f1gen+224:  c3                    ret    
