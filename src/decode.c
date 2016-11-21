@@ -19,7 +19,13 @@
 
 /* For now, decoder only does x86-64
  *
- * Opcode handlers are registered once and put into opcode tables.
+ * The decoder uses opcode tables with callback handlers.
+ * Before decoding, the opcode tables are filled by registering
+ * handlers for specific opcodes. Up to 3 handlers can be specified
+ * for an opcode, with temporary decoding data passed between handlers
+ * in a decode context structure. The handler(s) for a opcode get
+ * detected prefix bytes passed in the context, and it is expected that
+ * the decoded instruction is appended in the decoding buffer.
 */
 
 #include "decode.h"
@@ -110,18 +116,7 @@ Instr* nextInstrForDContext(Rewriter* r, DContext* c)
     return i;
 }
 
-Instr* addSimple(Rewriter* r, DContext* c, InstrType it)
-{
-    Instr* i = nextInstrForDContext(r, c);
-    if (!i) return 0;
-
-    i->type = it;
-    i->form = OF_0;
-
-    return i;
-}
-
-Instr* addSimpleVType(Rewriter* r, DContext* c, InstrType it, ValType vt)
+Instr* addSimple(Rewriter* r, DContext* c, InstrType it, ValType vt)
 {
     Instr* i = nextInstrForDContext(r, c);
     if (!i) return 0;
@@ -528,7 +523,7 @@ typedef enum _OpcType {
     OT_Invalid,
     OT_Single,  // opcode for 1 instructions
     OT_Four,    // opcode for 4 instr (no prefix, 66, F3, F2)
-    OT_Group    // opcode for 8 instructions
+    OT_Group    // opcode for 8 instructions (using digit as sub-opcode)
 } OpcType;
 
 typedef struct _OpcInfo OpcInfo;
@@ -679,6 +674,8 @@ OpcEntry* setOpcPH(int opc, PrefixSet ps, DecHandler h)
 }
 
 // set specific handler for given opcode
+// decode context gets default operand type set
+// (32bit, with prefix 0x66: 16bit, with REX.W: 64bit)
 static
 OpcEntry* setOpcH(int opc, DecHandler h)
 {
@@ -743,7 +740,7 @@ void markDecodeError(DContext* c, bool showDigit, ErrorType et)
     if (c->opc2 >= 0) o += sprintf(buf+o, " 0x%02x", c->opc2);
     if (showDigit) sprintf(buf+o, " / %d", c->digit);
 
-    addSimple(c->r, c, IT_Invalid);
+    addSimple(c->r, c, IT_Invalid, VT_None);
     setDecodeError(&(c->error), c->r, buf, et, c->dbb, c->off);
 }
 
@@ -933,7 +930,7 @@ static void parseMI_8se(DContext* c)
 // append simple instruction without operands
 static void addSInstr(DContext* c)
 {
-    c->ii = addSimple(c->r, c, c->it);
+    c->ii = addSimple(c->r, c, c->it, c->vt);
 }
 
 // append unary instruction
@@ -1517,7 +1514,7 @@ void decode_98(DContext* c)
 {
     // cltq (Intel: cdqe - sign-extend eax to rax)
     c->vt = (c->rex & REX_MASK_W) ? VT_64 : VT_32;
-    addSimpleVType(c->r, c, IT_CLTQ, c->vt);
+    addSimple(c->r, c, IT_CLTQ, c->vt);
 }
 
 static
@@ -1525,7 +1522,7 @@ void decode_99(DContext* c)
 {
     // cqto (Intel: cqo - sign-extend rax to rdx/rax, eax to edx/eax)
     c->vt = (c->rex & REX_MASK_W) ? VT_128 : VT_64;
-    addSimpleVType(c->r, c, IT_CQTO, c->vt);
+    addSimple(c->r, c, IT_CQTO, c->vt);
 }
 
 
