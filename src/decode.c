@@ -1429,6 +1429,51 @@ void decode_63(DContext* c)
     addBinaryOp(c->r, c, IT_MOVSX, VT_None, &c->o1, &c->o2);
 }
 
+
+// for decode_68/6A
+static
+void addPushImm(DContext* c, ValType imm_vt)
+{
+    parseImm(c, imm_vt, &c->o1, false);
+    Instr* i = addUnaryOp(c->r, c, IT_PUSH, &c->o1);
+    // width of pushed value different from immediate width
+    i->vtype = c->vt;
+}
+
+static
+void decode_68(DContext* c)
+{
+    // 0x68: pushq imm32 / pushw imm16
+    switch(c->vt) {
+    case VT_32:
+        c->vt = VT_64; // width of pushed value
+        addPushImm(c, VT_32);
+        break;
+    case VT_16:
+        addPushImm(c, VT_16);
+        break;
+    default:
+        assert(0);
+    }
+}
+
+static
+void decode_6A(DContext* c)
+{
+    // 0x6A: pushq imm8 / pushw imm8
+    switch(c->vt) {
+    case VT_32:
+        c->vt = VT_64; // width of pushed value
+        addPushImm(c, VT_8);
+        break;
+    case VT_16:
+        addPushImm(c, VT_8);
+        break;
+    default:
+        assert(0);
+    }
+}
+
 static
 void decode_68(DContext* c)
 {
@@ -1985,10 +2030,10 @@ void initDecodeTables(void)
      // movsx r64,r/m32
     setOpcH(0x63, decode_63);
 
-    // 0x68: push imm16/imm32
-    // 0x6A: push imm8
+    // 0x68: pushq imm32 / pushw imm16
+    // 0x6A: pushq imm8  / pushw imm8
     setOpcH(0x68, decode_68);
-    setOpcH(0x6A, decode_68);
+    setOpcH(0x6A, decode_6A);
 
     // 0x69: imul r,r/m16/32/64,imm16/32/32se (RMI)
     // 0x6B: imul r,r/m16/32/64,imm8se (RMI)
