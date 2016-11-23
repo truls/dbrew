@@ -68,3 +68,11 @@ clean:
 	rm -rf *~ *.o $(OBJS) libdbrew.a
 	$(MAKE) clean -C tests
 	cd examples && make clean
+
+tidy: compile_commands.json
+	git ls-files '*.c' | xargs -P 1 -I{} clang-tidy -header-filter=.* -p . {}; fi
+
+compile_commands.json:
+	bear make
+
+

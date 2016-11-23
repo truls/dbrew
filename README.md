@@ -70,3 +70,11 @@ SSE/AVX registers contents, which the strcmp version in your glibc may use.
 
 LGPLv2.1+
 
+
+## Remarks for Development
+
+* All features should have a test case, see tests/ subdirectory. Running the tests is done with "make test". Using travis on github, pushed commits automatically trigger compile and test.
+
+* Make heavy use of assertions. Any unsupported cases of partly implemented features should fail hard using "assert(0);", without trying to be smart on parsing input. 
+  
+* C is tricky. For better quality, (1) compilations fail on warnings, with a lot of warnings switched on, (2) travis compiles and runs the tests with a variety of compilers and compiler versions, and (3) use the linter "clang-tidy": "make tidy"
