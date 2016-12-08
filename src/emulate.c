@@ -1927,24 +1927,25 @@ void processInstr(RContext* c, Instr* instr)
 
         switch(vt) {
         case VT_32:
-            v1.val = ((uint32_t) v1.val + (uint32_t) v2.val);
+            vres.val = ((uint32_t) v1.val + (uint32_t) v2.val);
             break;
 
         case VT_64:
-            v1.val = v1.val + v2.val;
+            vres.val = v1.val + v2.val;
             break;
 
         default:
             setEmulatorError(c, instr, ET_UnsupportedOperands, 0);
             return;
         }
-
+        vres.type = vt;
         cs = combineState(v1.state.cState, v2.state.cState, 0);
-        initMetaState(&(v1.state), cs);
-        // for capture we need state of original dst, do it before setting dst
-        captureBinaryOp(c, instr, es, &v1);
-        setOpValue(&v1, es, &(instr->dst));
-        setOpState(v1.state, es, &(instr->dst));
+        initMetaState(&(vres.state), cs);
+
+        // for capture we need state of dst, do before setting dst
+        captureBinaryOp(c, instr, es, &vres);
+        setOpValue(&vres, es, &(instr->dst));
+        setOpState(vres.state, es, &(instr->dst));
         break;
 
     case IT_CALL: {
@@ -2035,12 +2036,12 @@ void processInstr(RContext* c, Instr* instr)
         default: assert(0);
         }
         assert(opValType(&(instr->src)) == opValType(&(instr->dst)));
-        getOpValue(&v1, es, &(instr->src));
-        captureCMov(c, instr, es, &v1, es->flag_state[ft], cond);
+        getOpValue(&vres, es, &(instr->src));
+        captureCMov(c, instr, es, &vres, es->flag_state[ft], cond);
         // FIXME? if cond state unknown, set destination state always to unknown
         if (cond == true) {
-            setOpValue(&v1, es, &(instr->dst));
-            setOpState(v1.state, es, &(instr->dst));
+            setOpValue(&vres, es, &(instr->dst));
+            setOpState(vres.state, es, &(instr->dst));
         }
         break;
     }
@@ -2062,24 +2063,27 @@ void processInstr(RContext* c, Instr* instr)
 
     case IT_DEC:
         getOpValue(&v1, es, &(instr->dst));
+
+        vres.type = v1.type;
+        initMetaState(&(vres.state), v1.state.cState);
         switch(instr->dst.type) {
         case OT_Reg32:
         case OT_Ind32:
-            v1.val = (uint32_t)(((int32_t) v1.val) - 1);
+            vres.val = (uint32_t)(((int32_t) v1.val) - 1);
             break;
 
         case OT_Reg64:
         case OT_Ind64:
-            v1.val = (uint64_t)(((int64_t) v1.val) - 1);
+            vres.val = (uint64_t)(((int64_t) v1.val) - 1);
             break;
 
         default:
             setEmulatorError(c, instr, ET_UnsupportedOperands, 0);
             return;
         }
-        captureUnaryOp(c, instr, es, &v1);
-        setOpValue(&v1, es, &(instr->dst));
-        setOpState(v1.state, es, &(instr->dst));
+        captureUnaryOp(c, instr, es, &vres);
+        setOpValue(&vres, es, &(instr->dst));
+        setOpState(vres.state, es, &(instr->dst));
         break;
 
     case IT_IMUL:
@@ -2163,24 +2167,27 @@ void processInstr(RContext* c, Instr* instr)
     }
     case IT_INC:
         getOpValue(&v1, es, &(instr->dst));
+
+        vres.type = v1.type;
+        initMetaState(&(vres.state), v1.state.cState);
         switch(instr->dst.type) {
         case OT_Reg32:
         case OT_Ind32:
-            v1.val = (uint32_t)(((int32_t) v1.val) + 1);
+            vres.val = (uint32_t)(((int32_t) v1.val) + 1);
             break;
 
         case OT_Reg64:
         case OT_Ind64:
-            v1.val = (uint64_t)(((int64_t) v1.val) + 1);
+            vres.val = (uint64_t)(((int64_t) v1.val) + 1);
             break;
 
         default:
             setEmulatorError(c, instr, ET_UnsupportedOperands, 0);
             return;
         }
-        captureUnaryOp(c, instr, es, &v1);
-        setOpValue(&v1, es, &(instr->dst));
-        setOpState(v1.state, es, &(instr->dst));
+        captureUnaryOp(c, instr, es, &vres);
+        setOpValue(&vres, es, &(instr->dst));
+        setOpState(vres.state, es, &(instr->dst));
         break;
 
     case IT_JO:
@@ -2409,15 +2416,15 @@ void processInstr(RContext* c, Instr* instr)
         case OT_Reg32:
         case OT_Reg64:
             assert(opIsInd(&(instr->src)));
-            getOpAddr(&v1, es, &(instr->src));
+            getOpAddr(&vres, es, &(instr->src));
             if (opValType(&(instr->dst)) == VT_32) {
-                v1.val = (uint32_t) v1.val;
-                v1.type = VT_32;
+                vres.val = (uint32_t) vres.val;
+                vres.type = VT_32;
             }
-            captureLea(c, instr, es, &v1);
+            captureLea(c, instr, es, &vres);
             // may overwrite a state needed for correct capturing
-            setOpValue(&v1, es, &(instr->dst));
-            setOpState(v1.state, es, &(instr->dst));
+            setOpValue(&vres, es, &(instr->dst));
+            setOpState(vres.state, es, &(instr->dst));
             break;
 
         default:assert(0);
@@ -2445,42 +2452,39 @@ void processInstr(RContext* c, Instr* instr)
     }
 
     case IT_MOV:
-    case IT_MOVSX: // converting move
+    case IT_MOVSX: { // converting move
+        ValType dst_t = opValType(&(instr->dst));
+        getOpValue(&vres, es, &(instr->src));
+
         switch(instr->src.type) {
         case OT_Reg32:
         case OT_Ind32:
-        case OT_Imm32: {
-            ValType dst_t = opValType(&(instr->dst));
+        case OT_Imm32:
             assert(dst_t == VT_32 || dst_t == VT_64);
-            getOpValue(&v1, es, &(instr->src));
             if (dst_t == VT_64) {
                 // also a regular mov may sign-extend: imm32->64
                 // assert(instr->type == IT_MOVSX);
                 // sign extend lower 32 bit to 64 bit
-                v1.val = (int64_t) (int32_t) v1.val;
-                v1.type = VT_64;
+                vres.val = (int64_t) (int32_t) vres.val;
+                vres.type = VT_64;
             }
-            captureMov(c, instr, es, &v1);
-            setOpValue(&v1, es, &(instr->dst));
-            setOpState(v1.state, es, &(instr->dst));
             break;
-        }
 
         case OT_Reg64:
         case OT_Ind64:
         case OT_Imm64:
-            assert(opValType(&(instr->dst)) == VT_64);
-            getOpValue(&v1, es, &(instr->src));
-            captureMov(c, instr, es, &v1);
-            setOpValue(&v1, es, &(instr->dst));
-            setOpState(v1.state, es, &(instr->dst));
+            assert(dst_t == VT_64);
             break;
 
         default:
             setEmulatorError(c, instr, ET_UnsupportedOperands, 0);
             return;
         }
+        captureMov(c, instr, es, &vres);
+        setOpValue(&vres, es, &(instr->dst));
+        setOpState(vres.state, es, &(instr->dst));
         break;
+    }
 
     case IT_NOP:
         // nothing to do
@@ -2599,42 +2603,46 @@ void processInstr(RContext* c, Instr* instr)
         getOpValue(&v1, es, &(instr->dst));
         getOpValue(&v2, es, &(instr->src));
 
-        switch(opValType(&(instr->dst))) {
+        vt = opValType(&(instr->dst));
+        vres.type = vt;
+        cs = combineState(v1.state.cState, v2.state.cState, 0);
+        initMetaState(&(vres.state), cs);
+        switch(vt) {
         case VT_8:
             switch (instr->type) {
-            case IT_SHL: v1.val = (uint8_t) (v1.val << (v2.val & 7)); break;
-            case IT_SHR: v1.val = (uint8_t) (v1.val >> (v2.val & 7)); break;
+            case IT_SHL: vres.val = (uint8_t) (v1.val << (v2.val & 7)); break;
+            case IT_SHR: vres.val = (uint8_t) (v1.val >> (v2.val & 7)); break;
             case IT_SAR:
-                v1.val = (uint8_t) ((int8_t)v1.val >> (v2.val & 7)); break;
+                vres.val = (uint8_t) ((int8_t)v1.val >> (v2.val & 7)); break;
             default: assert(0);
             }
             break;
 
         case VT_16:
             switch (instr->type) {
-            case IT_SHL: v1.val = (uint16_t) (v1.val << (v2.val & 15)); break;
-            case IT_SHR: v1.val = (uint16_t) (v1.val >> (v2.val & 15)); break;
+            case IT_SHL: vres.val = (uint16_t) (v1.val << (v2.val & 15)); break;
+            case IT_SHR: vres.val = (uint16_t) (v1.val >> (v2.val & 15)); break;
             case IT_SAR:
-                v1.val = (uint16_t) ((int16_t)v1.val >> (v2.val & 15)); break;
+                vres.val = (uint16_t) ((int16_t)v1.val >> (v2.val & 15)); break;
             default: assert(0);
             }
             break;
 
         case VT_32:
             switch (instr->type) {
-            case IT_SHL: v1.val = (uint32_t) (v1.val << (v2.val & 31)); break;
-            case IT_SHR: v1.val = (uint32_t) (v1.val >> (v2.val & 31)); break;
+            case IT_SHL: vres.val = (uint32_t) (v1.val << (v2.val & 31)); break;
+            case IT_SHR: vres.val = (uint32_t) (v1.val >> (v2.val & 31)); break;
             case IT_SAR:
-                v1.val = (uint32_t) ((int32_t)v1.val >> (v2.val & 31)); break;
+                vres.val = (uint32_t) ((int32_t)v1.val >> (v2.val & 31)); break;
             default: assert(0);
             }
             break;
 
         case VT_64:
             switch (instr->type) {
-            case IT_SHL: v1.val = v1.val << (v2.val & 63); break;
-            case IT_SHR: v1.val = v1.val >> (v2.val & 63); break;
-            case IT_SAR: v1.val = ((int64_t)v1.val >> (v2.val & 63)); break;
+            case IT_SHL: vres.val = v1.val << (v2.val & 63); break;
+            case IT_SHR: vres.val = v1.val >> (v2.val & 63); break;
+            case IT_SAR: vres.val = ((int64_t)v1.val >> (v2.val & 63)); break;
             default: assert(0);
             }
             break;
@@ -2643,10 +2651,10 @@ void processInstr(RContext* c, Instr* instr)
             setEmulatorError(c, instr, ET_UnsupportedOperands, 0);
             return;
         }
-        v1.state.cState = combineState(v1.state.cState, v2.state.cState, 0);
-        captureBinaryOp(c, instr, es, &v1);
-        setOpValue(&v1, es, &(instr->dst));
-        setOpState(v1.state, es, &(instr->dst));
+
+        captureBinaryOp(c, instr, es, &vres);
+        setOpValue(&vres, es, &(instr->dst));
+        setOpState(vres.state, es, &(instr->dst));
         break;
 
     case IT_SUB:
@@ -2671,23 +2679,24 @@ void processInstr(RContext* c, Instr* instr)
 
         switch(vt) {
         case VT_32:
-            v1.val = ((uint32_t) v1.val - (uint32_t) v2.val);
+            vres.val = ((uint32_t) v1.val - (uint32_t) v2.val);
             break;
 
         case VT_64:
-            v1.val = v1.val - v2.val;
+            vres.val = v1.val - v2.val;
             break;
 
         default:
             setEmulatorError(c, instr, ET_UnsupportedOperands, 0);
             return;
         }
-
-        v1.state.cState = combineState(v1.state.cState, v2.state.cState, 0);
+        vres.type = vt;
+        cs = combineState(v1.state.cState, v2.state.cState, 0);
+        initMetaState(&(vres.state), cs);
         // for capturing we need state of original dst, do before setting dst
-        captureBinaryOp(c, instr, es, &v1);
-        setOpValue(&v1, es, &(instr->dst));
-        setOpState(v1.state, es, &(instr->dst));
+        captureBinaryOp(c, instr, es, &vres);
+        setOpValue(&vres, es, &(instr->dst));
+        setOpState(vres.state, es, &(instr->dst));
         break;
 
     case IT_TEST:
@@ -2706,18 +2715,21 @@ void processInstr(RContext* c, Instr* instr)
         getOpValue(&v2, es, &(instr->src));
 
         assert(v1.type == v2.type);
-        v1.state.cState = setFlagsBit(es, instr->type, &v1, &v2,
-                                      opIsEqual(&(instr->dst), &(instr->src)));
+        cs = setFlagsBit(es, instr->type, &v1, &v2,
+                         opIsEqual(&(instr->dst), &(instr->src)));
         switch(instr->type) {
-        case IT_AND: v1.val = v1.val & v2.val; break;
-        case IT_XOR: v1.val = v1.val ^ v2.val; break;
-        case IT_OR:  v1.val = v1.val | v2.val; break;
+        case IT_AND: vres.val = v1.val & v2.val; break;
+        case IT_XOR: vres.val = v1.val ^ v2.val; break;
+        case IT_OR:  vres.val = v1.val | v2.val; break;
         default: assert(0);
         }
+        vres.type = v1.type;
+        initMetaState(&(vres.state), cs);
+
         // for capturing we need state of original dst
-        captureBinaryOp(c, instr, es, &v1);
-        setOpValue(&v1, es, &(instr->dst));
-        setOpState(v1.state, es, &(instr->dst));
+        captureBinaryOp(c, instr, es, &vres);
+        setOpValue(&vres, es, &(instr->dst));
+        setOpState(vres.state, es, &(instr->dst));
         break;
 
     case IT_ADDSS:
