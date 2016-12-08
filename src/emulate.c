@@ -2617,8 +2617,6 @@ void processInstr(RContext* c, Instr* instr)
         case OT_Imm8:
         case OT_Imm32:
         case OT_Imm64:
-        case OT_Imm8:
-        case OT_Imm32:
             es->reg[RI_SP] -= 8;
             addr = emuValue(es->reg[RI_SP], VT_64, es->reg_state[RI_SP]);
             getOpValue(&vres, es, &(instr->dst));
