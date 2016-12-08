@@ -2461,7 +2461,10 @@ void processInstr(RContext* c, Instr* instr)
         switch(instr->src.type) {
         case OT_Reg8:
         case OT_Ind8:
-        case OT_Imm8:
+        case OT_Imm8: {
+            assert(dst_t == VT_8 || dst_t == VT_16
+                   || dst_t == VT_32  || dst_t == VT_64);
+            getOpValue(&vres, es, &(instr->src));
             switch (dst_t) {
             case VT_8:
                 break;
