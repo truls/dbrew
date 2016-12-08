@@ -983,6 +983,28 @@ void getStackValue(EmuState* es, EmuValue* v, EmuValue* off)
     initMetaState(&(v->state), state);
 }
 
+static
+void setStackState(EmuState* es, EmuValue* off, ValType vt, MetaState ms)
+{
+    int i, count;
+
+    assert(msIsStatic(off->state));
+
+    switch(vt) {
+    case VT_8:  count = 1; break;
+    case VT_16: count = 2; break;
+    case VT_32: count = 4; break;
+    case VT_64: count = 8; break;
+    default: assert(0);
+    }
+
+    for(i=0; i<count; i++)
+        es->stackState[off->val + i] = ms;
+
+    if (es->stackStart + off->val < es->stackAccessed)
+        es->stackAccessed = es->stackStart + off->val;
+}
+
 
 static
 void setStackValue(EmuState* es, EmuValue* v, EmuValue* off)
@@ -990,33 +1012,24 @@ void setStackValue(EmuState* es, EmuValue* v, EmuValue* off)
     uint16_t* a16;
     uint32_t* a32;
     uint64_t* a64;
-    int i, count;
 
     switch(v->type) {
     case VT_16:
         a16 = (uint16_t*) (es->stack + off->val);
         *a16 = (uint16_t) v->val;
-        count = 2;
         break;
 
     case VT_32:
         a32 = (uint32_t*) (es->stack + off->val);
         *a32 = (uint32_t) v->val;
-        count = 4;
         break;
 
     case VT_64:
         a64 = (uint64_t*) (es->stack + off->val);
         *a64 = (uint64_t) v->val;
-        count = 8;
         break;
 
     default: assert(0);
-    }
-
-    if (off->state.cState == CS_STATIC) {
-        for(i=0; i<count; i++)
-            es->stackState[off->val + i] = v->state;
     }
 
     if (es->stackStart + off->val < es->stackAccessed)
@@ -1145,6 +1158,23 @@ void setMemValue(EmuValue* v, EmuValue* addr, EmuState* es, ValType t,
     }
 }
 
+static
+void setMemState(EmuState* es, EmuValue* addr, ValType t, MetaState ms,
+                 int shouldBeStack)
+{
+    EmuValue off;
+    bool isOnStack;
+
+    isOnStack = getStackOffset(es, addr, &off);
+    if (isOnStack) {
+        setStackState(es, &off, t, ms);
+        return;
+    }
+    assert(!shouldBeStack);
+
+    // nothing to do: we do not keep track of state in memory
+}
+
 // helper for getOpAddr()
 static
 void addRegToValue(EmuValue* v, EmuState* es, Reg r, int scale)
@@ -1254,36 +1284,61 @@ void getOpValue(EmuValue* v, EmuState* es, Operand* o)
     }
 }
 
+static
+void setOpState(MetaState ms, EmuState* es, Operand* o)
+{
+    EmuValue addr;
+
+    if (!o) return;
+
+    switch(o->type) {
+    case OT_Reg8:
+    case OT_Reg16:
+    case OT_Reg32:
+    case OT_Reg64:
+        es->reg_state[o->reg.ri] = ms;
+        return;
+
+    case OT_Ind32:
+    case OT_Ind64:
+        getOpAddr(&addr, es, o);
+        setMemState(es, &addr, opValType(o), ms, 0);
+        return;
+
+    default: assert(0);
+    }
+}
+
+
 // only the bits of v are used which are required for operand type
 static
 void setOpValue(EmuValue* v, EmuState* es, Operand* o)
 {
     EmuValue addr;
 
+    // TODO: uncomment. We only should set known values
+    // assert(msIsStatic(v->state));
+
     assert(v->type == opValType(o));
     switch(o->type) {
     case OT_Reg8:
         assert(regValType(o->reg) == VT_8);
         es->reg[o->reg.ri] = (uint8_t) v->val;
-        es->reg_state[o->reg.ri] = v->state;
         return;
 
     case OT_Reg16:
         assert(regValType(o->reg) == VT_16);
         es->reg[o->reg.ri] = (uint16_t) v->val;
-        es->reg_state[o->reg.ri] = v->state;
         return;
 
     case OT_Reg32:
         assert(regValType(o->reg) == VT_32);
         es->reg[o->reg.ri] = (uint32_t) v->val;
-        es->reg_state[o->reg.ri] = v->state;
         return;
 
     case OT_Reg64:
         assert(regValType(o->reg) == VT_64);
         es->reg[o->reg.ri] = v->val;
-        es->reg_state[o->reg.ri] = v->state;
         return;
 
     case OT_Ind32:
@@ -1902,6 +1957,7 @@ void processInstr(RContext* c, Instr* instr)
         // for capture we need state of original dst, do it before setting dst
         captureBinaryOp(c, instr, es, &v1);
         setOpValue(&v1, es, &(instr->dst));
+        setOpState(v1.state, es, &(instr->dst));
         break;
 
     case IT_CALL: {
@@ -1995,7 +2051,10 @@ void processInstr(RContext* c, Instr* instr)
         getOpValue(&v1, es, &(instr->src));
         captureCMov(c, instr, es, &v1, es->flag_state[ft], cond);
         // FIXME? if cond state unknown, set destination state always to unknown
-        if (cond == true) setOpValue(&v1, es, &(instr->dst));
+        if (cond == true) {
+            setOpValue(&v1, es, &(instr->dst));
+            setOpState(v1.state, es, &(instr->dst));
+        }
         break;
     }
 
@@ -2033,6 +2092,7 @@ void processInstr(RContext* c, Instr* instr)
         }
         captureUnaryOp(c, instr, es, &v1);
         setOpValue(&v1, es, &(instr->dst));
+        setOpState(v1.state, es, &(instr->dst));
         break;
 
     case IT_IMUL:
@@ -2070,6 +2130,7 @@ void processInstr(RContext* c, Instr* instr)
         // for capture we need state of dst, do before setting dst
         captureBinaryOp(c, instr, es, &vres);
         setOpValue(&vres, es, &(instr->dst));
+        setOpState(vres.state, es, &(instr->dst));
         break;
 
     case IT_IDIV1: {
@@ -2132,6 +2193,7 @@ void processInstr(RContext* c, Instr* instr)
         }
         captureUnaryOp(c, instr, es, &v1);
         setOpValue(&v1, es, &(instr->dst));
+        setOpState(v1.state, es, &(instr->dst));
         break;
 
     case IT_JO:
@@ -2368,6 +2430,7 @@ void processInstr(RContext* c, Instr* instr)
             captureLea(c, instr, es, &v1);
             // may overwrite a state needed for correct capturing
             setOpValue(&v1, es, &(instr->dst));
+            setOpState(v1.state, es, &(instr->dst));
             break;
 
         default:assert(0);
@@ -2412,6 +2475,7 @@ void processInstr(RContext* c, Instr* instr)
             }
             captureMov(c, instr, es, &v1);
             setOpValue(&v1, es, &(instr->dst));
+            setOpState(v1.state, es, &(instr->dst));
             break;
         }
 
@@ -2422,6 +2486,7 @@ void processInstr(RContext* c, Instr* instr)
             getOpValue(&v1, es, &(instr->src));
             captureMov(c, instr, es, &v1);
             setOpValue(&v1, es, &(instr->dst));
+            setOpState(v1.state, es, &(instr->dst));
             break;
 
         default:
@@ -2454,6 +2519,7 @@ void processInstr(RContext* c, Instr* instr)
         }
         captureUnaryOp(c, instr, es, &v1);
         setOpValue(&v1, es, &(instr->dst));
+        setOpState(v1.state, es, &(instr->dst));
         break;
 
 
@@ -2463,6 +2529,7 @@ void processInstr(RContext* c, Instr* instr)
             addr = emuValue(es->reg[RI_SP], VT_64, es->reg_state[RI_SP]);
             getMemValue(&v1, &addr, es, VT_16, 1);
             setOpValue(&v1, es, &(instr->dst));
+            setOpState(v1.state, es, &(instr->dst));
             es->reg[RI_SP] += 2;
             if (!msIsStatic(v1.state))
                 capture(c, instr);
@@ -2472,6 +2539,7 @@ void processInstr(RContext* c, Instr* instr)
             addr = emuValue(es->reg[RI_SP], VT_64, es->reg_state[RI_SP]);
             getMemValue(&v1, &addr, es, VT_64, 1);
             setOpValue(&v1, es, &(instr->dst));
+            setOpState(v1.state, es, &(instr->dst));
             es->reg[RI_SP] += 8;
             if (!msIsStatic(v1.state))
                 capture(c, instr);
@@ -2490,9 +2558,10 @@ void processInstr(RContext* c, Instr* instr)
         case OT_Imm16:
             es->reg[RI_SP] -= 2;
             addr = emuValue(es->reg[RI_SP], VT_64, es->reg_state[RI_SP]);
-            getOpValue(&v1, es, &(instr->dst));
-            setMemValue(&v1, &addr, es, VT_16, 1);
-            if (!msIsStatic(v1.state))
+            getOpValue(&vres, es, &(instr->dst));
+            setMemValue(&vres, &addr, es, VT_16, 1);
+            setMemState(es, &addr, VT_16, vres.state, 1);
+            if (!msIsStatic(vres.state))
                 capture(c, instr);
             break;
 
@@ -2505,15 +2574,15 @@ void processInstr(RContext* c, Instr* instr)
         case OT_Imm32:
             es->reg[RI_SP] -= 8;
             addr = emuValue(es->reg[RI_SP], VT_64, es->reg_state[RI_SP]);
-            getOpValue(&v1, es, &(instr->dst));
+            getOpValue(&vres, es, &(instr->dst));
 
             // Sign-extend 8-bit and 32-bit immediate values to 64-bit
-            switch(v1.type) {
+            switch(vres.type) {
             case VT_8:
-                v1.val = (int64_t) (int8_t) v1.val;
+                vres.val = (int64_t) (int8_t) vres.val;
                 break;
             case VT_32:
-                v1.val = (int64_t) (int32_t) v1.val;
+                vres.val = (int64_t) (int32_t) vres.val;
                 break;
             case VT_64:
                 break;
@@ -2521,9 +2590,10 @@ void processInstr(RContext* c, Instr* instr)
                 assert(0);
             }
 
-            v1.type = VT_64;
-            setMemValue(&v1, &addr, es, VT_64, 1);
-            if (!msIsStatic(v1.state))
+            vres.type = VT_64;
+            setMemValue(&vres, &addr, es, VT_64, 1);
+            setMemState(es, &addr, VT_64, vres.state, 1);
+            if (!msIsStatic(vres.state))
                 capture(c, instr);
             break;
 
@@ -2591,6 +2661,7 @@ void processInstr(RContext* c, Instr* instr)
         v1.state.cState = combineState(v1.state.cState, v2.state.cState, 0);
         captureBinaryOp(c, instr, es, &v1);
         setOpValue(&v1, es, &(instr->dst));
+        setOpState(v1.state, es, &(instr->dst));
         break;
 
     case IT_SUB:
@@ -2631,6 +2702,7 @@ void processInstr(RContext* c, Instr* instr)
         // for capturing we need state of original dst, do before setting dst
         captureBinaryOp(c, instr, es, &v1);
         setOpValue(&v1, es, &(instr->dst));
+        setOpState(v1.state, es, &(instr->dst));
         break;
 
     case IT_TEST:
@@ -2660,6 +2732,7 @@ void processInstr(RContext* c, Instr* instr)
         // for capturing we need state of original dst
         captureBinaryOp(c, instr, es, &v1);
         setOpValue(&v1, es, &(instr->dst));
+        setOpState(v1.state, es, &(instr->dst));
         break;
 
     case IT_ADDSS:
