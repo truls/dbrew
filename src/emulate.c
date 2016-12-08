@@ -2516,6 +2516,32 @@ void processInstr(RContext* c, Instr* instr)
         }
         break;
 
+    case IT_MOVZX: {
+        OpType dst_t = instr->dst.type;
+        OpType src_t = instr->src.type;
+        assert(dst_t == OT_Reg16 || dst_t == OT_Reg32 || dst_t == OT_Reg64
+               || src_t == OT_Reg8 || src_t == OT_Reg16 || src_t == OT_Ind16
+               || src_t == OT_Ind16);
+        getOpValue(&v1, es, &(instr->src));
+        switch(dst_t) {
+        case OT_Reg16:
+            v1.type = VT_16;
+            break;
+        case OT_Reg32:
+            v1.type = VT_32;
+            break;
+        case OT_Reg64:
+            v1.type = VT_64;
+            break;
+        default:
+            setEmulatorError(c, ET_UnsupportedOperands, 0);
+            return;
+        }
+        captureMov(c, instr, es, &v1);
+        setOpValue(&v1, es, &(instr->dst));
+    }
+        break;
+
     case IT_NOP:
         // nothing to do
         break;
