@@ -580,6 +580,7 @@ const char* instrName(InstrType it, int* pOpCount)
     case IT_VMOVUPD: n = "vmovupd"; opCount = 2; break;
     case IT_VMOVAPS: n = "vmovaps"; opCount = 2; break;
     case IT_VMOVAPD: n = "vmovapd"; opCount = 2; break;
+    case IT_VMOVDQU: n = "vmovdqu"; opCount = 2; break;
     case IT_VADDSS:  n = "vaddss";  opCount = 3; break;
     case IT_VADDSD:  n = "vaddsd";  opCount = 3; break;
     case IT_VADDPS:  n = "vaddps";  opCount = 3; break;

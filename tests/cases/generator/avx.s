@@ -47,21 +47,24 @@ f1:
     vmovapd xmm0, [rax]
     vmovups xmm0, [rax]
     vmovupd xmm0, [rax]
+    vmovdqu xmm0, [rax]
     vmovss  [rax], xmm0
     vmovsd  [rax], xmm0
     vmovaps [rax], xmm0
     vmovapd [rax], xmm0
     vmovups [rax], xmm0
     vmovupd [rax], xmm0
+    vmovdqu [rax], xmm0
 
     vmovaps ymm0, [rax]
     vmovapd ymm0, [rax]
     vmovups ymm0, [rax]
     vmovupd ymm0, [rax]
+    vmovdqu ymm0, [rax]
     vmovaps [rax], ymm0
     vmovapd [rax], ymm0
     vmovups [rax], ymm0
     vmovupd [rax], ymm0
+    vmovdqu [rax], ymm0
 
     ret
-

@@ -760,6 +760,23 @@ uint32_t parity_tab[8] =
 #define PARITY(x)   (((parity_tab[(x) / 32] >> ((x) % 32)) & 1) == 0)
 #define XOR2(x)     (((x) ^ ((x)>>1)) & 0x1)
 
+
+static
+void setFlagsState(EmuState* es, int flagSet, CaptureState cs)
+{
+    if (flagSet & FS_Carry)
+        initMetaState(&(es->flag_state[FT_Carry]   ), cs);
+    if (flagSet & FS_Zero)
+        initMetaState(&(es->flag_state[FT_Zero]    ), cs);
+    if (flagSet & FS_Sign)
+        initMetaState(&(es->flag_state[FT_Sign]    ), cs);
+    if (flagSet & FS_Overflow)
+        initMetaState(&(es->flag_state[FT_Overflow]), cs);
+    if (flagSet & FS_Parity)
+        initMetaState(&(es->flag_state[FT_Parity]  ), cs);
+}
+
+
 // set flags for operation "v1 - v2"
 static
 CaptureState setFlagsSub(EmuState* es, EmuValue* v1, EmuValue* v2)
@@ -768,11 +785,7 @@ CaptureState setFlagsSub(EmuState* es, EmuValue* v1, EmuValue* v2)
     uint64_t r, bc, d, s;
 
     st = combineState4Flags(v1->state.cState, v2->state.cState);
-    initMetaState(&(es->flag_state[FT_Carry]   ), st);
-    initMetaState(&(es->flag_state[FT_Zero]    ), st);
-    initMetaState(&(es->flag_state[FT_Sign]    ), st);
-    initMetaState(&(es->flag_state[FT_Overflow]), st);
-    initMetaState(&(es->flag_state[FT_Parity]  ), st);
+    setFlagsState(es, FS_CZSOP, st);
 
     assert(v1->type == v2->type);
 
@@ -805,6 +818,7 @@ CaptureState setFlagsSub(EmuState* es, EmuValue* v1, EmuValue* v2)
     return st;
 }
 
+
 // set flags for operation "v1 + v2"
 static
 void setFlagsAdd(EmuState* es, EmuValue* v1, EmuValue* v2)
@@ -813,11 +827,7 @@ void setFlagsAdd(EmuState* es, EmuValue* v1, EmuValue* v2)
     uint64_t r, cc, d, s;
 
     st = combineState4Flags(v1->state.cState, v2->state.cState);
-    initMetaState(&(es->flag_state[FT_Carry]   ), st);
-    initMetaState(&(es->flag_state[FT_Zero]    ), st);
-    initMetaState(&(es->flag_state[FT_Sign]    ), st);
-    initMetaState(&(es->flag_state[FT_Overflow]), st);
-    initMetaState(&(es->flag_state[FT_Parity]  ), st);
+    setFlagsState(es, FS_CZSOP, st);
 
     assert(v1->type == v2->type);
 
@@ -868,12 +878,9 @@ CaptureState setFlagsBit(EmuState* es, InstrType it,
     // carry/overflow always cleared
     es->flag[FT_Carry] = 0;
     es->flag[FT_Overflow] = 0;
-    initMetaState(&(es->flag_state[FT_Carry]), CS_STATIC);
-    initMetaState(&(es->flag_state[FT_Overflow]), CS_STATIC);
+    setFlagsState(es, FS_CO, CS_STATIC);
 
-    initMetaState(&(es->flag_state[FT_Zero]), s);
-    initMetaState(&(es->flag_state[FT_Sign]), s);
-    initMetaState(&(es->flag_state[FT_Parity]), s);
+    setFlagsState(es, FS_ZSP, s);
 
     switch(it) {
     case IT_AND: res = v1->val & v2->val; break;
@@ -948,7 +955,7 @@ void getStackValue(EmuState* es, EmuValue* v, EmuValue* off)
 
     switch(v->type) {
     case VT_16:
-        v->val = *(uint32_t*) (es->stack + off->val);
+        v->val = *(uint16_t*) (es->stack + off->val);
         count = 2;
         break;
 
@@ -976,6 +983,28 @@ void getStackValue(EmuState* es, EmuValue* v, EmuValue* off)
     initMetaState(&(v->state), state);
 }
 
+static
+void setStackState(EmuState* es, EmuValue* off, ValType vt, MetaState ms)
+{
+    int i, count;
+
+    assert(msIsStatic(off->state));
+
+    switch(vt) {
+    case VT_8:  count = 1; break;
+    case VT_16: count = 2; break;
+    case VT_32: count = 4; break;
+    case VT_64: count = 8; break;
+    default: assert(0);
+    }
+
+    for(i=0; i<count; i++)
+        es->stackState[off->val + i] = ms;
+
+    if (es->stackStart + off->val < es->stackAccessed)
+        es->stackAccessed = es->stackStart + off->val;
+}
+
 
 static
 void setStackValue(EmuState* es, EmuValue* v, EmuValue* off)
@@ -983,33 +1012,24 @@ void setStackValue(EmuState* es, EmuValue* v, EmuValue* off)
     uint16_t* a16;
     uint32_t* a32;
     uint64_t* a64;
-    int i, count;
 
     switch(v->type) {
     case VT_16:
         a16 = (uint16_t*) (es->stack + off->val);
         *a16 = (uint16_t) v->val;
-        count = 2;
         break;
 
     case VT_32:
         a32 = (uint32_t*) (es->stack + off->val);
         *a32 = (uint32_t) v->val;
-        count = 4;
         break;
 
     case VT_64:
         a64 = (uint64_t*) (es->stack + off->val);
         *a64 = (uint64_t) v->val;
-        count = 8;
         break;
 
     default: assert(0);
-    }
-
-    if (off->state.cState == CS_STATIC) {
-        for(i=0; i<count; i++)
-            es->stackState[off->val + i] = v->state;
     }
 
     if (es->stackStart + off->val < es->stackAccessed)
@@ -1105,6 +1125,7 @@ void setMemValue(EmuValue* v, EmuValue* addr, EmuState* es, ValType t,
                  int shouldBeStack)
 {
     EmuValue off;
+    uint16_t* a16;
     uint32_t* a32;
     uint64_t* a64;
     bool isOnStack;
@@ -1119,6 +1140,10 @@ void setMemValue(EmuValue* v, EmuValue* addr, EmuState* es, ValType t,
     assert(!shouldBeStack);
 
     switch(t) {
+    case VT_16:
+        a16 = (uint16_t*) addr->val;
+        *a16 = (uint16_t) v->val;
+
     case VT_32:
         a32 = (uint32_t*) addr->val;
         *a32 = (uint32_t) v->val;
@@ -1131,6 +1156,23 @@ void setMemValue(EmuValue* v, EmuValue* addr, EmuState* es, ValType t,
 
     default: assert(0);
     }
+}
+
+static
+void setMemState(EmuState* es, EmuValue* addr, ValType t, MetaState ms,
+                 int shouldBeStack)
+{
+    EmuValue off;
+    bool isOnStack;
+
+    isOnStack = getStackOffset(es, addr, &off);
+    if (isOnStack) {
+        setStackState(es, &off, t, ms);
+        return;
+    }
+    assert(!shouldBeStack);
+
+    // nothing to do: we do not keep track of state in memory
 }
 
 // helper for getOpAddr()
@@ -1242,36 +1284,61 @@ void getOpValue(EmuValue* v, EmuState* es, Operand* o)
     }
 }
 
+static
+void setOpState(MetaState ms, EmuState* es, Operand* o)
+{
+    EmuValue addr;
+
+    if (!o) return;
+
+    switch(o->type) {
+    case OT_Reg8:
+    case OT_Reg16:
+    case OT_Reg32:
+    case OT_Reg64:
+        es->reg_state[o->reg.ri] = ms;
+        return;
+
+    case OT_Ind32:
+    case OT_Ind64:
+        getOpAddr(&addr, es, o);
+        setMemState(es, &addr, opValType(o), ms, 0);
+        return;
+
+    default: assert(0);
+    }
+}
+
+
 // only the bits of v are used which are required for operand type
 static
 void setOpValue(EmuValue* v, EmuState* es, Operand* o)
 {
     EmuValue addr;
 
+    // TODO: uncomment. We only should set known values
+    // assert(msIsStatic(v->state));
+
     assert(v->type == opValType(o));
     switch(o->type) {
     case OT_Reg8:
         assert(regValType(o->reg) == VT_8);
         es->reg[o->reg.ri] = (uint8_t) v->val;
-        es->reg_state[o->reg.ri] = v->state;
         return;
 
     case OT_Reg16:
         assert(regValType(o->reg) == VT_16);
         es->reg[o->reg.ri] = (uint16_t) v->val;
-        es->reg_state[o->reg.ri] = v->state;
         return;
 
     case OT_Reg32:
         assert(regValType(o->reg) == VT_32);
         es->reg[o->reg.ri] = (uint32_t) v->val;
-        es->reg_state[o->reg.ri] = v->state;
         return;
 
     case OT_Reg64:
         assert(regValType(o->reg) == VT_64);
         es->reg[o->reg.ri] = v->val;
-        es->reg_state[o->reg.ri] = v->state;
         return;
 
     case OT_Ind32:
@@ -1284,11 +1351,11 @@ void setOpValue(EmuValue* v, EmuState* es, Operand* o)
     }
 }
 
-// Do we maintain capture state for a value pointed to by an operand?
-// Returns false for memory locations not on stack or when stack offset
+// Do we track the state for a value pointed to by an operand?
+// Returns false for memory locations not on stack or when the stack offset
 //  is not static/known.
 static
-bool keepsCaptureState(EmuState* es, Operand* o)
+bool opStateIsTracked(EmuState* es, Operand* o)
 {
     EmuValue addr;
     EmuValue off;
@@ -1345,7 +1412,7 @@ void captureMov(RContext* c, Instr* orig, EmuState* es, EmuValue* res)
     o = &(orig->src);
     if (msIsStatic(res->state)) {
         // no need to update data if capture state is maintained
-        if (keepsCaptureState(es, &(orig->dst))) return;
+        if (opStateIsTracked(es, &(orig->dst))) return;
 
         // source is static, use immediate
         o = getImmOp(res->type, res->val);
@@ -1454,7 +1521,7 @@ void captureBinaryOp(RContext* c, Instr* orig, EmuState* es, EmuValue* res)
         }
         else {
             // no need to update data if capture state is maintained
-            if (keepsCaptureState(es, &(orig->dst))) return;
+            if (opStateIsTracked(es, &(orig->dst))) return;
         }
         // if result is known and goes to memory, generate imm store
         initBinaryInstr(&i, IT_MOV, res->type,
@@ -1467,7 +1534,7 @@ void captureBinaryOp(RContext* c, Instr* orig, EmuState* es, EmuValue* res)
     // if dst (= 2.op) known/constant and a reg/stack, we need to update it
     // example: %eax += %ebx with %eax known to be 5  =>  %eax=5, %eax+=%ebx
     getOpValue(&opval, es, &(orig->dst));
-    if (keepsCaptureState(es, &(orig->dst)) && msIsStatic(opval.state)) {
+    if (opStateIsTracked(es, &(orig->dst)) && msIsStatic(opval.state)) {
 
         // - instead of adding src to 0, we can move the src to dst
         // - instead of multiply src with 1, move
@@ -1778,7 +1845,8 @@ void captureJcc(RContext* c, InstrType it,
 // Emulator for instruction types
 
 static
-void setEmulatorError(RContext* c, ErrorType et, const char* d)
+void setEmulatorError(RContext* c, Instr* instr,
+                      ErrorType et, const char* d)
 {
     static Error e;
     static char buf[100];
@@ -1787,10 +1855,10 @@ void setEmulatorError(RContext* c, ErrorType et, const char* d)
         d = buf;
         if (et == ET_UnsupportedInstr)
             sprintf(buf, "Instruction not implemented for %s",
-                    instr2string(c->instr,0,0));
+                    instr2string(instr, 0, 0));
         else if (et == ET_UnsupportedOperands)
             sprintf(buf, "Operand types not implemented for %s",
-                    instr2string(c->instr,0,0));
+                    instr2string(instr, 0, 0));
         else
             d = 0;
     }
@@ -1799,7 +1867,7 @@ void setEmulatorError(RContext* c, ErrorType et, const char* d)
 }
 
 static
-void emulateRet(RContext* c)
+void emulateRet(RContext* c, Instr* instr)
 {
     Rewriter* r = c->r;
     EmuState* es = c->r->es;
@@ -1827,7 +1895,8 @@ void emulateRet(RContext* c)
         es->reg[RI_SP] += 8;
 
         if (v.val != es->ret_stack[es->depth]) {
-            setEmulatorError(c, ET_BadOperands, "Return address modified");
+            setEmulatorError(c, instr,
+                             ET_BadOperands, "Return address modified");
             return;
         }
         // return to address
@@ -1835,9 +1904,9 @@ void emulateRet(RContext* c)
     }
 }
 
-
-// return 0 to fall through to next instruction, or return address to jump to
-void emulateInstr(RContext* c)
+// process an instruction
+// if this changes control flow, c.exit is set accordingly
+void processInstr(RContext* c, Instr* instr)
 {
     EmuValue vres, v1, v2, addr;
     CaptureState cs;
@@ -1845,7 +1914,6 @@ void emulateInstr(RContext* c)
 
     Rewriter* r = c->r;
     EmuState* es = c->r->es;
-    Instr* instr = c->instr;
 
     if (instr->ptLen > 0) {
         // memory addressing in captured instructions depends on emu state
@@ -1880,7 +1948,7 @@ void emulateInstr(RContext* c)
             break;
 
         default:
-            setEmulatorError(c, ET_UnsupportedOperands, 0);
+            setEmulatorError(c, instr, ET_UnsupportedOperands, 0);
             return;
         }
 
@@ -1889,34 +1957,36 @@ void emulateInstr(RContext* c)
         // for capture we need state of original dst, do it before setting dst
         captureBinaryOp(c, instr, es, &v1);
         setOpValue(&v1, es, &(instr->dst));
+        setOpState(v1.state, es, &(instr->dst));
         break;
 
-    case IT_CALL:
+    case IT_CALL: {
         // TODO: keep call. For now, we always inline
         getOpValue(&v1, es, &(instr->dst));
         if (es->depth >= MAX_CALLDEPTH) {
-            setEmulatorError(c, ET_BufferOverflow, "Call depth too deep");
+            setEmulatorError(c, instr, ET_BufferOverflow,
+                             "Call depth too deep");
             return;
         }
         if (!msIsStatic(v1.state)) {
             // call target must be known
-            setEmulatorError(c, ET_UnsupportedOperands,
+            setEmulatorError(c, instr, ET_UnsupportedOperands,
                              "Call to unknown target not supported");
             return;
         }
 
-        // push address of instruction after CALL onto stack
-        es->reg[RI_SP] -= 8;
-        addr = emuValue(es->reg[RI_SP], VT_64, es->reg_state[RI_SP]);
-        initMetaState(&(v2.state), CS_DYNAMIC);
-        v2.type = VT_64;
-        v2.val = instr->addr + instr->len;
-        setMemValue(&v2, &addr, es, VT_64, 1);
+        Instr i;
+        Operand o;
 
-        es->ret_stack[es->depth++] = v2.val;
+        // push address of instruction after CALL onto stack
+        copyOperand(&o, getImmOp(VT_64, instr->addr + instr->len));
+        initUnaryInstr(&i, IT_PUSH, &o);
+        processInstr(c, &i);
+        if (c->e) return; // error
+
+        es->ret_stack[es->depth++] = o.val;
 
         if (r->addInliningHints) {
-            Instr i;
             initSimpleInstr(&i, IT_HINT_CALL);
             capture(c, &i);
         }
@@ -1924,6 +1994,7 @@ void emulateInstr(RContext* c)
         // address to jump to
         c->exit = v1.val;
         break;
+    }
 
     case IT_CLTQ:
         switch(instr->vtype) {
@@ -1950,7 +2021,7 @@ void emulateInstr(RContext* c)
             es->reg[RI_D] = (es->reg[RI_A] & (1ul<<62)) ? ((uint64_t)-1) : 0;
             break;
         default:
-            setEmulatorError(c, ET_UnsupportedOperands, 0);
+            setEmulatorError(c, instr, ET_UnsupportedOperands, 0);
             return;
         }
         es->reg_state[RI_D] = es->reg_state[RI_A];
@@ -1980,7 +2051,10 @@ void emulateInstr(RContext* c)
         getOpValue(&v1, es, &(instr->src));
         captureCMov(c, instr, es, &v1, es->flag_state[ft], cond);
         // FIXME? if cond state unknown, set destination state always to unknown
-        if (cond == true) setOpValue(&v1, es, &(instr->dst));
+        if (cond == true) {
+            setOpValue(&v1, es, &(instr->dst));
+            setOpState(v1.state, es, &(instr->dst));
+        }
         break;
     }
 
@@ -2013,11 +2087,12 @@ void emulateInstr(RContext* c)
             break;
 
         default:
-            setEmulatorError(c, ET_UnsupportedOperands, 0);
+            setEmulatorError(c, instr, ET_UnsupportedOperands, 0);
             return;
         }
         captureUnaryOp(c, instr, es, &v1);
         setOpValue(&v1, es, &(instr->dst));
+        setOpState(v1.state, es, &(instr->dst));
         break;
 
     case IT_IMUL:
@@ -2040,7 +2115,7 @@ void emulateInstr(RContext* c)
             break;
 
         default:
-            setEmulatorError(c, ET_UnsupportedOperands, 0);
+            setEmulatorError(c, instr, ET_UnsupportedOperands, 0);
             return;
         }
 
@@ -2055,6 +2130,7 @@ void emulateInstr(RContext* c)
         // for capture we need state of dst, do before setting dst
         captureBinaryOp(c, instr, es, &vres);
         setOpValue(&vres, es, &(instr->dst));
+        setOpState(vres.state, es, &(instr->dst));
         break;
 
     case IT_IDIV1: {
@@ -2086,7 +2162,7 @@ void emulateInstr(RContext* c)
             break;
 
         default:
-            setEmulatorError(c, ET_UnsupportedOperands, 0);
+            setEmulatorError(c, instr, ET_UnsupportedOperands, 0);
             return;
         }
 
@@ -2112,11 +2188,12 @@ void emulateInstr(RContext* c)
             break;
 
         default:
-            setEmulatorError(c, ET_UnsupportedOperands, 0);
+            setEmulatorError(c, instr, ET_UnsupportedOperands, 0);
             return;
         }
         captureUnaryOp(c, instr, es, &v1);
         setOpValue(&v1, es, &(instr->dst));
+        setOpState(v1.state, es, &(instr->dst));
         break;
 
     case IT_JO:
@@ -2305,7 +2382,7 @@ void emulateInstr(RContext* c)
 
     case IT_JMP:
         if (instr->dst.type != OT_Imm64) {
-            setEmulatorError(c, ET_UnsupportedOperands, 0);
+            setEmulatorError(c, instr, ET_UnsupportedOperands, 0);
             return;
         }
 
@@ -2327,13 +2404,13 @@ void emulateInstr(RContext* c)
             }
             break;
         default:
-            setEmulatorError(c, ET_UnsupportedOperands, 0);
+            setEmulatorError(c, instr, ET_UnsupportedOperands, 0);
             return;
         }
 
         if (!msIsStatic(v1.state)) {
             // call target must be known
-            setEmulatorError(c, ET_BufferOverflow,
+            setEmulatorError(c, instr, ET_BufferOverflow,
                              "Call to unknown target not supported");
             return;
         }
@@ -2353,6 +2430,7 @@ void emulateInstr(RContext* c)
             captureLea(c, instr, es, &v1);
             // may overwrite a state needed for correct capturing
             setOpValue(&v1, es, &(instr->dst));
+            setOpState(v1.state, es, &(instr->dst));
             break;
 
         default:assert(0);
@@ -2363,21 +2441,19 @@ void emulateInstr(RContext* c)
         // leave = mov rbp,rsp + pop rbp
 
         Instr i;
-        // mov rbp,rsp
-        initSimpleInstr(&i, IT_MOV);
-        copyOperand( &(i.src), getRegOp(getReg(RT_GP64, RI_BP)) );
-        copyOperand( &(i.dst), getRegOp(getReg(RT_GP64, RI_SP)) );
-        getOpValue(&v1, es, &(i.src));
-        setOpValue(&v1, es, &(i.dst));
-        captureMov(c, &i, es, &v1);
+        Operand src, dst;
+
+        // mov rbp,rsp (restore stack pointer)
+        copyOperand( &src, getRegOp(getReg(RT_GP64, RI_BP)) );
+        copyOperand( &dst, getRegOp(getReg(RT_GP64, RI_SP)) );
+        initBinaryInstr(&i, IT_MOV, VT_None, &dst, &src);
+        processInstr(c, &i);
+        if (c->e) return; // error
+
         // pop rbp
         initUnaryInstr(&i, IT_POP, getRegOp(getReg(RT_GP64, RI_BP)));
-        addr = emuValue(es->reg[RI_SP], VT_64, es->reg_state[RI_SP]);
-        getMemValue(&v1, &addr, es, VT_64, 1);
-        setOpValue(&v1, es, &(i.dst));
-        es->reg[RI_SP] += 8;
-        if (!msIsStatic(v1.state))
-            capture(c, &i);
+        processInstr(c, &i);
+        if (c->e) return; // error
         break;
     }
 
@@ -2399,6 +2475,7 @@ void emulateInstr(RContext* c)
             }
             captureMov(c, instr, es, &v1);
             setOpValue(&v1, es, &(instr->dst));
+            setOpState(v1.state, es, &(instr->dst));
             break;
         }
 
@@ -2409,10 +2486,11 @@ void emulateInstr(RContext* c)
             getOpValue(&v1, es, &(instr->src));
             captureMov(c, instr, es, &v1);
             setOpValue(&v1, es, &(instr->dst));
+            setOpState(v1.state, es, &(instr->dst));
             break;
 
         default:
-            setEmulatorError(c, ET_UnsupportedOperands, 0);
+            setEmulatorError(c, instr, ET_UnsupportedOperands, 0);
             return;
         }
         break;
@@ -2436,11 +2514,12 @@ void emulateInstr(RContext* c)
             break;
 
         default:
-            setEmulatorError(c, ET_UnsupportedOperands, 0);
+            setEmulatorError(c, instr, ET_UnsupportedOperands, 0);
             return;
         }
         captureUnaryOp(c, instr, es, &v1);
         setOpValue(&v1, es, &(instr->dst));
+        setOpState(v1.state, es, &(instr->dst));
         break;
 
 
@@ -2450,6 +2529,7 @@ void emulateInstr(RContext* c)
             addr = emuValue(es->reg[RI_SP], VT_64, es->reg_state[RI_SP]);
             getMemValue(&v1, &addr, es, VT_16, 1);
             setOpValue(&v1, es, &(instr->dst));
+            setOpState(v1.state, es, &(instr->dst));
             es->reg[RI_SP] += 2;
             if (!msIsStatic(v1.state))
                 capture(c, instr);
@@ -2459,13 +2539,14 @@ void emulateInstr(RContext* c)
             addr = emuValue(es->reg[RI_SP], VT_64, es->reg_state[RI_SP]);
             getMemValue(&v1, &addr, es, VT_64, 1);
             setOpValue(&v1, es, &(instr->dst));
+            setOpState(v1.state, es, &(instr->dst));
             es->reg[RI_SP] += 8;
             if (!msIsStatic(v1.state))
                 capture(c, instr);
             break;
 
         default:
-            setEmulatorError(c, ET_UnsupportedOperands, 0);
+            setEmulatorError(c, instr, ET_UnsupportedOperands, 0);
             return;
         }
         break;
@@ -2477,27 +2558,29 @@ void emulateInstr(RContext* c)
         case OT_Imm16:
             es->reg[RI_SP] -= 2;
             addr = emuValue(es->reg[RI_SP], VT_64, es->reg_state[RI_SP]);
-            getOpValue(&v1, es, &(instr->dst));
-            setMemValue(&v1, &addr, es, VT_16, 1);
-            if (!msIsStatic(v1.state))
+            getOpValue(&vres, es, &(instr->dst));
+            setMemValue(&vres, &addr, es, VT_16, 1);
+            setMemState(es, &addr, VT_16, vres.state, 1);
+            if (!msIsStatic(vres.state))
                 capture(c, instr);
             break;
 
         case OT_Ind64:
         case OT_Reg64:
+        case OT_Imm64:
         case OT_Imm8:
         case OT_Imm32:
             es->reg[RI_SP] -= 8;
             addr = emuValue(es->reg[RI_SP], VT_64, es->reg_state[RI_SP]);
-            getOpValue(&v1, es, &(instr->dst));
+            getOpValue(&vres, es, &(instr->dst));
 
             // Sign-extend 8-bit and 32-bit immediate values to 64-bit
-            switch(v1.type) {
+            switch(vres.type) {
             case VT_8:
-                v1.val = (int64_t) (int8_t) v1.val;
+                vres.val = (int64_t) (int8_t) vres.val;
                 break;
             case VT_32:
-                v1.val = (int64_t) (int32_t) v1.val;
+                vres.val = (int64_t) (int32_t) vres.val;
                 break;
             case VT_64:
                 break;
@@ -2505,20 +2588,21 @@ void emulateInstr(RContext* c)
                 assert(0);
             }
 
-            v1.type = VT_64;
-            setMemValue(&v1, &addr, es, VT_64, 1);
-            if (!msIsStatic(v1.state))
+            vres.type = VT_64;
+            setMemValue(&vres, &addr, es, VT_64, 1);
+            setMemState(es, &addr, VT_64, vres.state, 1);
+            if (!msIsStatic(vres.state))
                 capture(c, instr);
             break;
 
         default:
-            setEmulatorError(c, ET_UnsupportedOperands, 0);
+            setEmulatorError(c, instr, ET_UnsupportedOperands, 0);
             return;
         }
         break;
 
     case IT_RET:
-        emulateRet(c);
+        emulateRet(c, instr);
         break;
 
     case IT_SHL:
@@ -2569,12 +2653,13 @@ void emulateInstr(RContext* c)
             break;
 
         default:
-            setEmulatorError(c, ET_UnsupportedOperands, 0);
+            setEmulatorError(c, instr, ET_UnsupportedOperands, 0);
             return;
         }
         v1.state.cState = combineState(v1.state.cState, v2.state.cState, 0);
         captureBinaryOp(c, instr, es, &v1);
         setOpValue(&v1, es, &(instr->dst));
+        setOpState(v1.state, es, &(instr->dst));
         break;
 
     case IT_SUB:
@@ -2607,7 +2692,7 @@ void emulateInstr(RContext* c)
             break;
 
         default:
-            setEmulatorError(c, ET_UnsupportedOperands, 0);
+            setEmulatorError(c, instr, ET_UnsupportedOperands, 0);
             return;
         }
 
@@ -2615,6 +2700,7 @@ void emulateInstr(RContext* c)
         // for capturing we need state of original dst, do before setting dst
         captureBinaryOp(c, instr, es, &v1);
         setOpValue(&v1, es, &(instr->dst));
+        setOpState(v1.state, es, &(instr->dst));
         break;
 
     case IT_TEST:
@@ -2644,6 +2730,7 @@ void emulateInstr(RContext* c)
         // for capturing we need state of original dst
         captureBinaryOp(c, instr, es, &v1);
         setOpValue(&v1, es, &(instr->dst));
+        setOpState(v1.state, es, &(instr->dst));
         break;
 
     case IT_ADDSS:
@@ -2655,7 +2742,7 @@ void emulateInstr(RContext* c)
         break;
 
     default:
-        setEmulatorError(c, ET_UnsupportedInstr, 0);
+        setEmulatorError(c, instr, ET_UnsupportedInstr, 0);
     }
 }
 

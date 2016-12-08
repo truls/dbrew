@@ -19,7 +19,13 @@
 
 /* For now, decoder only does x86-64
  *
- * Opcode handlers are registered once and put into opcode tables.
+ * The decoder uses opcode tables with callback handlers.
+ * Before decoding, the opcode tables are filled by registering
+ * handlers for specific opcodes. Up to 3 handlers can be specified
+ * for an opcode, with temporary decoding data passed between handlers
+ * in a decode context structure. The handler(s) for a opcode get
+ * detected prefix bytes passed in the context, and it is expected that
+ * the decoded instruction is appended in the decoding buffer.
 */
 
 #include "decode.h"
@@ -110,18 +116,7 @@ Instr* nextInstrForDContext(Rewriter* r, DContext* c)
     return i;
 }
 
-Instr* addSimple(Rewriter* r, DContext* c, InstrType it)
-{
-    Instr* i = nextInstrForDContext(r, c);
-    if (!i) return 0;
-
-    i->type = it;
-    i->form = OF_0;
-
-    return i;
-}
-
-Instr* addSimpleVType(Rewriter* r, DContext* c, InstrType it, ValType vt)
+Instr* addSimple(Rewriter* r, DContext* c, InstrType it, ValType vt)
 {
     Instr* i = nextInstrForDContext(r, c);
     if (!i) return 0;
@@ -528,7 +523,7 @@ typedef enum _OpcType {
     OT_Invalid,
     OT_Single,  // opcode for 1 instructions
     OT_Four,    // opcode for 4 instr (no prefix, 66, F3, F2)
-    OT_Group    // opcode for 8 instructions
+    OT_Group    // opcode for 8 instructions (using digit as sub-opcode)
 } OpcType;
 
 typedef struct _OpcInfo OpcInfo;
@@ -679,6 +674,8 @@ OpcEntry* setOpcPH(int opc, PrefixSet ps, DecHandler h)
 }
 
 // set specific handler for given opcode
+// decode context gets default operand type set
+// (32bit, with prefix 0x66: 16bit, with REX.W: 64bit)
 static
 OpcEntry* setOpcH(int opc, DecHandler h)
 {
@@ -743,7 +740,7 @@ void markDecodeError(DContext* c, bool showDigit, ErrorType et)
     if (c->opc2 >= 0) o += sprintf(buf+o, " 0x%02x", c->opc2);
     if (showDigit) sprintf(buf+o, " / %d", c->digit);
 
-    addSimple(c->r, c, IT_Invalid);
+    addSimple(c->r, c, IT_Invalid, VT_None);
     setDecodeError(&(c->error), c->r, buf, et, c->dbb, c->off);
 }
 
@@ -927,7 +924,7 @@ static void parseMI_8se(DContext* c)
 // append simple instruction without operands
 static void addSInstr(DContext* c)
 {
-    c->ii = addSimple(c->r, c, c->it);
+    c->ii = addSimple(c->r, c, c->it, c->vt);
 }
 
 // append binary instruction
@@ -1432,6 +1429,51 @@ void decode_63(DContext* c)
     addBinaryOp(c->r, c, IT_MOVSX, VT_None, &c->o1, &c->o2);
 }
 
+
+// for decode_68/6A
+static
+void addPushImm(DContext* c, ValType imm_vt)
+{
+    parseImm(c, imm_vt, &c->o1, false);
+    Instr* i = addUnaryOp(c->r, c, IT_PUSH, &c->o1);
+    // width of pushed value different from immediate width
+    i->vtype = c->vt;
+}
+
+static
+void decode_68(DContext* c)
+{
+    // 0x68: pushq imm32 / pushw imm16
+    switch(c->vt) {
+    case VT_32:
+        c->vt = VT_64; // width of pushed value
+        addPushImm(c, VT_32);
+        break;
+    case VT_16:
+        addPushImm(c, VT_16);
+        break;
+    default:
+        assert(0);
+    }
+}
+
+static
+void decode_6A(DContext* c)
+{
+    // 0x6A: pushq imm8 / pushw imm8
+    switch(c->vt) {
+    case VT_32:
+        c->vt = VT_64; // width of pushed value
+        addPushImm(c, VT_8);
+        break;
+    case VT_16:
+        addPushImm(c, VT_8);
+        break;
+    default:
+        assert(0);
+    }
+}
+
 static
 void decode_68(DContext* c)
 {
@@ -1542,7 +1584,7 @@ void decode_98(DContext* c)
 {
     // cltq (Intel: cdqe - sign-extend eax to rax)
     c->vt = (c->rex & REX_MASK_W) ? VT_64 : VT_32;
-    addSimpleVType(c->r, c, IT_CLTQ, c->vt);
+    addSimple(c->r, c, IT_CLTQ, c->vt);
 }
 
 static
@@ -1550,7 +1592,7 @@ void decode_99(DContext* c)
 {
     // cqto (Intel: cqo - sign-extend rax to rdx/rax, eax to edx/eax)
     c->vt = (c->rex & REX_MASK_W) ? VT_128 : VT_64;
-    addSimpleVType(c->r, c, IT_CQTO, c->vt);
+    addSimple(c->r, c, IT_CQTO, c->vt);
 }
 
 
@@ -1988,10 +2030,10 @@ void initDecodeTables(void)
      // movsx r64,r/m32
     setOpcH(0x63, decode_63);
 
-    // 0x68: push imm16/imm32
-    // 0x6A: push imm8
+    // 0x68: pushq imm32 / pushw imm16
+    // 0x6A: pushq imm8  / pushw imm8
     setOpcH(0x68, decode_68);
-    setOpcH(0x6A, decode_68);
+    setOpcH(0x6A, decode_6A);
 
     // 0x69: imul r,r/m16/32/64,imm16/32/32se (RMI)
     // 0x6B: imul r,r/m16/32/64,imm8se (RMI)
@@ -2355,6 +2397,15 @@ void initDecodeTables(void)
     setOpcP(0x0F6F, PS_F3, IT_MOVDQU, VT_128, parseRMVV, addBInsImp, attach);
     setOpcP(0x0F6F, PS_66, IT_MOVDQA, VT_128, parseRMVV, addBInsImp, attach);
     setOpcP(0x0F6F, PS_No, IT_MOVQ,   VT_64,  parseRMVV, addBInsImp, attach);
+
+    // VEX.128.F3.0F.WIG 6F: vmovdqu xmm1,xmm2/m128 (RM)
+    // VEX.128.F3.0F.WIG 7F: vmovdqu xmm2/m128,xmm1 (MR)
+    // VEX.256.F3.0F.WIG 6F: vmovdqu ymm1,ymm2/m256 (RM)
+    // VEX.256.F3.0F.WIG 7F: vmovdqu ymm2/m256,ymm1 (MR)
+    setOpcPV(VEX_128, 0x0F6F, PS_F3, IT_VMOVDQU, VT_128, parseRMVV, addBInsImp, attach);
+    setOpcPV(VEX_128, 0x0F7F, PS_F3, IT_VMOVDQU, VT_128, parseMRVV, addBInsImp, attach);
+    setOpcPV(VEX_256, 0x0F6F, PS_F3, IT_VMOVDQU, VT_256, parseRMVV, addBInsImp, attach);
+    setOpcPV(VEX_256, 0x0F7F, PS_F3, IT_VMOVDQU, VT_256, parseMRVV, addBInsImp, attach);
 
     // 0x0F74/No: pcmpeqb mm,mm/m64 (RM)
     // 0x0F74/66: pcmpeqb mm,mm/m128 (RM)

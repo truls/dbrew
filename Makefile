@@ -21,9 +21,9 @@ OPTFLAGS=-O2 -mavx
 
 ## flags dependent on compiler
 CCNAME:=$(strip $(shell $(CC) --version | head -c 3))
-ifeq ($(CCNAME),$(filter $(CCNAME),gcc cc))
+ifeq ($(CCNAME),$(filter $(CCNAME),gcc cc icc))
  # gcc/cc
- $(info ** gcc detected: $(CC))
+ $(info ** gcc compatible compiler detected: $(CC))
  CFLAGS  += -fno-pie
  ifeq ($(shell expr `$(CC) -dumpversion | cut -f1 -d.` \>= 5),1)
   LDFLAGS += -no-pie
@@ -68,3 +68,11 @@ clean:
 	rm -rf *~ *.o $(OBJS) libdbrew.a
 	$(MAKE) clean -C tests
 	cd examples && make clean
+
+tidy: compile_commands.json
+	git ls-files '*.c' | xargs -P 1 -I{} clang-tidy -header-filter=.* -p . {}; fi
+
+compile_commands.json:
+	bear make
+
+

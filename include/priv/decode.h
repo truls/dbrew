@@ -27,8 +27,7 @@
 typedef struct _DContext DContext;
 
 Instr* nextInstr(Rewriter* r, uint64_t a, int len);
-Instr* addSimple(Rewriter* r, DContext* c, InstrType it);
-Instr* addSimpleVType(Rewriter* r, DContext* c, InstrType it, ValType vt);
+Instr* addSimple(Rewriter* r, DContext* c, InstrType it, ValType vt);
 Instr* addUnaryOp(Rewriter* r, DContext* c, InstrType it, Operand* o);
 
 Instr* addBinaryOp(Rewriter* r, DContext* c,
