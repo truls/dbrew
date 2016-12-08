@@ -2463,6 +2463,24 @@ void processInstr(RContext* c, Instr* instr)
     case IT_MOV:
     case IT_MOVSX: // converting move
         switch(instr->src.type) {
+        case OT_Reg16:
+        case OT_Ind16:
+        case OT_Imm16:
+            assert(opValType(&(instr->dst)) == VT_16);
+            getOpValue(&v1, es, &(instr->src));
+            captureMov(c, instr, es, &v1);
+            setOpValue(&v1, es, &(instr->dst));
+            break;
+
+        case OT_Reg8:
+        case OT_Ind8:
+        case OT_Imm8:
+            assert(opValType(&(instr->dst)) == VT_8);
+            getOpValue(&v1, es, &(instr->src));
+            captureMov(c, instr, es, &v1);
+            setOpValue(&v1, es, &(instr->dst));
+            break;
+
         case OT_Reg32:
         case OT_Ind32:
         case OT_Imm32: {
