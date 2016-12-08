@@ -1985,15 +1985,15 @@ void processInstr(RContext* c, Instr* instr)
     }
 
     case IT_CLTQ:
-        switch(instr->vtype) {
-        case VT_32:
-            es->reg[RI_A] = (int32_t) (int16_t) es->reg[RI_A];
-            break;
-        case VT_64:
-            es->reg[RI_A] = (int64_t) (int32_t) es->reg[RI_A];
-            break;
-        default: assert(0);
-        }
+        // cltq: sign-extend eax to rax
+        es->reg[RI_A] = (int64_t) (int32_t) es->reg[RI_A];
+        if (!msIsStatic(es->reg_state[RI_A]))
+            capture(c, instr);
+        break;
+
+    case IT_CWTL:
+        // cwtl: sign-extend ax to eax
+        es->reg[RI_A] = (int32_t) (int16_t) es->reg[RI_A];
         if (!msIsStatic(es->reg_state[RI_A]))
             capture(c, instr);
         break;

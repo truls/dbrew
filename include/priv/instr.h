@@ -124,7 +124,7 @@ typedef enum _InstrType {
     IT_HINT_RET,  // ending inlining at this point
     //
     IT_NOP,
-    IT_CLTQ, IT_CQTO,
+    IT_CLTQ, IT_CWTL, IT_CQTO,
     IT_PUSH, IT_POP, IT_LEAVE,
     IT_MOV, IT_MOVD, IT_MOVQ, IT_MOVSX, IT_LEA, IT_MOVZX,
     IT_NEG, IT_NOT, IT_INC, IT_DEC,

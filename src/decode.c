@@ -1545,9 +1545,11 @@ void decode_8F_0(DContext* c)
 static
 void decode_98(DContext* c)
 {
-    // cltq (Intel: cdqe - sign-extend eax to rax)
-    c->vt = (c->rex & REX_MASK_W) ? VT_64 : VT_32;
-    addSimple(c->r, c, IT_CLTQ, c->vt);
+    // cltq/cwtl (sign-extend eax to rax / ax to eax, Intel: cdqe)
+    if (c->rex & REX_MASK_W)
+        addSimple(c->r, c, IT_CLTQ, VT_None);
+    else
+        addSimple(c->r, c, IT_CWTL, VT_None);
 }
 
 static

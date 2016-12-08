@@ -1599,15 +1599,19 @@ static
 int genCltq(GContext* cxt)
 {
     uint8_t* buf = cxt->buf;
-    ValType vt =  cxt->instr->vtype;
-
-    switch(vt) {
-    case VT_32: buf[0] = 0x98; return 1;
-    case VT_64: buf[0] = 0x48; buf[1] = 0x98; return 2;
-    default: return -1;
-    }
-    return 0;
+    buf[0] = 0x48;
+    buf[1] = 0x98;
+    return 2;
 }
+
+static
+int genCwtl(GContext* cxt)
+{
+    uint8_t* buf = cxt->buf;
+    buf[0] = 0x98;
+    return 1;
+}
+
 
 static
 int genCqto(GContext* cxt)
@@ -1825,6 +1829,9 @@ GenerateError* generate(Rewriter* r, CBB* cbb)
                 break;
             case IT_CLTQ:
                 used = genCltq(&cxt);
+                break;
+            case IT_CWTL:
+                used = genCwtl(&cxt);
                 break;
             case IT_CQTO:
                 used = genCqto(&cxt);

@@ -418,6 +418,7 @@ const char* instrName(InstrType it, int* pOpCount)
     case IT_RET:     n = "ret"; break;
     case IT_LEAVE:   n = "leave"; break;
     case IT_CLTQ:    n = "cltq"; break;
+    case IT_CWTL:    n = "cwtl"; break;
     case IT_CQTO:    n = "cqto"; break;
     case IT_PUSH:    n = "push";    opCount = 1; break;
     case IT_POP:     n = "pop";     opCount = 1; break;
