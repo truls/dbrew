@@ -345,13 +345,19 @@ int appendOO(GContext* c, int o)
 {
     uint8_t* buf = c->buf;
     int opc = c->opc;
-    if (opc > 255) {
+    if (opc > 0xffff) {
+        assert(opc < 0xffffff);
+        buf[o++] = (uint8_t) (opc >> 16);
+        buf[o++] = (uint8_t) ((opc & 0xff00) >> 8);
+        buf[o++] = (uint8_t) (opc & 0xffff);
+
+    } else if (opc > 255) {
         assert(opc < 65536);
         buf[o++] = (uint8_t) (opc >> 8);
         buf[o++] = (uint8_t) (opc & 255);
-    }
-    else
+    } else {
         buf[o++] = (uint8_t) opc;
+    }
 
     // append bytes for encoded operands
     for(int i=0; i < c->blen; i++)
