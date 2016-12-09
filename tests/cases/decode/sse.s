@@ -56,4 +56,6 @@ f1:
     paddq xmm0, [rax]
 
     ret
+    sfence
+    lfence
 
