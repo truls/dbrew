@@ -874,6 +874,9 @@ CaptureState setFlagsBit(EmuState* es, InstrType it,
     s = combineState4Flags(v1->state.cState, v2->state.cState);
     // xor op,op results in known zero
     if ((it == IT_XOR) && sameOperands) s = CS_STATIC;
+    if ((it == IT_AND) &&
+        ((msIsStatic(v1->state) && (v1->val == 0)) ||
+         (msIsStatic(v2->state) && (v2->val == 0)))) s = CS_STATIC;
 
     // carry/overflow always cleared
     es->flag[FT_Carry] = 0;
@@ -1550,6 +1553,8 @@ void captureBinaryOp(RContext* c, Instr* orig, EmuState* es, EmuValue* res)
             ((orig->type == IT_SHL) && (opval.val == 0)) ||
             ((orig->type == IT_SHR) && (opval.val == 0)) ||
             ((orig->type == IT_SAR) && (opval.val == 0)) ||
+            ((orig->type == IT_OR)  && (opval.val == 0)) ||
+            ((orig->type == IT_AND) && (opval.val == (uint64_t)-1l)) ||
             ((orig->type == IT_IMUL) && (opval.val == 1))) {
             // adding 0 / multiplying with 1 changes nothing...
             return;

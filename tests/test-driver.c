@@ -7,15 +7,15 @@
 
 #include "dbrew.h"
 
-typedef int (*f1_t)(int, int);
-int f1(int, int);
+typedef long (*f1_t)(long, long);
+long f1(long, long);
 
-int runtest(Rewriter*r, int parameter, bool doRun)
+int runtest(Rewriter*r, long parameter, bool doRun)
 {
     f1_t ff;
 
     if (parameter >= 0)
-        printf(">>> Testcase known par = %d.\n", parameter);
+        printf(">>> Testcase known par = %ld.\n", parameter);
     else
         printf(">>> Testcase unknown par.\n");
 
@@ -26,7 +26,7 @@ int runtest(Rewriter*r, int parameter, bool doRun)
     dbrew_config_function_setsize(r, (uint64_t) f1, 100);
     if (parameter >= 0)
         dbrew_config_staticpar(r, 0);
-    ff = (f1_t) dbrew_rewrite(r, parameter);
+    ff = (f1_t) dbrew_rewrite(r, parameter, 1);
 
     // Decode the newly generated function.
     Rewriter* r2 = dbrew_new();
@@ -38,10 +38,10 @@ int runtest(Rewriter*r, int parameter, bool doRun)
     if (!doRun) return 0;
 
     // Ensure that the program actually works.
-    int orig = f1(parameter, 1);
-    int rewritten = ff(parameter, 1);
+    long orig = f1(parameter, 1);
+    long rewritten = ff(parameter, 1);
 
-    printf(">>> Run orig/rewritten: %d/%d\n", orig, rewritten);
+    printf(">>> Run orig/rewritten: %ld/%ld\n", orig, rewritten);
     return (orig != rewritten) ? 1 : 0;
 }
 
