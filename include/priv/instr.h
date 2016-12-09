@@ -229,6 +229,7 @@ typedef struct _Operand {
 typedef enum _OperandEncoding {
     OE_Invalid = 0,
     OE_None,
+    OE_M,   // 1 operand,  ModRM byte, dest is memory
     OE_MR,  // 2 operands, ModRM byte, dest is reg or memory
     OE_RM,  // 2 operands, ModRM byte, src  is reg or memory
     OE_RMI, // 3 operands, ModRM byte, src  is reg or memory, Immediate
@@ -266,6 +267,7 @@ struct _Instr {
     ValType vtype; // without explicit operands or all operands of same type
     Operand dst, src; //  with binary op: dst = dst op src
     Operand src2; // with ternary op: dst = src op src2
+    int digit; // Instructions with single operand and a digit
 
     // if instruction was decoded
     uint64_t addr;
