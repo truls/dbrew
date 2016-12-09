@@ -2462,6 +2462,48 @@ void processInstr(RContext* c, Instr* instr)
         getOpValue(&vres, es, &(instr->src));
 
         switch(instr->src.type) {
+        case OT_Reg8:
+        case OT_Ind8:
+        case OT_Imm8:
+            switch (dst_t) {
+            case VT_8:
+                break;
+            case VT_16:
+                vres.val = (int16_t) (int8_t) vres.val;
+                vres.type = VT_16;
+                break;
+            case VT_32:
+                vres.val = (int32_t) (int8_t) vres.val;
+                vres.type = VT_32;
+                break;
+            case VT_64:
+                vres.val = (int64_t) (int8_t) vres.val;
+                vres.type = VT_64;
+                break;
+            default:
+                assert(0);
+            }
+            break;
+
+        case OT_Reg16:
+        case OT_Ind16:
+        case OT_Imm16:
+            switch (dst_t) {
+            case VT_16:
+                break;
+            case VT_32:
+                vres.val = (int32_t) (int16_t) vres.val;
+                vres.type = VT_32;
+                break;
+            case VT_64:
+                vres.val = (int64_t) (int16_t) vres.val;
+                vres.type = VT_64;
+                break;
+            default:
+                assert(0);
+            }
+            break;
+
         case OT_Reg32:
         case OT_Ind32:
         case OT_Imm32:
