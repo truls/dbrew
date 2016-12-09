@@ -1,4 +1,4 @@
-BB f1gen (63 instructions):
+BB f1gen (65 instructions):
                f1gen:  c5 fa 58 d1           vaddss  %xmm1,%xmm0,%xmm2
              f1gen+4:  c5 fb 58 d1           vaddsd  %xmm1,%xmm0,%xmm2
              f1gen+8:  c5 f8 58 d1           vaddps  %xmm1,%xmm0,%xmm2
@@ -61,4 +61,6 @@ BB f1gen (63 instructions):
            f1gen+236:  c5 fd 7f 00           vmovdqa %ymm0,(%rax)
            f1gen+240:  c5 f9 e7 00           vmovntdq %xmm0,(%rax)
            f1gen+244:  c5 fd e7 00           vmovntdq %ymm0,(%rax)
-           f1gen+248:  c3                    ret    
+           f1gen+248:  c5 f9 e7 00           vmovntdq %xmm0,(%rax)
+           f1gen+252:  c5 fd e7 00           vmovntdq %ymm0,(%rax)
+           f1gen+256:  c3                    ret    
