@@ -1738,11 +1738,13 @@ int genPassThrough(GContext* cxt)
     cxt->ps = instr->ptPSet;
     cxt->vp = instr->ptVexP;
 
-    assert(instr->ptLen < 3);
+    assert(instr->ptLen < 4);
     if (instr->ptLen < 2)
         opc = instr->ptOpc[0];
-    else
+    else if (instr->ptLen < 3)
         opc = (instr->ptOpc[0] << 8) | instr->ptOpc[1];
+    else
+        opc = (instr->ptOpc[0] << 16) | (instr->ptOpc[1] << 8) | instr->ptOpc[2];
 
     switch(instr->ptEnc) {
     case OE_None:
