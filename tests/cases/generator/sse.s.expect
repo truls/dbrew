@@ -1,4 +1,4 @@
-BB f1gen (49 instructions):
+BB f1gen (56 instructions):
                f1gen:  66 48 0f 7e c0        movq    %xmm0,%rax
              f1gen+5:  66 48 0f 7e fe        movq    %xmm7,%rsi
             f1gen+10:  66 4c 0f 7e f8        movq    %xmm15,%rax
@@ -37,14 +37,21 @@ BB f1gen (49 instructions):
            f1gen+144:  66 0f 16 07           movhpd  (%rdi),%xmm0
            f1gen+148:  44 0f 17 16           movhps  %xmm10,(%rsi)
            f1gen+152:  0f 16 07              movhps  (%rdi),%xmm0
-           f1gen+155:  66 0f 14 c1           unpcklpd %xmm1,%xmm0
-           f1gen+159:  66 0f 14 07           unpcklpd (%rdi),%xmm0
-           f1gen+163:  0f 14 c1              unpcklps %xmm1,%xmm0
-           f1gen+166:  0f 14 07              unpcklps (%rdi),%xmm0
-           f1gen+169:  66 0f 15 c1           unpckhpd %xmm1,%xmm0
-           f1gen+173:  66 0f 15 07           unpckhpd (%rdi),%xmm0
-           f1gen+177:  0f 15 c1              unpckhps %xmm1,%xmm0
-           f1gen+180:  0f 15 07              unpckhps (%rdi),%xmm0
-           f1gen+183:  66 0f d4 c1           paddq   %xmm1,%xmm0
-           f1gen+187:  66 0f d4 00           paddq   (%rax),%xmm0
-           f1gen+191:  c3                    ret    
+           f1gen+155:  66 48 0f d7 e2        pmovmskb %xmm4,%edx
+           f1gen+160:  66 0f 14 c1           unpcklpd %xmm1,%xmm0
+           f1gen+164:  66 0f 14 07           unpcklpd (%rdi),%xmm0
+           f1gen+168:  0f 14 c1              unpcklps %xmm1,%xmm0
+           f1gen+171:  0f 14 07              unpcklps (%rdi),%xmm0
+           f1gen+174:  66 0f 15 c1           unpckhpd %xmm1,%xmm0
+           f1gen+178:  66 0f 15 07           unpckhpd (%rdi),%xmm0
+           f1gen+182:  0f 15 c1              unpckhps %xmm1,%xmm0
+           f1gen+185:  0f 15 07              unpckhps (%rdi),%xmm0
+           f1gen+188:  66 0f d4 c1           paddq   %xmm1,%xmm0
+           f1gen+192:  66 0f d4 00           paddq   (%rax),%xmm0
+           f1gen+196:  0f 18 08              prefetcht0 (%rax)
+           f1gen+199:  0f 18 10              prefetcht1 (%rax)
+           f1gen+202:  0f 18 18              prefetcht2 (%rax)
+           f1gen+205:  0f 18 00              prefetchnta (%rax)
+           f1gen+208:  0f ae f8              sfence 
+           f1gen+211:  0f ae e8              lfence 
+           f1gen+214:  c3                    ret    
