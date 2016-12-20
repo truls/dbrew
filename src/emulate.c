@@ -642,12 +642,12 @@ char* cbb_prettyName(CBB* bb)
     static char buf[100];
     int off;
 
-    if ((bb->fc == 0) || (bb->fc->func > bb->dec_addr))
+    if ((bb->fc == 0) || (bb->fc->start > bb->dec_addr))
         off = sprintf(buf, "0x%lx", bb->dec_addr);
-    else if (bb->fc->func == bb->dec_addr)
+    else if (bb->fc->start == bb->dec_addr)
         off = sprintf(buf, "%s", bb->fc->name);
     else
-        off = sprintf(buf, "%s+%lx", bb->fc->name, bb->dec_addr - bb->fc->func);
+        off = sprintf(buf, "%s+%lx", bb->fc->name, bb->dec_addr - bb->fc->start);
 
     if (bb->esID >=0)
         sprintf(buf+off, "|%d", bb->esID);
@@ -709,7 +709,7 @@ void capture(RContext* c, Instr* instr)
 
     if (r->showEmuSteps)
         printf("Capture '%s' (into %s + %d)\n",
-               instr2string(instr, 0, 0), cbb_prettyName(cbb), cbb->count);
+               instr2string(instr, 0, cbb->fc), cbb_prettyName(cbb), cbb->count);
 
     newInstr = newCapInstr(c);
     if (c->e) return;

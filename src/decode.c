@@ -2520,7 +2520,7 @@ DBB* dbrew_decode(Rewriter* r, uint64_t f)
     dbb->size = cxt.off;
 
     if (r->showDecoding)
-        dbrew_print_decoded(dbb);
+        dbrew_print_decoded(dbb, r->printBytes);
 
     return dbb;
 }

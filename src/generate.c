@@ -1952,10 +1952,12 @@ GenerateError* generate(Rewriter* r, CBB* cbb)
         usedTotal += used;
 
         if (r->showEmuSteps) {
-            printf("  I%2d : %-32s", i, instr2string(instr, 1, 0));
-            printf(" (%s)+%-3d %s\n",
-                   cbb_prettyName(cbb), (int)(instr->addr - buf0),
-                   bytes2string(instr, 0, used));
+            printf("  I%2d : %-32s", i, instr2string(instr, 1, cbb->fc));
+            printf(" (%s)+%-3d",
+                   cbb_prettyName(cbb), (int)(instr->addr - buf0));
+            if (r->printBytes)
+                printf(" %s", bytes2string(instr, 0, used));
+            printf("\n");
         }
 
         useCodeStorage(r->cs, used);

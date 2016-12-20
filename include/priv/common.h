@@ -29,7 +29,9 @@
 
 #define debug(format, ...) printf("!DBG %s: " format "\n", __PRETTY_FUNCTION__, ##__VA_ARGS__)
 
+typedef struct _MemRangeConfig MemRangeConfig;
 typedef struct _FunctionConfig FunctionConfig;
+typedef struct _CaptureConfig CaptureConfig;
 
 // a decoded basic block
 struct _DBB {
@@ -102,16 +104,39 @@ void initMetaState(MetaState* ms, CaptureState cs);
 // Rewriter Configuration
 //
 
-struct _FunctionConfig
-{
-    uint64_t func;
-    int size;
-    char* name;
+typedef enum _MemRangeType {
+    MR_Unknown = 0,    // unspecified, wildcard when searching for range
+    MR_Invalid,        // accesses not allowed
+    MR_ConstantData,   // accessable, initialized with constant data
+    MR_MutableData,    // accessable, writable
+    MR_Function,       // accessable, compiled code
+} MemRangeType;
 
-    FunctionConfig* next; // chain
+struct _MemRangeConfig
+{
+    MemRangeType type;
+    char* name;
+    MemRangeConfig* next; // chain to next config
+    CaptureConfig* cc; // capture config this belongs to
+    uint64_t start;
+    int size;
 };
 
-typedef struct _CaptureConfig
+// extension of MemRangeConfig
+struct _FunctionConfig
+{
+    // 1st 6 entries have to be same as MemRangeConfig
+    MemRangeType type;
+    char* name;
+    MemRangeConfig* next; // chain to next config
+    CaptureConfig* cc; // capture config this belongs to
+    uint64_t start;
+    int size;
+
+    // TODO: extended config for functions
+};
+
+struct _CaptureConfig
 {
     // specialise for some parameters to be constant?
     MetaState par_state[CC_MAXPARAM];
@@ -127,10 +152,10 @@ typedef struct _CaptureConfig
     // all branches forced known
     bool branches_known;
 
-    // linked list of configurations per function
-    FunctionConfig* function_configs;
+    // linked list of memory range and function configurations
+    MemRangeConfig* range_configs;
 
-} CaptureConfig;
+};
 
 
 // vectorization parameter config for a Rewriter
@@ -279,6 +304,9 @@ struct _Rewriter {
 
     // debug output
     bool showDecoding, showEmuState, showEmuSteps, showOptSteps;
+
+    // printer config
+    bool printBytes;
 
     // list of related rewriters
     Rewriter* next;

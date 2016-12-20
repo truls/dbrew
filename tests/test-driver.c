@@ -10,7 +10,11 @@
 typedef long (*f1_t)(long, long);
 long f1(long, long);
 
-int runtest(Rewriter*r, long parameter, bool doRun)
+// data which may be read/written by test
+const uint64_t rdata[2] = {1,2}; // read-only data section (16 bytes)
+long wdata[2];                   // uninitialized data section (16 bytes)
+
+int runtest(Rewriter*r, long parameter, bool doRun, bool showBytes)
 {
     f1_t ff;
 
@@ -19,20 +23,25 @@ int runtest(Rewriter*r, long parameter, bool doRun)
     else
         printf(">>> Testcase unknown par.\n");
 
+
     dbrew_set_function(r, (uint64_t) f1);
     dbrew_config_parcount(r, 2);
     // to get rid of changing addresses, assume f1 code to be 100 bytes max
     dbrew_config_function_setname(r, (uint64_t) f1, "test");
     dbrew_config_function_setsize(r, (uint64_t) f1, 100);
+    dbrew_config_set_memrange(r, "rdata", false, (uint64_t) rdata, 16);
+    dbrew_config_set_memrange(r, "wdata", true, (uint64_t) wdata, 16);
     if (parameter >= 0)
         dbrew_config_staticpar(r, 0);
     ff = (f1_t) dbrew_rewrite(r, parameter, 1);
 
-    // Decode the newly generated function.
+    // print the generated function.
     Rewriter* r2 = dbrew_new();
-    // to get rid of changing addresses, assume gen code to be 200 bytes max
+    dbrew_printer_showbytes(r2, showBytes);
     dbrew_config_function_setname(r2, (uint64_t) ff, "gen");
-    dbrew_config_function_setsize(r2, (uint64_t) ff, 200);
+    dbrew_config_function_setsize(r2, (uint64_t) ff, dbrew_generated_size(r));
+    dbrew_config_set_memrange(r2, "rdata", false, (uint64_t) rdata, 16);
+    dbrew_config_set_memrange(r2, "wdata", true, (uint64_t) wdata, 16);
     dbrew_decode_print(r2, (uint64_t) ff, dbrew_generated_size(r));
 
     if (!doRun) return 0;
@@ -52,10 +61,12 @@ int main(int argc, char** argv)
     bool debug = false;
     bool run = false;
     bool var = false; // also generate version with variable parameter?
+    bool showBytes = true;
     while((arg<argc) && (argv[arg][0] == '-')) {
         if (strcmp(argv[arg], "--debug")==0) debug = true;
         if (strcmp(argv[arg], "--run")==0) run = true;
         if (strcmp(argv[arg], "--var")==0) var = true;
+        if (strcmp(argv[arg], "--nobytes")==0) showBytes = false;
         arg++;
     }
 
@@ -64,19 +75,20 @@ int main(int argc, char** argv)
     // pointer is different on each run. However, for debugging we want this
     // information.
     dbrew_verbose(r, true, debug ? true : false, true);
+    dbrew_printer_showbytes(r, showBytes);
     dbrew_optverbose(r, false);
 
     if (var)
-        res += runtest(r, -1, run);
+        res += runtest(r, -1, run, showBytes);
 
     if (arg < argc) {
         // take parameter values for rewriting from command line
         for(; arg < argc; arg++)
-            res += runtest(r, atoi(argv[arg]), run);
+            res += runtest(r, atoi(argv[arg]), run, showBytes);
     }
     else {
         // default parameter "1"
-        res += runtest(r, 1, run);
+        res += runtest(r, 1, run, showBytes);
     }
 
     return res;

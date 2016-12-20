@@ -138,6 +138,9 @@ void dbrew_verbose(Rewriter* rewriter,
                    bool decode, bool emuState, bool emuSteps);
 void dbrew_optverbose(Rewriter* r, bool v);
 
+// config for printing instruction: show also machine code bytes?
+void dbrew_printer_showbytes(Rewriter* r, bool v);
+
 // decode a piece of x86 binary code starting add address <f>
 DBB* dbrew_decode(Rewriter* r, uint64_t f);
 
@@ -145,7 +148,7 @@ DBB* dbrew_decode(Rewriter* r, uint64_t f);
 void dbrew_decode_print(Rewriter* r, uint64_t f, int count);
 
 // print instructions from a decoded basic block
-void dbrew_print_decoded(DBB* bb);
+void dbrew_print_decoded(DBB* bb, bool printBytes);
 
 // initialize emulator, use given stack size
 void dbrew_set_stacksize(Rewriter *c, int stacksize);
@@ -167,12 +170,15 @@ void dbrew_config_parcount(Rewriter* r, int parCount);
 void dbrew_config_force_unknown(Rewriter* r, int depth);
 // assume all branches to be fixed according to rewriter input parameters
 void dbrew_config_branches_known(Rewriter* r, bool);
-// provide a name for a function (for debugging)
+// provide a name for a function (for debug)
 void dbrew_config_function_setname(Rewriter* r, uint64_t f, const char* name);
 // provide a code length in bytes for a function (for debugging)
 void dbrew_config_function_setsize(Rewriter* r, uint64_t f, int len);
 // provide a name for a parameter of the function to rewrite (for debug)
 void dbrew_config_par_setname(Rewriter* c, int par, char* name);
+// register a valid memory range with permission and name (for debug)
+void dbrew_config_set_memrange(Rewriter* r, char* name, bool isWritable,
+                               uint64_t start, int size);
 
 // convenience functions, using default rewriter
 void dbrew_def_verbose(bool decode, bool emuState, bool emuSteps);

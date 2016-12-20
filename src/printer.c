@@ -274,14 +274,24 @@ char* prettyAddress(uint64_t a, FunctionConfig* fc)
 {
     static char buf[100];
 
-    if (fc && fc->name) {
-        if (a == fc->func) {
-            sprintf(buf, "%s", fc->name);
-            return buf;
-        }
-        else if ((a > fc->func) && (a < fc->func + fc->size)) {
-            sprintf(buf, "%s+%ld", fc->name, a - fc->func);
-            return buf;
+    if (fc) {
+        // use name from registered, labeled memory ranges
+        MemRangeConfig* mrc;
+
+        assert(fc->cc);
+        mrc = fc->cc->range_configs;
+        while(mrc) {
+            if (mrc->name) {
+                if (a == mrc->start) {
+                    sprintf(buf, "%s", mrc->name);
+                    return buf;
+                }
+                else if ((a > mrc->start) && (a < mrc->start + mrc->size)) {
+                    sprintf(buf, "%s+%ld", mrc->name, a - mrc->start);
+                    return buf;
+                }
+            }
+            mrc = mrc->next;
         }
     }
     sprintf(buf, "0x%lx", a);
@@ -734,18 +744,19 @@ char* bytes2string(Instr* instr, int start, int count)
     return buf;
 }
 
-void dbrew_print_decoded(DBB* bb)
+void dbrew_print_decoded(DBB* bb, bool printBytes)
 {
     int i;
     for(i = 0; i < bb->count; i++) {
         Instr* instr = bb->instr + i;
         printf("  %18s: ", prettyAddress(instr->addr, bb->fc));
-        printf("%s  %s\n",
-               bytes2string(instr, 0, 7), instr2string(instr, 1, bb->fc));
-        if (instr->len > 7)
+        if (printBytes)
+            printf("%s ", bytes2string(instr, 0, 7));
+        printf(" %s\n", instr2string(instr, 1, bb->fc));
+        if (printBytes && (instr->len > 7))
             printf("  %18s: %s\n", prettyAddress(instr->addr + 7, bb->fc),
                    bytes2string(instr, 7, 7));
-        if (instr->len > 14)
+        if (printBytes && (instr->len > 14))
             printf("  %18s: %s\n", prettyAddress(instr->addr + 14, bb->fc),
                    bytes2string(instr, 14, 7));
     }
@@ -758,6 +769,6 @@ void printDecodedBBs(Rewriter* r)
         printf("BB %s (%d instructions):\n",
                prettyAddress(r->decBB[i].addr, r->decBB[i].fc),
                r->decBB[i].count);
-        dbrew_print_decoded(r->decBB + i);
+        dbrew_print_decoded(r->decBB + i, r->printBytes);
     }
 }

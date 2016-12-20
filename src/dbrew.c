@@ -124,6 +124,11 @@ void dbrew_optverbose(Rewriter* r, bool v)
     r->showOptSteps = v;
 }
 
+void dbrew_printer_showbytes(Rewriter* r, bool v)
+{
+    r->printBytes = v;
+}
+
 uint64_t dbrew_generated_code(Rewriter* r)
 {
     return r->generatedCodeAddr;

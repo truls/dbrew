@@ -87,6 +87,9 @@ Rewriter* allocRewriter(void)
     r->showEmuSteps = false;
     r->showOptSteps = false;
 
+    // default: assembly printer shows bytes
+    r->printBytes = true;
+
     return r;
 }
 
