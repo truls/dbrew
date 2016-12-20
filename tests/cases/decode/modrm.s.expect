@@ -31,8 +31,8 @@ BB f1 (100 instructions):
               f1+123:  00                  
               f1+124:  48 ff 04 d5 00 10 00  incq    0x1000(,%rdx,8)
               f1+131:  00                  
-              f1+132:  48 ff 05 00 00 00 00  incq    (%rip)
-              f1+139:  48 ff 05 00 01 00 00  incq    0x100(%rip)
+              f1+132:  48 ff 05 75 ff ff ff  incq    f1(%rip)
+              f1+139:  48 ff 05 6e 00 00 00  incq    f1+256(%rip)
               f1+146:  48 01 c5              add     %rax,%rbp
               f1+149:  48 01 ed              add     %rbp,%rbp
               f1+152:  4c 01 cd              add     %r9,%rbp
@@ -65,8 +65,8 @@ BB f1 (100 instructions):
               f1+269:  00                  
               f1+270:  4a 03 2c fd 00 10 00  add     0x1000(,%r15,8),%rbp
               f1+277:  00                  
-              f1+278:  48 03 2d 00 00 00 00  add     (%rip),%rbp
-              f1+285:  48 03 2d 00 01 00 00  add     0x100(%rip),%rbp
+              f1+278:  48 03 2d e3 fe ff ff  add     f1(%rip),%rbp
+              f1+285:  48 03 2d dc ff ff ff  add     f1+256(%rip),%rbp
               f1+292:  49 01 c1              add     %rax,%r9
               f1+295:  49 01 e9              add     %rbp,%r9
               f1+298:  4d 01 c9              add     %r9,%r9
@@ -99,8 +99,8 @@ BB f1 (100 instructions):
               f1+415:  00                  
               f1+416:  4e 03 0c fd 00 10 00  add     0x1000(,%r15,8),%r9
               f1+423:  00                  
-              f1+424:  4c 03 0d 00 00 00 00  add     (%rip),%r9
-              f1+431:  4c 03 0d 00 01 00 00  add     0x100(%rip),%r9
+              f1+424:  4c 03 0d 51 fe ff ff  add     f1(%rip),%r9
+              f1+431:  4c 03 0d 4a ff ff ff  add     f1+256(%rip),%r9
               f1+438:  4c 8b 0c c4           mov     (%rsp,%rax,8),%r9
               f1+442:  4c 8b 4c c5 00        mov     (%rbp,%rax,8),%r9
               f1+447:  4c 8b 0c c6           mov     (%rsi,%rax,8),%r9

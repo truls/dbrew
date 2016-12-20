@@ -1182,12 +1182,22 @@ void setMemState(EmuState* es, EmuValue* addr, ValType t, MetaState ms,
 static
 void addRegToValue(EmuValue* v, EmuState* es, Reg r, int scale)
 {
-    if (r.rt == RT_None) return;
-    assert(r.rt == RT_GP64);
-
-    v->state.cState = combineState(v->state.cState,
-                                   es->reg_state[r.ri].cState, 0);
-    v->val += scale * es->reg[r.ri];
+    switch (r.rt) {
+     case RT_GP64:
+         v->state.cState = combineState(v->state.cState,
+                                        es->reg_state[r.ri].cState, 0);
+         v->val += scale * es->reg[r.ri];
+         break;
+     case RT_IP:
+        // as IP is known for a given instruction, the resulting
+        // state of v stays the same.
+        // scale always 1 for IP-relative addressing
+        assert(scale == 1);
+        v->val += es->regIP;
+        break;
+     default:
+         assert(0);
+     }
 }
 
 // get resulting address (and state) for memory operands

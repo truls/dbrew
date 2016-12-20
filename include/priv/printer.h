@@ -24,7 +24,7 @@
 
 const char* regNameI(RegType rt, RegIndex ri);
 const char* regName(Reg r);
-char* op2string(Operand* o, ValType t, FunctionConfig *fc);
+char* op2string(Operand* o, Instr* instr, FunctionConfig *fc);
 const char* instrName(InstrType it, int* pOpCount);
 char* instr2string(Instr* instr, int align, FunctionConfig *fc);
 char* bytes2string(Instr* instr, int start, int count);

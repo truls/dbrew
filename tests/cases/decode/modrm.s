@@ -28,8 +28,8 @@ f1:
     inc qword ptr [0x1000 + 2 * rdx]
     inc qword ptr [0x1000 + 4 * rdx]
     inc qword ptr [0x1000 + 8 * rdx]
-    inc qword ptr [rip]
-    inc qword ptr [rip + 0x100]
+    inc qword ptr [f1 + rip]
+    inc qword ptr [f1 + 0x100 + rip]
 
     add rbp, rax
     add rbp, rbp
@@ -55,8 +55,8 @@ f1:
     add rbp, qword ptr [0x1000 + 2 * r15]
     add rbp, qword ptr [0x1000 + 4 * r15]
     add rbp, qword ptr [0x1000 + 8 * r15]
-    add rbp, qword ptr [rip]
-    add rbp, qword ptr [rip + 0x100]
+    add rbp, qword ptr [f1 + rip]
+    add rbp, qword ptr [f1 + 0x100 + rip]
 
     add r9, rax
     add r9, rbp
@@ -82,8 +82,8 @@ f1:
     add r9, qword ptr [0x1000 + 2 * r15]
     add r9, qword ptr [0x1000 + 4 * r15]
     add r9, qword ptr [0x1000 + 8 * r15]
-    add r9, qword ptr [rip]
-    add r9, qword ptr [rip + 0x100]
+    add r9, qword ptr [f1 + rip]
+    add r9, qword ptr [f1 + 0x100 + rip]
 
     mov r9, qword ptr [rsp + 8 * rax]
     mov r9, qword ptr [rbp + 8 * rax]

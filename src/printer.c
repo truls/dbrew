@@ -299,10 +299,11 @@ char* prettyAddress(uint64_t a, FunctionConfig* fc)
 }
 
 // if <fc> is not-null, use it to print immediates/displacement
-char* op2string(Operand* o, ValType t, FunctionConfig* fc)
+char* op2string(Operand* o, Instr* instr, FunctionConfig* fc)
 {
     static char buf[30];
     int off = 0;
+    ValType t = instr->vtype;
     uint64_t val;
 
     switch(o->type) {
@@ -385,11 +386,17 @@ char* op2string(Operand* o, ValType t, FunctionConfig* fc)
         case OSO_UseGS: off += sprintf(buf+off, "%%gs:"); break;
         default: assert(0);
         }
-        if (o->val != 0) {
-            if (o->val & (1l<<63))
-                off += sprintf(buf+off, "-0x%lx", (~ o->val)+1);
+        val = o->val;
+        // for rip-relative addressing, shown displacement is adjusted
+        if ((o->scale == 0) && (o->reg.rt == RT_IP)) {
+            // addr+len is 0 if not decoded
+            val += instr->addr + instr->len;
+        }
+        if (val != 0) {
+            if (val & (1l<<63))
+                off += sprintf(buf+off, "-0x%lx", (~val)+1);
             else
-                off += sprintf(buf+off, "%s", prettyAddress(o->val, fc));
+                off += sprintf(buf+off, "%s", prettyAddress(val, fc));
         }
         if ((o->scale == 0) || (o->ireg.rt == RT_None)) {
             if (o->reg.rt != RT_None)
@@ -699,7 +706,7 @@ char* instr2string(Instr* instr, int align, FunctionConfig* fc)
         assert(instr->src.type == OT_None);
         assert(instr->src2.type == OT_None);
         off += sprintf(buf+off, " %s",
-                       op2string(&(instr->dst), instr->vtype, fc));
+                       op2string(&(instr->dst), instr, fc));
         break;
 
     case OF_2:
@@ -707,9 +714,9 @@ char* instr2string(Instr* instr, int align, FunctionConfig* fc)
         assert(instr->src.type != OT_None);
         assert(instr->src2.type == OT_None);
         off += sprintf(buf+off, " %s",
-                       op2string(&(instr->src), instr->vtype, fc));
+                       op2string(&(instr->src), instr, fc));
         off += sprintf(buf+off, ",%s",
-                       op2string(&(instr->dst), instr->vtype, fc));
+                       op2string(&(instr->dst), instr, fc));
         break;
 
     case OF_3:
@@ -717,11 +724,11 @@ char* instr2string(Instr* instr, int align, FunctionConfig* fc)
         assert(instr->src.type != OT_None);
         assert(instr->src2.type != OT_None);
         off += sprintf(buf+off, " %s",
-                       op2string(&(instr->src2), instr->vtype, fc));
+                       op2string(&(instr->src2), instr, fc));
         off += sprintf(buf+off, ",%s",
-                       op2string(&(instr->src), instr->vtype, fc));
+                       op2string(&(instr->src), instr, fc));
         off += sprintf(buf+off, ",%s",
-                       op2string(&(instr->dst), instr->vtype, fc));
+                       op2string(&(instr->dst), instr, fc));
         break;
 
     default: assert(0);
