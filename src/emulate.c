@@ -1915,6 +1915,63 @@ void emulateRet(RContext* c, Instr* instr)
     }
 }
 
+static
+void emulateSETcc(RContext* c,
+                   EmuState* es,
+                   Instr* instr,
+                   bool cond,
+                   MetaState* s1,
+                   MetaState* s2,
+                   MetaState* s3)
+{
+    CaptureState cs;
+    MetaState ms;
+    EmuValue ev;
+
+    assert(cond == 0 || cond == 1);
+    assert(s1);
+
+    cs = s1->cState;
+    if (s2) {
+        assert(s1);
+        cs = combineState4Flags(cs, s2->cState);
+    }
+    if (s3) {
+        assert(s1 && s2);
+        cs = combineState4Flags(cs, s3->cState);
+    }
+
+    initMetaState(&ms, cs);
+    ev = emuValue(cond, VT_8, ms);
+
+    setOpValue(&ev, es, &(instr->dst));
+    setOpState(ms, es, &(instr->dst));
+
+    if (! msIsStatic(ms)) {
+        // The SETcc instruction only sets the 8 least significant bits of its
+        // target register. Therefore, we need to make sure that all bits of the
+        // target register are cleared before a SETcc instruction is run. The
+        // xor instruction that the compiler inserts to do this is removed by
+        // the emulator since its result is static.
+        // TODO: Investigate if more cases like this exists and if it is
+        // generally safe to remove register zeroing instructions like
+        // xor rax, rax.
+        if (opIsReg(&instr->dst)) {
+            Operand op;
+            Instr i;
+            assert(instr->dst.type == OT_Reg8 &&
+                   instr->dst.reg.rt == RT_GP8);
+            copyOperand(&op, &instr->dst);
+            op.type = OT_Reg64;
+            op.reg.rt = RT_GP64;
+            initBinaryInstr(&i, IT_XOR, VT_64, &op, &op);
+            capture(c, &i);
+        }
+        capture(c, instr);
+    }
+
+}
+
 // process an instruction
 // if this changes control flow, c.exit is set accordingly
 void processInstr(RContext* c, Instr* instr)
@@ -2691,7 +2748,71 @@ void processInstr(RContext* c, Instr* instr)
     case IT_RET:
         emulateRet(c, instr);
         break;
-
+    case IT_SETA:
+        emulateSETcc(c, es, instr, !es->flag[FT_Carry] && !es->flag[FT_Zero],
+                     &es->flag_state[FT_Carry], &es->flag_state[FT_Zero], 0);
+        break;
+    case IT_SETAE:
+        emulateSETcc(c, es, instr, !es->flag[FT_Carry], &es->flag_state[FT_Carry], 0, 0);
+        break;
+    case IT_SETB:
+        emulateSETcc(c, es, instr, es->flag[FT_Carry], &es->flag_state[FT_Carry], 0, 0);
+        break;
+    case IT_SETBE:
+        emulateSETcc(c, es, instr, es->flag[FT_Carry] && es->flag[FT_Zero],
+                     &es->flag_state[FT_Carry], &es->flag_state[FT_Zero], 0);
+    case IT_SETE:
+        emulateSETcc(c, es, instr, es->flag[FT_Zero],
+                     &es->flag_state[FT_Zero], 0, 0);
+        break;
+    case IT_SETG:
+        emulateSETcc(c, es, instr,
+                     !es->flag[FT_Zero] && es->flag[FT_Sign] == es->flag[FT_Overflow],
+                     &(es->flag_state[FT_Zero]), &(es->flag_state[FT_Sign]),
+                     &(es->flag_state[FT_Overflow]));
+        break;
+    case IT_SETGE:
+        emulateSETcc(c, es, instr, es->flag[FT_Sign] == es->flag[FT_Overflow],
+                     &es->flag_state[FT_Sign], &es->flag_state[FT_Overflow], 0);
+        break;
+    case IT_SETL:
+        emulateSETcc(c, es, instr, es->flag[FT_Sign] != es->flag[FT_Overflow],
+                     &es->flag_state[FT_Sign], &es->flag_state[FT_Overflow], 0);
+        break;
+    case IT_SETLE:
+        emulateSETcc(c, es, instr, (es->flag[FT_Zero] &&
+                                    es->flag[FT_Sign] == es->flag[FT_Overflow]),
+                     &es->flag_state[FT_Zero], &es->flag_state[FT_Sign],
+                     &es->flag_state[FT_Overflow]);
+        break;
+    case IT_SETNE:
+        emulateSETcc(c, es, instr, !es->flag[FT_Zero],
+                     &es->flag_state[FT_Zero], 0, 0);
+        break;
+    case IT_SETNO:
+        emulateSETcc(c, es, instr, !es->flag[FT_Overflow],
+                     &es->flag_state[FT_Overflow], 0, 0);
+        break;
+    case IT_SETNP:
+        emulateSETcc(c, es, instr, !es->flag[FT_Parity],
+                     &es->flag_state[FT_Parity], 0, 0);
+        break;
+    case IT_SETNS:
+        emulateSETcc(c, es, instr, !es->flag[FT_Sign],
+                     &es->flag_state[FT_Sign], 0, 0);
+        break;
+    case IT_SETO:
+        emulateSETcc(c, es, instr, es->flag[FT_Overflow],
+                     &es->flag_state[FT_Overflow], 0, 0);
+        break;
+    case IT_SETP:
+        emulateSETcc(c, es, instr, es->flag[FT_Parity],
+                     &es->flag_state[FT_Parity], 0, 0);
+        break;
+    case IT_SETS:
+        emulateSETcc(c, es, instr, es->flag[FT_Sign],
+                     &es->flag_state[FT_Sign], 0, 0);
+        break;
     case IT_SHL:
     case IT_SHR:
     case IT_SAR:
