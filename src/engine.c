@@ -97,28 +97,28 @@ void initRewriter(Rewriter* r)
 {
     if (r->decInstr == 0) {
         // default
-        if (r->decInstrCapacity == 0) r->decInstrCapacity = 500;
+        if (r->decInstrCapacity == 0) r->decInstrCapacity = 1000;
         r->decInstr = (Instr*) malloc(sizeof(Instr) * r->decInstrCapacity);
     }
     r->decInstrCount = 0;
 
     if (r->decBB == 0) {
         // default
-        if (r->decBBCapacity == 0) r->decBBCapacity = 50;
+        if (r->decBBCapacity == 0) r->decBBCapacity = 100;
         r->decBB = (DBB*) malloc(sizeof(DBB) * r->decBBCapacity);
     }
     r->decBBCount = 0;
 
     if (r->capInstr == 0) {
         // default
-        if (r->capInstrCapacity == 0) r->capInstrCapacity = 500;
+        if (r->capInstrCapacity == 0) r->capInstrCapacity = 50000;
         r->capInstr = (Instr*) malloc(sizeof(Instr) * r->capInstrCapacity);
     }
     r->capInstrCount = 0;
 
     if (r->capBB == 0) {
         // default
-        if (r->capBBCapacity == 0) r->capBBCapacity = 50;
+        if (r->capBBCapacity == 0) r->capBBCapacity = 10000;
         r->capBB = (CBB*) malloc(sizeof(CBB) * r->capBBCapacity);
     }
     r->capBBCount = 0;
