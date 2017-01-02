@@ -2448,6 +2448,15 @@ void initDecodeTables(void)
     // VEX.128.F3.0F.WIG 7F: vmovdqu xmm2/m128,xmm1 (MR)
     // VEX.256.F3.0F.WIG 6F: vmovdqu ymm1,ymm2/m256 (RM)
     // VEX.256.F3.0F.WIG 7F: vmovdqu ymm2/m256,ymm1 (MR)
+    setOpcPV(VEX_128, 0x0F6F, PS_66, IT_VMOVDQA, VT_128, parseRMVV, addBInsImp, attach);
+    setOpcPV(VEX_128, 0x0F7F, PS_66, IT_VMOVDQA, VT_128, parseMRVV, addBInsImp, attach);
+    setOpcPV(VEX_256, 0x0F6F, PS_66, IT_VMOVDQA, VT_256, parseRMVV, addBInsImp, attach);
+    setOpcPV(VEX_256, 0x0F7F, PS_66, IT_VMOVDQA, VT_256, parseMRVV, addBInsImp, attach);
+
+    // VEX.128.F3.0F.WIG 6F: vmovdqu xmm1,xmm2/m128 (RM)
+    // VEX.128.F3.0F.WIG 7F: vmovdqu xmm2/m128,xmm1 (MR)
+    // VEX.256.F3.0F.WIG 6F: vmovdqu ymm1,ymm2/m256 (RM)
+    // VEX.256.F3.0F.WIG 7F: vmovdqu ymm2/m256,ymm1 (MR)
     setOpcPV(VEX_128, 0x0F6F, PS_F3, IT_VMOVDQU, VT_128, parseRMVV, addBInsImp, attach);
     setOpcPV(VEX_128, 0x0F7F, PS_F3, IT_VMOVDQU, VT_128, parseMRVV, addBInsImp, attach);
     setOpcPV(VEX_256, 0x0F6F, PS_F3, IT_VMOVDQU, VT_256, parseRMVV, addBInsImp, attach);
