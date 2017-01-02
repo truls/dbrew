@@ -175,10 +175,14 @@ void dbrew_config_function_setname(Rewriter* r, uint64_t f, const char* name);
 // provide a code length in bytes for a function (for debugging)
 void dbrew_config_function_setsize(Rewriter* r, uint64_t f, int len);
 // provide a name for a parameter of the function to rewrite (for debug)
-void dbrew_config_par_setname(Rewriter* c, int par, char* name);
+void dbrew_config_par_setname(Rewriter* c, int par, const char* name);
 // register a valid memory range with permission and name (for debug)
 void dbrew_config_set_memrange(Rewriter* r, char* name, bool isWritable,
                                uint64_t start, int size);
+
+void dbrew_config_function_par_setname(Rewriter* r, uint64_t f, int parIdx, const char* name);
+void dbrew_config_function_parcount(Rewriter* r, uint64_t f, int parCount);
+void dbrew_config_function_par_setstatic(Rewriter* r, uint64_t f, int parNum);
 
 // convenience functions, using default rewriter
 void dbrew_def_verbose(bool decode, bool emuState, bool emuSteps);
@@ -191,7 +195,6 @@ uint64_t dbrew_rewrite(Rewriter* r, ...);
 
 // rewrite <f> using default config, return pointer to rewritten code
 uint64_t dbrew_rewrite_func(uint64_t f, ...);
-
 
 
 // Vector API:

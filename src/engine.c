@@ -159,6 +159,40 @@ void freeRewriter(Rewriter* r)
     free(r);
 }
 
+static
+RegIndex getRegIndex(int pos) {
+    const int maxPars = 6;
+    // calling convention x86-64: parameters are stored in registers
+    // see https://en.wikipedia.org/wiki/X86_calling_conventions
+
+    RegIndex parReg[CC_MAXPARAM] = { RI_DI, RI_SI, RI_D, RI_C, RI_8, RI_9 };
+
+    assert(pos < maxPars);
+    return parReg[pos];
+}
+
+static
+void setParRegState(Rewriter* r, EmuState* es, FunctionConfig* fc) {
+    //FunctionConfig* fc = config_find_function(r, ptr);
+
+    if (fc == NULL) {
+        return;
+    }
+
+    for(int i = 0; i < fc->parCount; i++) {
+        //MetaState* ms = &(es->reg_state[parReg[i]]);
+        MetaState* ms = &(es->reg_state[getRegIndex(i)]);
+        if (r->cc && (i<CC_MAXPARAM)) {
+            *ms = fc->par_state[i];
+        } else {
+            initMetaState(ms, CS_DYNAMIC);
+        }
+        ms->parDep = expr_newPar(r->ePool, i, // TODO: WTF?
+                                 r->cc ? fc->par_name[i] : 0);
+    }
+}
+
+
 
 /*----------------------------------------------------------
  * Rewrite engine
@@ -180,10 +214,6 @@ void freeRewriter(Rewriter* r)
 static
 Error* emulateAndCapture(Rewriter* r, int parCount, uint64_t* par)
 {
-    // calling convention x86-64: parameters are stored in registers
-    // see https://en.wikipedia.org/wiki/X86_calling_conventions
-    static RegIndex parReg[6] = { RI_DI, RI_SI, RI_D, RI_C, RI_8, RI_9 };
-
     int i, esID;
     EmuState* es;
     DBB *dbb;
@@ -205,17 +235,11 @@ Error* emulateAndCapture(Rewriter* r, int parCount, uint64_t* par)
     if (r->cs)
         r->cs->used = 0;
 
-    for(i=0;i<parCount;i++) {
-        MetaState* ms = &(es->reg_state[parReg[i]]);
-        es->reg[parReg[i]] = par[i];
-        if (r->cc && (i<CC_MAXPARAM))
-            *ms = r->cc->par_state[i];
-        else
-            initMetaState(ms, CS_DYNAMIC);
-
-        ms->parDep = expr_newPar(r->ePool, i,
-                                 r->cc ? r->cc->par_name[i] : 0);
+    // Set initial function parameter register values
+    for (i = 0; i < parCount; i++) {
+        es->reg[getRegIndex(i)] = par[i];
     }
+    setParRegState(r, es, r->entry_func);
 
     es->reg[RI_SP] = (uint64_t) (es->stackStart + es->stackSize);
     initMetaState(&(es->reg_state[RI_SP]), CS_STACKRELATIVE);
@@ -225,7 +249,7 @@ Error* emulateAndCapture(Rewriter* r, int parCount, uint64_t* par)
     // push new CBB for c->func (as request to decode and emulate/capture
     // starting at that address)
     esID = saveEmuState(&cxt);
-    cbb = (esID >= 0) ? getCaptureBB(&cxt, r->func, esID) : 0;
+    cbb = (esID >= 0) ? getCaptureBB(&cxt, r->entry_func->start, esID) : 0;
     if (cxt.e) return cxt.e;
     // new CBB has to be first in this rewriter (we start with it in Pass 2)
     assert(cbb = r->capBB);
@@ -305,6 +329,12 @@ Error* emulateAndCapture(Rewriter* r, int parCount, uint64_t* par)
             }
 
             nextbb_addr = processKnownTargets(&cxt, cxt.exit);
+            // If we're about to process a new function, check if we need to set
+            // static parameters
+            FunctionConfig* fc = config_find_function(r, nextbb_addr);
+            setParRegState(r, es, fc);
+
+
 
             if (r->showEmuState) {
                 if (nextbb_addr != 0) es->regIP = nextbb_addr;
@@ -339,7 +369,7 @@ Error* vEmulateAndCapture(Rewriter* r, va_list args)
     int i, parCount;
     uint64_t par[6];
 
-    parCount = r->cc->parCount;
+    parCount = r->entry_func->parCount;
     if (parCount == -1) {
         setError(&e, ET_InvalidRequest, EM_Rewriter, r,
                  "number of parameters not set");
