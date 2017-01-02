@@ -74,8 +74,6 @@ struct _CBB {
 
 char* cbb_prettyName(CBB* bb);
 
-
-
 #define CC_MAXPARAM     6
 #define CC_MAXCALLDEPTH 5
 
@@ -133,20 +131,24 @@ struct _FunctionConfig
     uint64_t start;
     int size;
 
-    // TODO: extended config for functions
-};
+    // Function config specific parameters below.
 
-struct _CaptureConfig
-{
+    // number of parameters passed to function to rewrite
+    int parCount;
     // specialise for some parameters to be constant?
     MetaState par_state[CC_MAXPARAM];
     // for debug: allow parameters to be named
     char* par_name[CC_MAXPARAM];
 
-     // does function to rewrite return floating point?
+};
+
+struct _CaptureConfig
+{
+
+    FunctionConfig* next; // chain
+
+    // does function to rewrite return floating point?
     bool hasReturnFP;
-    // number of parameters passed to function to rewrite
-    int parCount;
     // avoid unrolling at call depths
     bool force_unknown[CC_MAXCALLDEPTH];
     // all branches forced known
@@ -172,7 +174,7 @@ typedef enum _VectorizeReq {
 
 
 FunctionConfig* config_find_function(Rewriter* r, uint64_t f);
-
+FunctionConfig* config_get_function(Rewriter* r, uint64_t f);
 
 
 //
@@ -268,7 +270,7 @@ struct _Rewriter {
     ExprPool * ePool;
 
     // function to capture
-    uint64_t func;
+    FunctionConfig* entry_func;
 
     // buffer for generated binary code
     int capCodeCapacity;
