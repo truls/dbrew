@@ -1943,7 +1943,8 @@ void emulateSETcc(RContext* c,
 
     initMetaState(&ms, cs);
     ev = emuValue(cond, VT_8, ms);
-
+    // FIXME: We should only modify the 8 least significant bits of a
+    // register. Is this happening how?
     setOpValue(&ev, es, &(instr->dst));
     setOpState(ms, es, &(instr->dst));
 
@@ -1952,20 +1953,30 @@ void emulateSETcc(RContext* c,
         // target register. Therefore, we need to make sure that all bits of the
         // target register are cleared before a SETcc instruction is run. The
         // xor instruction that the compiler inserts to do this is removed by
-        // the emulator since its result is static.
+        // the emulator since its result is static. Since zeroing a register
+        // alters the flag state we preserve it using pushf/popf. This is a
+        // hack.
+        //
         // TODO: Investigate if more cases like this exists and if it is
         // generally safe to remove register zeroing instructions like
         // xor rax, rax.
         if (opIsReg(&instr->dst)) {
             Operand op;
-            Instr i;
+            Instr pushf;
+            Instr xor;
+            Instr popf;
             assert(instr->dst.type == OT_Reg8 &&
-                   instr->dst.reg.rt == RT_GP8);
+                   (instr->dst.reg.rt == RT_GP8 ||
+                    instr->dst.reg.rt == RT_GP8Leg));
             copyOperand(&op, &instr->dst);
             op.type = OT_Reg64;
             op.reg.rt = RT_GP64;
-            initBinaryInstr(&i, IT_XOR, VT_64, &op, &op);
-            capture(c, &i);
+            initSimpleInstr(&pushf, IT_PUSHF);
+            initBinaryInstr(&xor, IT_XOR, VT_64, &op, &op);
+            initSimpleInstr(&popf, IT_POPF);
+            capture(c, &pushf);
+            capture(c, &xor);
+            capture(c, &popf);
         }
         capture(c, instr);
     }

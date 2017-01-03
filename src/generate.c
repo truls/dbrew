@@ -620,6 +620,14 @@ int genPush(GContext* cxt)
 }
 
 static
+int genPushf(GContext* cxt)
+{
+    uint8_t* buf = cxt->buf;
+    buf[0] = 0x9c;
+    return 1;
+}
+
+static
 int genPop(GContext* cxt)
 {
     uint8_t* buf = cxt->buf;
@@ -634,6 +642,14 @@ int genPop(GContext* cxt)
         return 2;
     }
     buf[0] = 0x58 + r;
+    return 1;
+}
+
+static
+int genPopf(GContext* cxt)
+{
+    uint8_t* buf = cxt->buf;
+    buf[0] = 0x9d;
     return 1;
 }
 
@@ -1982,8 +1998,14 @@ GenerateError* generate(Rewriter* r, CBB* cbb)
             case IT_POP:
                 used = genPop(&cxt);
                 break;
+            case IT_POPF:
+                used = genPopf(&cxt);
+                break;
             case IT_PUSH:
                 used = genPush(&cxt);
+                break;
+            case IT_PUSHF:
+                used = genPushf(&cxt);
                 break;
             case IT_RET:
                 used = genRet(&cxt);
