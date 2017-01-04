@@ -77,4 +77,7 @@ f1:
     vmovntdq [rax], xmm0
     vmovntdq [rax], ymm0
 
+    vzeroall
+    vzeroupper
+
     ret
