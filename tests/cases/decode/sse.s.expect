@@ -1,4 +1,4 @@
-BB f1 (55 instructions):
+BB f1 (56 instructions):
                   f1:  66 48 0f 7e c0        movq    %xmm0,%rax
                 f1+5:  66 48 0f 7e fe        movq    %xmm7,%rsi
                f1+10:  66 4c 0f 7e f8        movq    %xmm15,%rax
@@ -37,20 +37,21 @@ BB f1 (55 instructions):
               f1+144:  66 0f 16 07           movhpd  (%rdi),%xmm0
               f1+148:  44 0f 17 16           movhps  %xmm10,(%rsi)
               f1+152:  0f 16 07              movhps  (%rdi),%xmm0
-              f1+155:  66 0f 14 c1           unpcklpd %xmm1,%xmm0
-              f1+159:  66 0f 14 07           unpcklpd (%rdi),%xmm0
-              f1+163:  0f 14 c1              unpcklps %xmm1,%xmm0
-              f1+166:  0f 14 07              unpcklps (%rdi),%xmm0
-              f1+169:  66 0f 15 c1           unpckhpd %xmm1,%xmm0
-              f1+173:  66 0f 15 07           unpckhpd (%rdi),%xmm0
-              f1+177:  0f 15 c1              unpckhps %xmm1,%xmm0
-              f1+180:  0f 15 07              unpckhps (%rdi),%xmm0
-              f1+183:  66 0f d4 c1           paddq   %xmm1,%xmm0
-              f1+187:  66 0f d4 00           paddq   (%rax),%xmm0
-              f1+191:  0f 18 08              prefetcht0 (%rax)
-              f1+194:  0f 18 10              prefetcht1 (%rax)
-              f1+197:  0f 18 18              prefetcht2 (%rax)
-              f1+200:  0f 18 00              prefetchnta (%rax)
-              f1+203:  0f ae f8              sfence 
-              f1+206:  0f ae e8              lfence 
-              f1+209:  c3                    ret    
+              f1+155:  66 0f d7 c0           pmovmskb %xmm0,%eax
+              f1+159:  66 0f 14 c1           unpcklpd %xmm1,%xmm0
+              f1+163:  66 0f 14 07           unpcklpd (%rdi),%xmm0
+              f1+167:  0f 14 c1              unpcklps %xmm1,%xmm0
+              f1+170:  0f 14 07              unpcklps (%rdi),%xmm0
+              f1+173:  66 0f 15 c1           unpckhpd %xmm1,%xmm0
+              f1+177:  66 0f 15 07           unpckhpd (%rdi),%xmm0
+              f1+181:  0f 15 c1              unpckhps %xmm1,%xmm0
+              f1+184:  0f 15 07              unpckhps (%rdi),%xmm0
+              f1+187:  66 0f d4 c1           paddq   %xmm1,%xmm0
+              f1+191:  66 0f d4 00           paddq   (%rax),%xmm0
+              f1+195:  0f 18 08              prefetcht0 (%rax)
+              f1+198:  0f 18 10              prefetcht1 (%rax)
+              f1+201:  0f 18 18              prefetcht2 (%rax)
+              f1+204:  0f 18 00              prefetchnta (%rax)
+              f1+207:  0f ae f8              sfence 
+              f1+210:  0f ae e8              lfence 
+              f1+213:  c3                    ret    

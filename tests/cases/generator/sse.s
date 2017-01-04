@@ -31,7 +31,6 @@ f1:
     movdqu xmm0, [rdx]
     movdqu [rdx], xmm0
     movdqa xmm0, [rdx]
-
     movdqa [rdx], xmm0
     movd xmm0, [rdx]
     movd [rdx], xmm0
@@ -44,7 +43,7 @@ f1:
     movhps [rsi], xmm10
     movhps xmm0, [rdi]
 
-    pmovmskb edx, xmm4
+    pmovmskb eax, xmm0
 
     unpcklpd xmm0, xmm1
     unpcklpd xmm0, [rdi]

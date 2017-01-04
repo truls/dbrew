@@ -43,6 +43,8 @@ f1:
     movhps [rsi], xmm10
     movhps xmm0, [rdi]
 
+    pmovmskb eax, xmm0
+
     unpcklpd xmm0, xmm1
     unpcklpd xmm0, [rdi]
     unpcklps xmm0, xmm1

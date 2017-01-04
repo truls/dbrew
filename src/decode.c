@@ -1420,11 +1420,10 @@ void decode0F_D6(DContext* c)
 static
 void decode0F_D7(DContext* c)
 {
-    // pmovmskb r,mm 64/128 (RM): minimum of packed bytes
-    c->vt = (c->ps & PS_66) ? VT_128 : VT_64;
-    parseModRM(c, c->vt, RTS_VX_G, &c->o2, &c->o1, 0);
-    opOverwriteType(&c->o1, VT_32); // result always 32bit
-    c->ii = addBinaryOp(c->r, c, IT_PMOVMSKB, VT_32, &c->o1, &c->o2);
+    // pmovmskb reg,xmm 64/128 (RM): move byte mask
+    c->vt = (c->rex & REX_MASK_W) ? VT_64 : VT_32;
+    parseModRM(c, c->vt, RTS_G_VX, &c->o1, &c->o2, 0);
+    c->ii = addBinaryOp(c->r, c, IT_PMOVMSKB, c->vt, &c->o1, &c->o2);
     attachPassthrough(c->ii, VEX_No, (PrefixSet)(c->ps & PS_66), OE_RM, SC_dstDyn,
                       0x0F, 0xD7, -1);
 }
