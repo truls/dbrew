@@ -1828,11 +1828,12 @@ int genPassThrough(GContext* cxt)
         opc = (instr->ptOpc[0] << 16) | (instr->ptOpc[1] << 8) | instr->ptOpc[2];
 
     switch(instr->ptEnc) {
-    case OE_None:
+    case OE_None: {
         cxt->opc = opc;
-        o = genPrefix(cxt);
-        o = appendOO(cxt, o);
-
+        int plen = genPrefix(cxt);
+        o = appendOO(cxt, plen);
+        break;
+    }
     case OE_M:
         o += genDigitRM(cxt, opc, instr->digit, &(instr->dst), 0);
         break;
