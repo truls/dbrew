@@ -151,6 +151,9 @@ typedef enum _InstrType {
 
     IT_PUSHF, IT_POPF,
 
+    // Single byte instructions (and rep)
+    IT_MOVS, IT_REP_MOVS,
+
     // SSE Move
     IT_MOVSS, IT_MOVSD, IT_MOVUPS, IT_MOVUPD, IT_MOVAPS, IT_MOVAPD,
     IT_MOVDQU, IT_MOVDQA, IT_MOVLPD, IT_MOVLPS, IT_MOVHPD, IT_MOVHPS,
@@ -318,6 +321,7 @@ bool regIsEqual(Reg r1, Reg r2);
 bool opIsEqual(Operand* o1, Operand* o2);
 
 OpType getImmOpType(ValType t);
+OpType getIndOpType(ValType t);
 OpType getGPRegOpType(ValType t);
 
 void setRegOp(Operand* o, Reg r);

@@ -1,0 +1,64 @@
+>>> Testcase known par = 1.
+Saving current emulator state: new with esID 0
+Capture 'H-call' (into test|0 + 0)
+Processing BB (test|0)
+Emulation Static State (esID 0, call depth 0):
+  Registers: %rsp (R 0), %rdi (0x1)
+  Flags: (none)
+  Stack: (none)
+Decoding BB test ...
+                test:  48 8b 34 25 f7 09 40  mov     test+49,%rsi
+              test+7:  00                  
+              test+8:  48 8b 3c 25 ff 09 40  mov     test+57,%rdi
+             test+15:  00                  
+             test+16:  48 c7 c1 08 00 00 00  mov     $0x8,%rcx
+             test+23:  f3 a4                 rep movsb (%rsi),(%rdi)
+             test+25:  48 c7 c6 aa aa 00 00  mov     $0xaaaa,%rsi
+             test+32:  48 c7 c7 bb bb 00 00  mov     $0xbbbb,%rdi
+             test+39:  48 c7 c1 08 00 00 00  mov     $0x8,%rcx
+             test+46:  f3 a4                 rep movsb (%rsi),(%rdi)
+             test+48:  c3                    ret    
+Emulate 'test: mov test+49,%rsi'
+Capture 'mov test+49,%rsi' (into test|0 + 1)
+Emulate 'test+8: mov test+57,%rdi'
+Capture 'mov test+57,%rdi' (into test|0 + 2)
+Emulate 'test+16: mov $0x8,%rcx'
+Emulate 'test+23: rep movsb (%rsi),(%rdi)'
+Capture 'mov $0x8,%rcx' (into test|0 + 3)
+Capture 'rep movsb (%rsi),(%rdi)' (into test|0 + 4)
+Emulate 'test+25: mov $0xaaaa,%rsi'
+Emulate 'test+32: mov $0xbbbb,%rdi'
+Emulate 'test+39: mov $0x8,%rcx'
+Emulate 'test+46: rep movsb (%rsi),(%rdi)'
+Capture 'mov $0x8,%rcx' (into test|0 + 5)
+Capture 'mov $0xbbbb,%rdi' (into test|0 + 6)
+Capture 'mov $0xaaaa,%rsi' (into test|0 + 7)
+Capture 'rep movsb (%rsi),(%rdi)' (into test|0 + 8)
+Emulate 'test+48: ret'
+Capture 'H-ret' (into test|0 + 9)
+Capture 'ret' (into test|0 + 10)
+Generating code for BB test|0 (11 instructions)
+  I 0 : H-call                           (test|0)+0   
+  I 1 : mov     test+49,%rsi             (test|0)+0    48 8b 34 25 f7 09 40 00
+  I 2 : mov     test+57,%rdi             (test|0)+8    48 8b 3c 25 ff 09 40 00
+  I 3 : mov     $0x8,%rcx                (test|0)+16   48 c7 c1 08 00 00 00
+  I 4 : rep movsb (%rsi),(%rdi)          (test|0)+23   f3 a4
+  I 5 : mov     $0x8,%rcx                (test|0)+25   48 c7 c1 08 00 00 00
+  I 6 : mov     $0xbbbb,%rdi             (test|0)+32   48 c7 c7 bb bb 00 00
+  I 7 : mov     $0xaaaa,%rsi             (test|0)+39   48 c7 c6 aa aa 00 00
+  I 8 : rep movsb (%rsi),(%rdi)          (test|0)+46   f3 a4
+  I 9 : H-ret                            (test|0)+48  
+  I10 : ret                              (test|0)+48   c3
+Generated: 49 bytes (pass1: 75)
+BB gen (9 instructions):
+                 gen:  48 8b 34 25 f7 09 40  mov     0x4009f7,%rsi
+               gen+7:  00                  
+               gen+8:  48 8b 3c 25 ff 09 40  mov     0x4009ff,%rdi
+              gen+15:  00                  
+              gen+16:  48 c7 c1 08 00 00 00  mov     $0x8,%rcx
+              gen+23:  f3 a4                 rep movsb (%rsi),(%rdi)
+              gen+25:  48 c7 c1 08 00 00 00  mov     $0x8,%rcx
+              gen+32:  48 c7 c7 bb bb 00 00  mov     $0xbbbb,%rdi
+              gen+39:  48 c7 c6 aa aa 00 00  mov     $0xaaaa,%rsi
+              gen+46:  f3 a4                 rep movsb (%rsi),(%rdi)
+              gen+48:  c3                    ret    
