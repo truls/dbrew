@@ -1625,6 +1625,34 @@ void decode_99(DContext* c)
     addSimple(c->r, c, IT_CQTO, c->vt);
 }
 
+static
+void decode_A5(DContext* c)
+{
+    // 0xa5: movs{w,d,q}
+    // 0xf3 0xa5: rep movs{w,d,q}
+    assert(c->vt >= VT_8 && c->vt <= VT_64);
+    // FIXME: Is this right and is it odd to add operands here this way? This
+    // instr have static instructions anyway so we only add them for the
+    // printer -- its either here or there
+    c->o1.reg = getReg(RT_GP64, RI_DI);
+    c->o1.type = getIndOpType(c->vt);
+    c->o1.scale = 0;
+    c->o1.val = 0;
+    c->o1.seg = OSO_None;
+    copyOperand(&c->o2, &c->o1);
+    c->o2.reg = getReg(RT_GP64, RI_SI);
+    addBinaryOp(c->r, c, c->ps & PS_F3 ? IT_REP_MOVS : IT_MOVS,
+                c->vt, &c->o1, &c->o2);
+}
+
+static
+void decode_A4(DContext* c) {
+    // 0xa4: movsb
+    // 0xf4 0xa5: rep movs{w,d,q}
+    c->vt = VT_8;
+    // Same as 0xa5 otherwise
+    decode_A5(c);
+}
 
 static
 void decode_B0(DContext* c)
@@ -2140,6 +2168,13 @@ void initDecodeTables(void)
 
     setOpcH(0x98, decode_98); // cltq
     setOpcH(0x99, decode_99); // cqto
+
+    // 0xA4: movsb
+    // 0xF3 0xA4: rep movsb
+    // 0xA5: movs{w,d,q}
+    // 0xF3 0xA5: rep movs{w,d,q}
+    setOpcH(0xA4, decode_A4);
+    setOpcH(0xA5, decode_A5);
 
     // 0xA8: test al,imm8
     // 0xA9: test ax/eax/rax,imm16/32/32se

@@ -508,6 +508,7 @@ const char* instrName(InstrType it, int* pOpCount)
     case IT_BSR:     n = "bsr";     opCount = 2; break;
     case IT_PXOR:    n = "pxor";    opCount = 2; break;
     case IT_PADDQ:   n = "paddq";   opCount = 2; break;
+    case IT_MOVS:    n = "movs";    opCount = 2; break;
     case IT_MOVSS:   n = "movss";   opCount = 2; break;
     case IT_MOVSD:   n = "movsd";   opCount = 2; break;
     case IT_MOVUPS:  n = "movups";  opCount = 2; break;
@@ -520,6 +521,7 @@ const char* instrName(InstrType it, int* pOpCount)
     case IT_MOVLPS:  n = "movlps";  opCount = 2; break;
     case IT_MOVHPD:  n = "movhpd";  opCount = 2; break;
     case IT_MOVHPS:  n = "movhps";  opCount = 2; break;
+    case IT_REP_MOVS:n = "rep movs";opCount = 2; break;
 
     case IT_ADDSS:   n = "addss";   opCount = 2; break;
     case IT_ADDSD:   n = "addsd";   opCount = 2; break;

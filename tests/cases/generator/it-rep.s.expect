@@ -1,0 +1,10 @@
+BB f1gen (9 instructions):
+               f1gen:  f3 a4                 rep movsb (%rsi),(%rdi)
+             f1gen+2:  a4                    movsb   (%rsi),(%rdi)
+             f1gen+3:  66 f3 a5              rep movsw (%rsi),(%rdi)
+             f1gen+6:  66 a5                 movsw   (%rsi),(%rdi)
+             f1gen+8:  f3 a5                 rep movsl (%rsi),(%rdi)
+            f1gen+10:  a5                    movsl   (%rsi),(%rdi)
+            f1gen+11:  f3 48 a5              rep movsq (%rsi),(%rdi)
+            f1gen+14:  48 a5                 movsq   (%rsi),(%rdi)
+            f1gen+16:  c3                    ret    
