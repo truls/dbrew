@@ -708,6 +708,79 @@ void capture(RContext* c, Instr* instr)
     CBB* cbb = r->currentCapBB;
     if (cbb == 0) return;
 
+    Instr restoreRegInstr;
+    bool saveTmpReg = false;
+
+    // If the instruction that we are capturing have a memory operand address >
+    // 32-bit we have to write it to a register instead
+    Operand* indOp = 0;
+    Operand* otherOp;
+    switch (instr->form) {
+    break;
+    case OF_1:
+        if (opIsInd(&instr->dst)) {
+            indOp = &instr->dst;
+        }
+        break;
+    case OF_2:
+        if (opIsInd(&instr->src)) {
+            indOp = &instr->src;
+            otherOp = &instr->dst;
+        } else if (opIsInd(&instr->dst)) {
+            indOp = &instr->dst;
+            otherOp = &instr->src;
+        }
+        //assert(!opIsInd(otherOp));
+        break;
+    default:
+        break;
+    }
+
+    if (indOp && ((int64_t) indOp->val > (((uint32_t) -1) >> 1))) {
+        // Which register to use as temporary. Must be one which isn't used in
+        // the operation. Try to find a dead register to avoid having to save
+        // it's, otherwise, find register that isn't used in the operation
+        // starting from r15
+        RegIndex tmpRegi = 0;
+        for (unsigned i = (unsigned) RI_GPMax - 1; i > 0; i--) {
+            if (c->r->es->reg_state[i].cState == CS_DEAD) {
+                tmpRegi = i;
+                break;
+            }
+        }
+        for (unsigned i = (unsigned) RI_GPMax - 1; (!tmpRegi) && i > 0; i--) {
+            if (opIsReg(otherOp)) {
+                if (i != otherOp->reg.ri) {
+                    tmpRegi = i;
+                    saveTmpReg = true;
+                    break;
+                }
+            } else {
+                tmpRegi = i;
+                saveTmpReg = true;
+                break;
+            }
+        }
+
+        // If memory operand is larger than UINT32_MAX after it has been made
+        // absolute from a rip-relative address, we need to mov it into a
+        // register before we can use it in a cmp operation.
+        Reg tmpReg = getReg(RT_GP64, tmpRegi);
+        Operand* tmpRegOp = getRegOp(tmpReg);
+        if (saveTmpReg) {
+            Instr push;
+            initUnaryInstr(&restoreRegInstr, IT_POP, tmpRegOp);
+            initUnaryInstr(&push, IT_PUSH, tmpRegOp);
+            capture(c, &push);
+        }
+        Instr mov;
+        Operand* immOp = getImmOp(VT_64, indOp->val);
+        initBinaryInstr(&mov, IT_MOV, VT_64, tmpRegOp, immOp);
+        indOp->val = 0;
+        indOp->reg = tmpReg;
+        capture(c, &mov);
+    }
+
     if (r->showEmuSteps)
         printf("Capture '%s' (into %s + %d)\n",
                instr2string(instr, 0, cbb->fc), cbb_prettyName(cbb), cbb->count);
@@ -720,6 +793,10 @@ void capture(RContext* c, Instr* instr)
     }
     copyInstr(newInstr, instr);
     cbb->count++;
+
+    if (saveTmpReg) {
+        capture(c, &restoreRegInstr);
+    }
 }
 
 // clone a decoded BB as a CBB
@@ -1379,10 +1456,17 @@ void applyStaticToInd(Operand* o, EmuState* es)
     if (!opIsInd(o)) return;
 
     if ((o->reg.rt == RT_GP64) && msIsStatic(es->reg_state[o->reg.ri])) {
-        o->val += es->reg[o->reg.ri];
+        uint64_t val = o->val + es->reg[o->reg.ri];
+        //if (val > (uint64_t) -1) {
+            // TODO; If register evaluates to a dynamic value > 0, force register
+            // dynamic and restore it's value. We can't encode memory operands
+            // with values > 32-bit
+        o->val = val;
         o->reg.rt = RT_None;
+        
     }
     if ((o->reg.rt == RT_IP) && msIsStatic(es->regIP_state)) {
+        // 
         o->val += es->regIP;
         o->reg.rt = RT_None;
     }
