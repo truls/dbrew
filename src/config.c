@@ -148,6 +148,17 @@ FunctionConfig* fc_get(CaptureConfig* cc, uint64_t func)
 
 // DBrew internal, called by other modules
 
+MemRangeConfig* config_find_memrange(Rewriter* r, MemRangeType mrt, uint64_t addr)
+{
+    CaptureConfig* cc = cc_get(r);
+    MemRangeConfig* mrc = mrc_find(cc, mrt, addr);
+    if (mrc) {
+        assert(mrc->type == mrt);
+        return mrc;
+    }
+    return 0;
+}
+
 FunctionConfig* config_find_function(Rewriter* r, uint64_t f)
 {
     CaptureConfig* cc = cc_get(r);
