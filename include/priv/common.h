@@ -173,6 +173,7 @@ typedef enum _VectorizeReq {
 } VectorizeReq;
 
 
+MemRangeConfig* config_find_memrange(Rewriter* r, MemRangeType mrt, uint64_t addr);
 FunctionConfig* config_find_function(Rewriter* r, uint64_t f);
 FunctionConfig* config_get_function(Rewriter* r, uint64_t f);
 
@@ -219,6 +220,9 @@ struct _EmuState {
 
     // when saving an EmuState, remember root
     EmuState* parent;
+
+    // Back reference to Rewriter
+    Rewriter* r;
 
     // general purpose registers: RAX - R15
     uint64_t reg[RI_GPMax];
