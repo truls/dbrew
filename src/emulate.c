@@ -274,6 +274,7 @@ void copyEmuState(EmuState* dst, EmuState* src)
     int i;
 
     dst->parent = src->parent;
+    dst->r = src->r;
 
     for(i=0; i < RI_GPMax; i++) {
         dst->reg[i] = src->reg[i];
@@ -1133,6 +1134,7 @@ void getMemValue(EmuValue* v, EmuValue* addr, EmuState* es, ValType t,
 {
     EmuValue off;
     int isOnStack;
+    Rewriter* r = es->r;
 
     isOnStack = getStackOffset(es, addr, &off);
     if (isOnStack) {
@@ -1144,7 +1146,12 @@ void getMemValue(EmuValue* v, EmuValue* addr, EmuState* es, ValType t,
     assert(!shouldBeStack);
     initMetaState(&(v->state), CS_DYNAMIC);
     // explicit request to make memory access result static
-    if (addr->state.cState == CS_STATIC2) v->state.cState = CS_STATIC2;
+    if (addr->state.cState == CS_STATIC2) {
+        v->state.cState = CS_STATIC2;
+    } // Mark values from immutable memory regions as static
+    else if (config_find_memrange(r, MR_ConstantData, addr->val)) {
+        v->state.cState = CS_STATIC;
+    }
 
     v->type = t;
     switch(t) {
@@ -2788,7 +2795,15 @@ void processInstr(RContext* c, Instr* instr)
             setEmulatorError(c, instr, ET_UnsupportedOperands, 0);
             return;
         }
-        captureMov(c, instr, es, &vres);
+        // If source points to a known memory area, set static meta state and
+        // don't capture
+        if (opIsInd(&(instr->src)) && config_find_memrange(r, MR_ConstantData, vres.val)) {
+            MetaState st;
+            initMetaState(&st, CS_STATIC);
+            vres.state = st;
+        } else {
+            captureMov(c, instr, es, &vres);
+        }
         setOpValue(&vres, es, &(instr->dst));
         setOpState(vres.state, es, &(instr->dst));
         break;
