@@ -172,8 +172,7 @@ RegIndex getRegIndex(int pos) {
 }
 
 static
-void setParRegState(Rewriter* r, EmuState* es, FunctionConfig* fc) {
-    //FunctionConfig* fc = config_find_function(r, ptr);
+void setParRegState(Rewriter* r, EmuState* es, FunctionConfig* fc, bool initial) {
 
     if (fc == NULL) {
         return;
@@ -182,9 +181,11 @@ void setParRegState(Rewriter* r, EmuState* es, FunctionConfig* fc) {
     for(int i = 0; i < fc->parCount; i++) {
         //MetaState* ms = &(es->reg_state[parReg[i]]);
         MetaState* ms = &(es->reg_state[getRegIndex(i)]);
-        if (r->cc && (i<CC_MAXPARAM)) {
+        if (r->cc && (i<CC_MAXPARAM) && fc->par_state[i].cState == CS_STATIC2) {
             *ms = fc->par_state[i];
-        } else {
+        } else if (initial) {
+            // Only explicitly set state of non-static parameter registers to
+            // dynamic for initial entry functions.
             initMetaState(ms, CS_DYNAMIC);
         }
         ms->parDep = expr_newPar(r->ePool, i, // TODO: WTF?
@@ -229,6 +230,7 @@ Error* emulateAndCapture(Rewriter* r, int parCount, uint64_t* par)
     if (!r->es)
         r->es = allocEmuState(1024);
     resetEmuState(r->es);
+    r->es->r = r;
     es = r->es;
 
     resetCapturing(r);
@@ -239,7 +241,7 @@ Error* emulateAndCapture(Rewriter* r, int parCount, uint64_t* par)
     for (i = 0; i < parCount; i++) {
         es->reg[getRegIndex(i)] = par[i];
     }
-    setParRegState(r, es, r->entry_func);
+    setParRegState(r, es, r->entry_func, true);
 
     es->reg[RI_SP] = (uint64_t) (es->stackStart + es->stackSize);
     initMetaState(&(es->reg_state[RI_SP]), CS_STACKRELATIVE);
@@ -332,7 +334,7 @@ Error* emulateAndCapture(Rewriter* r, int parCount, uint64_t* par)
             // If we're about to process a new function, check if we need to set
             // static parameters
             FunctionConfig* fc = config_find_function(r, nextbb_addr);
-            setParRegState(r, es, fc);
+            setParRegState(r, es, fc, false);
 
 
 
