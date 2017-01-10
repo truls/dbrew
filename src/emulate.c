@@ -701,6 +701,37 @@ Instr* newCapInstr(RContext* c)
     return instr;
 }
 
+static
+RegIndex getUnusedReg(RContext* c, Operand* otherOp, bool* inUse)
+{
+    // Which register to use as temporary. Must be one which isn't used in
+    // the operation. Try to find a dead register to avoid having to save
+    // it's, otherwise, find register that isn't used in the operation
+    // starting from r15
+    RegIndex tmpReg = RI_GPMax;
+    for (int i = RI_GPMax - 1; i > 0; i--) {
+        if (c->r->es->reg_state[i].cState == CS_DEAD) {
+            tmpReg = i;
+            break;
+        }
+    }
+    for (unsigned i = RI_GPMax - 1; (!tmpReg) && i > 0; i--) {
+        if (opIsReg(otherOp)) {
+            if (i != otherOp->reg.ri) {
+                tmpReg = i;
+                *inUse = true;
+                break;
+            }
+        } else {
+            tmpReg = i;
+            *inUse = true;
+            break;
+        }
+    }
+
+    return tmpReg;
+}
+
 // capture a new instruction
 void capture(RContext* c, Instr* instr)
 {
@@ -737,36 +768,12 @@ void capture(RContext* c, Instr* instr)
         break;
     }
 
-    if (indOp && ((int64_t) indOp->val > (((uint32_t) -1) >> 1))) {
-        // Which register to use as temporary. Must be one which isn't used in
-        // the operation. Try to find a dead register to avoid having to save
-        // it's, otherwise, find register that isn't used in the operation
-        // starting from r15
-        RegIndex tmpRegi = 0;
-        for (unsigned i = (unsigned) RI_GPMax - 1; i > 0; i--) {
-            if (c->r->es->reg_state[i].cState == CS_DEAD) {
-                tmpRegi = i;
-                break;
-            }
-        }
-        for (unsigned i = (unsigned) RI_GPMax - 1; (!tmpRegi) && i > 0; i--) {
-            if (opIsReg(otherOp)) {
-                if (i != otherOp->reg.ri) {
-                    tmpRegi = i;
-                    saveTmpReg = true;
-                    break;
-                }
-            } else {
-                tmpRegi = i;
-                saveTmpReg = true;
-                break;
-            }
-        }
-
-        // If memory operand is larger than UINT32_MAX after it has been made
+    if (indOp && ((int64_t) indOp->val > INT32_MAX)) {
+        RegIndex freeReg = getUnusedReg(c, otherOp, &saveTmpReg);
+        // If memory operand is larger than INT32_MAX after it has been made
         // absolute from a rip-relative address, we need to mov it into a
         // register before we can use it in a cmp operation.
-        Reg tmpReg = getReg(RT_GP64, tmpRegi);
+        Reg tmpReg = getReg(RT_GP64, freeReg);
         Operand* tmpRegOp = getRegOp(tmpReg);
         if (saveTmpReg) {
             Instr push;
