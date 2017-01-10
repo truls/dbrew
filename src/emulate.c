@@ -701,6 +701,33 @@ Instr* newCapInstr(RContext* c)
     return instr;
 }
 
+Instr* insertCapInstr(RContext* c, int offset)
+{
+    Rewriter* r = c->r;
+    Instr* i = newCapInstr(c);
+    if (c->e) return 0;
+
+    assert(offset >= 0);
+
+    i = r->capInstr + (r->capInstrCount - (offset + 1));
+    memmove(i + 1, i, sizeof(Instr) * offset);
+    return i;
+}
+
+Instr* peekCapInstr(RContext* c, int offset)
+{
+    Rewriter* r = c->r;
+    CBB* cbb = c->r->capBB;
+
+    assert(offset >= 0);
+
+    if (offset > cbb->count) {
+        return 0;
+    }
+
+    return r->capInstr + (r->capInstrCount - offset);
+}
+
 static
 RegIndex getUnusedReg(RContext* c, Operand* otherOp, bool* inUse)
 {
@@ -733,8 +760,11 @@ RegIndex getUnusedReg(RContext* c, Operand* otherOp, bool* inUse)
 }
 
 // capture a new instruction
-void capture(RContext* c, Instr* instr)
+static
+void captureToOffset(RContext* c, Instr* instr, int offset)
 {
+    assert(offset >= 0);
+
     Instr* newInstr;
     Rewriter* r = c->r;
     CBB* cbb = r->currentCapBB;
@@ -791,13 +821,19 @@ void capture(RContext* c, Instr* instr)
 
     if (r->showEmuSteps)
         printf("Capture '%s' (into %s + %d)\n",
-               instr2string(instr, 0, cbb->fc), cbb_prettyName(cbb), cbb->count);
+               instr2string(instr, 0, cbb->fc), cbb_prettyName(cbb), cbb->count - offset);
 
-    newInstr = newCapInstr(c);
-    if (c->e) return;
-    if (cbb->instr == 0) {
-        cbb->instr = newInstr;
-        assert(cbb->count == 0);
+    if (offset == 0) {
+        newInstr = newCapInstr(c);
+        if (c->e) return;
+        // Set up new CBB to point to first captured instruction
+        if (cbb->instr == 0) {
+            cbb->instr = newInstr;
+            assert(cbb->count == 0);
+        }
+    } else {
+        newInstr = insertCapInstr(c, offset);
+        if (c->e) return;
     }
     copyInstr(newInstr, instr);
     cbb->count++;
@@ -805,6 +841,12 @@ void capture(RContext* c, Instr* instr)
     if (saveTmpReg) {
         capture(c, &restoreRegInstr);
     }
+}
+
+
+void capture(RContext* c, Instr* instr)
+{
+    captureToOffset(c, instr, 0);
 }
 
 // clone a decoded BB as a CBB
