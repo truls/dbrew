@@ -881,6 +881,11 @@ CaptureState setFlagsSub(EmuState* es, EmuValue* v1, EmuValue* v2)
         es->flag[FT_Carry]    = (bc >>7) & 1;
         es->flag[FT_Overflow] = XOR2(bc >> 6);
         break;
+    case VT_16:
+        es->flag[FT_Sign]     = (r >> 15) & 1;
+        es->flag[FT_Carry]    = (bc >>15) & 1;
+        es->flag[FT_Overflow] = XOR2(bc >> 14);
+        break;
     case VT_32:
         es->flag[FT_Sign]     = (r >> 31) & 1;
         es->flag[FT_Carry]    = (bc >>31) & 1;
