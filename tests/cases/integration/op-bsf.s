@@ -7,7 +7,7 @@ f1:
         mov     ecx, 0x1ffff
         bsf     ebx, ecx
         or      rax, rbx
-        mov     rcx, 0xffffffff
+        movq    rcx, 0xffffffff
         bsf     rbx, rcx
         or      rax, rbx
         xor     rcx, rcx        # rcx = 0
