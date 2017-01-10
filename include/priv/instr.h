@@ -123,7 +123,7 @@ typedef enum _InstrType {
     IT_HINT_CALL, // starting inlining of another function at this point
     IT_HINT_RET,  // ending inlining at this point
     //
-    IT_NOP,
+    IT_NOP, IT_INT3,
     IT_CLTQ, IT_CWTL, IT_CQTO,
     IT_PUSH, IT_POP, IT_LEAVE,
     IT_MOV, IT_MOVD, IT_MOVQ, IT_MOVSX, IT_LEA, IT_MOVZX,
