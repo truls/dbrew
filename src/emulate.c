@@ -2786,7 +2786,7 @@ void processInstr(RContext* c, Instr* instr)
                 assert(0);
             }
             break;
-
+        }
         case OT_Reg16:
         case OT_Ind16:
         case OT_Imm16: {
@@ -2806,7 +2806,7 @@ void processInstr(RContext* c, Instr* instr)
                 assert(0);
             }
             break;
-
+        }
         case OT_Reg32:
         case OT_Ind32:
         case OT_Imm32:
@@ -3229,4 +3229,3 @@ uint64_t processKnownTargets(RContext* c, uint64_t f)
 
     return f;
 }
-
