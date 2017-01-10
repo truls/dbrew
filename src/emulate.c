@@ -1853,7 +1853,6 @@ void captureMovs(RContext* c, Instr* orig, EmuState* es)
     // resurrect the registers that the instruction depends on (rcx, rdi, rsi)
     // and capture it.
 
-    EmuValue opval;
     Reg reg;
     Instr i;
     Operand* op1;
@@ -2188,33 +2187,42 @@ void emulateSETcc(RContext* c,
 
     if (! msIsStatic(ms)) {
         // The SETcc instruction only sets the 8 least significant bits of its
-        // target register. Therefore, we need to make sure that all bits of the
-        // target register are cleared before a SETcc instruction is run. The
-        // xor instruction that the compiler inserts to do this is removed by
-        // the emulator since its result is static. Since zeroing a register
-        // alters the flag state we preserve it using pushf/popf. This is a
-        // hack.
-        //
-        // TODO: Investigate if more cases like this exists and if it is
-        // generally safe to remove register zeroing instructions like
-        // xor rax, rax.
+        // target register, therefore we need to load the register if it's value
+        // is static
+
         if (opIsReg(&instr->dst)) {
-            Operand op;
+            Operand dst;
+            Operand* src;
+            Instr i;
             Instr pushf;
-            Instr xor;
             Instr popf;
+            Instr* peeked;
+            EmuValue opval;
             assert(instr->dst.type == OT_Reg8 &&
                    (instr->dst.reg.rt == RT_GP8 ||
                     instr->dst.reg.rt == RT_GP8Leg));
-            copyOperand(&op, &instr->dst);
-            op.type = OT_Reg64;
-            op.reg.rt = RT_GP64;
-            initSimpleInstr(&pushf, IT_PUSHF);
-            initBinaryInstr(&xor, IT_XOR, VT_64, &op, &op);
-            initSimpleInstr(&popf, IT_POPF);
-            capture(c, &pushf);
-            capture(c, &xor);
-            capture(c, &popf);
+
+            copyOperand(&dst, &instr->dst);
+            dst.type = OT_Reg64;
+            dst.reg.rt = RT_GP64;
+            getRegValue(&opval, es, dst.reg, VT_64);
+            src = getImmOp(VT_64, opval.val);
+            initBinaryInstr(&i, IT_MOV, VT_None, &dst, src);
+            // Check if previous captured operation is a compare
+            // FIXME: Why do we need this. cmp xxx, xxx; mov rax, 0x0, sete al
+            //        should work since mov doesn't modify flags?
+            peeked = peekCapInstr(c, 1);
+            if (peeked && peeked->type == IT_CMP) {
+                // Handle case where setcc instruction is immediately preceded
+                // by cmp. Then load register used in setcc right before cmp.
+                captureToOffset(c, &i, 1);
+            } else {
+                initSimpleInstr(&pushf, IT_PUSHF);
+                initSimpleInstr(&popf, IT_POPF);
+                capture(c, &pushf);
+                capture(c, &i);
+                capture(c, &popf);
+            }
         }
         capture(c, instr);
     }
