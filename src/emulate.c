@@ -25,6 +25,7 @@
 #include <string.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <limits.h>
 
 #include "common.h"
 #include "decode.h"
@@ -1495,20 +1496,33 @@ void captureMov(RContext* c, Instr* orig, EmuState* es, EmuValue* res)
 {
     Instr i;
     Operand *o;
+    Operand* n;
+    Operand *d;
 
     // data movement from orig->src to orig->dst, value is res
 
     if (res->state.cState == CS_DEAD) return;
 
     o = &(orig->src);
+    n = o;
+    d = &(orig->dst);
     if (msIsStatic(res->state)) {
         // no need to update data if capture state is maintained
         if (opStateIsTracked(es, &(orig->dst))) return;
 
         // source is static, use immediate
-        o = getImmOp(res->type, res->val);
+        n = getImmOp(res->type, res->val);
+
+        // If dest is not a reg operand and imm > INT_MAX, then we cannot
+        // encode. load dest into a register
+        if (opIsInd(d) && n->val > INT32_MAX) {
+            assert(opIsReg(o));
+            initBinaryInstr(&i, IT_MOV, VT_64, o, n);
+            capture(c, &i);
+            n = o;
+        }
     }
-    initBinaryInstr(&i, orig->type, orig->vtype, &(orig->dst), o);
+    initBinaryInstr(&i, orig->type, orig->vtype, &(orig->dst), n);
     applyStaticToInd(&(i.dst), es);
     applyStaticToInd(&(i.src), es);
     capture(c, &i);
