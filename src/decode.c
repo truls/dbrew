@@ -2214,6 +2214,9 @@ void initDecodeTables(void)
     // 0xC9: leave ( = mov rbp,rsp + pop rbp)
     setOpc(0xC9, IT_LEAVE, VT_None, addSInstr, 0, 0);
 
+    // 0XCC: int3
+    setOpc(0xCC, IT_INT3, VT_None, addSInstr, 0, 0);
+
     // 0xD0-D3: Grp1A
     setOpcH(0xD0, decode_D0);
     setOpcH(0xD1, decode_D1);
