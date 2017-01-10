@@ -2779,7 +2779,8 @@ void processInstr(RContext* c, Instr* instr)
 
         case OT_Reg16:
         case OT_Ind16:
-        case OT_Imm16:
+        case OT_Imm16: {
+            assert(dst_t == VT_16 || dst_t == VT_32 || dst_t == VT_64);
             switch (dst_t) {
             case VT_16:
                 break;
