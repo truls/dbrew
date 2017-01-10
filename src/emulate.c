@@ -1218,6 +1218,7 @@ void setMemValue(EmuValue* v, EmuValue* addr, EmuState* es, ValType t,
                  int shouldBeStack)
 {
     EmuValue off;
+    uint8_t*  a8;
     uint16_t* a16;
     uint32_t* a32;
     uint64_t* a64;
@@ -1233,9 +1234,15 @@ void setMemValue(EmuValue* v, EmuValue* addr, EmuState* es, ValType t,
     assert(!shouldBeStack);
 
     switch(t) {
+    case VT_8:
+        a8 = (uint8_t*) addr->val;
+        *a8 = (uint8_t) v->val;
+        break;
+
     case VT_16:
         a16 = (uint16_t*) addr->val;
         *a16 = (uint16_t) v->val;
+        break;
 
     case VT_32:
         a32 = (uint32_t*) addr->val;
@@ -1352,6 +1359,7 @@ void getOpValue(EmuValue* v, EmuState* es, Operand* o)
         return;
 
     case OT_Ind8:
+    case OT_Ind16:
     case OT_Ind32:
     case OT_Ind64:
         if (o->seg != OSO_None) {
@@ -1431,6 +1439,8 @@ void setOpValue(EmuValue* v, EmuState* es, Operand* o)
         es->reg[o->reg.ri] = v->val;
         return;
 
+    case OT_Ind8:
+    case OT_Ind16:
     case OT_Ind32:
     case OT_Ind64:
         getOpAddr(&addr, es, o);
@@ -2988,6 +2998,7 @@ void processInstr(RContext* c, Instr* instr)
         emulateRet(c, instr);
         break;
     case IT_SETA:
+        // TODO: Change to use the bitmask for determining state dependency flags
         emulateSETcc(c, es, instr, !es->flag[FT_Carry] && !es->flag[FT_Zero],
                      &es->flag_state[FT_Carry], &es->flag_state[FT_Zero], 0);
         break;
