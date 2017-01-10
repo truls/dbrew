@@ -2489,6 +2489,11 @@ void processInstr(RContext* c, Instr* instr)
         setOpState(vres.state, es, &(instr->dst));
         break;
 
+    case IT_INT3:
+        asm("int3");
+        //capture(c, instr);
+        break;
+
     case IT_JO:
         if (msIsDynamic(es->flag_state[FT_Overflow])) {
             captureJcc(c, IT_JO, instr->dst.val, instr->addr + instr->len);
