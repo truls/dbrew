@@ -2124,6 +2124,7 @@ void emulateSETcc(RContext* c,
     assert(cond == 0 || cond == 1);
     assert(s1);
 
+    // The result value of a SET instruction depends only on flags
     cs = s1->cState;
     if (s2) {
         assert(s1);
