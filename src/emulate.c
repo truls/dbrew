@@ -1803,20 +1803,21 @@ void capturePassThrough(RContext* c, Instr* orig, EmuState* es)
 // this ends a captured BB, queuing new paths to be traced
 static
 void captureJcc(RContext* c, InstrType it,
-                uint64_t branchTarget, uint64_t fallthroughTarget,
-                bool didBranch)
+                uint64_t branchTarget, uint64_t fallthroughTarget)
 {
     CBB *cbb, *cbbBR, *cbbFT;
     int esID;
     Rewriter* r = c->r;
 
     // do not end BB and assume jump fixed?
+    // TODO: this config is a hack which should be removed
     if (r->cc->branches_known) return;
 
     cbb = popCaptureBB(r);
     cbb->endType = it;
-    // use observed behavior from trace as hint for code generation
-    cbb->preferBranch = didBranch;
+    // use static prediction: 1st follow branch if backwards
+    // need to remember is this for code generation
+    cbb->preferBranch = (branchTarget < fallthroughTarget);
 
     esID = saveEmuState(c);
     cbbFT = getCaptureBB(c, fallthroughTarget, esID);
@@ -1827,7 +1828,7 @@ void captureJcc(RContext* c, InstrType it,
     cbb->nextBranch = cbbBR;
 
     // entry pushed last will be processed first
-    if (didBranch) {
+    if (cbb->preferBranch) {
         pushCaptureBB(c, cbbFT);
         pushCaptureBB(c, cbbBR);
     }
@@ -2207,8 +2208,8 @@ void processInstr(RContext* c, Instr* instr)
 
     case IT_JO:
         if (msIsDynamic(es->flag_state[FT_Overflow])) {
-            captureJcc(c, IT_JO, instr->dst.val, instr->addr + instr->len,
-                       es->flag[FT_Overflow]);
+            captureJcc(c, IT_JO, instr->dst.val, instr->addr + instr->len);
+            // fallthrough to set value of c->exit to non-zero
         }
         if (es->flag[FT_Overflow] == true)
             c->exit = instr->dst.val;
@@ -2218,8 +2219,7 @@ void processInstr(RContext* c, Instr* instr)
 
     case IT_JNO:
         if (msIsDynamic(es->flag_state[FT_Overflow])) {
-            captureJcc(c, IT_JNO, instr->dst.val, instr->addr + instr->len,
-                        !es->flag[FT_Overflow]);
+            captureJcc(c, IT_JNO, instr->dst.val, instr->addr + instr->len);
         }
         if (es->flag[FT_Overflow] == false)
             c->exit = instr->dst.val;
@@ -2229,8 +2229,7 @@ void processInstr(RContext* c, Instr* instr)
 
     case IT_JC:
         if (msIsDynamic(es->flag_state[FT_Carry])) {
-            captureJcc(c, IT_JC, instr->dst.val, instr->addr + instr->len,
-                       es->flag[FT_Carry]);
+            captureJcc(c, IT_JC, instr->dst.val, instr->addr + instr->len);
         }
         if (es->flag[FT_Carry] == true)
             c->exit = instr->dst.val;
@@ -2240,8 +2239,7 @@ void processInstr(RContext* c, Instr* instr)
 
     case IT_JNC:
         if (msIsDynamic(es->flag_state[FT_Carry])) {
-            captureJcc(c, IT_JNC, instr->dst.val, instr->addr + instr->len,
-                        !es->flag[FT_Carry]);
+            captureJcc(c, IT_JNC, instr->dst.val, instr->addr + instr->len);
         }
         if (es->flag[FT_Carry] == false)
             c->exit = instr->dst.val;
@@ -2251,8 +2249,7 @@ void processInstr(RContext* c, Instr* instr)
 
     case IT_JZ:
         if (msIsDynamic(es->flag_state[FT_Zero])) {
-            captureJcc(c, IT_JZ, instr->dst.val, instr->addr + instr->len,
-                       es->flag[FT_Zero]);
+            captureJcc(c, IT_JZ, instr->dst.val, instr->addr + instr->len);
         }
         if (es->flag[FT_Zero] == true)
             c->exit = instr->dst.val;
@@ -2262,8 +2259,7 @@ void processInstr(RContext* c, Instr* instr)
 
     case IT_JNZ:
         if (msIsDynamic(es->flag_state[FT_Zero])) {
-            captureJcc(c, IT_JNZ, instr->dst.val, instr->addr + instr->len,
-                        !es->flag[FT_Zero]);
+            captureJcc(c, IT_JNZ, instr->dst.val, instr->addr + instr->len);
         }
         if (es->flag[FT_Zero] == false)
             c->exit = instr->dst.val;
@@ -2274,8 +2270,7 @@ void processInstr(RContext* c, Instr* instr)
     case IT_JBE:
         if (msIsDynamic(es->flag_state[FT_Carry]) ||
             msIsDynamic(es->flag_state[FT_Zero])) {
-            captureJcc(c, IT_JLE, instr->dst.val, instr->addr + instr->len,
-                        es->flag[FT_Carry] || es->flag[FT_Zero]);
+            captureJcc(c, IT_JLE, instr->dst.val, instr->addr + instr->len);
         }
         if ((es->flag[FT_Carry] == true) ||
             (es->flag[FT_Zero] == true))
@@ -2287,8 +2282,7 @@ void processInstr(RContext* c, Instr* instr)
     case IT_JA:
         if (msIsDynamic(es->flag_state[FT_Carry]) ||
             msIsDynamic(es->flag_state[FT_Zero])) {
-            captureJcc(c, IT_JG, instr->dst.val, instr->addr + instr->len,
-                       !es->flag[FT_Carry] && !es->flag[FT_Zero]);
+            captureJcc(c, IT_JG, instr->dst.val, instr->addr + instr->len);
         }
         if ((es->flag[FT_Carry] == false) &&
             (es->flag[FT_Zero] == false))
@@ -2299,8 +2293,7 @@ void processInstr(RContext* c, Instr* instr)
 
     case IT_JS:
         if (msIsDynamic(es->flag_state[FT_Sign])) {
-            captureJcc(c, IT_JS, instr->dst.val, instr->addr + instr->len,
-                       es->flag[FT_Sign]);
+            captureJcc(c, IT_JS, instr->dst.val, instr->addr + instr->len);
         }
         if (es->flag[FT_Sign] == true)
             c->exit = instr->dst.val;
@@ -2310,8 +2303,7 @@ void processInstr(RContext* c, Instr* instr)
 
     case IT_JNS:
         if (msIsDynamic(es->flag_state[FT_Sign])) {
-            captureJcc(c, IT_JNS, instr->dst.val, instr->addr + instr->len,
-                        !es->flag[FT_Sign]);
+            captureJcc(c, IT_JNS, instr->dst.val, instr->addr + instr->len);
         }
         if (es->flag[FT_Sign] == false)
             c->exit = instr->dst.val;
@@ -2321,8 +2313,7 @@ void processInstr(RContext* c, Instr* instr)
 
     case IT_JP:
         if (msIsDynamic(es->flag_state[FT_Parity])) {
-            captureJcc(c, IT_JP, instr->dst.val, instr->addr + instr->len,
-                       es->flag[FT_Parity]);
+            captureJcc(c, IT_JP, instr->dst.val, instr->addr + instr->len);
         }
         if (es->flag[FT_Parity] == true)
             c->exit = instr->dst.val;
@@ -2332,8 +2323,7 @@ void processInstr(RContext* c, Instr* instr)
 
     case IT_JNP:
         if (msIsDynamic(es->flag_state[FT_Parity])) {
-            captureJcc(c, IT_JNP, instr->dst.val, instr->addr + instr->len,
-                        !es->flag[FT_Parity]);
+            captureJcc(c, IT_JNP, instr->dst.val, instr->addr + instr->len);
         }
         if (es->flag[FT_Parity] == false)
             c->exit = instr->dst.val;
@@ -2344,8 +2334,7 @@ void processInstr(RContext* c, Instr* instr)
     case IT_JLE:
         if (msIsDynamic(es->flag_state[FT_Zero]) ||
             msIsDynamic(es->flag_state[FT_Sign])) {
-            captureJcc(c, IT_JLE, instr->dst.val, instr->addr + instr->len,
-                        es->flag[FT_Zero] || es->flag[FT_Sign]);
+            captureJcc(c, IT_JLE, instr->dst.val, instr->addr + instr->len);
         }
         if ((es->flag[FT_Zero] == true) ||
             (es->flag[FT_Sign] == true)) c->exit = instr->dst.val;
@@ -2356,8 +2345,7 @@ void processInstr(RContext* c, Instr* instr)
     case IT_JG:
         if (msIsDynamic(es->flag_state[FT_Zero]) ||
             msIsDynamic(es->flag_state[FT_Sign])) {
-            captureJcc(c, IT_JG, instr->dst.val, instr->addr + instr->len,
-                       !es->flag[FT_Zero] && !es->flag[FT_Sign]);
+            captureJcc(c, IT_JG, instr->dst.val, instr->addr + instr->len);
         }
         if ((es->flag[FT_Zero] == false) &&
             (es->flag[FT_Sign] == false)) c->exit = instr->dst.val;
@@ -2368,8 +2356,7 @@ void processInstr(RContext* c, Instr* instr)
     case IT_JL:
         if (msIsDynamic(es->flag_state[FT_Sign]) ||
             msIsDynamic(es->flag_state[FT_Overflow])) {
-            captureJcc(c, IT_JL, instr->dst.val, instr->addr + instr->len,
-                       es->flag[FT_Sign] != es->flag[FT_Overflow]);
+            captureJcc(c, IT_JL, instr->dst.val, instr->addr + instr->len);
         }
         if (es->flag[FT_Sign] != es->flag[FT_Overflow])
             c->exit = instr->dst.val;
@@ -2380,8 +2367,7 @@ void processInstr(RContext* c, Instr* instr)
     case IT_JGE:
         if (msIsDynamic(es->flag_state[FT_Sign]) ||
             msIsDynamic(es->flag_state[FT_Overflow])) {
-            captureJcc(c, IT_JGE, instr->dst.val, instr->addr + instr->len,
-                       es->flag[FT_Sign] == es->flag[FT_Overflow]);
+            captureJcc(c, IT_JGE, instr->dst.val, instr->addr + instr->len);
         }
         if (es->flag[FT_Sign] == es->flag[FT_Overflow])
             c->exit = instr->dst.val;
