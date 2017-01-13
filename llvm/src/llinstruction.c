@@ -903,6 +903,7 @@ ll_generate_instruction(Instr* instr, LLState* state)
         case IT_RSQRTPS:
         case IT_PCMPEQW:
         case IT_PCMPEQD:
+        case IT_CWTL:
         case IT_CQTO:
         case IT_SBB:
         case IT_IDIV1:
@@ -925,6 +926,9 @@ ll_generate_instruction(Instr* instr, LLState* state)
         case IT_VMOVUPD:
         case IT_VMOVAPS:
         case IT_VMOVAPD:
+        case IT_VMOVDQU:
+        case IT_VMOVDQA:
+        case IT_VMOVNTDQ:
         case IT_VADDSS:
         case IT_VADDSD:
         case IT_VADDPS:
