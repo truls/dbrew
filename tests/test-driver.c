@@ -19,9 +19,9 @@ int runtest(Rewriter*r, long parameter, bool doRun, bool showBytes)
     f1_t ff;
 
     if (parameter >= 0)
-        printf(">>> Testcase known par (%ld).\n", parameter);
+        printf(">>> Testcase known par = %ld.\n", parameter);
     else
-        printf(">>> Testcase unknown par (%ld).\n", -parameter);
+        printf(">>> Testcase unknown par = %ld.\n", -parameter);
 
 
     dbrew_set_function(r, (uint64_t) f1);
