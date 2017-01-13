@@ -19,9 +19,9 @@ int runtest(Rewriter*r, long parameter, bool doRun, bool showBytes)
     f1_t ff;
 
     if (parameter >= 0)
-        printf(">>> Testcase known par = %ld.\n", parameter);
+        printf(">>> Testcase known par (%ld).\n", parameter);
     else
-        printf(">>> Testcase unknown par.\n");
+        printf(">>> Testcase unknown par (%ld).\n", -parameter);
 
 
     dbrew_set_function(r, (uint64_t) f1);
@@ -33,6 +33,8 @@ int runtest(Rewriter*r, long parameter, bool doRun, bool showBytes)
     dbrew_config_set_memrange(r, "wdata", true, (uint64_t) wdata, 16);
     if (parameter >= 0)
         dbrew_config_staticpar(r, 0);
+    else
+        parameter = -parameter; // make positive
     ff = (f1_t) dbrew_rewrite(r, parameter, 1);
 
     // print the generated function.
@@ -62,7 +64,7 @@ int main(int argc, char** argv)
     bool run = false;
     bool var = false; // also generate version with variable parameter?
     bool showBytes = true;
-    while((arg<argc) && (argv[arg][0] == '-')) {
+    while((arg<argc) && (argv[arg][0] == '-') && (argv[arg][1] == '-')) {
         if (strcmp(argv[arg], "--debug")==0) debug = true;
         if (strcmp(argv[arg], "--run")==0) run = true;
         if (strcmp(argv[arg], "--var")==0) var = true;
