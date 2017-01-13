@@ -44,8 +44,12 @@ else
 endif
 
 SRCS = $(wildcard src/*.c)
-OBJS = $(SRCS:.c=.o)
 HEADERS = $(wildcard include/*.h)
+OBJS = $(SRCS:.c=.o)
+DEPS = $(SRCS:.c=.d)
+
+# instruct GCC to produce dependency files
+CFLAGS += -MMD -MP
 
 SUBDIRS=tests examples
 .PHONY: $(SUBDIRS)
@@ -65,9 +69,12 @@ examples: libdbrew.a
 	cd examples && $(MAKE) OPTS='$(OPTFLAGS)' CC=$(CC)
 
 clean:
-	rm -rf *~ *.o $(OBJS) libdbrew.a
+	rm -f *~ *.o $(OBJS) $(DEPS) libdbrew.a
 	$(MAKE) clean -C tests
 	cd examples && make clean
+
+# include previously generated dependency rules if existing
+-include $(DEPS)
 
 tidy: compile_commands.json
 	git ls-files '*.c' | xargs -P 1 -I{} clang-tidy -header-filter=.* -p . {}; fi
