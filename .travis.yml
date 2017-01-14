@@ -1,7 +1,17 @@
 language: cpp
 sudo: false
 
-# TODO: When LLVM packages are available again, use these!
+addons:
+  apt:
+    sources: &default_srcs
+      - ubuntu-toolchain-r-test
+      - llvm-toolchain-precise-3.8
+    packages: &default_pkgs
+      - libstdc++6-4.9-dbg
+      - python3
+      - llvm-3.8-dev
+      - libllvm3.8
+
 matrix:
   include:
     - compiler: gcc
@@ -11,12 +21,11 @@ matrix:
       addons:
         apt:
           sources:
-            - ubuntu-toolchain-r-test
+            - *default_srcs
           packages:
+            - *default_pkgs
             - gcc-4.9
             - g++-4.9
-            - libstdc++6-4.9-dbg
-            - python3
     - compiler: gcc
       env:
         - COMPILERC=gcc-5
@@ -24,12 +33,11 @@ matrix:
       addons:
         apt:
           sources:
-            - ubuntu-toolchain-r-test
+            - *default_srcs
           packages:
+            - *default_pkgs
             - gcc-5
             - g++-5
-            - libstdc++6-4.9-dbg
-            - python3
     - compiler: gcc
       env:
         - COMPILERC=gcc-6
@@ -37,72 +45,66 @@ matrix:
       addons:
         apt:
           sources:
-            - ubuntu-toolchain-r-test
+            - *default_srcs
           packages:
+            - *default_pkgs
             - gcc-6
             - g++-6
-            - python3
     - compiler: clang
       env:
-        - COMPILERC=clang
-        - COMPILERCXX=clang++
-        - CLANGV=3.6.2
+        - COMPILERC=clang-3.6
+        - COMPILERCXX=clang++-3.6
       addons:
         apt:
           sources:
-            - ubuntu-toolchain-r-test
+            - *default_srcs
+            - llvm-toolchain-precise-3.6
           packages:
-            - libstdc++6-4.9-dbg
-            - python3
+            - *default_pkgs
+            - clang-3.6
     - compiler: clang
       env:
-        - COMPILERC=clang
-        - COMPILERCXX=clang++
-        - CLANGV=3.7.1
+        - COMPILERC=clang-3.7
+        - COMPILERCXX=clang++-3.7
       addons:
         apt:
           sources:
-            - ubuntu-toolchain-r-test
+            - *default_srcs
+            - llvm-toolchain-precise-3.7
           packages:
-            - libstdc++6-4.9-dbg
-            - python3
+            - *default_pkgs
+            - clang-3.7
     - compiler: clang
       env:
-        - COMPILERC=clang
-        - COMPILERCXX=clang++
-        - CLANGV=3.8.1
+        - COMPILERC=clang-3.8
+        - COMPILERCXX=clang++-3.8
       addons:
         apt:
           sources:
-            - ubuntu-toolchain-r-test
+            - *default_srcs
+            - llvm-toolchain-precise-3.8
           packages:
-            - libstdc++6-4.9-dbg
-            - python3
+            - *default_pkgs
+            - clang-3.8
     - compiler: clang
       env:
         - COMPILERC=clang
         - COMPILERCXX=clang++
         - CLANGV=3.9.0
-      addons:
-        apt:
-          sources:
-            - ubuntu-toolchain-r-test
-          packages:
-            - libstdc++6-4.9-dbg
-            - python3
 
 # TODO: Eventually cache clang
 install:
-  - export LLVM_VERSION=3.8.0
+  # - export LLVM_VERSION=3.8.1
   - if [ -n "$CLANGV" ]; then mkdir $HOME/clang+llvm-$CLANGV; fi
   - if [ -n "$CLANGV" ]; then export PATH=$HOME/clang+llvm-$CLANGV/bin:$PATH; fi
   - if [ -n "$CLANGV" ]; then export LD_LIBRARY_PATH=$HOME/clang+llvm-$CLANGV/lib:$LD_LIBRARY_PATH; fi
   - if [ -n "$CLANGV" ]; then wget http://llvm.org/releases/$CLANGV/clang+llvm-$CLANGV-x86_64-linux-gnu-ubuntu-14.04.tar.xz -O $HOME/clang+llvm-$CLANGV.tar.xz; fi
   - if [ -n "$CLANGV" ]; then tar xf $HOME/clang+llvm-$CLANGV.tar.xz -C $HOME/clang+llvm-$CLANGV --strip-components 1; fi
-  - if [ "$CLANGV" != "$LLVM_VERSION" ]; then mkdir $HOME/clang+llvm-$LLVM_VERSION; fi
-  - if [ "$CLANGV" != "$LLVM_VERSION" ]; then wget http://llvm.org/releases/$LLVM_VERSION/clang+llvm-$LLVM_VERSION-x86_64-linux-gnu-ubuntu-14.04.tar.xz -O $HOME/clang+llvm-$LLVM_VERSION.tar.xz; fi
-  - if [ "$CLANGV" != "$LLVM_VERSION" ]; then tar xf $HOME/clang+llvm-$LLVM_VERSION.tar.xz -C $HOME/clang+llvm-$LLVM_VERSION --strip-components 1; fi
-  - export LLVM_CONFIG=$HOME/clang+llvm-$LLVM_VERSION/bin/llvm-config
+  # - if [ "$CLANGV" != "$LLVM_VERSION" ]; then mkdir $HOME/clang+llvm-$LLVM_VERSION; fi
+  # - if [ "$CLANGV" != "$LLVM_VERSION" ]; then wget http://llvm.org/releases/$LLVM_VERSION/clang+llvm-$LLVM_VERSION-x86_64-linux-gnu-ubuntu-14.04.tar.xz -O $HOME/clang+llvm-$LLVM_VERSION.tar.xz; fi
+  # - if [ "$CLANGV" != "$LLVM_VERSION" ]; then tar xf $HOME/clang+llvm-$LLVM_VERSION.tar.xz -C $HOME/clang+llvm-$LLVM_VERSION --strip-components 1; fi
+  # - export LLVM_CONFIG=$HOME/clang+llvm-$LLVM_VERSION/bin/llvm-config
+  - export LLVM_CONFIG=llvm-config-3.8
   - export CC=$COMPILERC
   - export CXX=$COMPILERCXX
   - $CC --version
