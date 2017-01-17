@@ -1,0 +1,6 @@
+#ifndef DBREW_CONFIG_H
+#define DBREW_CONFIG_H
+
+#mesondefine HAVE_LIBDWARF
+
+#endif // DBREW_CONFIG_H

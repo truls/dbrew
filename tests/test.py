@@ -90,7 +90,7 @@ class TestCase:
             "ldflags": os.environ["LDFLAGS"] if "LDFLAGS" in os.environ else "-g -L/usr/lib64/llvm",
             "ldlibs": os.environ["LDLIBS"] if "LDLIBS" in os.environ else "-lLLVM-3.8",
             "ccflags": self.getProperty("ccflags", "-std=c99 -g"),
-            "dbrew": "-I../include ../libdbrew.a",
+            "dbrew": "-I../include ../build/src/libdbrew-test.a",
             "outfile": self.outFile,
             "infile": self.sourceFile,
             "ofile": self.objFile,

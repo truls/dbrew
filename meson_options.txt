@@ -1,0 +1,6 @@
+# -*- mode: python -*-
+
+option('enable_dwarf', type: 'boolean', value: false,
+       description: 'Enable use of DWARF symbols for prettier output')
+option('enable_llvm', type: 'boolean', value: false,
+       description: 'Enable LLVM-based optimization backend')

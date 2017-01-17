@@ -23,3 +23,5 @@ compile_commands.json
 *.id2
 *.nam
 *.til
+
+build/
