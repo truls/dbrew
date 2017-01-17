@@ -1447,6 +1447,8 @@ void setOpState(MetaState ms, EmuState* es, Operand* o)
         es->reg_state[o->reg.ri] = ms;
         return;
 
+    case OT_Ind8:
+    case OT_Ind16:
     case OT_Ind32:
     case OT_Ind64:
         getOpAddr(&addr, es, o);
