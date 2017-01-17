@@ -859,6 +859,51 @@ int genMov(GContext* cxt)
 }
 
 static
+int genMovzx(GContext* cxt)
+{
+    Operand* src =  &(cxt->instr->src);
+    Operand* dst =  &(cxt->instr->dst);
+    Operand eSrc;
+    int opc;
+
+    ValType srcVt = opValType(src);
+    switch(srcVt) {
+    case VT_8:
+        opc = 0x0fb6;
+        break;
+    case VT_16:
+        opc = 0x0fb7;
+        break;
+    default: return -1;
+    }
+
+    // Set src size to prevent GenModRM from failing
+    OpType ot = dst->type;
+    copyOperand(&eSrc, src);
+    if (opIsReg(src)) {
+        eSrc.type = ot;
+    } else if (opIsInd(src)) {
+        switch(ot) {
+        case OT_Reg16:
+            assert(srcVt == VT_8);
+            eSrc.type = OT_Ind16;
+            break;
+        case OT_Reg32:
+            eSrc.type = OT_Ind32;
+            break;
+        case OT_Reg64:
+            eSrc.type = OT_Ind64;
+            break;
+        default: return -1;
+        }
+    } else {
+        return -1;
+    }
+
+    return genModRM(cxt, opc, &eSrc, dst, VT_None, GEN_66OnVT16);
+}
+
+static
 int genMovs(GContext* cxt)
 {
     Instr* i = cxt->instr;
@@ -2045,6 +2090,9 @@ GenerateError* generate(Rewriter* r, CBB* cbb)
             case IT_MOV:
             case IT_MOVSX: // converting move
                 used = genMov(&cxt);
+                break;
+            case IT_MOVZX:
+                used = genMovzx(&cxt);
                 break;
             case IT_CMOVO:
             case IT_CMOVNO:

@@ -1,0 +1,7 @@
+BB f1gen (6 instructions):
+               f1gen:  66 0f b6 1f           movzxb  (%rdi),%bx
+             f1gen+4:  0f b6 1f              movzxb  (%rdi),%ebx
+             f1gen+7:  48 0f b6 cb           movzx   %bl,%rcx
+            f1gen+11:  0f b7 1f              movzxw  (%rdi),%ebx
+            f1gen+14:  48 0f b7 cb           movzx   %bx,%rcx
+            f1gen+18:  c3                    ret    
