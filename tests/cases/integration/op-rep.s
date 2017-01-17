@@ -15,7 +15,6 @@ f1:
         mov rcx, 8
         rep movsb
         ret
-
 src:
         .quad 123456789
 dst:
