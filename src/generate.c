@@ -1775,32 +1775,53 @@ int genCmp(GContext* cxt)
 
     switch(src->type) {
     // src reg
+    case OT_Reg8:
+        if (opValType(src) != opValType(dst)) return -1;
+
+        switch(dst->type) {
+        case OT_Ind8:
+        case OT_Reg8:
+            // use 'cmp r/m,r 8' (0x38 MR)
+            return genModRM(cxt, 0x38, dst, src, VT_None, 0);
+
+        default: return -1;
+        }
+
+    case OT_Reg16:
     case OT_Reg32:
     case OT_Reg64:
         if (opValType(src) != opValType(dst)) return -1;
 
         switch(dst->type) {
+        case OT_Ind16:
+        case OT_Reg16:
         case OT_Reg32:
         case OT_Ind32:
         case OT_Reg64:
         case OT_Ind64:
-            // use 'cmp r/m,r 32/64' (0x39 MR)
-            return genModRM(cxt, 0x39, dst, src, VT_None, 0);
+            // use 'cmp r/m,r 16/32/64' (0x39 MR)
+            return genModRM(cxt, 0x39, dst, src, VT_None, GEN_66OnVT16);
 
         default: return -1;
         }
         break;
 
     // src mem
+    case OT_Ind8:
+        if (opValType(src) != opValType(dst) && dst->type != OT_Reg8) return -1;
+        return genModRM(cxt, 0x3A, src, dst, VT_None, 0);
+
+    case OT_Ind16:
     case OT_Ind32:
     case OT_Ind64:
         if (opValType(src) != opValType(dst)) return -1;
 
         switch(dst->type) {
+        case OT_Reg16:
         case OT_Reg32:
         case OT_Reg64:
-            // use 'cmp r,r/m 32/64' (0x3B RM)
-            return genModRM(cxt, 0x3B, src, dst, VT_None, 0);
+            // use 'cmp r,r/m 16/32/64' (0x3B RM)
+            return genModRM(cxt, 0x3B, src, dst, VT_None, GEN_66OnVT16);
 
         default: return -1;
         }
@@ -1809,6 +1830,9 @@ int genCmp(GContext* cxt)
     case OT_Imm8:
         // src imm8
         switch(dst->type) {
+        case OT_Reg8:
+        case OT_Ind8:
+            return genDigitMI(cxt, 0x80, 7, dst, src, 0);
         case OT_Reg32:
         case OT_Reg64:
         case OT_Ind32:
@@ -1820,15 +1844,18 @@ int genCmp(GContext* cxt)
         }
         break;
 
+    case OT_Imm16:
     case OT_Imm32:
         // src imm32
         switch(dst->type) {
+        case OT_Reg16:
         case OT_Reg32:
         case OT_Reg64:
+        case OT_Ind16:
         case OT_Ind32:
         case OT_Ind64:
-            // use 'cmp r/m 32/64, imm32' (0x81/7 MI)
-            return genDigitMI(cxt, 0x81, 7, dst, src, 0);
+            // use 'cmp r/m 16/32/64, imm 16/32' (0x81/7 MI)
+            return genDigitMI(cxt, 0x81, 7, dst, src, GEN_66OnVT16);
 
         default: return -1;
         }

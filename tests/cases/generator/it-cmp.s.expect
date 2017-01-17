@@ -1,0 +1,26 @@
+BB f1gen (25 instructions):
+               f1gen:  48 39 07              cmp     %rax,(%rdi)
+             f1gen+3:  4c 39 0f              cmp     %r9,(%rdi)
+             f1gen+6:  39 07                 cmp     %eax,(%rdi)
+             f1gen+8:  44 39 0f              cmp     %r9d,(%rdi)
+            f1gen+11:  66 39 07              cmp     %ax,(%rdi)
+            f1gen+14:  66 44 39 0f           cmp     %r9w,(%rdi)
+            f1gen+18:  38 07                 cmp     %al,(%rdi)
+            f1gen+20:  44 38 0f              cmp     %r9b,(%rdi)
+            f1gen+23:  48 3b 07              cmp     (%rdi),%rax
+            f1gen+26:  4c 3b 0f              cmp     (%rdi),%r9
+            f1gen+29:  3b 07                 cmp     (%rdi),%eax
+            f1gen+31:  44 3b 0f              cmp     (%rdi),%r9d
+            f1gen+34:  66 3b 07              cmp     (%rdi),%ax
+            f1gen+37:  66 44 3b 0f           cmp     (%rdi),%r9w
+            f1gen+41:  3a 07                 cmp     (%rdi),%al
+            f1gen+43:  44 3a 0f              cmp     (%rdi),%r9b
+            f1gen+46:  80 f8 10              cmp     $0x10,%al
+            f1gen+49:  66 81 f8 00 10        cmp     $0x1000,%ax
+            f1gen+54:  81 f8 00 ef cd ab     cmp     $0xabcdef00,%eax
+            f1gen+60:  48 81 f8 00 ef cd 0b  cmp     $0xbcdef00,%rax
+            f1gen+67:  80 38 10              cmpb    $0x10,(%rax)
+            f1gen+70:  66 81 38 10 03        cmpw    $0x310,(%rax)
+            f1gen+75:  81 38 10 03 00 00     cmpl    $0x310,(%rax)
+            f1gen+81:  48 81 38 10 03 00 00  cmpq    $0x310,(%rax)
+            f1gen+88:  c3                    ret    
