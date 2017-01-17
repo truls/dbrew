@@ -49,8 +49,8 @@ Generating code for BB test|0 (11 instructions)
   I10 : ret                              (test|0)+48 
 Generated: 49 bytes (pass1: 75)
 BB gen (9 instructions):
-                 gen:  mov     0x400a17,%rsi
-               gen+8:  mov     0x400a1f,%rdi
+                 gen:  mov     0x400ba7,%rsi
+               gen+8:  mov     0x400baf,%rdi
               gen+16:  mov     $0x8,%rcx
               gen+23:  rep movsb (%rsi),(%rdi)
               gen+25:  mov     $0x8,%rcx
