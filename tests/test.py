@@ -88,7 +88,7 @@ class TestCase:
         substs = {
             "cc": self.getProperty("cc", os.environ["CC"] if "CC" in os.environ else "cc"),
             "ccflags": self.getProperty("ccflags", "-std=c99 -g"),
-            "dbrew": "-I../include ../libdbrew.a",
+            "dbrew": "-I../include ../build/src/libdbrew-test.a",
             "outfile": self.outFile,
             "infile": self.sourceFile,
             "ofile": self.objFile,

@@ -1,4 +1,4 @@
-//!compile = as -c -o {ofile} {infile} && {cc} {ccflags} -o {outfile} {ofile} {driver} ../libdbrew.a -I../include
+//!compile = as -c -o {ofile} {infile} && {cc} {ccflags} -o {outfile} {ofile} {driver} ../build/src/libdbrew-test.a -I../include
 
 #include <stdio.h>
 #include <stdbool.h>
