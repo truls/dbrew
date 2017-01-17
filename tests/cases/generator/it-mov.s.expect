@@ -1,0 +1,36 @@
+BB f1gen (33 instructions):
+               f1gen:  88 16                 mov     %dl,(%rsi)
+             f1gen+2:  44 88 16              mov     %r10b,(%rsi)
+             f1gen+5:  66 89 16              mov     %dx,(%rsi)
+             f1gen+8:  66 44 89 16           mov     %r10w,(%rsi)
+            f1gen+12:  89 16                 mov     %edx,(%rsi)
+            f1gen+14:  44 89 16              mov     %r10d,(%rsi)
+            f1gen+17:  48 89 16              mov     %rdx,(%rsi)
+            f1gen+20:  4c 89 16              mov     %r10,(%rsi)
+            f1gen+23:  8a 16                 mov     (%rsi),%dl
+            f1gen+25:  44 8a 16              mov     (%rsi),%r10b
+            f1gen+28:  66 8b 16              mov     (%rsi),%dx
+            f1gen+31:  66 44 8b 16           mov     (%rsi),%r10w
+            f1gen+35:  8b 16                 mov     (%rsi),%edx
+            f1gen+37:  44 8b 16              mov     (%rsi),%r10d
+            f1gen+40:  48 8b 16              mov     (%rsi),%rdx
+            f1gen+43:  4c 8b 16              mov     (%rsi),%r10
+            f1gen+46:  b2 10                 mov     $0x10,%dl
+            f1gen+48:  41 b2 10              mov     $0x10,%r10b
+            f1gen+51:  66 c7 c2 00 10        mov     $0x1000,%dx
+            f1gen+56:  66 41 c7 c2 00 10     mov     $0x1000,%r10w
+            f1gen+62:  c7 c2 00 00 00 10     mov     $0x10000000,%edx
+            f1gen+68:  41 c7 c2 00 00 00 10  mov     $0x10000000,%r10d
+            f1gen+75:  48 ba 00 00 00 00 00  mov     $0x1000000000000000,%rdx
+            f1gen+82:  00 00 10            
+            f1gen+85:  49 ba 00 00 00 00 00  mov     $0x1000000000000000,%r10
+            f1gen+92:  00 00 10            
+            f1gen+95:  c6 07 10              movb    $0x10,(%rdi)
+            f1gen+98:  41 c6 02 10           movb    $0x10,(%r10)
+           f1gen+102:  66 c7 07 00 10        movw    $0x1000,(%rdi)
+           f1gen+107:  66 41 c7 02 00 10     movw    $0x1000,(%r10)
+           f1gen+113:  c7 07 00 00 00 10     movl    $0x10000000,(%rdi)
+           f1gen+119:  41 c7 02 00 00 00 10  movl    $0x10000000,(%r10)
+           f1gen+126:  48 c7 07 00 00 00 10  movq    $0x10000000,(%rdi)
+           f1gen+133:  49 c7 02 00 00 00 10  movq    $0x10000000,(%r10)
+           f1gen+140:  c3                    ret    

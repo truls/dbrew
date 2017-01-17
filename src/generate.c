@@ -724,6 +724,28 @@ int genMov(GContext* cxt)
     src = reduceImm64to32(src);
 
     switch(src->type) {
+    case OT_Reg8:
+        switch (dst->type) {
+        case OT_Reg8:
+        case OT_Ind8:
+            if (opValType(src) != opValType(dst)) return -1;
+            // use 'mov r/m,r 8/8' (0x88 MR)
+            return genModRM(cxt, 0x88, dst, src, VT_None, 0);
+        default:
+            return -1;
+        }
+        break;
+    case OT_Reg16:
+        switch(dst->type) {
+        case OT_Reg16:
+        case OT_Ind16:
+            if (opValType(src) != opValType(dst)) return -1;
+            // use 'mov r/m,r 16/16' (0x89 MR)
+            return genModRM(cxt, 0x89, dst, src, VT_None, GEN_66OnVT16);
+        default:
+            return -1;
+        }
+        break;
     case OT_Reg32:
     case OT_Reg64:
         switch(dst->type) {
@@ -748,14 +770,22 @@ int genMov(GContext* cxt)
         }
         break;
 
+    case OT_Ind8:
+    case OT_Ind16:
     case OT_Ind32:
     case OT_Ind64:
         switch(dst->type) {
+        case OT_Reg8:
+            if (opValType(src) != opValType(dst)) return -1;
+            // use 'mov r,r/m 8' (0x8A RM)
+            return genModRM(cxt, 0x8A, src, dst, VT_None, 0);
+
+        case OT_Reg16:
         case OT_Reg32:
         case OT_Reg64:
             if (opValType(src) == opValType(dst)) {
-                // use 'mov r,r/m 32/64' (0x8B RM)
-                return genModRM(cxt, 0x8B, src, dst, VT_None, 0);
+                // use 'mov r,r/m 16/32/64' (0x8B RM)
+                return genModRM(cxt, 0x8B, src, dst, VT_None, GEN_66OnVT16);
             }
             else if ((opValType(src) == VT_32) &&
                      (opValType(dst) == VT_64)) {
@@ -771,21 +801,38 @@ int genMov(GContext* cxt)
         }
         break;
 
-    case OT_Imm32:
+    case OT_Imm8:
         switch(dst->type) {
+        case OT_Reg8:
+            // use 'mov r8, imm8 (0xB0 OI)
+            return genOI(cxt, 0xB0, dst, src, 0);
+
+        case OT_Ind8:
+            // use 'mov r/m8, imm8' (0xC6/0 MI)
+            return genDigitMI(cxt, 0xC6, 0, dst, src, 0);
+
+        default: return -1;
+        }
+
+    case OT_Imm32:
+    case OT_Imm16:
+        switch(dst->type) {
+        case OT_Ind16:
         case OT_Ind32:
         case OT_Ind64:
-            // use 'mov r/m 32/64, imm32' (0xC7/0 MI)
-            return genDigitMI(cxt, 0xC7, 0, dst, src, 0);
+            // use 'mov r/m 16/32/64, imm 16/32' (0xC7/0 MI)
+            return genDigitMI(cxt, 0xC7, 0, dst, src, GEN_66OnVT16);
 
+        case OT_Reg16:
         case OT_Reg32:
         case OT_Reg64:
             if (src->val == 0) {
-                // setting to 0: use 'xor r/m,r 32/64' (0x31 MR)
-                return genModRM(cxt, 0x31, dst, dst, VT_None, 0);
+                // setting to 0: use 'xor r/m,r 16/32/64' (0x31 MR)
+                return genModRM(cxt, 0x31, dst, dst, VT_None, GEN_66OnVT16);
             }
-            // use 'mov r/m 32/64, imm32' (0xC7/0)
-            return genDigitMI(cxt, 0xC7, 0, dst, src, 0);
+            // use 'mov r/m 16/32/64, imm 16/32' (0xC7/0 MI)
+            // TODO: GAS uses the OI encoding for this. Should we as well?
+            return genDigitMI(cxt, 0xC7, 0, dst, src, GEN_66OnVT16);
 
         default: return -1;
         }
