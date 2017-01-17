@@ -20,10 +20,12 @@
 #ifndef COMMON_H
 #define COMMON_H
 
+#include "config.h"
 #include "dbrew.h"
 #include "buffers.h"
 #include "expr.h"
 #include "instr.h"
+#include "introspect.h"
 
 #include <stdint.h>
 
@@ -313,6 +315,9 @@ struct _Rewriter {
 
     // printer config
     bool printBytes;
+
+    // Context of ELF support module
+    ElfContext* elf;
 
     // list of related rewriters
     Rewriter* next;

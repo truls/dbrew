@@ -34,13 +34,13 @@ endif
 # config.h generation
 conf = configuration_data()
 
-dwarf = []
+libdw = []
 
 #'libdwarf'], native: true)
-if get_option('enable_dwarf')
-  message('DWARF support requested')
-  dwarf = dependency('libdw', required: true)
-  conf.set('HAVE_LIBDWARF', true)
+if get_option('enable_libdw')
+  message('libdw support requested')
+  libdw = dependency('libdw', required: true)
+  conf.set('HAVE_LIBDW', true)
 endif
 
 config_h = configure_file(input: 'config.h.in',

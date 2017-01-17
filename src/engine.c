@@ -31,7 +31,7 @@
 #include "generate.h"
 #include "expr.h"
 #include "error.h"
-
+#include "introspect.h"
 
 Rewriter* allocRewriter(void)
 {
@@ -87,6 +87,8 @@ Rewriter* allocRewriter(void)
     r->showEmuSteps = false;
     r->showOptSteps = false;
 
+    r->elf = 0;
+
     // default: assembly printer shows bytes
     r->printBytes = true;
 
@@ -139,6 +141,11 @@ void initRewriter(Rewriter* r)
 
     if (r->ePool == 0)
         r->ePool = expr_allocPool(1000);
+
+    char* filename = 0;
+    int fd = getSelfFd(&filename);
+    initElfData(r, filename, fd);
+    //free(filename);
 }
 
 void freeRewriter(Rewriter* r)
@@ -315,8 +322,16 @@ Error* emulateAndCapture(Rewriter* r, int parCount, uint64_t* par)
             instr = dbb->instr + i;
 
             if (r->showEmuSteps) {
-                printf("Emulate '%s:", prettyAddress(instr->addr, dbb->fc));
-                printf(" %s'\n", instr2string(instr, 0, dbb->fc));
+                ElfAddrInfo info;
+                int ret = addrToLine(r, instr->addr, &info);
+                if (ret == 0) {
+                    printf("Emulate '%s <funName>:", prettyAddress(instr->addr, dbb->fc));
+                    printf(" %s'", instr2string(instr, 0, dbb->fc));
+                    printf(" at %s:%d\n", info.fileName, info.lineno);
+                } else {
+                    printf("Emulate '%s:", prettyAddress(instr->addr, dbb->fc));
+                    printf(" %s'\n", instr2string(instr, 0, dbb->fc));
+                }
             }
 
             // for RIP-relative accesses
