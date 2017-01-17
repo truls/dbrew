@@ -1,6 +1,6 @@
 #ifndef DBREW_CONFIG_H
 #define DBREW_CONFIG_H
 
-#mesondefine HAVE_LIBDWARF
+#mesondefine HAVE_LIBDW
 
 #endif // DBREW_CONFIG_H

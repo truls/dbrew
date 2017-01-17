@@ -35,7 +35,7 @@
 #include "expr.h"
 #include "error.h"
 #include "vector.h"
-
+#include "introspect.h"
 
 
 /*------------------------------------------------------------*/
@@ -395,14 +395,24 @@ const char* flagName(int f)
 
 void printEmuState(EmuState* es)
 {
-    int i, spOff, spMin, spMax, o, oo;
+    int i, spOff, spMin, spMax, o, oo, ret;
+    ElfAddrInfo info;
 
     printf("Emulation State:\n");
 
     printf("  Call stack (current depth %d): ", es->depth);
-    for(i=0; i<es->depth; i++)
-        printf(" %p", (void*) es->ret_stack[i]);
     printf("%s\n", (es->depth == 0) ? " (empty)":"");
+    for(i=es->depth; i > 0; i--) {
+        ret = addrToLine(es->r, es->ret_stack[i - 1], &info);
+        if (ret == 0) {
+            printf("  #%d  %p in funName at %s:%d\n",
+                   es->depth - i, (void*) es->ret_stack[i - 1],
+                   info.fileName, info.lineno);
+        } else {
+            printf(" %p", (void*) es->ret_stack[es->depth - i]);
+        }
+    }
+    printf("\n");
 
     printf("  Registers:\n");
     for(i=0; i < RI_GPMax; i++) {
