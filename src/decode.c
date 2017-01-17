@@ -1333,7 +1333,7 @@ void decode0F_80(DContext* c)
 static
 void decode0F_B6(DContext* c)
 {
-    // movzbl r16/32/64,r/m8 (RM): move byte to (d)word, zero-extend
+    // movzx r16/32/64,r/m8 (RM): move byte to {,d,q}word, zero-extend
     parseModRM(c, c->vt, RTS_G_G, &c->o2, &c->o1, 0);
     opOverwriteType(&c->o2, VT_8); // source always 8bit
     addBinaryOp(c->r, c, IT_MOVZX, c->vt, &c->o1, &c->o2);
@@ -2564,8 +2564,8 @@ void initDecodeTables(void)
     // 0x0FAF: imul r,rm16/32/64 (RM), signed mul (d/q)word by r/m
     setOpc(0x0FAF, IT_IMUL, VT_Def, parseRM, addBInstr, 0);
 
-    setOpcH(0x0FB6, decode0F_B6); // movzbl r16/32/64,r/m8 (RM)
-    setOpcH(0x0FB7, decode0F_B7); // movzbl r32/64,r/m16 (RM)
+    setOpcH(0x0FB6, decode0F_B6); // movzx r16/32/64,r/m8 (RM)
+    setOpcH(0x0FB7, decode0F_B7); // movzx r32/64,r/m16 (RM)
 
     // 0x0FBC: bsf r,r/m 16/32/64 (RM): bit scan forward
     setOpc(0x0FBC, IT_BSF, VT_Def, parseRM, addBInstr, 0);
