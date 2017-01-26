@@ -200,7 +200,7 @@ ll_generate_instruction(Instr* instr, LLState* state)
 
     // Add Metadata for debugging.
     LLVMValueRef intrinsicDoNothing = ll_support_get_intrinsic(state->module, LL_INTRINSIC_DO_NOTHING, NULL, 0);
-    char* instructionName = instr2string(instr, 0, NULL);
+    char* instructionName = instr2string(instr, 0, NULL, NULL);
     LLVMValueRef mdCall = LLVMBuildCall(state->builder, intrinsicDoNothing, NULL, 0, "");
     LLVMValueRef mdNode = LLVMMDStringInContext(state->context, instructionName, strlen(instructionName));
     LLVMSetMetadata(mdCall, LLVMGetMDKindIDInContext(state->context, "asm.instr", 9), mdNode);
@@ -257,10 +257,10 @@ ll_generate_instruction(Instr* instr, LLState* state)
             break;
         case IT_SETO:
         case IT_SETNO:
-        case IT_SETC:
-        case IT_SETNC:
-        case IT_SETZ:
-        case IT_SETNZ:
+        case IT_SETB:
+        case IT_SETAE:
+        case IT_SETE:
+        case IT_SETNE:
         case IT_SETBE:
         case IT_SETA:
         case IT_SETS:
@@ -944,7 +944,7 @@ ll_generate_instruction(Instr* instr, LLState* state)
         case IT_Max:
         case IT_None:
         default:
-            printf("%s\n", instr2string(instr, 0, NULL));
+            printf("%s\n", instr2string(instr, 0, NULL, NULL));
             warn_if_reached();
             break;
     }

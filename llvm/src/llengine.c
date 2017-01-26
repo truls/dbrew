@@ -276,7 +276,7 @@ dbrew_llvm_backend(Rewriter* rewriter)
         .name = "__dbrew__"
     };
 
-    LLFunction* function = ll_function_new_definition(rewriter->func, &config, state);
+    LLFunction* function = ll_function_new_definition(rewriter->entry_func->start, &config, state);
 
     for (int i = 0; i < rewriter->capBBCount; i++)
     {
