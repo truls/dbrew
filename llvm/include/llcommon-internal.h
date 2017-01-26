@@ -38,7 +38,7 @@
 /**
  * \brief Emit a warning and jump into a debugger
  **/
-#define warn_if_reached() do { printf("!WARN %s: Code should not be reached.\n", __PRETTY_FUNCTION__); __asm__("int3"); } while (0)
+#define warn_if_reached() do { printf("!WARN %s: Code should not be reached.\n", __func__); __asm__("int3"); } while (0)
 
 /**
  * \brief The size of a vector
