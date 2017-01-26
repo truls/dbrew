@@ -1570,6 +1570,7 @@ void applyStaticToInd(Operand* o, EmuState* es)
             imm = getImmOp(VT_64, val);
             no = getRegOp(o->reg);
             copyOperand(o, no);
+            o->type = OT_Ind64;
             initBinaryInstr(&i, IT_MOV, VT_64, no, imm);
             capture(&ctx, &i);
         } else {
