@@ -31,7 +31,8 @@
 #include "generate.h"
 #include "expr.h"
 #include "error.h"
-
+#include "introspect.h"
+#include "instr.h"
 
 Rewriter* allocRewriter(void)
 {
@@ -159,17 +160,6 @@ void freeRewriter(Rewriter* r)
     free(r);
 }
 
-static
-RegIndex getRegIndex(int pos) {
-    const int maxPars = 6;
-    // calling convention x86-64: parameters are stored in registers
-    // see https://en.wikipedia.org/wiki/X86_calling_conventions
-
-    RegIndex parReg[CC_MAXPARAM] = { RI_DI, RI_SI, RI_D, RI_C, RI_8, RI_9 };
-
-    assert(pos < maxPars);
-    return parReg[pos];
-}
 
 static
 void setParRegState(Rewriter* r, EmuState* es, FunctionConfig* fc) {
