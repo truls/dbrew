@@ -2,5 +2,6 @@
 #define DBREW_CONFIG_H
 
 #mesondefine HAVE_LIBDW
+#mesondefine HAVE_LLVM
 
 #endif // DBREW_CONFIG_H
