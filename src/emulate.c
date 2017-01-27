@@ -1550,27 +1550,23 @@ void applyStaticToInd(Operand* o, EmuState* es)
     if ((o->reg.rt == RT_GP64) && msIsStatic(es->reg_state[o->reg.ri])) {
         uint64_t val = o->val + es->reg[o->reg.ri];
 
-
         if (val > INT32_MAX) {
             // If register evaluates to a dynamic value > 0, force register
             // dynamic and restore it's value. We can't encode memory operands
             // with values > 32-bit
             // TODO: Test this
-            // TODO: This is done before loading
 
             Operand* imm;
             Instr i;
             Operand* no;
 
-            // HACK: We need an RContext to pass to capture
+            // HACK: We need a RContext to pass to capture
             RContext ctx;
             ctx.r = es->r;
             ctx.e = 0;
 
             imm = getImmOp(VT_64, val);
             no = getRegOp(o->reg);
-            copyOperand(o, no);
-            o->type = OT_Ind64;
             initBinaryInstr(&i, IT_MOV, VT_64, no, imm);
             capture(&ctx, &i);
         } else {
