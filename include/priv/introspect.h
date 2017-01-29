@@ -28,6 +28,9 @@
 
 #include <stddef.h>
 
+// TODO: Strongly consider consolidating the two following structs and only have
+// a single retrieval function for all info
+
 // Always defined
 typedef struct _ElfAddrInfo {
     #define ELF_MAX_NAMELEN 255
@@ -35,7 +38,15 @@ typedef struct _ElfAddrInfo {
     char filePath[ELF_MAX_NAMELEN];
     char* fileName;
     const char symbName[ELF_MAX_NAMELEN];
+    char* line;
+    uint64_t addr;
 } ElfAddrInfo;
+
+typedef struct _AddrSymInfo {
+    uint64_t size;
+    uint64_t offset;
+    char name[ELF_MAX_NAMELEN];
+} AddrSymInfo;
 
 // Never build with dwarf support for testing target
 #ifdef TEST_BUILD
@@ -60,43 +71,48 @@ typedef struct _SourceFile {
     char* basePtr; // Starting pointer of mmaped file
     char* curPtr; // Current location
     uint64_t fileLen; // Length of file
-    char* filePath; // File path
-    struct _SourceFile* next; // Chain of SourceFies
-    int curLine; // 
-    int maxLines;
-    char** linePtr;
+    char filePath[ELF_MAX_NAMELEN]; // File path
+    int curLine; // Current line pointer
+    int maxLines; // Current upper boundary of linePtr array
+    char** linePtr; // Array of pointers to line beginnings
+    struct _SourceFile* next; // Chain of SourceFiles
 } SourceFile;
 
 typedef struct _ElfContext {
     Dwfl* dwfl;
-    // FIXME: Do we need this here?
-    Dwfl_Callbacks* callbacks;
-    Dwfl_Module* this;
     SourceFile* sf;
+    // FIXME: Do we need these here or can they be declared in function
+    Dwfl_Callbacks* callbacks;
+    char* debuginfo_path;
 } ElfContext;
 
 // Return a file descriptor to actual current path
 int getSelfFd(char** filename);
-int initElfData(Rewriter* r, char* filename, int fd);
+int initElfData(Rewriter* r, int pid);
 void freeElfData(Rewriter* r);
-int addrToLine(Rewriter* r, uint64_t addr, ElfAddrInfo* retInfo);
+bool addrToLine(Rewriter* r, uint64_t addr, ElfAddrInfo* retInfo);
 int addrToFun(Rewriter* r, uint64_t addr, char* buf, size_t len);
-char* addrToSym(Rewriter* r, uint64_t addr);
+bool addrToSym(Rewriter* r, uint64_t addr, AddrSymInfo* retInfo);
 
 // Line handling functions
-SourceFile* initSourceFile(Rewriter* r, const char* filename);
-char* getSourceLine(Rewriter* r, uint64_t addr, int lineno);
+//SourceFile* initSourceFile(Rewriter* r, const char* filename);
+//char* getSourceLine(Rewriter* r, uint64_t addr, int lineno);
+char* getSourceLine(Rewriter* r, const char* fp, int lineno);
 void freeSourceFile(SourceFile* s);
+
+__attribute__((unused))
+static inline bool haveIntrospection( void ) {
+    return true;
+}
 
 #else
 
-typedef struct {} ElfContext;
-typedef struct {} LineMap;
+typedef struct { int a; } ElfContext;
+typedef struct { int a; } LineMap;
 
 #define getSelfFd(a) 0
 static inline int initElfData(Rewriter* r __attribute__((unused)),
-                         char* filename __attribute__((unused)),
-                         int fd __attribute__((unused))) {
+                              int pid __attribute__((unused))) {
     return 1;
 }
 
@@ -104,23 +120,36 @@ static inline void freeElfData(Rewriter* r __attribute__((unused)))
 {}
 
 
-static inline int addrToLine(Rewriter* r __attribute__((unused)),
-                      uint64_t addr __attribute__((unused)),
-                      ElfAddrInfo* retInfo __attribute__((unused))) {
-    return 1;
+static inline bool addrToLine(Rewriter* r __attribute__((unused)),
+                              uint64_t addr __attribute__((unused)),
+                              ElfAddrInfo* retInfo __attribute__((unused))) {
+    return false;
+}
+
+static inline char* getSourceLine(Rewriter* r __attribute__((unused)),
+                                  const char* fn __attribute__((unused)),
+                                  int lineno __attribute__((unused))) {
+    return 0;
 }
 
 static inline int addrToFun(Rewriter* r __attribute__((unused)),
-                     uint64_t addr __attribute__((unused)),
-                     char* buf __attribute__((unused)),
-                     size_t len __attribute__((unused))) {
+                            uint64_t addr __attribute__((unused)),
+                            char* buf __attribute__((unused)),
+                            size_t len __attribute__((unused))) {
     return 1;
 }
 
-static inline char* addrToSym(Rewriter* r __attribute__((unused)),
-                              uint64_t addr __attribute__((unused))) {
+static inline bool addrToSym(Rewriter* r __attribute__((unused)),
+                             uint64_t addr __attribute__((unused)),
+                             AddrSymInfo* sumInfo __attribute__((unused))) {
     return 0;
 }
+
+__attribute__((unused))
+static inline bool haveIntrospection( void ) {
+    return false;
+}
+
 #endif // HAS_LIBDW
 
 #endif // _DBREW_INTROSPECT_H
