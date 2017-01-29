@@ -1905,6 +1905,20 @@ int genBsr(GContext* c)
 }
 
 static
+int genCall(GContext* c)
+{
+    Operand* dst = &(c->instr->dst);
+
+    // TODO: Testing needed
+    if (opIsImm(dst)) {
+        return genDigitRM(c, 0xEB, 0, dst, 0);
+    } else {
+        // TODO: There are more encodings
+        return genDigitRM(c, 0xFF, 2, dst, 0);
+    }
+}
+
+static
 int genVec(GContext* c)
 {
     Instr* instr = c->instr;
@@ -2066,6 +2080,8 @@ GenerateError* generate(Rewriter* r, CBB* cbb)
             case IT_BSR:
                 used = genBsr(&cxt);
                 break;
+            case IT_CALL:
+                used = genCall(&cxt);
             case IT_CLTQ:
                 used = genCltq(&cxt);
                 break;
