@@ -613,8 +613,26 @@ int genPush(GContext* cxt)
         // use 'push r/m 64' (0xFF/6)
         return genDigitRM(cxt, 0xFF, 6, o, GEN_DefOpVT64);
 
+        // TODO: test these encodings
+    case OT_Imm8:
+        // use push imm8 (0x6A)
+        buf[0] = 0x6A;
+        buf[1] = (uint8_t) o->val;
+        return 2;
+    case OT_Imm16: {
+        //uint16_t val = (uint16_t) o->val;
+        buf[0] = 0x66;
+        buf[1] = 0x68;
+        return appendI(buf, 2, o);
+    }
+        // XXX: Should this be OT_Imm32
+    case OT_Imm64: {
+        buf[0] = 0x68;
+        o->type = OT_Imm32;
+        return appendI(buf, 1, o);
+    }
     default:
-        break;
+        return -1;
     }
     return -1;
 }
