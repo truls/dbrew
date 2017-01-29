@@ -15,6 +15,11 @@ main_lib_args = ['-Wall', '-Wextra', '-Wmissing-field-initializers',
 
 cc = meson.get_compiler('c')
 
+add_global_arguments('-fno-pie', language: 'c')
+add_global_link_arguments('-no-pie', language: 'c')
+add_global_arguments('-fno-pie', language: 'cpp')
+add_global_link_arguments('-no-pie', language: 'cpp')
+
 inc = include_directories('include/', 'include/priv', '.')
 
 # config.h generation
