@@ -26,52 +26,55 @@ inc = include_directories('include/', 'include/priv', '.')
 conf = configuration_data()
 
 if get_option('enable_llvm')
-message('LLVM support requested')
-llvm_conf = find_program('llvm-config-64')
-if llvm_conf.found()
-llvm_version = run_command(llvm_conf, '--version').stdout()
-if not llvm_version.version_compare('>=3.8.1')
-error('Requires at least LLVM version 3.8.1')
-endif
+  message('LLVM support requested')
+  llvm_conf = find_program('llvm-config-64')
+  if llvm_conf.found()
+    llvm_version = run_command(llvm_conf, '--version').stdout()
+    if not llvm_version.version_compare('>=3.8.1')
+      error('Requires at least LLVM version 3.8.1')
+    endif
 
-llvm_inc = run_command(llvm_conf, '--includedir').stdout().strip()
-llvm_libs = run_command(llvm_conf, '--libs').stdout().strip()
-llvm_lib = cc.find_library('LLVM')
-llvm_cflags = run_command(llvm_conf, '--cflags').stdout().strip().split(' ')
-llvm_ccflags = run_command(llvm_conf, '--cppflags').stdout().strip().split(' ')
-_fc = []
-foreach f : llvm_cflags
-  # A bit of a hack. TODO: Only filter _FORTIFY_SOURCE
-  # when compiling without optimizations
-  if f != '' #or f != '-Wp,-D_FORTIFY_SOURCE=2'
-    _fc += [f]
-  endif
-endforeach
-llvm_cflags = _fc
-_fc = []
-foreach p : llvm_ccflags
-  if f != ''
-    _fc += [f]
-  endif
-endforeach
-llvm_ccflags = _fc
+  llvm_inc = run_command(llvm_conf, '--includedir').stdout().strip()
+  llvm_libs = run_command(llvm_conf, '--libs').stdout().strip()
+  llvm_lib = cc.find_library('LLVM')
+  llvm_cflags = run_command(llvm_conf, '--cflags').stdout().strip().split(' ')
+  llvm_ccflags = run_command(llvm_conf, '--cppflags').stdout().strip().split(' ')
+  _fc = []
+  foreach f : llvm_cflags
+    # XXX: This shouldn't be needed
+    if f != ''
+    if get_option('buildtype') == 'debug'
+      # Filter when optimization is disabled (Fedora specific I think?)
+      if f != '-Wp,-D_FORTIFY_SOURCE=2'
+        _fc += [f]
+      endif
+      else
+      _fc += [f]
+    endif
+    endif
+  endforeach
+  llvm_cflags = _fc
+  _fc = []
+  foreach p : llvm_ccflags
+    if f != ''
+      _fc += [f]
+    endif
+  endforeach
+  llvm_ccflags = _fc
 
-libllvm = declare_dependency(link_args: llvm_libs)
-  conf.set('HAVE_LLVM', true)
-  subdir('llvm')
-  llvm_dep = declare_dependency(link_with: libdbrew_llvm)
+  libllvm = declare_dependency(link_args: llvm_libs)
+    conf.set('HAVE_LLVM', true)
+    subdir('llvm')
+    llvm_dep = declare_dependency(link_with: libdbrew_llvm)
+  else
+    error('LLVM config not found (llvm-config-64 not in path)')
+  endif
 else
-  error('LLVM config not found (llvm-config-64 not in path)')
-  endif
-
-else
-libdbrew_llvm = []
-llvm_dep = []
+  libdbrew_llvm = []
+  llvm_dep = []
 endif
 
 libdw = []
-
-#'libdwarf'], native: true)
 if get_option('enable_libdw')
   message('libdw support requested')
   libdw = dependency('libdw', required: true)
