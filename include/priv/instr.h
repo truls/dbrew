@@ -122,6 +122,7 @@ typedef enum _InstrType {
     // Hints: not actual instructions
     IT_HINT_CALL, // starting inlining of another function at this point
     IT_HINT_RET,  // ending inlining at this point
+    IT_HINT_CALLRET, // was return value of call
     //
     IT_NOP,
     IT_CLTQ, IT_CWTL, IT_CQTO,

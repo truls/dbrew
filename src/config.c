@@ -267,3 +267,10 @@ void dbrew_config_function_par_setstatic(Rewriter* r, uint64_t f, int staticParP
     assert((staticParPos >= 0) && (staticParPos < CC_MAXPARAM));
     initMetaState(&(fc->par_state[staticParPos]), CS_STATIC2);
 }
+
+void dbrew_config_function_setflags(Rewriter* r, uint64_t f, int flags)
+{
+    FunctionConfig* fc = fc_get(cc_get(r), f);
+
+    fc->flags = flags;
+}

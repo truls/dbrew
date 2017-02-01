@@ -110,6 +110,18 @@ uint64_t makeDynamic(uint64_t v);
 // mark a passed-through value as static
 uint64_t makeStatic(uint64_t v);
 
+typedef enum _FunctionConfigFlags {
+    FC_BypassEmu = 1, // Execute function directly, bypassing emulation
+    FC_SetRetKnown = 1<<1, // Set return value of function to a known value
+    FC_SetRetKnownViral = 1<<2, // Same as previous but set CS_STATIC2
+    FC_KeepCallInstr = 1<<3, // Capture call instruction
+    FC_RetValueHint = 1<<4, // Add hint where static return value is loaded
+    FC_RequireNonNullReturn = 1<<5, // Require return value of bypassed function
+                                    // to be != 0;
+    FC_RequireGtZeroReturn = 1<<6, // Similar, but require >0
+    FC_RequireGteZeroReturn = 1<<7, // Similar, but require >=0
+} FunctionConfigFlags;
+
 // opaque data structures used in interface
 typedef struct _Rewriter Rewriter;
 typedef struct _DBB DBB;
@@ -183,6 +195,7 @@ void dbrew_config_set_memrange(Rewriter* r, char* name, bool isWritable,
 void dbrew_config_function_par_setname(Rewriter* r, uint64_t f, int parIdx, const char* name);
 void dbrew_config_function_parcount(Rewriter* r, uint64_t f, int parCount);
 void dbrew_config_function_par_setstatic(Rewriter* r, uint64_t f, int parNum);
+void dbrew_config_function_setflags(Rewriter* r, uint64_t f, int flags);
 
 // convenience functions, using default rewriter
 void dbrew_def_verbose(bool decode, bool emuState, bool emuSteps);

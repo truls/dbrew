@@ -140,6 +140,11 @@ struct _FunctionConfig
     // for debug: allow parameters to be named
     char* par_name[CC_MAXPARAM];
 
+    int flags;
+    // Bypass emulation and call function directly?
+    // Set return value as static if emulation is bypassed
+
+
 };
 
 struct _CaptureConfig
