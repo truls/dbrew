@@ -2238,6 +2238,67 @@ void emulateSETcc(RContext* c,
 
 }
 
+static
+void emuBypassCall(RContext* c, FunctionConfig* fc)
+{
+    EmuState* es = c->r->es;
+
+    // TODO: Handle stack arguments (parcount > 6 and variadic)
+    uint64_t retval;
+    uint64_t fun = fc->start;
+    register int parCount asm ("%r10") = fc->parCount;
+    asm volatile ("cmp $1, %1\n\t"
+                  "cmovge %2, %%rdi\n\t"
+                  "cmp $2, %1\n\t"
+                  "cmovge %3, %%rsi\n\t"
+                  "cmp $3, %1\n\t"
+                  "cmovge %4, %%rdx\n\t"
+                  "cmp $4, %1\n\t"
+                  "cmovge %5, %%rcx\n\t"
+                  "cmp $5,%1\n\t"
+                  "cmovge %6, %%r8\n\t"
+                  "cmp $6, %1\n\t"
+                  "cmovge %7, %%r9\n\t"
+                  "call *%8"
+                  : "=a" (retval)
+                  : "r" (parCount),
+                    "m" (es->reg[RI_DI]),
+                    "m" (es->reg[RI_SI]),
+                    "m" (es->reg[RI_DL]),
+                    "m" (es->reg[RI_CL]),
+                    "m" (es->reg[RI_8]),
+                    "m" (es->reg[RI_9]),
+                    "m" (fun)
+                  : "%rdi", "%rsi",
+                    "%rdx", "%rcx",
+                    "%r8",  "%r9"
+                  );
+
+    // Update emuState with return value
+    if (fc->flags & FC_SetRetKnown || fc->flags & FC_SetRetKnownViral) {
+        CaptureState cs;
+
+        int f = fc->flags;
+        if (f & FC_SetRetKnown) {
+            cs = CS_STATIC;
+        } else if (f & FC_SetRetKnownViral) {
+            cs = CS_STATIC2;
+        } else {
+            cs = CS_DYNAMIC;
+        }
+
+        MetaState ms;
+        initMetaState(&ms, cs);
+        es->reg[RI_AL] = retval;
+        es->reg_state[RI_AL] = ms;
+    }
+    if (fc->flags & FC_RetValueHint) {
+        Instr i;
+        initSimpleInstr(&i, IT_HINT_CALLRET);
+        capture(c, &i);
+    }
+}
+
 // process an instruction
 // if this changes control flow, c.exit is set accordingly
 void processInstr(RContext* c, Instr* instr)
@@ -2366,24 +2427,67 @@ void processInstr(RContext* c, Instr* instr)
             return;
         }
 
-        Instr i;
-        Operand o;
+        // Check function config flags to see what to do
+        FunctionConfig* fc = config_get_function(r, v1.val);
+        if (fc && fc->flags & FC_BypassEmu) {
 
-        // push address of instruction after CALL onto stack
-        copyOperand(&o, getImmOp(VT_64, instr->addr + instr->len));
-        initUnaryInstr(&i, IT_PUSH, &o);
-        processInstr(c, &i);
-        if (c->e) return; // error
+            if (fc->flags & FC_KeepCallInstr) {
+                Instr in;
+                // Load values of known parameter registers before call
+                // TODO: Handle stack arguments (parcount > 6 and variadic)
+                for (int i = 0; i < fc->parCount; i++) {
+                    RegIndex ri = getRegIndex(i);
+                    if (msIsStatic(c->r->es->reg_state[ri])) {
+                        Operand* o1 = getRegOp(getReg(RT_GP64, ri));
+                        Operand* o2 = getImmOp(VT_64, r->es->reg[ri]);
+                        initBinaryInstr(&in, IT_MOV, VT_64, o1, o2);
+                        capture(c, &in);
+                    }
+                }
+                // Load address into register
+                Instr restoreTmpReg;
+                bool saveTmpReg;
+                RegIndex freeReg = getUnusedReg(c, NULL, &saveTmpReg);
+                Operand* tmpRegOp = getRegOp(getReg(RT_GP64, freeReg));
+                // TODO: Move into common function shared with captureToOffset
+                if (saveTmpReg) {
+                    Instr push;
+                    initUnaryInstr(&restoreTmpReg, IT_POP, tmpRegOp);
+                    initUnaryInstr(&push, IT_PUSH, tmpRegOp);
+                    capture(c, &push);
+                }
+                Operand* o2 = getImmOp(VT_64, v1.val);
+                initBinaryInstr(&in, IT_MOV, VT_64, tmpRegOp, o2);
+                capture(c, &in);
+                initUnaryInstr(&in, IT_CALL, tmpRegOp);
+                //initUnaryInstr(&in, IT_CALL, &instr->dst);
+                capture(c, &in);
+                if (saveTmpReg) {
+                    capture(c, &restoreTmpReg);
+                }
+            } else {
+                emuBypassCall(c, fc);
+            }
+        } else {
+            Instr i;
+            Operand o;
 
-        es->ret_stack[es->depth++] = o.val;
+            // push address of instruction after CALL onto stack
+            copyOperand(&o, getImmOp(VT_64, instr->addr + instr->len));
+            initUnaryInstr(&i, IT_PUSH, &o);
+            processInstr(c, &i);
+            if (c->e) return; // error
 
-        if (r->addInliningHints) {
-            initSimpleInstr(&i, IT_HINT_CALL);
-            capture(c, &i);
+            es->ret_stack[es->depth++] = o.val;
+
+            if (r->addInliningHints) {
+                initSimpleInstr(&i, IT_HINT_CALL);
+                capture(c, &i);
+            }
+
+            // address to jump to
+            c->exit = v1.val;
         }
-
-        // address to jump to
-        c->exit = v1.val;
         break;
     }
 
