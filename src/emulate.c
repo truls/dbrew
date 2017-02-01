@@ -2137,6 +2137,19 @@ void captureJcc(RContext* c, InstrType it,
     assert(r->currentCapBB == 0);
 }
 
+static
+void captureStackAdjust(RContext* c, int adj)
+{
+    if (adj == 0)
+        return;
+
+    Instr i;
+    InstrType it = adj < 0 ? IT_SUB : IT_ADD;
+    Operand* dst = getRegOp(getReg(RT_GP64, RI_SP));
+    Operand* src = getImmOp(VT_64, abs(adj));
+    initBinaryInstr(&i, it, VT_64, dst, src);
+    captureGenerated(c, &i);
+}
 
 //----------------------------------------------------------
 // Emulator for instruction types
@@ -3141,8 +3154,11 @@ void processInstr(RContext* c, Instr* instr)
             setOpValue(&v1, es, &(instr->dst));
             setOpState(v1.state, es, &(instr->dst));
             es->reg[RI_SP] += 2;
-            if (!msIsStatic(v1.state))
+            if (!msIsStatic(v1.state)) {
                 capture(c, instr);
+            } else {
+                captureStackAdjust(c, 2);
+            }
             break;
 
         case OT_Reg64:
@@ -3151,9 +3167,12 @@ void processInstr(RContext* c, Instr* instr)
             setOpValue(&v1, es, &(instr->dst));
             setOpState(v1.state, es, &(instr->dst));
             es->reg[RI_SP] += 8;
-            if (!msIsStatic(v1.state))
+            if (!msIsStatic(v1.state)) {
                 capture(c, instr);
-            break;
+            } else {
+                captureStackAdjust(c, 8);
+            }
+             break;
 
         default:
             setEmulatorError(c, instr, ET_UnsupportedOperands, 0);
@@ -3171,8 +3190,11 @@ void processInstr(RContext* c, Instr* instr)
             getOpValue(&vres, es, &(instr->dst));
             setMemValue(&vres, &addr, es, VT_16, 1);
             setMemState(es, &addr, VT_16, vres.state, 1);
-            if (!msIsStatic(vres.state))
+            if (!msIsStatic(vres.state)) {
                 capture(c, instr);
+            } else {
+                captureStackAdjust(c, -2);
+            }
             break;
 
         case OT_Ind64:
@@ -3201,8 +3223,11 @@ void processInstr(RContext* c, Instr* instr)
             vres.type = VT_64;
             setMemValue(&vres, &addr, es, VT_64, 1);
             setMemState(es, &addr, VT_64, vres.state, 1);
-            if (!msIsStatic(vres.state))
+            if (!msIsStatic(vres.state)) {
                 capture(c, instr);
+            } else {
+                captureStackAdjust(c, -8);
+            }
             break;
 
         default:
