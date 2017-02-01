@@ -744,6 +744,8 @@ Instr* insertCapInstr(RContext* c, int offset)
     Instr* i = newCapInstr(c);
     if (c->e) return 0;
 
+    // TODO: Assert that requested offset is actually possible, i.e. that it
+    // does not go beyond the bounds of the captured instructions
     assert(offset >= 0);
 
     i = r->capInstr + (r->capInstrCount - (offset + 1));
