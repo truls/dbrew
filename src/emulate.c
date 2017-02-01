@@ -668,6 +668,32 @@ char* cbb_prettyName(CBB* bb)
     return buf;
 }
 
+static
+ElfAddrInfo* addCaptureInfo(RContext* c, int offset)
+{
+    assert(offset >= 0);
+
+    Rewriter* r = c->r;
+
+    if (r->capInstrCount >= r->capInstrCapacity) {
+        static Error e;
+        setError(&e, ET_BufferOverflow, EM_Rewriter, r,
+                 "Too many captured instruction metadata's");
+        c->e = &e;
+        return NULL;
+    }
+
+    // If instruction is inserted at specific offset, make room by moving
+    // instructions. Analogous to insertCapInstr.
+    ElfAddrInfo* info = r->capInstrinfo + (r->capInstrCount - offset);
+    memmove(info + 1, info, sizeof(Instr) * offset);
+    if (r->es) {
+        if (! addrToLine(r, r->es->regIPCur, info))
+            return 0;
+    }
+    return info;
+}
+
 int pushCaptureBB(RContext* c, CBB* bb)
 {
     Rewriter* r = c->r;
@@ -772,7 +798,7 @@ RegIndex getUnusedReg(RContext* c, Operand* otherOp, bool* inUse)
 
 // capture a new instruction
 static
-void captureToOffset(RContext* c, Instr* instr, int offset)
+void captureToOffset(RContext* c, Instr* instr, int offset, bool generated)
 {
     assert(offset >= 0);
 
@@ -833,6 +859,13 @@ void captureToOffset(RContext* c, Instr* instr, int offset)
     if (r->showEmuSteps)
         printf("Capture '%s' (into %s + %d)\n",
                instr2string(instr, 0, cbb->fc), cbb_prettyName(cbb), cbb->count - offset);
+    ElfAddrInfo* info = addCaptureInfo(c, offset);
+    if (generated) {
+        strncpy(info->filePath, "<generated>", ELF_MAX_NAMELEN);
+        info->fileName = info->filePath;
+        info->lineno = 0;
+    }
+    if (c->e) return;
 
     if (offset == 0) {
         newInstr = newCapInstr(c);
@@ -841,6 +874,9 @@ void captureToOffset(RContext* c, Instr* instr, int offset)
         if (cbb->instr == 0) {
             cbb->instr = newInstr;
             assert(cbb->count == 0);
+        }
+        if (cbb->info == NULL) {
+            cbb->info = info;
         }
     } else {
         newInstr = insertCapInstr(c, offset);
@@ -854,10 +890,15 @@ void captureToOffset(RContext* c, Instr* instr, int offset)
     }
 }
 
+static
+void captureGenerated(RContext* c, Instr* instr)
+{
+    captureToOffset(c, instr, 0, true);
+}
 
 void capture(RContext* c, Instr* instr)
 {
-    captureToOffset(c, instr, 0);
+    captureToOffset(c, instr, 0, false);
 }
 
 // clone a decoded BB as a CBB
@@ -1568,7 +1609,7 @@ void applyStaticToInd(Operand* o, EmuState* es)
             imm = getImmOp(VT_64, val);
             no = getRegOp(o->reg);
             initBinaryInstr(&i, IT_MOV, VT_64, no, imm);
-            capture(&ctx, &i);
+            captureGenerated(&ctx, &i);
         } else {
             o->val = val;
             o->reg.rt = RT_None;
@@ -1614,7 +1655,7 @@ void captureMov(RContext* c, Instr* orig, EmuState* es, EmuValue* res)
         if (opIsInd(d) && n->val > INT32_MAX) {
             assert(opIsReg(o));
             initBinaryInstr(&i, IT_MOV, VT_64, o, n);
-            capture(c, &i);
+            captureGenerated(c, &i);
             n = o;
         }
     }
@@ -2224,7 +2265,7 @@ void emulateSETcc(RContext* c,
             if (peeked && peeked->type == IT_CMP) {
                 // Handle case where setcc instruction is immediately preceded
                 // by cmp. Then load register used in setcc right before cmp.
-                captureToOffset(c, &i, 1);
+                captureToOffset(c, &i, 1, false);
             } else {
                 initSimpleInstr(&pushf, IT_PUSHF);
                 initSimpleInstr(&popf, IT_POPF);

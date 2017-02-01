@@ -46,6 +46,7 @@ Rewriter* allocRewriter(void)
     r->decInstrCount = 0;
     r->decInstrCapacity = 0;
     r->decInstr = 0;
+    r->capInstrinfo = 0;
 
     r->decBBCount = 0;
     r->decBBCapacity = 0;
@@ -118,6 +119,12 @@ void initRewriter(Rewriter* r)
         r->capInstr = (Instr*) malloc(sizeof(Instr) * r->capInstrCapacity);
     }
     r->capInstrCount = 0;
+
+    if (r->capInstrinfo == 0) {
+        r->capInstrinfo = (ElfAddrInfo*) malloc(sizeof(ElfAddrInfo) *
+                                                r->capInstrCapacity);
+        memset(r->capInstrinfo, 0, sizeof(ElfAddrInfo) * r->capInstrCapacity);
+    }
 
     if (r->capBB == 0) {
         // default

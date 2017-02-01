@@ -58,6 +58,9 @@ struct _CBB {
     int count;
     Instr* instr;
 
+    // captured instructions metadata
+    ElfAddrInfo* info;
+
     // two possible exits: next on branching or fall-through
     CBB *nextBranch, *nextFallThrough;
     // type of instruction ending this BB
@@ -271,6 +274,9 @@ struct _Rewriter {
     // captured instructions
     int capInstrCount, capInstrCapacity;
     Instr* capInstr;
+
+    // captured instruction metadata
+    ElfAddrInfo* capInstrinfo;
 
     // captured basic blocks
     int capBBCount, capBBCapacity;
