@@ -444,6 +444,7 @@ const char* instrName(InstrType it, int* pOpCount)
     switch(it) {
     case IT_HINT_CALL: n = "H-call"; break;
     case IT_HINT_RET:  n = "H-ret"; break;
+    case IT_HINT_CALLRET: n = "H-call-ret"; break;
 
     case IT_NOP:     n = "nop"; break;
     case IT_INT3:    n = "int3"; break;
