@@ -242,6 +242,9 @@ struct _EmuState {
     uint64_t regIP;
     MetaState regIP_state;
 
+    // Pointer to current instruction (for attaching correct debug info to captures)
+    uint64_t regIPCur;
+
     // x86 flags: carry (CF), zero (ZF), sign (SF), overflow (OF), parity (PF)
     // TODO: auxiliary carry
     bool flag[FT_Max];

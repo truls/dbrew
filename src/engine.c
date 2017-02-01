@@ -333,6 +333,7 @@ Error* emulateAndCapture(Rewriter* r, int parCount, uint64_t* par)
 
             // for RIP-relative accesses
             es->regIP = instr->addr + instr->len;
+            es->regIPCur = instr->addr;
 
             cxt.exit = 0;
             processInstr(&cxt, instr);
