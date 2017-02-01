@@ -1920,6 +1920,7 @@ GenerateError* generate(Rewriter* r, CBB* cbb)
                 used = genVec(&cxt);
                 break;
 
+            case IT_HINT_CALLRET:
             case IT_HINT_CALL:
             case IT_HINT_RET:
                 break;
