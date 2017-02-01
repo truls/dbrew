@@ -47,6 +47,8 @@ void cc_free(CaptureConfig* cc)
           for(int i=0; i < CC_MAXPARAM; i++)
             free(fc->par_name[i]);
         }
+        if (mrc->name)
+            free(mrc->name);
         free(mrc);
         mrc = next;
     }
@@ -174,6 +176,12 @@ FunctionConfig* config_get_function(Rewriter* r, uint64_t f)
 {
     CaptureConfig* cc = cc_get(r);
     return fc_get(cc, f);
+}
+
+void config_free(Rewriter* r)
+{
+    if (r->cc)
+        cc_free(r->cc);
 }
 
 //---------------------------------------------------------------------

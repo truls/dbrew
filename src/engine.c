@@ -163,14 +163,16 @@ void freeRewriter(Rewriter* r)
     free(r->decInstr);
     free(r->decBB);
     free(r->capInstr);
+    free(r->capInstrinfo);
     free(r->capBB);
-    free(r->cc);
+    config_free(r);
 
     freeEmuState(r);
     if (r->cs)
         freeCodeStorage(r->cs);
     expr_freePool(r->ePool);
 
+    freeElfData(r);
     free(r);
 }
 
