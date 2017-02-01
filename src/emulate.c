@@ -790,6 +790,8 @@ RegIndex getUnusedReg(RContext* c, Operand* otherOp, bool* inUse)
     // the operation. Try to find a dead register to avoid having to save
     // it's, otherwise, find register that isn't used in the operation
     // starting from r15
+    // TODO: Replace this with proper liveness analysis or register allocation
+    // at code generation time
     RegIndex tmpReg = RI_GPMax;
     for (int i = RI_GPMax - 1; i > 0; i--) {
         if (c->r->es->reg_state[i].cState == CS_DEAD) {
