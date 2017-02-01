@@ -226,7 +226,7 @@ Error* emulateAndCapture(Rewriter* r, int parCount, uint64_t* par)
     DBB *dbb;
     CBB *cbb;
     Instr* instr;
-    uint64_t bb_addr, nextbb_addr;
+    uint64_t bb_addr = 0, nextbb_addr = 0;
     RContext cxt;
 
     // init context

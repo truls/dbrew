@@ -837,6 +837,7 @@ void captureToOffset(RContext* c, Instr* instr, int offset, bool generated)
     case OF_1:
         if (opIsInd(&instr->dst)) {
             indOp = &instr->dst;
+            otherOp = 0;
         }
         break;
     case OF_2:
