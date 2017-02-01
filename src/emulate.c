@@ -780,7 +780,7 @@ RegIndex getUnusedReg(RContext* c, Operand* otherOp, bool* inUse)
         }
     }
     for (unsigned i = RI_GPMax - 1; i > 0; i--) {
-        if (opIsReg(otherOp)) {
+        if (otherOp && opIsReg(otherOp)) {
             if (i != otherOp->reg.ri) {
                 tmpReg = i;
                 *inUse = true;
