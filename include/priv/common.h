@@ -325,7 +325,8 @@ struct _Rewriter {
     bool doCopyPass; // test pass
 
     // debug output
-    bool showDecoding, showEmuState, showEmuSteps, showOptSteps;
+    bool showDecoding, showEmuState, showEmuSteps, showOptSteps,
+        colorfulOutput;
 
     // printer config
     bool printBytes;

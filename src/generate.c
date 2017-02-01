@@ -27,6 +27,7 @@
 #include "common.h"
 #include "printer.h"
 #include "error.h"
+#include "colors.h"
 
 struct _GContext {
     Instr* instr;
@@ -2072,13 +2073,14 @@ GenerateError* generate(Rewriter* r, CBB* cbb)
     }
 
     if (r->showEmuSteps)
-        printf("Generating code for BB %s (%d instructions)\n",
-               cbb_prettyName(cbb), cbb->count);
+        cprintf(CABright, "Generating code for BB %s (%d instructions)\n",
+                cbb_prettyName(cbb), cbb->count);
 
     usedTotal = 0;
     buf0 = (uint64_t) reserveCodeStorage(r->cs, 0); // remember start address
     for(i = 0; i < cbb->count; i++) {
         Instr* instr = cbb->instr + i;
+        ElfAddrInfo* addrinfo = cbb->info + i;
 
         // pass generator requests via GContext to helpers
         initGContext(&cxt, reserveCodeStorage(r->cs, 15), instr);
@@ -2256,11 +2258,30 @@ GenerateError* generate(Rewriter* r, CBB* cbb)
         usedTotal += used;
 
         if (r->showEmuSteps) {
-            printf("  I%2d : %-32s", i, instr2string(instr, 1, cbb->fc));
+            // Print source line
+            char* line = NULL;
+            // FIXME: This is a hack. Handle e.g. different file, same lineno
+            static int curLineno = 0;
+            if (*addrinfo->filePath) {
+                //printf("%s\n", addrinfo->filePath);
+                line = getSourceLine(r, addrinfo->filePath, addrinfo->lineno);
+            }
+            if (line && curLineno != addrinfo -> lineno) {
+                curLineno = addrinfo->lineno;
+                cprintf(CFGreen, "\n  %s\n", line);
+            }
+            printf("  I%2d : %-32s", i, instr2string(instr, 1, 0, cbb->fc));
             printf(" (%s)+%-3d",
                    cbb_prettyName(cbb), (int)(instr->addr - buf0));
-            if (r->printBytes)
+            if (*addrinfo->filePath && haveIntrospection()) {
+                printf(" %-35s", bytes2string(instr, 0, used));
+                printf(" captured from: %s", addrinfo->fileName);
+                if (addrinfo->lineno > 0) {
+                    printf(":%d", addrinfo->lineno);
+                }
+            } else if (r->printBytes) {
                 printf(" %s", bytes2string(instr, 0, used));
+            }
             printf("\n");
         }
 

@@ -36,7 +36,8 @@
 #include "error.h"
 #include "vector.h"
 #include "introspect.h"
-
+#include "config.h"
+#include "colors.h"
 
 /*------------------------------------------------------------*/
 /* x86_64 capturing emulator
@@ -395,8 +396,10 @@ const char* flagName(int f)
 
 void printEmuState(EmuState* es)
 {
-    int i, spOff, spMin, spMax, o, oo, ret;
+    int i, spOff, spMin, spMax, o, oo;
+    bool ret;
     ElfAddrInfo info;
+    AddrSymInfo syminfo;
 
     printf("Emulation State:\n");
 
@@ -404,10 +407,11 @@ void printEmuState(EmuState* es)
     printf("%s\n", (es->depth == 0) ? " (empty)":"");
     for(i=es->depth; i > 0; i--) {
         ret = addrToLine(es->r, es->ret_stack[i - 1], &info);
-        if (ret == 0) {
-            printf("  #%d  %p in funName at %s:%d\n",
+        ret = ret && addrToSym(es->r, es->ret_stack[i - 1], &syminfo);
+        if (ret) {
+            printf("  #%d  %p in %s at %s:%d\n",
                    es->depth - i, (void*) es->ret_stack[i - 1],
-                   info.fileName, info.lineno);
+                   syminfo.name, info.fileName, info.lineno);
         } else {
             printf(" %p", (void*) es->ret_stack[es->depth - i]);
         }
@@ -417,9 +421,19 @@ void printEmuState(EmuState* es)
     printf("  Registers:\n");
     for(i=0; i < RI_GPMax; i++) {
         MetaState* ms = &(es->reg_state[i]);
-        printf("    %%%-3s = 0x%016lx %c",
+        int color = 0;
+        if (ms->cState == CS_DEAD) {
+            color = CADim;
+        } else if (ms->cState == CS_STATIC || ms->cState == CS_STATIC2) {
+            color = CABright;
+        }
+        cprintf(color,  "    %%%-3s = 0x%016lx %c",
                regNameI(RT_GP64, (RegIndex)i),
                es->reg[i], captureState2Char( ms->cState ));
+        ret = addrToSym(es->r, es->reg[i], &syminfo);
+        if (ret) {
+            cprintf(CFBlue, " <%s:%lu> ", syminfo.name, syminfo.offset);
+        }
         if (ms->range)
             printf(", range %s", expr_toString(ms->range));
         if (ms->parDep)
@@ -449,15 +463,17 @@ void printEmuState(EmuState* es)
     else {
         printf("  Stack:\n");
         for(o = spMin; o < spMax; o += 8) {
-            printf("   %016lx ", (uint64_t) (es->stackStart + o));
+            cprintf(o < spOff ? CADim : 0, "   %016lx ", (uint64_t) (es->stackStart + o));
             for(oo = o; oo < o+8 && oo <= spMax; oo++) {
-                printf(" %s%02x %c", (oo == spOff) ? "*" : " ", es->stack[oo],
-                       captureState2Char(es->stackState[oo].cState));
+                cprintf(CABright, " %s",  (oo == spOff) ? "*" : " ");
+                    cprintf(oo < spOff ? CADim : 0, "%02x %c", es->stack[oo],
+                           captureState2Char(es->stackState[oo].cState));
             }
             printf("\n");
         }
-        printf("   %016lx  %s\n",
-               (uint64_t) (es->stackStart + o), (o == spOff) ? "*" : " ");
+        printf("   %016lx  ",
+               (uint64_t) (es->stackStart + o));
+        cprintf(CABright, "%s\n", (o == spOff) ? "*" : " ");
     }
 }
 
@@ -859,8 +875,10 @@ void captureToOffset(RContext* c, Instr* instr, int offset, bool generated)
     }
 
     if (r->showEmuSteps)
-        printf("Capture '%s' (into %s + %d)\n",
-               instr2string(instr, 0, cbb->fc), cbb_prettyName(cbb), cbb->count - offset);
+        cprintf(CABright | CFMagenta, "Capture '%s' (into %s + %d)\n",
+                instr2string(instr, 0, c->r, cbb->fc), cbb_prettyName(cbb),
+                             cbb->count - offset);
+
     ElfAddrInfo* info = addCaptureInfo(c, offset);
     if (generated) {
         strncpy(info->filePath, "<generated>", ELF_MAX_NAMELEN);
@@ -2167,10 +2185,10 @@ void setEmulatorError(RContext* c, Instr* instr,
         d = buf;
         if (et == ET_UnsupportedInstr)
             sprintf(buf, "Instruction not implemented for %s",
-                    instr2string(instr, 0, 0));
+                    instr2string(instr, 0, 0, 0));
         else if (et == ET_UnsupportedOperands)
             sprintf(buf, "Operand types not implemented for %s",
-                    instr2string(instr, 0, 0));
+                    instr2string(instr, 0, 0, 0));
         else
             d = 0;
     }

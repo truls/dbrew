@@ -33,7 +33,7 @@
 #include "engine.h"
 #include "generate.h"
 #include "vector.h"
-
+#include "colors.h"
 
 /**
  * DBrew API functions
@@ -125,6 +125,10 @@ void dbrew_optverbose(Rewriter* r, bool v)
     r->showOptSteps = v;
 }
 
+void dbrew_colorful_output(Rewriter* r, bool v) {
+    r->colorfulOutput = v;
+}
+
 void dbrew_printer_showbytes(Rewriter* r, bool v)
 {
     r->printBytes = v;
@@ -188,6 +192,9 @@ uint64_t dbrew_rewrite(Rewriter* r, ...)
 {
     va_list argptr;
     Error* e;
+
+    // Set colorful output state
+    setColors(r->colorfulOutput);
 
     va_start(argptr, r);
     e = vEmulateAndCapture(r, argptr);

@@ -33,6 +33,7 @@
 #include "error.h"
 #include "introspect.h"
 #include "instr.h"
+#include "colors.h"
 
 Rewriter* allocRewriter(void)
 {
@@ -88,6 +89,7 @@ Rewriter* allocRewriter(void)
     r->showEmuState = false;
     r->showEmuSteps = false;
     r->showOptSteps = false;
+    r->colorfulOutput = false;
 
     r->elf = 0;
 
@@ -302,7 +304,7 @@ Error* emulateAndCapture(Rewriter* r, int parCount, uint64_t* par)
             r->currentCapBB = cbb;
 
             if (r->showEmuSteps) {
-                printf("Processing BB (%s), %d BBs in queue\n",
+                cprintf(CABright | CFCyan, "Processing BB (%s), %d BBs in queue\n",
                        cbb_prettyName(cbb), r->capStackTop);
                 printStaticEmuState(es, cbb->esID);
             }
@@ -320,14 +322,19 @@ Error* emulateAndCapture(Rewriter* r, int parCount, uint64_t* par)
 
             if (r->showEmuSteps) {
                 ElfAddrInfo info;
-                int ret = addrToLine(r, instr->addr, &info);
-                if (ret == 0) {
-                    printf("Emulate '%s <funName>:", prettyAddress(instr->addr, dbb->fc));
-                    printf(" %s'", instr2string(instr, 0, dbb->fc));
-                    printf(" at %s:%d\n", info.fileName, info.lineno);
+                bool ret = addrToLine(r, instr->addr, &info);
+                if (ret) {
+                    char* line = getSourceLine(r, info.filePath, info.lineno);
+                    if (line) {
+                        cprintf(CFGreen, "%s\n", line);
+                    }
+                    // TODO: Remove duplicate printfs
+                    cprintf(CFYellow, "Emulate '%s", prettyAddress(r, instr->addr, dbb->fc));
+                    cprintf(CFYellow, " %s'", instr2string(instr, 0, r, dbb->fc));
+                    cprintf(CFYellow, " at %s:%d\n", info.fileName, info.lineno);
                 } else {
-                    printf("Emulate '%s:", prettyAddress(instr->addr, dbb->fc));
-                    printf(" %s'\n", instr2string(instr, 0, dbb->fc));
+                    cprintf(CFYellow, "Emulate '%s:", prettyAddress(r, instr->addr, dbb->fc));
+                    cprintf(CFYellow, " %s'\n", instr2string(instr, 0, r, dbb->fc));
                 }
             }
 
@@ -557,6 +564,9 @@ void generateBinaryFromCaptured(RContext *c)
     if (r->showEmuSteps) {
         printf("Generated: %d bytes (pass1: %d)\n",
                (int)(buf1 - buf0), r->cs->used - usedPass0);
+        // Flush: if we segfault while running the rewritten code, make sure that
+        // all output is shown in less
+        fflush(0);
         //printf(" at %lx\n", (uint64_t) buf0);
     }
 
