@@ -274,3 +274,23 @@ void dbrew_config_function_setflags(Rewriter* r, uint64_t f, int flags)
 
     fc->flags = flags;
 }
+
+void dbrew_config_function_parmap(Rewriter* r, uint64_t f, int parcount, uint64_t map)
+{
+    FunctionConfig* fc = fc_get(cc_get(r), f);
+
+    fc->parCount = parcount;
+
+    for (int i = 0; i < parcount; i++) {
+        *((uint8_t*) (fc->parMap + i)) = ((uint8_t) map & 0xf);
+        map = map >> 4;
+    }
+
+    // TODO: Only marks params static for now. Support more parameter types.
+    for (int i = 0; i < parcount; i++) {
+        if (fc->parMap[i].isStatic) {
+            dbrew_config_function_par_setstatic(r, f, i + 1);
+        }
+    }
+
+}

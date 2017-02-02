@@ -74,7 +74,7 @@ struct _CBB {
 
 char* cbb_prettyName(CBB* bb);
 
-#define CC_MAXPARAM     6
+#define CC_MAXPARAM     16
 #define CC_MAXCALLDEPTH 5
 
 // emulator capture states
@@ -120,6 +120,20 @@ struct _MemRangeConfig
     int size;
 };
 
+// Function parameter configuration
+typedef enum _ParType {
+    ParDisabled = 0,
+    ParInteger,
+    ParFloat,
+    ParOther,
+} ParType;
+
+typedef struct _ParMap {
+    ParType parType : 2;
+    bool isReturn   : 1;
+    bool isStatic   : 1;
+} __attribute__((packed)) ParMap;
+
 // extension of MemRangeConfig
 struct _FunctionConfig
 {
@@ -144,7 +158,8 @@ struct _FunctionConfig
     // Bypass emulation and call function directly?
     // Set return value as static if emulation is bypassed
 
-
+    // Store function parameter maps
+    ParMap parMap[CC_MAXPARAM];
 };
 
 struct _CaptureConfig
