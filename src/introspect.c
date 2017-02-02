@@ -122,6 +122,39 @@ bool addrToSym(Rewriter* r, uint64_t addr, AddrSymInfo* retInfo)
     return true;
 }
 
+static
+int symFromModuleCB(Dwfl_Module* mod,
+                    void** userdata __attribute__((unused)),
+                    const char* str __attribute__((unused)),
+                    Dwarf_Addr addr __attribute__((unused)),
+                    void* arg)
+{
+    char* buf = (char*) arg;
+    GElf_Addr* saddr = (GElf_Addr* ) buf;
+    const char* needle = buf + 8;
+
+    int symbs = dwfl_module_getsymtab(mod);
+    for (int i = 0; i < symbs; i++){
+        GElf_Sym sym;
+        const char* name = dwfl_module_getsym_info(mod, i, &sym, saddr,
+                                             NULL, NULL, NULL);
+        //printf("Checking name %s == %s\n", name, needle);
+        if (name && (strncmp(name, needle, ELF_MAX_NAMELEN) == 0)) {
+            return DWARF_CB_ABORT;
+        }
+    }
+    return DWARF_CB_OK;
+}
+
+uint64_t symToAddr(Rewriter* r, const char* symName)
+{
+    char buf[8 + ELF_MAX_NAMELEN];
+    uint64_t* addr = (uint64_t*) buf;
+    char* name = buf + 8;
+    strncpy(name, symName, ELF_MAX_NAMELEN);
+    dwfl_getmodules(r->elf->dwfl, &symFromModuleCB, buf, 0);
+    return *addr;
+}
 
 static
 SourceFile* allocSourceFile(void)

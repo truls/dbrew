@@ -93,6 +93,7 @@ void freeElfData(Rewriter* r);
 bool addrToLine(Rewriter* r, uint64_t addr, ElfAddrInfo* retInfo);
 int addrToFun(Rewriter* r, uint64_t addr, char* buf, size_t len);
 bool addrToSym(Rewriter* r, uint64_t addr, AddrSymInfo* retInfo);
+uint64_t symToAddr(Rewriter* r, const char* symName);
 
 // Line handling functions
 //SourceFile* initSourceFile(Rewriter* r, const char* filename);
@@ -144,6 +145,12 @@ static inline bool addrToSym(Rewriter* r __attribute__((unused)),
                              AddrSymInfo* sumInfo __attribute__((unused))) {
     return 0;
 }
+
+static inline uint64_t symToAddr(Rewriter* r __attribute__((unused)),
+                                 const char* symName __attribute__((unused))) {
+    return 0;
+}
+
 
 __attribute__((unused))
 static inline bool haveIntrospection( void ) {

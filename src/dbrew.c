@@ -34,6 +34,7 @@
 #include "generate.h"
 #include "vector.h"
 #include "colors.h"
+#include "introspect.h"
 
 /**
  * DBrew API functions
@@ -154,6 +155,10 @@ int dbrew_set_vectorsize(Rewriter* r, int s)
     return s;
 }
 
+uint64_t dbrew_util_symbname_to_ptr(Rewriter* r, const char* symname)
+{
+    return symToAddr(r, symname);
+}
 
 //-----------------------------------------------------------------
 // convenience functions, using defaults
