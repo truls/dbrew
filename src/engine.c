@@ -267,6 +267,7 @@ Error* emulateAndCapture(Rewriter* r, int parCount, uint64_t* par)
 
     // and start with this CBB
     bb_addr = cbb->dec_addr;
+    es->regIPCur = bb_addr;
     r->currentCapBB = cbb;
     if (r->addInliningHints) {
         // hint: here starts a function, we can assume ABI calling conventions
@@ -282,6 +283,7 @@ Error* emulateAndCapture(Rewriter* r, int parCount, uint64_t* par)
     }
     if (r->showEmuState) {
         es->regIP = bb_addr;
+        es->regIPCur = bb_addr;
         printEmuState(es);
     }
 
@@ -310,6 +312,7 @@ Error* emulateAndCapture(Rewriter* r, int parCount, uint64_t* par)
             }
             if (r->showEmuState) {
                 es->regIP = bb_addr;
+                es->regIPCur = bb_addr;
                 printEmuState(es);
             }
         }
@@ -360,7 +363,10 @@ Error* emulateAndCapture(Rewriter* r, int parCount, uint64_t* par)
 
 
             if (r->showEmuState) {
-                if (nextbb_addr != 0) es->regIP = nextbb_addr;
+                if (nextbb_addr != 0) {
+                    es->regIP = nextbb_addr;
+                    es->regIPCur = nextbb_addr;
+                }
                 printEmuState(es);
             }
 

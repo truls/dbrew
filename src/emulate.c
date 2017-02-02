@@ -704,6 +704,7 @@ ElfAddrInfo* addCaptureInfo(RContext* c, int offset)
     ElfAddrInfo* info = r->capInstrinfo + (r->capInstrCount - offset);
     memmove(info + 1, info, sizeof(Instr) * offset);
     if (r->es) {
+        assert(r->es->regIPCur);
         if (! addrToLine(r, r->es->regIPCur, info))
             return 0;
     }
