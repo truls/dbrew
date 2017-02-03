@@ -70,7 +70,7 @@ int initElfData(Rewriter* r, int pid)
     ElfContext* d;
 
     assert(pid > 0);
-    //assert(!r->elf);
+    assert(!r->elf);
 
     r->elf = calloc(sizeof(ElfContext), 1);
     d = r->elf;
