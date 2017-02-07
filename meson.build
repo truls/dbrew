@@ -90,6 +90,19 @@ subdir('tests')
 subdir('examples')
 
 
+# Install defs
+install_headers('include/dbrew.h')
+libs = [libdbrew, libdw, llvm_dep]
+pkg = import('pkgconfig')
+pkg.generate(libraries: libdbrew,
+             subdirs: '.',
+             version: '0.1',
+             filebase: 'dbrew',
+             name: 'libdbrew',
+             description: 'A library for performing dynamic binary rewriting',
+             requires_private: 'libdw',
+             libraries_private: llvm_libs)
+
 # Add target for running clang-tidy
 # clang_tidy = find_program('clang_tidy', 'git', 'xargs')
 # custom_target('tidy', input: ['compile_commands.json'], 
