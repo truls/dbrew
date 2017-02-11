@@ -245,10 +245,10 @@ ll_function_new_definition(uintptr_t address, LLConfig* config, LLState* state)
 
     // Set all registers to undef first.
     for (int i = 0; i < RI_GPMax; i++)
-        ll_set_register(getReg(RT_GP64, i), LLVMGetUndef(i64), state);
+        ll_set_register(getReg(RT_GP64, i), FACET_I64, LLVMGetUndef(i64), true, state);
 
     for (int i = 0; i < RI_XMMMax; i++)
-        ll_set_register(getReg(RT_XMM, i), LLVMGetUndef(iVec), state);
+        ll_set_register(getReg(RT_XMM, i), FACET_IVEC, LLVMGetUndef(iVec), true, state);
 
     for (int i = 0; i < RFLAG_Max; i++)
         ll_basic_block_set_flag(initialBB, i, LLVMGetUndef(i1));
@@ -289,7 +289,7 @@ ll_function_new_definition(uintptr_t address, LLConfig* config, LLState* state)
     LLVMValueRef stackSize = LLVMConstInt(i64, config->stackSize, false);
     LLVMValueRef stack = LLVMBuildArrayAlloca(state->builder, i8, stackSize, "");
     LLVMValueRef sp = LLVMBuildGEP(state->builder, stack, &stackSize, 1, "");
-    ll_basic_block_set_register(initialBB, getReg(RT_GP64, RI_SP), LLVMBuildPtrToInt(state->builder, sp, i64, "sp"));
+    ll_basic_block_set_register(initialBB, FACET_PTR, getReg(RT_GP64, RI_SP), sp, true, state);
 
     LLVMSetAlignment(stack, 16);
 
@@ -491,7 +491,7 @@ ll_function_build_ir(LLFunction* function, LLState* state)
                     ll_basic_block_build_ir(function->u.definition.bbs[i], state);
 
                 for (size_t i = 0; i < bbCount; i++)
-                    ll_basic_block_fill_phis(function->u.definition.bbs[i]);
+                    ll_basic_block_fill_phis(function->u.definition.bbs[i], state);
             }
             break;
         case LL_FUNCTION_DECLARATION:

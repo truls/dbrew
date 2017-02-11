@@ -93,6 +93,45 @@ struct LLFlagCache {
 
 typedef struct LLFlagCache LLFlagCache;
 
+enum RegisterFacet {
+    FACET_PTR,
+    FACET_I8,
+    FACET_I8H,
+    FACET_I16,
+    FACET_I32,
+    FACET_I64,
+    FACET_I128,
+    FACET_I256,
+    FACET_F32,
+    FACET_F64,
+
+    FACET_V16I8,
+    FACET_V8I16,
+    FACET_V4I32,
+    FACET_V2I64,
+    FACET_V4F32,
+    FACET_V2F64,
+    FACET_COUNT,
+
+    FACET_V32I8,
+    FACET_V16I16,
+    FACET_V8I32,
+    FACET_V4I64,
+    FACET_V8F32,
+    FACET_V4F64,
+
+};
+
+#if LL_VECTOR_REGISTER_SIZE == 128
+#define FACET_IVEC FACET_I128
+#elif LL_VECTOR_REGISTER_SIZE == 256
+#define FACET_IVEC FACET_I256
+#else
+#error
+#endif
+
+typedef enum RegisterFacet RegisterFacet;
+
 LLBasicBlock* ll_basic_block_new(uintptr_t);
 LLBasicBlock* ll_basic_block_new_from_dbb(DBB*);
 LLBasicBlock* ll_basic_block_new_from_cbb(CBB*);
@@ -102,16 +141,18 @@ void ll_basic_block_add_predecessor(LLBasicBlock*, LLBasicBlock*);
 void ll_basic_block_truncate(LLBasicBlock*, size_t);
 LLBasicBlock* ll_basic_block_split(LLBasicBlock*, size_t, LLState*);
 void ll_basic_block_build_ir(LLBasicBlock*, LLState*);
-void ll_basic_block_fill_phis(LLBasicBlock*);
+void ll_basic_block_fill_phis(LLBasicBlock*, LLState*);
 
-#define ll_get_register(reg,state) ll_basic_block_get_register(state->currentBB,reg)
-#define ll_set_register(reg,value,state) ll_basic_block_set_register(state->currentBB,reg,value)
+#define ll_get_register(reg,facet,state) ll_basic_block_get_register(state->currentBB,facet,reg,state)
+#define ll_clear_register(reg,state) ll_basic_block_clear_register(state->currentBB,reg,state)
+#define ll_set_register(reg,facet,value,clear,state) ll_basic_block_set_register(state->currentBB,facet,reg,value,clear,state)
 #define ll_get_flag(reg,state) ll_basic_block_get_flag(state->currentBB,reg)
 #define ll_set_flag(reg,value,state) ll_basic_block_set_flag(state->currentBB,reg,value)
 #define ll_get_flag_cache(state) ll_basic_block_get_flag_cache(state->currentBB)
 
-LLVMValueRef ll_basic_block_get_register(LLBasicBlock*, Reg);
-void ll_basic_block_set_register(LLBasicBlock*, Reg, LLVMValueRef);
+LLVMValueRef ll_basic_block_get_register(LLBasicBlock*, RegisterFacet, Reg, LLState*);
+void ll_basic_block_clear_register(LLBasicBlock*, Reg, LLState*);
+void ll_basic_block_set_register(LLBasicBlock*, RegisterFacet, Reg, LLVMValueRef, bool, LLState*);
 LLVMValueRef ll_basic_block_get_flag(LLBasicBlock*, int);
 void ll_basic_block_set_flag(LLBasicBlock*, int, LLVMValueRef);
 LLFlagCache* ll_basic_block_get_flag_cache(LLBasicBlock*);

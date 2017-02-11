@@ -125,14 +125,16 @@ ll_value_is_pointer(LLVMValueRef value, LLState* state)
 static void
 ll_generate_instruction_stack(Instr* instr, LLState* state)
 {
+    LLVMTypeRef i8 = LLVMInt8TypeInContext(state->context);
     LLVMTypeRef i64 = LLVMInt64TypeInContext(state->context);
+    LLVMTypeRef pi8 = LLVMPointerType(i8, 0);
     LLVMTypeRef pi64 = LLVMPointerType(i64, 0);
 
     // In case of a leave instruction, we basically pop the new base pointer
     // from RBP and store the new value as stack pointer.
     RegIndex spRegIndex = instr->type == IT_LEAVE ? RI_BP : RI_SP;
-    LLVMValueRef spReg = ll_get_register(getReg(RT_GP64, spRegIndex), state);
-    LLVMValueRef sp = LLVMBuildIntToPtr(state->builder, spReg, pi64, "");
+    LLVMValueRef spReg = ll_get_register(getReg(RT_GP64, spRegIndex), FACET_PTR, state);
+    LLVMValueRef sp = LLVMBuildPointerCast(state->builder, spReg, pi64, "");
     LLVMValueRef newSp = NULL;
 
     if (instr->type == IT_PUSH)
@@ -162,10 +164,10 @@ ll_generate_instruction_stack(Instr* instr, LLState* state)
         warn_if_reached();
 
     // Cast back to int for register store
-    LLVMValueRef newSpReg = LLVMBuildPtrToInt(state->builder, newSp, i64, "");
+    LLVMValueRef newSpReg = LLVMBuildPointerCast(state->builder, newSp, pi8, "");
     LLVMSetMetadata(newSpReg, LLVMGetMDKindIDInContext(state->context, "asm.reg.rsp", 11), state->emptyMD);
 
-    ll_set_register(getReg(RT_GP64, RI_SP), newSpReg, state);
+    ll_set_register(getReg(RT_GP64, RI_SP), FACET_PTR, newSpReg, true, state);
 }
 
 /**
@@ -196,7 +198,7 @@ ll_generate_instruction(Instr* instr, LLState* state)
     // Set new instruction pointer register
     uintptr_t rip = instr->addr + instr->len;
     LLVMValueRef ripValue = LLVMConstInt(LLVMInt64TypeInContext(state->context), rip, false);
-    ll_set_register(getReg(RT_IP, 0), ripValue, state);
+    ll_set_register(getReg(RT_IP, 0), FACET_I64, ripValue, true, state);
 
     // Add Metadata for debugging.
     LLVMValueRef intrinsicDoNothing = ll_support_get_intrinsic(state->module, LL_INTRINSIC_DO_NOTHING, NULL, 0);
@@ -315,17 +317,17 @@ ll_generate_instruction(Instr* instr, LLState* state)
                     warn_if_reached();
 
                 // TODO: Handle return values except for i64!
-                ll_set_register(getReg(RT_GP64, RI_A), result, state);
+                ll_set_register(getReg(RT_GP64, RI_A), FACET_I64, result, true, state);
 
                 // Clobber registers.
-                ll_set_register(getReg(RT_GP64, RI_C), LLVMGetUndef(i64), state);
-                ll_set_register(getReg(RT_GP64, RI_D), LLVMGetUndef(i64), state);
-                ll_set_register(getReg(RT_GP64, RI_SI), LLVMGetUndef(i64), state);
-                ll_set_register(getReg(RT_GP64, RI_DI), LLVMGetUndef(i64), state);
-                ll_set_register(getReg(RT_GP64, RI_8), LLVMGetUndef(i64), state);
-                ll_set_register(getReg(RT_GP64, RI_9), LLVMGetUndef(i64), state);
-                ll_set_register(getReg(RT_GP64, RI_10), LLVMGetUndef(i64), state);
-                ll_set_register(getReg(RT_GP64, RI_11), LLVMGetUndef(i64), state);
+                ll_clear_register(getReg(RT_GP64, RI_C), state);
+                ll_clear_register(getReg(RT_GP64, RI_D), state);
+                ll_clear_register(getReg(RT_GP64, RI_SI), state);
+                ll_clear_register(getReg(RT_GP64, RI_DI), state);
+                ll_clear_register(getReg(RT_GP64, RI_8), state);
+                ll_clear_register(getReg(RT_GP64, RI_9), state);
+                ll_clear_register(getReg(RT_GP64, RI_10), state);
+                ll_clear_register(getReg(RT_GP64, RI_11), state);
             }
             break;
         case IT_RET:

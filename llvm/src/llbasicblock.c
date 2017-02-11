@@ -43,6 +43,13 @@
  * @{
  **/
 
+struct LLRegister {
+    LLVMValueRef facets[FACET_COUNT];
+};
+
+typedef struct LLRegister LLRegister;
+// typedef LLVMValueRef LLRegister[FACET_COUNT];
+
 struct LLBasicBlock {
     /**
      * \brief The address
@@ -96,14 +103,14 @@ struct LLBasicBlock {
      *
      * The registers always store integers with 64 bits length.
      **/
-    LLVMValueRef gpRegisters[RI_GPMax];
+    LLRegister gpRegisters[RI_GPMax];
 
     /**
      * \brief The LLVM values of the SSE registers
      *
      * The vector length depends on #LL_VECTOR_REGISTER_SIZE.
      **/
-    LLVMValueRef sseRegisters[RI_XMMMax];
+    LLRegister sseRegisters[RI_XMMMax];
 
     /**
      * \brief The LLVM values of the architectural general purpose registers
@@ -113,17 +120,17 @@ struct LLBasicBlock {
     /**
      * \brief The LLVM value of the current instruction address
      **/
-    LLVMValueRef ipRegister;
+    LLRegister ipRegister;
 
     /**
      * \brief The phi nodes for the registers
      **/
-    LLVMValueRef phiNodesGpRegisters[RI_GPMax];
+    LLRegister phiNodesGpRegisters[RI_GPMax];
 
     /**
      * \brief The phi nodes for the registers
      **/
-    LLVMValueRef phiNodesSseRegisters[RI_XMMMax];
+    LLRegister phiNodesSseRegisters[RI_XMMMax];
 
     /**
      * \brief The phi nodes for the flags
@@ -135,6 +142,41 @@ struct LLBasicBlock {
      **/
     LLFlagCache flagCache;
 };
+
+static LLVMTypeRef
+ll_register_facet_type(RegisterFacet facet, LLState* state)
+{
+    LLVMTypeRef i8 = LLVMInt8TypeInContext(state->context);
+    LLVMTypeRef i16 = LLVMInt16TypeInContext(state->context);
+    LLVMTypeRef i32 = LLVMInt32TypeInContext(state->context);
+    LLVMTypeRef i64 = LLVMInt64TypeInContext(state->context);
+    LLVMTypeRef f32 = LLVMFloatTypeInContext(state->context);
+    LLVMTypeRef f64 = LLVMDoubleTypeInContext(state->context);
+
+    switch (facet)
+    {
+        case FACET_I8: return i8;
+        case FACET_I8H: return i8;
+        case FACET_I16: return i16;
+        case FACET_I32: return i32;
+        case FACET_I64: return i64;
+        case FACET_I128: return LLVMIntTypeInContext(state->context, 128);
+        case FACET_I256: return LLVMIntTypeInContext(state->context, 256);
+        case FACET_F32: return f32;
+        case FACET_F64: return f64;
+        case FACET_V16I8: return LLVMVectorType(i8, 16);
+        case FACET_V8I16: return LLVMVectorType(i16, 8);
+        case FACET_V4I32: return LLVMVectorType(i32, 4);
+        case FACET_V2I64: return LLVMVectorType(i64, 2);
+        case FACET_V4F32: return LLVMVectorType(f32, 4);
+        case FACET_V2F64: return LLVMVectorType(f64, 2);
+        case FACET_PTR: return LLVMPointerType(LLVMInt8TypeInContext(state->context), 0);
+        default:
+            warn_if_reached();
+    }
+
+    return NULL;
+}
 
 /**
  * Create a new basic block.
@@ -437,18 +479,24 @@ ll_basic_block_build_ir(LLBasicBlock* bb, LLState* state)
 
     for (int i = 0; i < RI_GPMax; i++)
     {
-        phiNode = LLVMBuildPhi(state->builder, LLVMInt64TypeInContext(state->context), "");
+        for (size_t k = 0; k < FACET_COUNT; k++)
+        {
+            phiNode = LLVMBuildPhi(state->builder, ll_register_facet_type(k, state), "");
 
-        bb->gpRegisters[i] = phiNode;
-        bb->phiNodesGpRegisters[i] = phiNode;
+            bb->gpRegisters[i].facets[k] = phiNode;
+            bb->phiNodesGpRegisters[i].facets[k] = phiNode;
+        }
     }
 
     for (int i = 0; i < RI_XMMMax; i++)
     {
-        phiNode = LLVMBuildPhi(state->builder, LLVMIntTypeInContext(state->context, LL_VECTOR_REGISTER_SIZE), "");
+        for (size_t k = 0; k < FACET_COUNT; k++)
+        {
+            phiNode = LLVMBuildPhi(state->builder, ll_register_facet_type(k, state), "");
 
-        bb->sseRegisters[i] = phiNode;
-        bb->phiNodesSseRegisters[i] = phiNode;
+            bb->sseRegisters[i].facets[k] = phiNode;
+            bb->phiNodesSseRegisters[i].facets[k] = phiNode;
+        }
     }
 
     for (int i = 0; i < RFLAG_Max; i++)
@@ -498,7 +546,7 @@ ll_basic_block_build_ir(LLBasicBlock* bb, LLState* state)
  * \param bb The basic block
  **/
 void
-ll_basic_block_fill_phis(LLBasicBlock* bb)
+ll_basic_block_fill_phis(LLBasicBlock* bb, LLState* state)
 {
     if (bb->predCount == 0)
         return;
@@ -508,24 +556,30 @@ ll_basic_block_fill_phis(LLBasicBlock* bb)
 
     for (int j = 0; j < RI_GPMax; j++)
     {
-        for (size_t i = 0; i < bb->predCount; i++)
+        for (size_t k = 0; k < FACET_COUNT; k++)
         {
-            bbs[i] = bb->preds[i]->llvmBB;
-            values[i] = bb->preds[i]->gpRegisters[j];
-        }
+            for (size_t i = 0; i < bb->predCount; i++)
+            {
+                bbs[i] = bb->preds[i]->llvmBB;
+                values[i] = ll_basic_block_get_register(bb->preds[i], k, getReg(RT_GP64, j), state); //bb->preds[i]->gpRegisters[j].facets[k];
+            }
 
-        LLVMAddIncoming(bb->phiNodesGpRegisters[j], values, bbs, bb->predCount);
+            LLVMAddIncoming(bb->phiNodesGpRegisters[j].facets[k], values, bbs, bb->predCount);
+        }
     }
 
     for (int j = 0; j < RI_XMMMax; j++)
     {
-        for (size_t i = 0; i < bb->predCount; i++)
+        for (size_t k = 0; k < FACET_COUNT; k++)
         {
-            bbs[i] = bb->preds[i]->llvmBB;
-            values[i] = bb->preds[i]->sseRegisters[j];
-        }
+            for (size_t i = 0; i < bb->predCount; i++)
+            {
+                bbs[i] = bb->preds[i]->llvmBB;
+                values[i] = ll_basic_block_get_register(bb->preds[i], k, getReg(RT_XMM, j), state); //bb->preds[i]->gpRegisters[j].facets[k];
+            }
 
-        LLVMAddIncoming(bb->phiNodesSseRegisters[j], values, bbs, bb->predCount);
+            LLVMAddIncoming(bb->phiNodesSseRegisters[j].facets[k], values, bbs, bb->predCount);
+        }
     }
 
     for (int j = 0; j < RFLAG_Max; j++)
@@ -551,7 +605,7 @@ ll_basic_block_fill_phis(LLBasicBlock* bb)
  * \param reg The register
  * \returns A pointer to the LLVM value in the register file.
  **/
-static LLVMValueRef*
+static LLRegister*
 ll_basic_block_get_register_ptr(LLBasicBlock* bb, Reg reg)
 {
     switch (reg.rt)
@@ -592,12 +646,113 @@ ll_basic_block_get_register_ptr(LLBasicBlock* bb, Reg reg)
  *
  * \param bb The basic block
  * \param reg The register
- * \returns The current register value
+ * \returns The register value in the given facet
  **/
 LLVMValueRef
-ll_basic_block_get_register(LLBasicBlock* bb, Reg reg)
+ll_basic_block_get_register(LLBasicBlock* bb, RegisterFacet facet, Reg reg, LLState* state)
 {
-    return *ll_basic_block_get_register_ptr(bb, reg);
+    LLRegister* regFileEntry = ll_basic_block_get_register_ptr(bb, reg);
+    LLVMValueRef value = regFileEntry->facets[facet];
+
+    if (value != NULL)
+    {
+        if (LLVMTypeOf(value) != ll_register_facet_type(facet, state))
+            warn_if_reached();
+
+        return value;
+    }
+
+    LLVMValueRef terminator = LLVMGetBasicBlockTerminator(bb->llvmBB);
+    if (terminator != NULL)
+        LLVMPositionBuilderBefore(state->builder, terminator);
+
+    LLVMTypeRef i8 = LLVMInt8TypeInContext(state->context);
+    LLVMTypeRef i16 = LLVMInt16TypeInContext(state->context);
+    LLVMTypeRef i32 = LLVMInt32TypeInContext(state->context);
+    LLVMTypeRef i64 = LLVMInt64TypeInContext(state->context);
+    LLVMTypeRef pi8 = LLVMPointerType(i8, 0);
+
+    if (regIsGP(reg))
+    {
+        LLVMValueRef native = regFileEntry->facets[FACET_I64];
+
+        switch (facet)
+        {
+            case FACET_PTR:
+                value = LLVMBuildIntToPtr(state->builder, native, pi8, "");
+                break;
+            case FACET_I8:
+                value = LLVMBuildTrunc(state->builder, native, i8, "");
+                break;
+            case FACET_I8H:
+                value = LLVMBuildLShr(state->builder, native, LLVMConstInt(LLVMTypeOf(native), 8, false), "");
+                value = LLVMBuildTrunc(state->builder, value, i8, "");
+                break;
+            case FACET_I16:
+                value = LLVMBuildTrunc(state->builder, native, i16, "");
+                break;
+            case FACET_I32:
+                value = LLVMBuildTrunc(state->builder, native, i32, "");
+                break;
+            case FACET_I64:
+            case FACET_I128:
+            case FACET_I256:
+            case FACET_F32:
+            case FACET_F64:
+            case FACET_V16I8:
+            case FACET_V8I16:
+            case FACET_V4I32:
+            case FACET_V2I64:
+            case FACET_V4F32:
+            case FACET_V2F64:
+            case FACET_V32I8:
+            case FACET_V16I16:
+            case FACET_V8I32:
+            case FACET_V4I64:
+            case FACET_V8F32:
+            case FACET_V4F64:
+            case FACET_COUNT:
+            default:
+                value = LLVMGetUndef(ll_register_facet_type(facet, state));
+        }
+    }
+    else
+    {
+        LLVMValueRef native = regFileEntry->facets[FACET_IVEC];
+
+        switch (facet)
+        {
+            default:
+                value = LLVMGetUndef(ll_register_facet_type(facet, state));
+        }
+    }
+
+    if (value == NULL)
+        warn_if_reached();
+
+    regFileEntry->facets[facet] = value;
+
+    return value;
+}
+
+/**
+ * Clear a register to undefined of the basic block.
+ *
+ * \private
+ *
+ * \author Alexis Engelke
+ *
+ * \param bb The basic block
+ * \param reg The register
+ * \param value The new value
+ **/
+void
+ll_basic_block_clear_register(LLBasicBlock* bb, Reg reg, LLState* state)
+{
+    LLRegister* regFileEntry = ll_basic_block_get_register_ptr(bb, reg);
+
+    for (size_t i = 0; i < FACET_COUNT; i++)
+        regFileEntry->facets[i] = LLVMGetUndef(ll_register_facet_type(i, state));
 }
 
 /**
@@ -612,10 +767,31 @@ ll_basic_block_get_register(LLBasicBlock* bb, Reg reg)
  * \param value The new value
  **/
 void
-ll_basic_block_set_register(LLBasicBlock* bb, Reg reg, LLVMValueRef value)
+ll_basic_block_set_register(LLBasicBlock* bb, RegisterFacet facet, Reg reg, LLVMValueRef value, bool clearOthers, LLState* state)
 {
-    LLVMValueRef* registerPtr = ll_basic_block_get_register_ptr(bb, reg);
-    *registerPtr = value;
+    if (LLVMTypeOf(value) != ll_register_facet_type(facet, state))
+        warn_if_reached();
+
+    LLRegister* regFileEntry = ll_basic_block_get_register_ptr(bb, reg);
+
+    if (clearOthers)
+    {
+        for (size_t i = 0; i < FACET_COUNT; i++)
+            regFileEntry->facets[i] = NULL;
+
+        if (regIsGP(reg) && facet != FACET_I64)
+        {
+            if (facet != FACET_PTR)
+                warn_if_reached();
+
+            LLVMTypeRef i64 = LLVMInt64TypeInContext(state->context);
+            regFileEntry->facets[FACET_I64] = LLVMBuildPtrToInt(state->builder, value, i64, "");
+        }
+        else if (regIsV(reg) && facet != FACET_IVEC)
+            warn_if_reached();
+    }
+
+    regFileEntry->facets[facet] = value;
 }
 
 /**

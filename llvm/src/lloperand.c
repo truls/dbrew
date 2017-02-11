@@ -245,11 +245,11 @@ ll_cast_to_int(LLVMValueRef value, OperandDataType dataType, Operand* operand, P
     int operandWidth = ll_operand_get_type_length(dataType, operand);
     LLVMTypeRef operandIntType = LLVMIntTypeInContext(state->context, operandWidth);
 
-    LLVMValueRef current = ll_get_register(operand->reg, state);
     LLVMValueRef result = NULL;
 
     if (zeroHandling == REG_DEFAULT)
     {
+        LLVMValueRef current = ll_get_register(operand->reg, FACET_I64, state);
         if (!opIsGPReg(operand))
             warn_if_reached();
 
@@ -285,6 +285,8 @@ ll_cast_to_int(LLVMValueRef value, OperandDataType dataType, Operand* operand, P
 #endif
     else if (zeroHandling == REG_ZERO_UPPER || zeroHandling == REG_KEEP_UPPER)
     {
+        LLVMValueRef current = ll_get_register(operand->reg, FACET_IVEC, state);
+
         if (!opIsVReg(operand))
             warn_if_reached();
 
@@ -425,7 +427,7 @@ ll_operand_get_address(OperandDataType dataType, Operand* operand, LLState* stat
     {
         if (operand->reg.rt != RT_None)
         {
-            result = LLVMBuildSExtOrBitCast(state->builder, ll_get_register(operand->reg, state), i64, "");
+            result = LLVMBuildSExtOrBitCast(state->builder, ll_get_register(operand->reg, FACET_I64, state), i64, "");
 
             if (LLVMIsConstant(result))
                 result = ll_get_global_offset(result, pointerType, state);
@@ -447,7 +449,7 @@ ll_operand_get_address(OperandDataType dataType, Operand* operand, LLState* stat
         if (operand->scale != 0)
         {
             int factor = operand->scale / (bits / 8);
-            LLVMValueRef offset = LLVMBuildSExtOrBitCast(state->builder, ll_get_register(operand->ireg, state), i64, "");
+            LLVMValueRef offset = LLVMBuildSExtOrBitCast(state->builder, ll_get_register(operand->ireg, FACET_I64, state), i64, "");
 
             if (LLVMIsNull(result))
             {
@@ -472,13 +474,13 @@ ll_operand_get_address(OperandDataType dataType, Operand* operand, LLState* stat
 
         if (operand->reg.rt != RT_None)
         {
-            LLVMValueRef offset = LLVMBuildSExtOrBitCast(state->builder, ll_get_register(operand->reg, state), i64, "");
+            LLVMValueRef offset = LLVMBuildSExtOrBitCast(state->builder, ll_get_register(operand->reg, FACET_I64, state), i64, "");
             result = LLVMBuildAdd(state->builder, result, offset, "");
         }
 
         if (operand->scale > 0)
         {
-            LLVMValueRef scale = LLVMBuildSExtOrBitCast(state->builder, ll_get_register(operand->ireg, state), i64, "");
+            LLVMValueRef scale = LLVMBuildSExtOrBitCast(state->builder, ll_get_register(operand->ireg, FACET_I64, state), i64, "");
             LLVMValueRef factor = LLVMConstInt(LLVMInt64TypeInContext(state->context), operand->scale, false);
             LLVMValueRef offset = LLVMBuildMul(state->builder, scale, factor, "");
             result = LLVMBuildAdd(state->builder, result, offset, "");
@@ -530,7 +532,13 @@ ll_operand_load(OperandDataType dataType, Alignment alignment, Operand* operand,
         case OT_Reg256:
         case OT_Reg512:
             {
-                LLVMValueRef reg = ll_get_register(operand->reg, state);
+                LLVMValueRef reg;
+
+                if (regIsGP(operand->reg))
+                    reg = ll_get_register(operand->reg, FACET_I64, state);
+                else
+                    reg = ll_get_register(operand->reg, FACET_IVEC, state);
+
                 result = ll_cast_from_int(reg, dataType, operand, state);
             }
             break;
@@ -591,7 +599,11 @@ ll_operand_store(OperandDataType dataType, Alignment alignment, Operand* operand
         case OT_Reg512:
             {
                 result = ll_cast_to_int(value, dataType, operand, zeroHandling, state);
-                ll_set_register(operand->reg, result, state);
+
+                if (regIsGP(operand->reg))
+                    ll_set_register(operand->reg, FACET_I64, result, true, state);
+                else
+                    ll_set_register(operand->reg, FACET_IVEC, result, true, state);
 
                 if (!LLVMIsConstant(result))
                 {
@@ -657,7 +669,7 @@ ll_operand_construct_args(LLVMTypeRef fnType, LLVMValueRef* args, LLState* state
                     if (gpRegisterIndex >= 6)
                         warn_if_reached();
 
-                    LLVMValueRef reg = ll_get_register(gpRegisters[gpRegisterIndex], state);
+                    LLVMValueRef reg = ll_get_register(gpRegisters[gpRegisterIndex], FACET_I64, state);
                     gpRegisterIndex++;
 
                     if (argTypeKind == LLVMIntegerTypeKind)
