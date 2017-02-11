@@ -131,6 +131,7 @@ ll_generate_instruction(Instr* instr, LLState* state)
     LLVMTypeRef i8 = LLVMInt8TypeInContext(state->context);
     LLVMTypeRef i32 = LLVMInt32TypeInContext(state->context);
     LLVMTypeRef i64 = LLVMInt64TypeInContext(state->context);
+    LLVMTypeRef pi8 = LLVMPointerType(i8, 0);
 
     // Set new instruction pointer register
     uintptr_t rip = instr->addr + instr->len;
@@ -156,8 +157,16 @@ ll_generate_instruction(Instr* instr, LLState* state)
 
         case IT_MOV:
         case IT_MOVSX:
-            operand1 = ll_operand_load(OP_SI, ALIGN_MAXIMUM, &instr->src, state);
-            ll_operand_store(OP_SI, ALIGN_MAXIMUM, &instr->dst, REG_DEFAULT, operand1, state);
+            // If a full-width register is moved, we can keep all the facets.
+            if (opIsGPReg(&instr->dst) && opIsGPReg(&instr->src) && opTypeWidth(&instr->dst) == 64 && opTypeWidth(&instr->src) == 64)
+            {
+                ll_basic_block_rename_register(state->currentBB, instr->dst.reg, instr->src.reg, state);
+            }
+            else
+            {
+                operand1 = ll_operand_load(OP_SI, ALIGN_MAXIMUM, &instr->src, state);
+                ll_operand_store(OP_SI, ALIGN_MAXIMUM, &instr->dst, REG_DEFAULT, operand1, state);
+            }
             break;
         case IT_MOVD:
         case IT_MOVQ:
@@ -483,10 +492,30 @@ ll_generate_instruction(Instr* instr, LLState* state)
             ll_operand_store(OP_SI, ALIGN_MAXIMUM, &instr->dst, REG_DEFAULT, result, state);
             break;
         case IT_LEA:
-            // assert(opIsInd(&(instr->src)));
-            operand1 = ll_operand_get_address(OP_SI, &instr->src, state);
-            result = LLVMBuildPtrToInt(state->builder, operand1, LLVMInt64TypeInContext(state->context), "");
-            ll_operand_store(OP_SI, ALIGN_MAXIMUM, &instr->dst, REG_DEFAULT, result, state);
+            {
+                if (!opIsInd(&(instr->src)))
+                    warn_if_reached();
+                if (!opIsReg(&instr->dst) || instr->dst.reg.rt != RT_GP64)
+                    warn_if_reached();
+
+                result = ll_operand_get_address(OP_SI, &instr->src, state);
+                result = LLVMBuildPointerCast(state->builder, result, pi8, "");
+
+                LLVMValueRef base = LLVMConstInt(i64, instr->src.val, false);
+
+                if (instr->src.reg.rt != RT_None)
+                    base = LLVMBuildAdd(state->builder, base, ll_get_register(instr->src.reg, FACET_I64, state), "");
+
+                if (instr->src.scale != 0)
+                {
+                    LLVMValueRef offset = ll_get_register(instr->src.ireg, FACET_I64, state);
+                    offset = LLVMBuildMul(state->builder, offset, LLVMConstInt(i64, instr->src.scale, false), "");
+                    base = LLVMBuildAdd(state->builder, base, offset, "");
+                }
+
+                ll_set_register(instr->dst.reg, FACET_I64, base, true, state);
+                ll_set_register(instr->dst.reg, FACET_PTR, result, false, state);
+            }
             break;
         case IT_TEST:
             operand1 = ll_operand_load(OP_SI, ALIGN_MAXIMUM, &instr->dst, state);

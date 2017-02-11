@@ -165,6 +165,8 @@ void ll_basic_block_fill_phis(LLBasicBlock*, LLState*);
 
 LLVMValueRef ll_basic_block_get_register(LLBasicBlock*, RegisterFacet, Reg, LLState*);
 void ll_basic_block_clear_register(LLBasicBlock*, Reg, LLState*);
+void ll_basic_block_zero_register(LLBasicBlock*, Reg, LLState*);
+void ll_basic_block_rename_register(LLBasicBlock*, Reg, Reg, LLState*);
 void ll_basic_block_set_register(LLBasicBlock*, RegisterFacet, Reg, LLVMValueRef, bool, LLState*);
 LLVMValueRef ll_basic_block_get_flag(LLBasicBlock*, int);
 void ll_basic_block_set_flag(LLBasicBlock*, int, LLVMValueRef);

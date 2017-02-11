@@ -24,6 +24,7 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <string.h>
 #include <llvm-c/Core.h>
 
 #include <instr.h>
@@ -829,6 +830,49 @@ ll_basic_block_clear_register(LLBasicBlock* bb, Reg reg, LLState* state)
 
     for (size_t i = 0; i < FACET_COUNT; i++)
         regFileEntry->facets[i] = LLVMGetUndef(ll_register_facet_type(i, state));
+}
+
+/**
+ * Set a register in all facets to zero within the basic block.
+ *
+ * \private
+ *
+ * \author Alexis Engelke
+ *
+ * \param bb The basic block
+ * \param reg The name of the new register
+ * \param state The state
+ **/
+void
+ll_basic_block_zero_register(LLBasicBlock* bb, Reg reg, LLState* state)
+{
+    LLRegister* regFileEntry = ll_basic_block_get_register_ptr(bb, reg);
+
+    for (size_t i = 0; i < FACET_COUNT; i++)
+        regFileEntry->facets[i] = LLVMConstNull(ll_register_facet_type(i, state));
+}
+
+/**
+ * Rename a register to another register of the basic block.
+ *
+ * \private
+ *
+ * \author Alexis Engelke
+ *
+ * \param bb The basic block
+ * \param reg The name of the new register
+ * \param current The name of the current register
+ * \param state The state
+ **/
+void
+ll_basic_block_rename_register(LLBasicBlock* bb, Reg reg, Reg current, LLState* state)
+{
+    LLRegister* regFileEntry1 = ll_basic_block_get_register_ptr(bb, reg);
+    LLRegister* regFileEntry2 = ll_basic_block_get_register_ptr(bb, current);
+
+    memcpy(regFileEntry1, regFileEntry2, sizeof(LLRegister));
+
+    (void) state;
 }
 
 /**
