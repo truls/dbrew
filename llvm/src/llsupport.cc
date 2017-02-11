@@ -107,6 +107,23 @@ ll_support_enable_fast_math(LLVMValueRef value)
 }
 
 /**
+ * Whether a value is a constant integer
+ *
+ * \private
+ *
+ * \author Alexis Engelke
+ *
+ * \param value The value to check
+ * \returns Whether the value is a constant integer
+ **/
+extern "C"
+LLVMBool
+ll_support_is_constant_int(LLVMValueRef value)
+{
+    return llvm::isa<llvm::ConstantInt>(llvm::unwrap(value));
+}
+
+/**
  * Construct a metadata node to force full loop unrolling.
  *
  * \private

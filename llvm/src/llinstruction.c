@@ -230,10 +230,19 @@ ll_generate_instruction(Instr* instr, LLState* state)
 
         case IT_CALL:
             {
-                if (instr->dst.type != OT_Imm64)
-                    warn_if_reached();
+                uintptr_t address = 0;
+                if (instr->dst.type == OT_Imm64)
+                    address = instr->dst.val;
+                else if (opIsGPReg(&instr->dst) && instr->dst.reg.rt == RT_GP64)
+                {
+                    LLVMValueRef value = ll_get_register(instr->dst.reg, FACET_I64, state);
 
-                uintptr_t address = instr->dst.val;
+                    if (ll_support_is_constant_int(value))
+                        address = LLVMConstIntGetZExtValue(value);
+                }
+
+                if (address == 0)
+                    warn_if_reached();
 
                 // Find function with corresponding address.
                 LLFunction* function = NULL;
