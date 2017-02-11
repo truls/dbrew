@@ -740,6 +740,62 @@ ll_generate_instruction(Instr* instr, LLState* state)
                 ll_support_enable_fast_math(result);
             ll_operand_store(OP_VF64, ALIGN_MAXIMUM, &instr->dst, REG_KEEP_UPPER, result, state);
             break;
+        case IT_DIVSS:
+            operand1 = ll_operand_load(OP_SF32, ALIGN_MAXIMUM, &instr->dst, state);
+            operand2 = ll_operand_load(OP_SF32, ALIGN_MAXIMUM, &instr->src, state);
+            result = LLVMBuildFDiv(state->builder, operand1, operand2, "");
+            if (state->enableFastMath)
+                ll_support_enable_fast_math(result);
+            ll_operand_store(OP_SF32, ALIGN_MAXIMUM, &instr->dst, REG_KEEP_UPPER, result, state);
+            break;
+        case IT_DIVSD:
+            operand1 = ll_operand_load(OP_SF64, ALIGN_MAXIMUM, &instr->dst, state);
+            operand2 = ll_operand_load(OP_SF64, ALIGN_MAXIMUM, &instr->src, state);
+            result = LLVMBuildFDiv(state->builder, operand1, operand2, "");
+            if (state->enableFastMath)
+                ll_support_enable_fast_math(result);
+            ll_operand_store(OP_SF64, ALIGN_MAXIMUM, &instr->dst, REG_KEEP_UPPER, result, state);
+            break;
+        case IT_DIVPS:
+            operand1 = ll_operand_load(OP_VF32, ALIGN_MAXIMUM, &instr->dst, state);
+            operand2 = ll_operand_load(OP_VF32, ALIGN_MAXIMUM, &instr->src, state);
+            result = LLVMBuildFDiv(state->builder, operand1, operand2, "");
+            if (state->enableFastMath)
+                ll_support_enable_fast_math(result);
+            ll_operand_store(OP_VF32, ALIGN_MAXIMUM, &instr->dst, REG_KEEP_UPPER, result, state);
+            break;
+        case IT_DIVPD:
+            operand1 = ll_operand_load(OP_VF64, ALIGN_MAXIMUM, &instr->dst, state);
+            operand2 = ll_operand_load(OP_VF64, ALIGN_MAXIMUM, &instr->src, state);
+            result = LLVMBuildFDiv(state->builder, operand1, operand2, "");
+            if (state->enableFastMath)
+                ll_support_enable_fast_math(result);
+            ll_operand_store(OP_VF64, ALIGN_MAXIMUM, &instr->dst, REG_KEEP_UPPER, result, state);
+            break;
+        case IT_ORPS:
+            operand1 = ll_operand_load(OP_VI32, ALIGN_MAXIMUM, &instr->dst, state);
+            operand2 = ll_operand_load(OP_VI32, ALIGN_MAXIMUM, &instr->src, state);
+            result = LLVMBuildOr(state->builder, operand1, operand2, "");
+            ll_operand_store(OP_VF32, ALIGN_MAXIMUM, &instr->dst, REG_KEEP_UPPER, result, state);
+            break;
+        case IT_ORPD:
+            operand1 = ll_operand_load(OP_VI64, ALIGN_MAXIMUM, &instr->dst, state);
+            operand2 = ll_operand_load(OP_VI64, ALIGN_MAXIMUM, &instr->src, state);
+            result = LLVMBuildOr(state->builder, operand1, operand2, "");
+            ll_operand_store(OP_VF64, ALIGN_MAXIMUM, &instr->dst, REG_KEEP_UPPER, result, state);
+            break;
+        case IT_ANDPS:
+            operand1 = ll_operand_load(OP_VI32, ALIGN_MAXIMUM, &instr->dst, state);
+            operand2 = ll_operand_load(OP_VI32, ALIGN_MAXIMUM, &instr->src, state);
+            result = LLVMBuildAnd(state->builder, operand1, operand2, "");
+            ll_operand_store(OP_VF32, ALIGN_MAXIMUM, &instr->dst, REG_KEEP_UPPER, result, state);
+            break;
+        case IT_ANDPD:
+            operand1 = ll_operand_load(OP_VI64, ALIGN_MAXIMUM, &instr->dst, state);
+            operand2 = ll_operand_load(OP_VI64, ALIGN_MAXIMUM, &instr->src, state);
+            result = LLVMBuildAnd(state->builder, operand1, operand2, "");
+            ll_operand_store(OP_VF64, ALIGN_MAXIMUM, &instr->dst, REG_KEEP_UPPER, result, state);
+            break;
         case IT_XORPS:
             if (opIsEqual(&instr->dst, &instr->src))
                 result = LLVMConstNull(LLVMVectorType(LLVMFloatTypeInContext(state->context), 4));
@@ -836,14 +892,6 @@ ll_generate_instruction(Instr* instr, LLState* state)
             LLVMBuildUnreachable(state->builder);
             break;
 
-        case IT_DIVSS:
-        case IT_DIVSD:
-        case IT_DIVPS:
-        case IT_DIVPD:
-        case IT_ORPS:
-        case IT_ORPD:
-        case IT_ANDPS:
-        case IT_ANDPD:
         case IT_ANDNPS:
         case IT_ANDNPD:
         case IT_MAXSS:
