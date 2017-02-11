@@ -377,7 +377,9 @@ LLVMValueRef
 ll_operand_get_address(OperandDataType dataType, Operand* operand, LLState* state)
 {
     LLVMValueRef result;
+    LLVMTypeRef i8 = LLVMInt8TypeInContext(state->context);
     LLVMTypeRef i64 = LLVMInt64TypeInContext(state->context);
+    LLVMTypeRef pi8 = LLVMPointerType(i8, 0);
 
     LLVMTypeRef pointerType;
     int addrspace;
@@ -402,75 +404,63 @@ ll_operand_get_address(OperandDataType dataType, Operand* operand, LLState* stat
 
     pointerType = LLVMPointerType(ll_operand_get_type(dataType, bits, state), addrspace);
 
-    // Optimized method to improve alias analysis which then allows vectorization
-    if ((operand->scale % (bits / 8)) == 0 && (((int64_t) operand->val) % (bits / 8)) == 0)
+    if (operand->reg.rt != RT_None)
     {
-        if (operand->reg.rt != RT_None)
+        result = ll_get_register(operand->reg, FACET_PTR, state);
+
+        if (LLVMIsConstant(result))
         {
-            result = LLVMBuildSExtOrBitCast(state->builder, ll_get_register(operand->reg, FACET_I64, state), i64, "");
+            result = ll_get_register(operand->reg, FACET_I64, state);
 
-            if (LLVMIsConstant(result))
-                result = ll_get_global_offset(result, pointerType, state);
-            else
-                result = LLVMBuildIntToPtr(state->builder, result, pointerType, "");
+            if (!LLVMIsConstant(result))
+                warn_if_reached();
 
-            if (operand->val != 0)
-            {
-                LLVMValueRef offset = LLVMConstInt(i64, ((int64_t) operand->val) / (bits / 8), false);
-
-                result = LLVMBuildGEP(state->builder, result, &offset, 1, "");
-            }
+            result = LLVMConstAdd(result, LLVMConstInt(i64, operand->val, false));
+            result = ll_get_global_offset(result, pi8, state);
         }
-        else
+        else if (operand->val != 0)
         {
-            result = ll_get_global_offset(LLVMConstInt(i64, operand->val, false), pointerType, state);
-        }
+            LLVMValueRef offset = LLVMConstInt(i64, operand->val, false);
 
-        if (operand->scale != 0)
-        {
-            int factor = operand->scale / (bits / 8);
-            LLVMValueRef offset = LLVMBuildSExtOrBitCast(state->builder, ll_get_register(operand->ireg, FACET_I64, state), i64, "");
-
-            if (LLVMIsNull(result))
+            if (operand->scale != 0 && (operand->val % operand->scale) == 0)
             {
-                // Fallback to inttoptr if this is definitly not-a-pointer.
-                // Therefore, we don't need to use ll_get_global_offset.
-                offset = LLVMBuildMul(state->builder, offset, LLVMConstInt(i64, operand->scale, false), "");
-                result = LLVMBuildIntToPtr(state->builder, offset, pointerType, "");
+                LLVMTypeRef scaleType = LLVMPointerType(LLVMIntTypeInContext(state->context, operand->scale * 8), 0);
+                result = LLVMBuildPointerCast(state->builder, result, scaleType, "");
+                offset = LLVMConstInt(i64, operand->val / operand->scale, false);
             }
-            else
-            {
-                if (factor != 1)
-                    offset = LLVMBuildMul(state->builder, offset, LLVMConstInt(i64, factor, false), "");
 
-                result = LLVMBuildGEP(state->builder, result, &offset, 1, "");
-            }
+            result = LLVMBuildGEP(state->builder, result, &offset, 1, "");
         }
     }
     else
     {
-        // Inefficient pointer computations for programs which do strange things
-        result = LLVMConstInt(i64, operand->val, false);
-
-        if (operand->reg.rt != RT_None)
-        {
-            LLVMValueRef offset = LLVMBuildSExtOrBitCast(state->builder, ll_get_register(operand->reg, FACET_I64, state), i64, "");
-            result = LLVMBuildAdd(state->builder, result, offset, "");
-        }
-
-        if (operand->scale > 0)
-        {
-            LLVMValueRef scale = LLVMBuildSExtOrBitCast(state->builder, ll_get_register(operand->ireg, FACET_I64, state), i64, "");
-            LLVMValueRef factor = LLVMConstInt(LLVMInt64TypeInContext(state->context), operand->scale, false);
-            LLVMValueRef offset = LLVMBuildMul(state->builder, scale, factor, "");
-            result = LLVMBuildAdd(state->builder, result, offset, "");
-        }
-
-        if (LLVMIsConstant(result))
-            result = ll_get_global_offset(result, pointerType, state);
-        else
-            result = LLVMBuildIntToPtr(state->builder, result, pointerType, "");
+        result = ll_get_global_offset(LLVMConstInt(i64, operand->val, false), pi8, state);
     }
+
+    if (operand->scale != 0)
+    {
+        LLVMValueRef offset = ll_get_register(operand->ireg, FACET_I64, state);
+
+        if (LLVMIsNull(result))
+        {
+            // Fallback to inttoptr if this is definitly not-a-pointer.
+            // Therefore, we don't need to use ll_get_global_offset.
+            offset = LLVMBuildMul(state->builder, offset, LLVMConstInt(i64, operand->scale, false), "");
+            result = LLVMBuildIntToPtr(state->builder, offset, pointerType, "");
+        }
+        else
+        {
+            LLVMTypeRef scaleType = LLVMPointerType(LLVMIntTypeInContext(state->context, operand->scale * 8), 0);
+
+            if (operand->scale * 8 == bits)
+                scaleType = pointerType;
+
+            result = LLVMBuildPointerCast(state->builder, result, scaleType, "");
+            result = LLVMBuildGEP(state->builder, result, &offset, 1, "");
+        }
+    }
+
+    result = LLVMBuildPointerCast(state->builder, result, pointerType, "");
 
     return result;
 }

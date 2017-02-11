@@ -8,7 +8,7 @@ define i64 @test(i8* noalias nocapture) #0 {
   %2 = bitcast i8* %0 to i64*
   %3 = load i64, i64* %2, align 8, !asm.reg.rax !0
   %4 = load i64, i64* bitcast (i8* @__ll_global_base__ to i64*), align 8, !asm.reg.rcx !0
-  %5 = add i64 %4, %3, !asm.reg.rax !0
+  %5 = add i64 %4, %3
   store i64 %5, i64* %2, align 8
   ret i64 0
 }

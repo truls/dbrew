@@ -2,53 +2,15 @@
 target triple = "x86_64-pc-linux-gnu"
 
 ; Function Attrs: norecurse nounwind
-define i64 @test(i8* noalias) #0 {
-  %2 = ptrtoint i8* %0 to i64, !asm.reg.rdi !0
-  %3 = bitcast i8* %0 to i64*
-  %4 = load i64, i64* %3, align 8
-  %5 = add i64 %4, 10
-  store i64 %5, i64* %3, align 8
-  %6 = add i64 %2, 8, !asm.reg.rdi !0
-  %7 = inttoptr i64 %6 to i64*
-  %8 = load i64, i64* %7, align 8
-  %9 = add i64 %8, 10
-  store i64 %9, i64* %7, align 8
-  %10 = add i64 %2, 16, !asm.reg.rdi !0
-  %11 = inttoptr i64 %10 to i64*
-  %12 = load i64, i64* %11, align 8
-  %13 = add i64 %12, 10
-  store i64 %13, i64* %11, align 8
-  %14 = add i64 %2, 24, !asm.reg.rdi !0
-  %15 = inttoptr i64 %14 to i64*
-  %16 = load i64, i64* %15, align 8
-  %17 = add i64 %16, 10
-  store i64 %17, i64* %15, align 8
-  %18 = add i64 %2, 32, !asm.reg.rdi !0
-  %19 = inttoptr i64 %18 to i64*
-  %20 = load i64, i64* %19, align 8
-  %21 = add i64 %20, 10
-  store i64 %21, i64* %19, align 8
-  %22 = add i64 %2, 40, !asm.reg.rdi !0
-  %23 = inttoptr i64 %22 to i64*
-  %24 = load i64, i64* %23, align 8
-  %25 = add i64 %24, 10
-  store i64 %25, i64* %23, align 8
-  %26 = add i64 %2, 48, !asm.reg.rdi !0
-  %27 = inttoptr i64 %26 to i64*
-  %28 = load i64, i64* %27, align 8
-  %29 = add i64 %28, 10
-  store i64 %29, i64* %27, align 8
-  %30 = add i64 %2, 56, !asm.reg.rdi !0
-  %31 = inttoptr i64 %30 to i64*
-  %32 = load i64, i64* %31, align 8
-  %33 = add i64 %32, 10
-  store i64 %33, i64* %31, align 8
+define i64 @test(i8* noalias nocapture) #0 {
+  %2 = bitcast i8* %0 to <8 x i64>*
+  %3 = load <8 x i64>, <8 x i64>* %2, align 8
+  %4 = add <8 x i64> %3, <i64 10, i64 10, i64 10, i64 10, i64 10, i64 10, i64 10, i64 10>
+  store <8 x i64> %4, <8 x i64>* %2, align 8
   ret i64 0
 }
 
 attributes #0 = { norecurse nounwind }
-
-!0 = !{}
 
 Result: 0 11 12 13 14 15 16 17 18
 Result: 0 11 12 13 14 15 16 17 18

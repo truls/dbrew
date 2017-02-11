@@ -312,7 +312,6 @@ benchmark_run2(bool isFirst, const BenchmarkArgs* args, const BenchmarkStencilCo
     if (args->mode == BENCHMARK_LLVM || args->mode == BENCHMARK_LLVM_FIXED || args->mode == BENCHMARK_DBREW_LLVM_TWICE)
     {
         state = ll_engine_init();
-        ll_engine_enable_unsafe_pointer_optimizations(state, true);
     }
 
     switch (args->mode)

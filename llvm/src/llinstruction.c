@@ -49,68 +49,6 @@
  **/
 
 /**
- * Try to estimate whether a value is a pointer. When doing memory operations,
- * knowing that a value is actually a pointer permits us to do pointer
- * arithmetics, which leads to better code, but breaks vectorization and scalar
- * optimizations.
- *
- * This function is rather aggressive in marking values as pointer, as pointer
- * arithmetic for arithmetic operations is disabled by default. It can be
- * enabled via #ll_engine_enable_unsafe_pointer_optimizations.
- *
- * \todo Implement better heuristics here?
- *
- * \private
- *
- * \author Alexis Engelke
- *
- * \param value The value to check
- * \param state The module state
- * \returns Whether the value should be treated as pointer
- **/
-static bool
-ll_value_is_pointer(LLVMValueRef value, LLState* state)
-{
-    // LLVMDumpValue(value);
-    // printf("!!! %d\n", LLVMIsConstant(value));
-    if (LLVMIsAConstantInt(value))
-        return false;
-    else if (LLVMIsAConstantExpr(value))
-    {
-        if (LLVMGetConstOpcode(value) == LLVMPtrToInt)
-            return true;
-        return false;
-    }
-    else if (LLVMIsConstant(value))
-    {
-        return false;
-    }
-    else if (LLVMIsAInstruction(value))
-    {
-        if (LLVMGetInstructionOpcode(value) == LLVMLoad)
-            return false;
-        if (LLVMGetInstructionOpcode(value) == LLVMFPToSI)
-            return false;
-        if (LLVMGetInstructionOpcode(value) == LLVMFPToUI)
-            return false;
-        if (LLVMGetInstructionOpcode(value) == LLVMPtrToInt)
-            return true;
-
-        // Other candidates?
-    }
-
-    // TODO: Implement better heuristics here.
-
-    // The problem is: we don't know much about the value, except that its an
-    // integer. The value is likely a PHI node. What do we do? In case of doubt,
-    // call it a pointer and hope that LLVM will understand our intention.
-
-    (void) state;
-
-    return true;
-}
-
-/**
  * Handling of push, pop and leave instructions.
  *
  * \todo Handle 16 bit integers
@@ -193,7 +131,6 @@ ll_generate_instruction(Instr* instr, LLState* state)
     LLVMTypeRef i8 = LLVMInt8TypeInContext(state->context);
     LLVMTypeRef i32 = LLVMInt32TypeInContext(state->context);
     LLVMTypeRef i64 = LLVMInt64TypeInContext(state->context);
-    LLVMTypeRef pi64 = LLVMPointerType(i64, 0);
 
     // Set new instruction pointer register
     uintptr_t rip = instr->addr + instr->len;
@@ -410,26 +347,22 @@ ll_generate_instruction(Instr* instr, LLState* state)
             operand2 = ll_operand_load(OP_SI, ALIGN_MAXIMUM, &instr->src, state);
             operand2 = LLVMBuildSExtOrBitCast(state->builder, operand2, LLVMTypeOf(operand1), "");
 
-            if (state->enableUnsafePointerOptimizations &&
-                ll_value_is_pointer(operand1, state) && LLVMIsConstant(operand2))
-            {
-                int64_t value = LLVMConstIntGetSExtValue(operand2);
+            result = LLVMBuildAdd(state->builder, operand1, operand2, "");
 
-                if ((value % 8) == 0)
-                {
-                    LLVMValueRef ptr = LLVMBuildIntToPtr(state->builder, operand1, pi64, "");
-                    LLVMValueRef offset = LLVMConstInt(i64, value / 8, true);
-                    LLVMValueRef add = LLVMBuildGEP(state->builder, ptr, &offset, 1, "");
-                    result = LLVMBuildPtrToInt(state->builder, add, LLVMTypeOf(operand1), "");
-                }
-                else
-                    result = LLVMBuildAdd(state->builder, operand1, operand2, "");
+            if (LLVMGetIntTypeWidth(LLVMTypeOf(operand1)) == 64 && opIsReg(&instr->dst))
+            {
+                LLVMValueRef ptr = ll_get_register(instr->dst.reg, FACET_PTR, state);
+                LLVMValueRef gep = LLVMBuildGEP(state->builder, ptr, &operand2, 1, "");
+
+                ll_set_register(instr->dst.reg, FACET_I64, result, true, state);
+                ll_set_register(instr->dst.reg, FACET_PTR, gep, false, state);
             }
             else
-                result = LLVMBuildAdd(state->builder, operand1, operand2, "");
+            {
+                ll_operand_store(OP_SI, ALIGN_MAXIMUM, &instr->dst, REG_DEFAULT, result, state);
+            }
 
             ll_flags_set_add(result, operand1, operand2, state);
-            ll_operand_store(OP_SI, ALIGN_MAXIMUM, &instr->dst, REG_DEFAULT, result, state);
             break;
         case IT_ADC:
             // TODO: Test this!!
@@ -449,26 +382,23 @@ ll_generate_instruction(Instr* instr, LLState* state)
             operand2 = ll_operand_load(OP_SI, ALIGN_MAXIMUM, &instr->src, state);
             operand2 = LLVMBuildSExtOrBitCast(state->builder, operand2, LLVMTypeOf(operand1), "");
 
-            if (state->enableUnsafePointerOptimizations &&
-                ll_value_is_pointer(operand1, state) && LLVMIsConstant(operand2))
-            {
-                int64_t value = LLVMConstIntGetSExtValue(operand2);
+            result = LLVMBuildSub(state->builder, operand1, operand2, "");
 
-                if ((value % 8) == 0)
-                {
-                    LLVMValueRef ptr = LLVMBuildIntToPtr(state->builder, operand1, pi64, "");
-                    LLVMValueRef offset = LLVMConstInt(i64, -value / 8, true);
-                    LLVMValueRef add = LLVMBuildGEP(state->builder, ptr, &offset, 1, "");
-                    result = LLVMBuildPtrToInt(state->builder, add, LLVMTypeOf(operand1), "");
-                }
-                else
-                    result = LLVMBuildSub(state->builder, operand1, operand2, "");
+            if (LLVMGetIntTypeWidth(LLVMTypeOf(operand1)) == 64 && opIsReg(&instr->dst))
+            {
+                LLVMValueRef sub = LLVMBuildNeg(state->builder, operand2, "");
+                LLVMValueRef ptr = ll_get_register(instr->dst.reg, FACET_PTR, state);
+                LLVMValueRef gep = LLVMBuildGEP(state->builder, ptr, &sub, 1, "");
+
+                ll_set_register(instr->dst.reg, FACET_I64, result, true, state);
+                ll_set_register(instr->dst.reg, FACET_PTR, gep, false, state);
             }
             else
-                result = LLVMBuildSub(state->builder, operand1, operand2, "");
+            {
+                ll_operand_store(OP_SI, ALIGN_MAXIMUM, &instr->dst, REG_DEFAULT, result, state);
+            }
 
             ll_flags_set_sub(result, operand1, operand2, state);
-            ll_operand_store(OP_SI, ALIGN_MAXIMUM, &instr->dst, REG_DEFAULT, result, state);
             break;
         case IT_IMUL:
             // TODO: handle variant with one operand

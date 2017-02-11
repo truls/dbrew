@@ -2,47 +2,47 @@
 target triple = "x86_64-pc-linux-gnu"
 
 ; Function Attrs: norecurse nounwind readonly
-define i64 @test(i8* noalias, i8* noalias nocapture readonly, i64, i64) #0 {
+define i64 @test(i8* noalias nocapture readonly, i8* noalias nocapture readonly, i64, i64) #0 {
   %5 = bitcast i8* %0 to i64*
   %6 = load i64, i64* %5, align 8, !asm.reg.r10 !0
   %7 = icmp eq i64 %6, 0, !asm.flag.zf !0
   br i1 %7, label %38, label %8
 
 ; <label>:8                                       ; preds = %4
-  %9 = ptrtoint i8* %0 to i64, !asm.reg.rdi !0
-  %10 = add i64 %9, 8, !asm.reg.rdi !0
-  %11 = bitcast i8* %1 to i64*
-  br label %15
+  %9 = getelementptr i8, i8* %0, i64 8
+  %10 = bitcast i8* %1 to i64*
+  br label %14
 
-; <label>:12                                      ; preds = %15
-  %13 = phi double [ %34, %15 ]
-  %14 = bitcast double %13 to i64
-  ret i64 %14
+; <label>:11                                      ; preds = %14
+  %12 = phi double [ %34, %14 ]
+  %13 = bitcast double %12 to i64
+  ret i64 %13
 
-; <label>:15                                      ; preds = %15, %8
-  %16 = phi i64 [ 0, %8 ], [ %36, %15 ]
-  %17 = phi i64 [ %10, %8 ], [ %35, %15 ]
-  %18 = phi double [ 0.000000e+00, %8 ], [ %34, %15 ]
-  %19 = inttoptr i64 %17 to i64*
-  %20 = getelementptr i64, i64* %19, i64 1
-  %21 = load i64, i64* %20, align 8
-  %22 = add i64 %21, %3, !asm.reg.r8 !0
-  %23 = load i64, i64* %19, align 8
-  %24 = add i64 %23, %2, !asm.reg.r9 !0
-  %25 = getelementptr i64, i64* %11, i64 %22
+; <label>:14                                      ; preds = %14, %8
+  %15 = phi i64 [ 0, %8 ], [ %36, %14 ]
+  %16 = phi i8* [ %9, %8 ], [ %35, %14 ]
+  %17 = phi double [ 0.000000e+00, %8 ], [ %34, %14 ]
+  %18 = getelementptr i8, i8* %16, i64 8
+  %19 = bitcast i8* %18 to i64*
+  %20 = load i64, i64* %19, align 8
+  %21 = add i64 %20, %3
+  %22 = bitcast i8* %16 to i64*
+  %23 = load i64, i64* %22, align 8
+  %24 = add i64 %23, %2
+  %25 = getelementptr i64, i64* %10, i64 %21
   %26 = bitcast i64* %25 to double**
   %27 = load double*, double** %26, align 8
   %28 = getelementptr double, double* %27, i64 %24
   %29 = load double, double* %28, align 8
-  %30 = inttoptr i64 %17 to double*
-  %31 = getelementptr double, double* %30, i64 2
+  %30 = getelementptr i8, i8* %16, i64 16
+  %31 = bitcast i8* %30 to double*
   %32 = load double, double* %31, align 8
   %33 = fmul double %29, %32
-  %34 = fadd double %18, %33
-  %35 = add i64 %17, 24, !asm.reg.rdi !0
-  %36 = add i64 %16, 1, !asm.reg.rax !0
+  %34 = fadd double %17, %33
+  %35 = getelementptr i8, i8* %16, i64 24
+  %36 = add i64 %15, 1, !asm.reg.rax !0
   %37 = icmp eq i64 %36, %6
-  br i1 %37, label %12, label %15
+  br i1 %37, label %11, label %14
 
 ; <label>:38                                      ; preds = %4
   ret i64 0
