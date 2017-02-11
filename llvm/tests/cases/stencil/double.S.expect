@@ -6,7 +6,7 @@ define i64 @test(i8* noalias, i8* noalias nocapture readonly, i64, i64) #0 {
   %5 = bitcast i8* %0 to i64*
   %6 = load i64, i64* %5, align 8, !asm.reg.r10 !0
   %7 = icmp eq i64 %6, 0, !asm.flag.zf !0
-  br i1 %7, label %42, label %8
+  br i1 %7, label %38, label %8
 
 ; <label>:8                                       ; preds = %4
   %9 = ptrtoint i8* %0 to i64, !asm.reg.rdi !0
@@ -15,14 +15,14 @@ define i64 @test(i8* noalias, i8* noalias nocapture readonly, i64, i64) #0 {
   br label %15
 
 ; <label>:12                                      ; preds = %15
-  %13 = phi i128 [ %38, %15 ]
-  %14 = trunc i128 %13 to i64, !asm.reg.rax !0
+  %13 = phi double [ %34, %15 ]
+  %14 = bitcast double %13 to i64
   ret i64 %14
 
 ; <label>:15                                      ; preds = %15, %8
-  %16 = phi i64 [ 0, %8 ], [ %40, %15 ]
-  %17 = phi i64 [ %10, %8 ], [ %39, %15 ]
-  %18 = phi i128 [ 0, %8 ], [ %38, %15 ]
+  %16 = phi i64 [ 0, %8 ], [ %36, %15 ]
+  %17 = phi i64 [ %10, %8 ], [ %35, %15 ]
+  %18 = phi double [ 0.000000e+00, %8 ], [ %34, %15 ]
   %19 = inttoptr i64 %17 to i64*
   %20 = getelementptr i64, i64* %19, i64 1
   %21 = load i64, i64* %20, align 8
@@ -38,17 +38,13 @@ define i64 @test(i8* noalias, i8* noalias nocapture readonly, i64, i64) #0 {
   %31 = getelementptr double, double* %30, i64 2
   %32 = load double, double* %31, align 8
   %33 = fmul double %29, %32
-  %34 = bitcast i128 %18 to <2 x double>
-  %35 = extractelement <2 x double> %34, i32 0
-  %36 = fadd double %35, %33
-  %37 = insertelement <2 x double> %34, double %36, i64 0
-  %38 = bitcast <2 x double> %37 to i128, !asm.reg.xmm0 !0
-  %39 = add i64 %17, 24, !asm.reg.rdi !0
-  %40 = add i64 %16, 1, !asm.reg.rax !0
-  %41 = icmp eq i64 %40, %6
-  br i1 %41, label %12, label %15
+  %34 = fadd double %18, %33
+  %35 = add i64 %17, 24, !asm.reg.rdi !0
+  %36 = add i64 %16, 1, !asm.reg.rax !0
+  %37 = icmp eq i64 %36, %6
+  br i1 %37, label %12, label %15
 
-; <label>:42                                      ; preds = %4
+; <label>:38                                      ; preds = %4
   ret i64 0
 }
 

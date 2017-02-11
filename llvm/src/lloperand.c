@@ -87,6 +87,54 @@ ll_operand_get_type_length(OperandDataType dataType, Operand* operand)
     return bits;
 }
 
+static RegisterFacet
+ll_operand_get_facet(OperandDataType dataType, Operand* operand)
+{
+    int bits = opTypeWidth(operand);
+    switch (dataType)
+    {
+        case OP_SI:
+            if (bits == 8)
+            {
+                if (operand->reg.rt == RT_GP8Leg && operand->reg.ri >= RI_AH && operand->reg.ri < RI_R8L)
+                    return FACET_I8H;
+                return FACET_I8;
+            }
+            if (bits == 16) return FACET_I16;
+            if (bits == 32) return FACET_I32;
+            if (bits == 64) return FACET_I64;
+            warn_if_reached();
+            break;
+        case OP_VI8:
+            if (bits == 128) return FACET_V16I8;
+            warn_if_reached();
+            break;
+        case OP_VI32:
+            if (bits == 128) return FACET_V4I32;
+            warn_if_reached();
+            break;
+        case OP_VI64:
+            if (bits == 128) return FACET_V2I64;
+            warn_if_reached();
+            break;
+        case OP_VF32:
+            if (bits == 64) return FACET_V2F32;
+            if (bits == 128) return FACET_V4F32;
+            warn_if_reached();
+            break;
+        case OP_VF64:
+            if (bits == 128) return FACET_V2F64;
+            warn_if_reached();
+            break;
+        case OP_SF32: return FACET_F32;
+        case OP_SF64: return FACET_F64;
+        default:
+            warn_if_reached();
+    }
+
+    return INT32_MAX;
+}
+
 /**
  * Infer the LLVM type from the requested data type and the number of bits.
  *
@@ -153,74 +201,6 @@ ll_operand_get_type(OperandDataType dataType, int bits, LLState* state)
     return type;
 }
 
-/**
- * Cast a value from an integer type to the appropriate LLVM type. See
- * #ll_operand_get_type for the type inference.
- *
- * \private
- *
- * \author Alexis Engelke
- *
- * \param value The value to cast
- * \param dataType The data type
- * \param operand The register operand
- * \param state The module state
- * \returns The casted value to an appropriate type
- **/
-static LLVMValueRef
-ll_cast_from_int(LLVMValueRef value, OperandDataType dataType, Operand* operand, LLState* state)
-{
-    int bits = ll_operand_get_type_length(dataType, operand);
-    LLVMValueRef result;
-    LLVMTypeRef target = ll_operand_get_type(dataType, bits, state);
-    LLVMTypeKind targetKind = LLVMGetTypeKind(target);
-    LLVMTypeRef i32 = LLVMInt32TypeInContext(state->context);
-
-    int valueLength = LLVMGetIntTypeWidth(LLVMTypeOf(value));
-
-    if (targetKind == LLVMVectorTypeKind)
-    {
-        int targetSize = LLVMGetVectorSize(target);
-        int totalCount = targetSize * valueLength / bits;
-
-        LLVMTypeRef elementType = LLVMGetElementType(target);
-        LLVMTypeRef vectorType = LLVMVectorType(elementType, totalCount);
-        LLVMValueRef vector = LLVMBuildBitCast(state->builder, value, vectorType, "");
-
-        if (totalCount > targetSize)
-        {
-            LLVMValueRef maskElements[targetSize];
-            for (int i = 0; i < targetSize; i++)
-                maskElements[i] = LLVMConstInt(i32, i, false);
-
-            LLVMValueRef mask = LLVMConstVector(maskElements, targetSize);
-            result = LLVMBuildShuffleVector(state->builder, vector, LLVMGetUndef(vectorType), mask, "");
-        }
-        else
-            result = vector;
-    }
-    else
-    {
-        // This is specific to x86-64: All floating-point registers we use are
-        // vector registers.
-        if (targetKind != LLVMIntegerTypeKind)
-        {
-            LLVMTypeRef vectorType = LLVMVectorType(target, valueLength / bits);
-            LLVMValueRef vector = LLVMBuildBitCast(state->builder, value, vectorType, "");
-
-            result = LLVMBuildExtractElement(state->builder, vector, LLVMConstInt(i32, 0, false), "");
-        }
-        else
-        {
-            if (operand->reg.rt == RT_GP8Leg && operand->reg.ri >= RI_AH && operand->reg.ri < RI_R8L)
-                value = LLVMBuildLShr(state->builder, value, LLVMConstInt(LLVMTypeOf(value), 8, false), "");
-
-            result = LLVMBuildTruncOrBitCast(state->builder, value, target, "");
-        }
-    }
-
-    return result;
-}
 /**
  * Cast a value to an integer type to store it in the register file.
  *
@@ -531,16 +511,7 @@ ll_operand_load(OperandDataType dataType, Alignment alignment, Operand* operand,
         case OT_Reg128:
         case OT_Reg256:
         case OT_Reg512:
-            {
-                LLVMValueRef reg;
-
-                if (regIsGP(operand->reg))
-                    reg = ll_get_register(operand->reg, FACET_I64, state);
-                else
-                    reg = ll_get_register(operand->reg, FACET_IVEC, state);
-
-                result = ll_cast_from_int(reg, dataType, operand, state);
-            }
+            result = ll_get_register(operand->reg, ll_operand_get_facet(dataType, operand), state);
             break;
         case OT_Ind8:
         case OT_Ind16:

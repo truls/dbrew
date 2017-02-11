@@ -165,12 +165,20 @@ ll_register_facet_type(RegisterFacet facet, LLState* state)
         case FACET_F32: return f32;
         case FACET_F64: return f64;
         case FACET_V16I8: return LLVMVectorType(i8, 16);
+        case FACET_V32I8: return LLVMVectorType(i8, 32);
         case FACET_V8I16: return LLVMVectorType(i16, 8);
+        case FACET_V16I16: return LLVMVectorType(i16, 16);
         case FACET_V4I32: return LLVMVectorType(i32, 4);
+        case FACET_V8I32: return LLVMVectorType(i32, 8);
         case FACET_V2I64: return LLVMVectorType(i64, 2);
+        case FACET_V4I64: return LLVMVectorType(i64, 4);
+        case FACET_V2F32: return LLVMVectorType(f32, 2);
         case FACET_V4F32: return LLVMVectorType(f32, 4);
+        case FACET_V8F32: return LLVMVectorType(f32, 8);
         case FACET_V2F64: return LLVMVectorType(f64, 2);
+        case FACET_V4F64: return LLVMVectorType(f64, 4);
         case FACET_PTR: return LLVMPointerType(LLVMInt8TypeInContext(state->context), 0);
+        case FACET_COUNT:
         default:
             warn_if_reached();
     }
@@ -652,11 +660,12 @@ LLVMValueRef
 ll_basic_block_get_register(LLBasicBlock* bb, RegisterFacet facet, Reg reg, LLState* state)
 {
     LLRegister* regFileEntry = ll_basic_block_get_register_ptr(bb, reg);
+    LLVMTypeRef facetType = ll_register_facet_type(facet, state);
     LLVMValueRef value = regFileEntry->facets[facet];
 
     if (value != NULL)
     {
-        if (LLVMTypeOf(value) != ll_register_facet_type(facet, state))
+        if (LLVMTypeOf(value) != facetType)
             warn_if_reached();
 
         return value;
@@ -667,12 +676,10 @@ ll_basic_block_get_register(LLBasicBlock* bb, RegisterFacet facet, Reg reg, LLSt
         LLVMPositionBuilderBefore(state->builder, terminator);
 
     LLVMTypeRef i8 = LLVMInt8TypeInContext(state->context);
-    LLVMTypeRef i16 = LLVMInt16TypeInContext(state->context);
     LLVMTypeRef i32 = LLVMInt32TypeInContext(state->context);
-    LLVMTypeRef i64 = LLVMInt64TypeInContext(state->context);
     LLVMTypeRef pi8 = LLVMPointerType(i8, 0);
 
-    if (regIsGP(reg))
+    if (regIsGP(reg) || reg.rt == RT_IP)
     {
         LLVMValueRef native = regFileEntry->facets[FACET_I64];
 
@@ -682,23 +689,20 @@ ll_basic_block_get_register(LLBasicBlock* bb, RegisterFacet facet, Reg reg, LLSt
                 value = LLVMBuildIntToPtr(state->builder, native, pi8, "");
                 break;
             case FACET_I8:
-                value = LLVMBuildTrunc(state->builder, native, i8, "");
+            case FACET_I16:
+            case FACET_I32:
+                value = LLVMBuildTrunc(state->builder, native, facetType, "");
                 break;
             case FACET_I8H:
                 value = LLVMBuildLShr(state->builder, native, LLVMConstInt(LLVMTypeOf(native), 8, false), "");
                 value = LLVMBuildTrunc(state->builder, value, i8, "");
-                break;
-            case FACET_I16:
-                value = LLVMBuildTrunc(state->builder, native, i16, "");
-                break;
-            case FACET_I32:
-                value = LLVMBuildTrunc(state->builder, native, i32, "");
                 break;
             case FACET_I64:
             case FACET_I128:
             case FACET_I256:
             case FACET_F32:
             case FACET_F64:
+            case FACET_V2F32:
             case FACET_V16I8:
             case FACET_V8I16:
             case FACET_V4I32:
@@ -716,18 +720,90 @@ ll_basic_block_get_register(LLBasicBlock* bb, RegisterFacet facet, Reg reg, LLSt
                 value = LLVMGetUndef(ll_register_facet_type(facet, state));
         }
     }
-    else
+    else if (regIsV(reg))
     {
-        LLVMValueRef native = regFileEntry->facets[FACET_IVEC];
+        int targetBits = 0;
 
         switch (facet)
         {
+            case FACET_I8:
+                value = ll_basic_block_get_register(bb, FACET_VI8, reg, state);
+                value = LLVMBuildExtractElement(state->builder, value, LLVMConstInt(i32, 0, false), "");
+                break;
+            case FACET_I16:
+                value = ll_basic_block_get_register(bb, FACET_VI16, reg, state);
+                value = LLVMBuildExtractElement(state->builder, value, LLVMConstInt(i32, 0, false), "");
+                break;
+            case FACET_I32:
+                value = ll_basic_block_get_register(bb, FACET_VI32, reg, state);
+                value = LLVMBuildExtractElement(state->builder, value, LLVMConstInt(i32, 0, false), "");
+                break;
+            case FACET_I64:
+                value = ll_basic_block_get_register(bb, FACET_VI64, reg, state);
+                value = LLVMBuildExtractElement(state->builder, value, LLVMConstInt(i32, 0, false), "");
+                break;
+            case FACET_F32:
+                value = ll_basic_block_get_register(bb, FACET_VF32, reg, state);
+                value = LLVMBuildExtractElement(state->builder, value, LLVMConstInt(i32, 0, false), "");
+                break;
+            case FACET_F64:
+                value = ll_basic_block_get_register(bb, FACET_VF64, reg, state);
+                value = LLVMBuildExtractElement(state->builder, value, LLVMConstInt(i32, 0, false), "");
+                break;
+            case FACET_V2F32:
+                targetBits = 64;
+                break;
+            case FACET_V16I8:
+            case FACET_V8I16:
+            case FACET_V4I32:
+            case FACET_V2I64:
+            case FACET_V4F32:
+            case FACET_V2F64:
+                targetBits = 128;
+                break;
+            case FACET_V32I8:
+            case FACET_V16I16:
+            case FACET_V8I32:
+            case FACET_V4I64:
+            case FACET_V8F32:
+            case FACET_V4F64:
+                targetBits = 256;
+                break;
+            case FACET_PTR:
+            case FACET_I8H:
+            case FACET_I128:
+            case FACET_I256:
+            case FACET_COUNT:
             default:
                 value = LLVMGetUndef(ll_register_facet_type(facet, state));
         }
+
+        // Its a vector.
+        if (value == NULL)
+        {
+            LLVMValueRef native = regFileEntry->facets[FACET_IVEC];
+
+            int targetCount = LLVMGetVectorSize(facetType);
+            int nativeCount = targetCount * LLVMGetIntTypeWidth(LLVMTypeOf(native)) / targetBits;
+
+            LLVMTypeRef elementType = LLVMGetElementType(facetType);
+            LLVMTypeRef nativeVectorType = LLVMVectorType(elementType, nativeCount);
+
+            value = LLVMBuildBitCast(state->builder, native, nativeVectorType, "");
+
+            if (nativeCount > targetCount)
+            {
+                LLVMValueRef maskElements[targetCount];
+                for (int i = 0; i < targetCount; i++)
+                    maskElements[i] = LLVMConstInt(i32, i, false);
+
+                LLVMValueRef mask = LLVMConstVector(maskElements, targetCount);
+                value = LLVMBuildShuffleVector(state->builder, value, LLVMGetUndef(nativeVectorType), mask, "");
+            }
+        }
     }
 
-    if (value == NULL)
+    if (value == NULL || LLVMTypeOf(value) != facetType)
         warn_if_reached();
 
     regFileEntry->facets[facet] = value;
