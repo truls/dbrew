@@ -276,9 +276,9 @@ ll_function_new_definition(uintptr_t address, LLConfig* config, LLState* state)
         else if (paramTypeKind == LLVMIntegerTypeKind)
             ll_operand_store(OP_SI, ALIGN_MAXIMUM, getRegOp(gpRegs[gpRegOffset++]), REG_DEFAULT, params, state);
         else if (paramTypeKind == LLVMFloatTypeKind)
-            ll_operand_store(OP_SF32, ALIGN_MAXIMUM, getRegOp(getReg(RT_XMM, RI_XMM0 + (fpRegOffset++))), REG_ZERO_UPPER, params, state);
+            ll_operand_store(OP_SF32, ALIGN_MAXIMUM, getRegOp(getReg(RT_XMM, RI_XMM0 + (fpRegOffset++))), REG_ZERO_UPPER_SSE, params, state);
         else if (paramTypeKind == LLVMDoubleTypeKind)
-            ll_operand_store(OP_SF64, ALIGN_MAXIMUM, getRegOp(getReg(RT_XMM, RI_XMM0 + (fpRegOffset++))), REG_ZERO_UPPER, params, state);
+            ll_operand_store(OP_SF64, ALIGN_MAXIMUM, getRegOp(getReg(RT_XMM, RI_XMM0 + (fpRegOffset++))), REG_ZERO_UPPER_SSE, params, state);
         else
             warn_if_reached();
 

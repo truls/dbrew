@@ -262,20 +262,30 @@ ll_cast_to_int(LLVMValueRef value, OperandDataType dataType, Operand* operand, P
         if (operand->reg.rt == RT_GP8Leg)
             ll_set_register(operand->reg, FACET_I8H, value, false, state);
     }
-    else if (zeroHandling == REG_ZERO_UPPER || zeroHandling == REG_KEEP_UPPER)
+    else
     {
         if (!opIsVReg(operand))
             warn_if_reached();
 
         LLVMTypeRef iVec = LLVMIntTypeInContext(state->context, LL_VECTOR_REGISTER_SIZE);
+        LLVMTypeRef i128 = LLVMIntTypeInContext(state->context, 128);
+
         LLVMValueRef current = ll_get_register(operand->reg, FACET_IVEC, state);
-        if (zeroHandling == REG_ZERO_UPPER)
+        if (zeroHandling == REG_ZERO_UPPER_AVX)
+        {
             current = LLVMConstNull(iVec);
+        }
+        else if (zeroHandling == REG_ZERO_UPPER_SSE)
+        {
+            // Ehem, we have to construct the mask first.
+            // It is all-ones with the lowest 128-bit being zero.
+            LLVMValueRef mask = LLVMConstNot(LLVMConstZExtOrBitCast(LLVMConstAllOnes(i128), iVec));
+            current = LLVMBuildAnd(state->builder, current, mask, "");
+        }
 
 #if LL_VECTOR_REGISTER_SIZE >= 256
-        LLVMTypeRef i128 = LLVMIntTypeInContext(state->context, 128);
         LLVMValueRef current128 = ll_get_register(operand->reg, FACET_I128, state);
-        if (zeroHandling == REG_ZERO_UPPER)
+        if (zeroHandling == REG_ZERO_UPPER_AVX || zeroHandling == REG_ZERO_UPPER_SSE)
             current128 = LLVMConstNull(i128);
 #endif
 
@@ -338,8 +348,6 @@ ll_cast_to_int(LLVMValueRef value, OperandDataType dataType, Operand* operand, P
 #endif
         }
     }
-    else
-        warn_if_reached();
 
     return result;
 }

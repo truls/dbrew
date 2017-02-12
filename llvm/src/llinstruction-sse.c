@@ -51,7 +51,7 @@ ll_instruction_movq(Instr* instr, LLState* state)
 {
     LLVMValueRef operand1 = ll_operand_load(OP_SI, ALIGN_MAXIMUM, &instr->src, state);
     if (opIsVReg(&instr->dst))
-        ll_operand_store(OP_SI, ALIGN_MAXIMUM, &instr->dst, REG_ZERO_UPPER, operand1, state);
+        ll_operand_store(OP_SI, ALIGN_MAXIMUM, &instr->dst, REG_ZERO_UPPER_SSE, operand1, state);
     else
         ll_operand_store(OP_SI, ALIGN_MAXIMUM, &instr->dst, REG_DEFAULT, operand1, state);
 }
@@ -63,7 +63,7 @@ ll_instruction_movs(Instr* instr, LLState* state)
     LLVMValueRef operand1 = ll_operand_load(type, ALIGN_MAXIMUM, &instr->src, state);
 
     if (opIsInd(&instr->src))
-        ll_operand_store(type, ALIGN_MAXIMUM, &instr->dst, REG_ZERO_UPPER, operand1, state);
+        ll_operand_store(type, ALIGN_MAXIMUM, &instr->dst, REG_ZERO_UPPER_SSE, operand1, state);
     else
         ll_operand_store(type, ALIGN_MAXIMUM, &instr->dst, REG_KEEP_UPPER, operand1, state);
 }

@@ -119,9 +119,13 @@ enum PartialRegisterHandling {
      **/
     REG_DEFAULT,
     /**
-     * \brief Zero the unused half.
+     * \brief Zero the unused half of the SSE register.
      **/
-    REG_ZERO_UPPER,
+    REG_ZERO_UPPER_SSE,
+    /**
+     * \brief Zero the unused half of the full SSE/AVX register.
+     **/
+    REG_ZERO_UPPER_AVX,
     /**
      * \brief Keep the unused half. This might produce less optimizable code.
      **/
