@@ -49,11 +49,13 @@
 void
 ll_instruction_movq(Instr* instr, LLState* state)
 {
-    LLVMValueRef operand1 = ll_operand_load(OP_SI, ALIGN_MAXIMUM, &instr->src, state);
+    OperandDataType type = instr->type == IT_MOVQ ? OP_SI64 : OP_SI32;
+    LLVMValueRef operand1 = ll_operand_load(type, ALIGN_MAXIMUM, &instr->src, state);
+
     if (opIsVReg(&instr->dst))
-        ll_operand_store(OP_SI, ALIGN_MAXIMUM, &instr->dst, REG_ZERO_UPPER_SSE, operand1, state);
+        ll_operand_store(type, ALIGN_MAXIMUM, &instr->dst, REG_ZERO_UPPER_SSE, operand1, state);
     else
-        ll_operand_store(OP_SI, ALIGN_MAXIMUM, &instr->dst, REG_DEFAULT, operand1, state);
+        ll_operand_store(type, ALIGN_MAXIMUM, &instr->dst, REG_DEFAULT, operand1, state);
 }
 
 void
@@ -91,6 +93,11 @@ void
 ll_instruction_movlp(Instr* instr, LLState* state)
 {
     OperandDataType type = instr->type == IT_MOVLPS ? OP_VF32 : OP_SF64;
+
+    // XXX: Hack for XED. Should use OP_V2F32.
+    if (opIsVReg(&instr->src))
+        instr->src.type = OT_Reg64;
+
     LLVMValueRef operand1 = ll_operand_load(type, ALIGN_MAXIMUM, &instr->src, state);
     ll_operand_store(type, ALIGN_MAXIMUM, &instr->dst, REG_KEEP_UPPER, operand1, state);
 }
@@ -102,6 +109,13 @@ ll_instruction_movhps(Instr* instr, LLState* state)
 
     if (opIsVReg(&instr->dst))
     {
+        // XXX: Hack for XED. Even though only 64 bits are written, they are in
+        // the upper half of the register.
+        opOverwriteType(&instr->dst, VT_128);
+
+        // XXX: Hack to make life more simple...
+        opOverwriteType(&instr->src, VT_128);
+
         LLVMValueRef maskElements[4];
         maskElements[0] = LLVMConstInt(i32, 0, false);
         maskElements[1] = LLVMConstInt(i32, 1, false);
@@ -116,7 +130,7 @@ ll_instruction_movhps(Instr* instr, LLState* state)
     }
     else
     {
-        // Hack to ensure that the destination receives a <2 x float>.
+        // XXX: Hack for DBrew. Ensure that the destination receives <2 x float>.
         opOverwriteType(&instr->dst, VT_64);
 
         LLVMValueRef maskElements[2];
@@ -137,6 +151,10 @@ ll_instruction_movhpd(Instr* instr, LLState* state)
 
     if (opIsVReg(&instr->dst))
     {
+        // XXX: Hack for XED. Even though only 64 bits are written, they are in
+        // the upper half of the register.
+        opOverwriteType(&instr->dst, VT_128);
+
         LLVMValueRef operand1 = ll_operand_load(OP_VF64, ALIGN_MAXIMUM, &instr->dst, state);
         LLVMValueRef operand2 = ll_operand_load(OP_SF64, ALIGN_MAXIMUM, &instr->src, state);
         LLVMValueRef result = LLVMBuildInsertElement(state->builder, operand1, operand2, LLVMConstInt(i32, 1, false), "");
@@ -144,6 +162,10 @@ ll_instruction_movhpd(Instr* instr, LLState* state)
     }
     else
     {
+        // XXX: Hack for XED. Even though only 64 bits are written, they are in
+        // the upper half of the register.
+        opOverwriteType(&instr->src, VT_128);
+
         LLVMValueRef operand1 = ll_operand_load(OP_VF64, ALIGN_MAXIMUM, &instr->src, state);
         LLVMValueRef result = LLVMBuildExtractElement(state->builder, operand1, LLVMConstInt(i32, 1, false), "");
         ll_operand_store(OP_SF64, ALIGN_MAXIMUM, &instr->dst, REG_KEEP_UPPER, result, state);
@@ -158,6 +180,10 @@ ll_instruction_unpckl(Instr* instr, LLState* state)
 
     LLVMValueRef maskElements[4];
     LLVMValueRef mask;
+
+    // XXX: Hack. Actually, we are doing it wrong by loading 128-bits from
+    // memory instead of 64. However, this makes life much more simple...
+    opOverwriteType(&instr->src, VT_128);
 
     if (instr->type == IT_UNPCKLPS)
     {

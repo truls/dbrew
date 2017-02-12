@@ -69,9 +69,11 @@ ll_operand_get_type_length(OperandDataType dataType, Operand* operand)
         case OP_VF64:
             bits = opTypeWidth(operand);
             break;
+        case OP_SI32:
         case OP_SF32:
             bits = 32;
             break;
+        case OP_SI64:
         case OP_SF64:
             bits = 64;
             break;
@@ -102,6 +104,8 @@ ll_operand_get_facet(OperandDataType dataType, Operand* operand)
             if (bits == 64) return FACET_I64;
             warn_if_reached();
             break;
+        case OP_SI32: return FACET_I32;
+        case OP_SI64: return FACET_I64;
         case OP_VI8:
             if (bits == 128) return FACET_V16I8;
             warn_if_reached();
@@ -153,6 +157,12 @@ ll_operand_get_type(OperandDataType dataType, int bits, LLState* state)
     {
         case OP_SI:
             type = LLVMIntTypeInContext(state->context, bits);
+            break;
+        case OP_SI32:
+            type = LLVMInt32TypeInContext(state->context);
+            break;
+        case OP_SI64:
+            type = LLVMInt64TypeInContext(state->context);
             break;
         case OP_VI8:
             if (bits % 8 == 0)
