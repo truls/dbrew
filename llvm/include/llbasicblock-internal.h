@@ -113,15 +113,17 @@ enum RegisterFacet {
     FACET_V2I64,
     FACET_V4F32,
     FACET_V2F64,
-    FACET_COUNT,
 
+#if LL_VECTOR_REGISTER_SIZE >= 256
     FACET_V32I8,
     FACET_V16I16,
     FACET_V8I32,
     FACET_V4I64,
     FACET_V8F32,
     FACET_V4F64,
+#endif
 
+    FACET_COUNT,
 };
 
 #if LL_VECTOR_REGISTER_SIZE == 128
@@ -140,7 +142,6 @@ enum RegisterFacet {
 #define FACET_VI64 FACET_V4I64
 #define FACET_VF32 FACET_V8F32
 #define FACET_VF64 FACET_V4F64
-#error
 #endif
 
 typedef enum RegisterFacet RegisterFacet;
@@ -162,6 +163,8 @@ void ll_basic_block_fill_phis(LLBasicBlock*, LLState*);
 #define ll_get_flag(reg,state) ll_basic_block_get_flag(state->currentBB,reg)
 #define ll_set_flag(reg,value,state) ll_basic_block_set_flag(state->currentBB,reg,value)
 #define ll_get_flag_cache(state) ll_basic_block_get_flag_cache(state->currentBB)
+
+LLVMTypeRef ll_register_facet_type(RegisterFacet, LLState*);
 
 LLVMValueRef ll_basic_block_get_register(LLBasicBlock*, RegisterFacet, Reg, LLState*);
 void ll_basic_block_clear_register(LLBasicBlock*, Reg, LLState*);
