@@ -79,6 +79,15 @@ ll_instruction_movp(Instr* instr, LLState* state)
 }
 
 void
+ll_instruction_movdq(Instr* instr, LLState* state)
+{
+    Alignment alignment = instr->type == IT_MOVDQA ? ALIGN_MAXIMUM : ALIGN_8;
+
+    LLVMValueRef operand1 = ll_operand_load(OP_VI64, alignment, &instr->src, state);
+    ll_operand_store(OP_VI64, alignment, &instr->dst, REG_KEEP_UPPER, operand1, state);
+}
+
+void
 ll_instruction_movlp(Instr* instr, LLState* state)
 {
     OperandDataType type = instr->type == IT_MOVLPS ? OP_VF32 : OP_SF64;

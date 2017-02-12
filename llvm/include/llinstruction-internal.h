@@ -54,6 +54,7 @@ void ll_instruction_stack(Instr*, LLState*);
 void ll_instruction_movq(Instr* instr, LLState* state);
 void ll_instruction_movs(Instr* instr, LLState* state);
 void ll_instruction_movp(Instr* instr, LLState* state);
+void ll_instruction_movdq(Instr* instr, LLState* state);
 void ll_instruction_movlp(Instr* instr, LLState* state);
 void ll_instruction_movhps(Instr* instr, LLState* state);
 void ll_instruction_movhpd(Instr* instr, LLState* state);
