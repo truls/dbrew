@@ -38,9 +38,12 @@
 LLVMValueRef ll_flags_condition(InstrType, InstrType, LLState*);
 void ll_flags_set_sub(LLVMValueRef, LLVMValueRef, LLVMValueRef, LLState*);
 void ll_flags_set_add(LLVMValueRef, LLVMValueRef, LLVMValueRef, LLState*);
-void ll_flags_set_bit(LLVMValueRef, LLState*);
+void ll_flags_set_bit(LLState*, LLVMValueRef, LLVMValueRef, LLVMValueRef);
 void ll_flags_set_inc(LLVMValueRef, LLVMValueRef, LLState*);
 void ll_flags_set_dec(LLVMValueRef, LLVMValueRef, LLState*);
+void ll_flags_set_shl(LLState*, LLVMValueRef, LLVMValueRef, LLVMValueRef);
+void ll_flags_set_shr(LLState*, LLVMValueRef, LLVMValueRef, LLVMValueRef);
+void ll_flags_set_sar(LLState*, LLVMValueRef, LLVMValueRef, LLVMValueRef);
 void ll_flags_invalidate(LLState*);
 
 #endif

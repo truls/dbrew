@@ -33,6 +33,31 @@
 #include <llcommon.h>
 #include <llcommon-internal.h>
 
+void ll_instruction_movgp(Instr*, LLState*);
+void ll_instruction_add(Instr*, LLState*);
+void ll_instruction_sub(Instr*, LLState*);
+void ll_instruction_cmp(Instr*, LLState*);
+void ll_instruction_test(Instr*, LLState*);
+void ll_instruction_notneg(Instr*, LLState*);
+void ll_instruction_incdec(Instr*, LLState*);
+void ll_instruction_imul(Instr*, LLState*);
+void ll_instruction_lea(Instr*, LLState*);
+void ll_instruction_cmov(Instr*, LLState*);
+void ll_instruction_setcc(Instr*, LLState*);
+void ll_instruction_cdqe(Instr*, LLState*);
+
+void ll_instruction_call(Instr*, LLState*);
+void ll_instruction_ret(Instr*, LLState*);
+
+void ll_instruction_stack(Instr*, LLState*);
+
+void ll_instruction_movq(Instr* instr, LLState* state);
+void ll_instruction_movs(Instr* instr, LLState* state);
+void ll_instruction_movp(Instr* instr, LLState* state);
+void ll_instruction_movlp(Instr* instr, LLState* state);
+void ll_instruction_movhps(Instr* instr, LLState* state);
+void ll_instruction_movhpd(Instr* instr, LLState* state);
+void ll_instruction_unpckl(Instr* instr, LLState* state);
 
 void ll_generate_instruction(Instr*, LLState*);
 

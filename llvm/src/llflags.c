@@ -407,7 +407,7 @@ ll_flags_set_add(LLVMValueRef result, LLVMValueRef lhs, LLVMValueRef rhs, LLStat
  * \param state The module state
  **/
 void
-ll_flags_set_bit(LLVMValueRef result, LLState* state)
+ll_flags_set_bit(LLState* state, LLVMValueRef result, LLVMValueRef lhs, LLVMValueRef rhs)
 {
     LLVMTypeRef i1 = LLVMInt1TypeInContext(state->context);
 
@@ -421,6 +421,9 @@ ll_flags_set_bit(LLVMValueRef result, LLState* state)
 
     LLFlagCache* flagCache = ll_get_flag_cache(state);
     flagCache->valid = false;
+
+    (void) lhs;
+    (void) rhs;
 }
 
 /**
@@ -473,6 +476,39 @@ ll_flags_set_dec(LLVMValueRef result, LLVMValueRef lhs, LLState* state)
 
     LLFlagCache* flagCache = ll_get_flag_cache(state);
     flagCache->valid = false;
+}
+
+void
+ll_flags_set_shl(LLState* state, LLVMValueRef result, LLVMValueRef lhs, LLVMValueRef rhs)
+{
+    // TODO
+    ll_flags_invalidate(state);
+
+    (void) result;
+    (void) lhs;
+    (void) rhs;
+}
+
+void
+ll_flags_set_shr(LLState* state, LLVMValueRef result, LLVMValueRef lhs, LLVMValueRef rhs)
+{
+    // TODO
+    ll_flags_invalidate(state);
+
+    (void) result;
+    (void) lhs;
+    (void) rhs;
+}
+
+void
+ll_flags_set_sar(LLState* state, LLVMValueRef result, LLVMValueRef lhs, LLVMValueRef rhs)
+{
+    // TODO
+    ll_flags_invalidate(state);
+
+    (void) result;
+    (void) lhs;
+    (void) rhs;
 }
 
 /**
