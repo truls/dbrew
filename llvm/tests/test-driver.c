@@ -123,7 +123,7 @@ test_dbrew_binding(bool debug)
         };
 
         LLState* state = ll_engine_init();
-        ll_decode_function(dbrew, fn, &config, state);
+        ll_decode_function(fn, (DecodeFunc) dbrew_decode, dbrew, &config, state);
     }
 
     return 0;
@@ -156,7 +156,7 @@ test_llvm_generation(bool debug)
     LLState* state = ll_engine_init();
 
     ll_function_declare((uintptr_t) &test_add, 0221, "test_add", state);
-    LLFunction* function = ll_decode_function(dbrewDecoder, (uintptr_t) testCase.function, &config, state);
+    LLFunction* function = ll_decode_function((uintptr_t) testCase.function, (DecodeFunc) dbrew_decode, dbrewDecoder, &config, state);
 
     if (function != NULL)
     {
@@ -179,7 +179,7 @@ test_llvm_generation(bool debug)
         {
             // DBrew cannot decode the vectorized LLVM generated code :/
             ll_engine_disassemble(state);
-            ll_decode_function(dbrewDecoder, (uintptr_t) fn, &config, state);
+            ll_decode_function((uintptr_t) fn, (DecodeFunc) dbrew_decode, dbrewDecoder, &config, state);
         }
 
         testRoutine(fn);

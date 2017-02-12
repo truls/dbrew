@@ -329,12 +329,12 @@ benchmark_run2(bool isFirst, const BenchmarkArgs* args, const BenchmarkStencilCo
             break;
 
         case BENCHMARK_LLVM:
-            llfn = ll_decode_function(r, baseFunction, &llconfig, state);
+            llfn = ll_decode_function(baseFunction, (DecodeFunc) dbrew_decode, r, &llconfig, state);
             assert(llfn != NULL);
             break;
 
         case BENCHMARK_LLVM_FIXED:
-            llfn = ll_decode_function(r, baseFunction, &llconfig, state);
+            llfn = ll_decode_function(baseFunction, (DecodeFunc) dbrew_decode, r, &llconfig, state);
             assert(llfn != NULL);
 
             if (arg0 != NULL)
@@ -344,7 +344,7 @@ benchmark_run2(bool isFirst, const BenchmarkArgs* args, const BenchmarkStencilCo
         case BENCHMARK_DBREW_LLVM_TWICE:
             processedFunction = dbrew_llvm_rewrite(r, arg0, arg1, arg2, 20, config->kernelfn);
 
-            llfn = ll_decode_function(r, processedFunction, &llconfig, state);
+            llfn = ll_decode_function(processedFunction, (DecodeFunc) dbrew_decode, r, &llconfig, state);
             assert(llfn != NULL);
             break;
 
@@ -375,7 +375,7 @@ benchmark_run2(bool isFirst, const BenchmarkArgs* args, const BenchmarkStencilCo
 
         // Print out decoded assembly.
         dbrew_verbose(r, true, false, false);
-        ll_decode_function(r, (uintptr_t) processedFunction, &llconfig, state);
+        ll_decode_function((uintptr_t) processedFunction, (DecodeFunc) dbrew_decode, r, &llconfig, state);
 
         JTimerCont(&timerTotal);
     }

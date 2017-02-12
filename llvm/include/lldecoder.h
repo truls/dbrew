@@ -34,6 +34,8 @@
 #include <llfunction.h>
 
 
-LLFunction* ll_decode_function(Rewriter*, uintptr_t, LLConfig*, LLState*);
+typedef DBB* (*DecodeFunc)(void*, uintptr_t);
+
+LLFunction* ll_decode_function(uintptr_t, DecodeFunc, void*, LLConfig*, LLState*);
 
 #endif

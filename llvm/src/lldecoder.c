@@ -61,7 +61,7 @@
  * \returns The decoded basic block, which is ready-to-use
  **/
 static LLBasicBlock*
-ll_decode_basic_block_naive(Rewriter* dbrewDecoder, uintptr_t address, LLState* state)
+ll_decode_basic_block_naive(uintptr_t address, DecodeFunc decodeFunc, void* userArg, LLState* state)
 {
     for (size_t i = 0; i < state->currentFunction->u.definition.bbCount; i++)
     {
@@ -72,7 +72,7 @@ ll_decode_basic_block_naive(Rewriter* dbrewDecoder, uintptr_t address, LLState* 
             return otherBB;
     }
 
-    DBB* dbb = dbrew_decode(dbrewDecoder, address);
+    DBB* dbb = decodeFunc(userArg, address);
 
     LLBasicBlock* bb = ll_basic_block_new_from_dbb(dbb);
     ll_function_add_basic_block(state->currentFunction, bb);
@@ -84,10 +84,10 @@ ll_decode_basic_block_naive(Rewriter* dbrewDecoder, uintptr_t address, LLState* 
     LLBasicBlock* fallThrough = NULL;
 
     if (instrIsJcc(type) || type == IT_CALL)
-        fallThrough = ll_decode_basic_block_naive(dbrewDecoder, lastInstr->addr + lastInstr->len, state);
+        fallThrough = ll_decode_basic_block_naive(lastInstr->addr + lastInstr->len, decodeFunc, userArg, state);
 
     if (type == IT_JMP || instrIsJcc(type))
-        next = ll_decode_basic_block_naive(dbrewDecoder, lastInstr->dst.val, state);
+        next = ll_decode_basic_block_naive(lastInstr->dst.val, decodeFunc, userArg, state);
 
     ll_basic_block_add_branches(bb, next, fallThrough);
 
@@ -132,7 +132,7 @@ ll_decode_basic_block_naive(Rewriter* dbrewDecoder, uintptr_t address, LLState* 
  * \returns The decoded basic block, which is ready-to-use
  **/
 static LLBasicBlock*
-ll_decode_basic_block_dedup(Rewriter* dbrewDecoder, uintptr_t address, LLState* state)
+ll_decode_basic_block_dedup(uintptr_t address, DecodeFunc decodeFunc, void* userArg, LLState* state)
 {
     for (size_t i = 0; i < state->currentFunction->u.definition.bbCount; i++)
     {
@@ -148,7 +148,7 @@ ll_decode_basic_block_dedup(Rewriter* dbrewDecoder, uintptr_t address, LLState* 
         // If index == -1, the basic block does not contain this address.
     }
 
-    DBB* dbb = dbrew_decode(dbrewDecoder, address);
+    DBB* dbb = decodeFunc(userArg, address);
 
     LLBasicBlock* bb = ll_basic_block_new_from_dbb(dbb);
     ll_function_add_basic_block(state->currentFunction, bb);
@@ -177,10 +177,10 @@ ll_decode_basic_block_dedup(Rewriter* dbrewDecoder, uintptr_t address, LLState* 
     LLBasicBlock* fallThrough = NULL;
 
     if (instrIsJcc(type) || type == IT_CALL)
-        fallThrough = ll_decode_basic_block_dedup(dbrewDecoder, lastInstr->addr + lastInstr->len, state);
+        fallThrough = ll_decode_basic_block_dedup(lastInstr->addr + lastInstr->len, decodeFunc, userArg, state);
 
     if (type == IT_JMP || instrIsJcc(type))
-        next = ll_decode_basic_block_dedup(dbrewDecoder, lastInstr->dst.val, state);
+        next = ll_decode_basic_block_dedup(lastInstr->dst.val, decodeFunc, userArg, state);
 
     // It may happen that bb has been split in the meantime.
     for (size_t i = 0; i < state->currentFunction->u.definition.bbCount; i++)
@@ -216,16 +216,16 @@ ll_decode_basic_block_dedup(Rewriter* dbrewDecoder, uintptr_t address, LLState* 
  * \returns The decoded function
  **/
 LLFunction*
-ll_decode_function(Rewriter* dbrewDecoder, uintptr_t address, LLConfig* config, LLState* state)
+ll_decode_function(uintptr_t address, DecodeFunc decodeFunc, void* userArg, LLConfig* config, LLState* state)
 {
     LLFunction* function = ll_function_new_definition(address, config, state);
 
     state->currentFunction = function;
 
     if (config->disableInstrDedup)
-        ll_decode_basic_block_naive(dbrewDecoder, address, state);
+        ll_decode_basic_block_naive(address, decodeFunc, userArg, state);
     else
-        ll_decode_basic_block_dedup(dbrewDecoder, address, state);
+        ll_decode_basic_block_dedup(address, decodeFunc, userArg, state);
 
     if (ll_function_build_ir(function, state))
     {
