@@ -234,7 +234,7 @@ typedef struct _EmuValue {
 } EmuValue;
 
 
-#define MAX_CALLDEPTH 5
+#define MAX_CALLDEPTH 10
 
 // emulator state. for memory, use the real memory apart from stack
 
@@ -321,12 +321,12 @@ struct _Rewriter {
     CaptureConfig* cc;
     EmuState* es;
     // saved emulator states
-#define SAVEDSTATE_MAX 20
+#define SAVEDSTATE_MAX 1000
     int savedStateCount;
     EmuState* savedState[SAVEDSTATE_MAX];
 
     // stack of unfinished BBs to capture
-#define CAPTURESTACK_LEN 20
+#define CAPTURESTACK_LEN 2000
     int capStackTop;
     CBB* capStack[CAPTURESTACK_LEN];
 
