@@ -5,6 +5,7 @@
  */
 
 #include <string.h>
+#include <stdio.h>
 #include "dbrew.h"
 
 typedef int (*f_t)(char*);
@@ -16,6 +17,10 @@ int isHello(char* s)
 
 int main(int argc, char* argv[])
 {
+    if (argc != 2) {
+        printf("Exactly one parameter required\n");
+        return -1;
+    }
     // force relocation of strcmp
     if (strcmp("Foo", argv[0])==0) return 0;
 
