@@ -43,6 +43,7 @@ if get_option('enable_llvm')
   foreach f : llvm_cflags
     # XXX: This shouldn't be needed
     if f != ''
+    if f != '-fPIC'
     if get_option('buildtype') == 'debug'
       # Filter when optimization is disabled (Fedora specific I think?)
       if f != '-Wp,-D_FORTIFY_SOURCE=2'
@@ -50,6 +51,7 @@ if get_option('enable_llvm')
       endif
       else
       _fc += [f]
+    endif
     endif
     endif
   endforeach
