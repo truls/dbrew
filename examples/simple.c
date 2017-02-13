@@ -8,7 +8,7 @@ int foo(int i, int j)
 
 typedef int (*foo_t)(int, int);
 
-int main(int argc, char* argv[])
+int main(void)
 {
   Rewriter* r = dbrew_new();
   dbrew_verbose(r, true, true, true);
@@ -18,4 +18,3 @@ int main(int argc, char* argv[])
   foo_t f = (foo_t) dbrew_rewrite(r, 2, 3);
   return f(2, 3);
 }
-
