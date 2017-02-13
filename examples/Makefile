@@ -16,7 +16,7 @@ ifeq ($(CCNAME),$(filter $(CCNAME),gcc cc icc))
  ifeq ($(shell expr `$(CC) -dumpversion | cut -f1 -d.` \>= 5),1)
   LDFLAGS += -no-pie
  endif
-else ifeq ($(shell $(CC) --version | head -c 5),clang)
+else ifeq ($(shell $(CC) -v 2>&1 | grep -c "clang version"), 1)
  $(info ** clang detected: $(CC))
  CFLAGS += -fno-pie
 else
