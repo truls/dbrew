@@ -73,7 +73,7 @@ struct ConversionDescriptor {
 
 typedef struct ConversionDescriptor ConversionDescriptor;
 
-#define CD_NOP() { CT_NOP, {} }
+#define CD_NOP() { CT_NOP, { 0 } }
 #define CD_FUNCTION(fn) { CT_FUNCTION, { .function = fn } }
 #define CD_BINARY_FP_LLVM(type,prh,func,fm) { CT_BINARY_LLVM, { .binary_llvm = { type, prh, func, .fastMath = fm } } }
 #define CD_BINARY_INT_LLVM(func,flagFn) { CT_BINARY_LLVM, { .binary_llvm = { OP_SI, REG_DEFAULT, func, .flagFunc = flagFn } } }
