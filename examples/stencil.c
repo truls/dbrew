@@ -15,7 +15,7 @@ typedef struct {
 
 typedef struct {
     int points;
-    StencilPoint p[];
+    StencilPoint p[5];
 } Stencil;
 
 typedef struct {
@@ -26,7 +26,7 @@ typedef struct {
 
 typedef struct {
     int factors;
-    StencilFactor f[];
+    StencilFactor f[2];
 } SortedStencil;
 
 #define CO1 (.4)
