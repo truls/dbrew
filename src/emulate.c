@@ -1166,6 +1166,10 @@ void getStackValue(EmuState* es, EmuValue* v, EmuValue* off)
     assert(off->val < (uint64_t) es->stackSize);
 
     switch(v->type) {
+    case VT_8:
+        v->val = *(uint8_t*) (es->stack + off->val);
+        count = 1;
+        break;
     case VT_16:
         v->val = *(uint16_t*) (es->stack + off->val);
         count = 2;
