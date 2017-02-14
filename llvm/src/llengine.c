@@ -65,10 +65,7 @@ LLState*
 ll_engine_init(void)
 {
     LLState* state;
-
-    struct LLVMMCJITCompilerOptions options;
     char* outerr = NULL;
-    bool error;
 
     state = malloc(sizeof(LLState));
     state->context = LLVMContextCreate();
@@ -78,22 +75,15 @@ ll_engine_init(void)
     state->functionsAllocated = 0;
     state->functions = NULL;
 
-    LLVMSetTarget(state->module, "x86_64-pc-linux-gnu"); // LLVMGetDefaultTargetTriple()
+    LLVMSetTarget(state->module, "x86_64-pc-linux-gnu");
     LLVMLinkInMCJIT();
     LLVMInitializeNativeAsmPrinter();
     LLVMInitializeNativeTarget();
 
-    LLVMInitializeMCJITCompilerOptions(&options, sizeof(options));
-    options.OptLevel = 3;
-
-    error = LLVMCreateMCJITCompilerForModule(&state->engine, state->module, &options, sizeof(options), &outerr);
-
-    if (error)
+    if (ll_support_create_mcjit_compiler(&state->engine, state->module, &outerr))
     {
         printf("CRITICAL Could not setup execution engine: %s", outerr);
-
-        LLVMDisposeMessage(outerr);
-
+        free(outerr);
         free(state);
 
         return NULL;

@@ -25,6 +25,7 @@
 #define LL_SUPPORT_H
 
 #include <llvm-c/Core.h>
+#include <llvm-c/ExecutionEngine.h>
 #include <llvm-c/Transforms/PassManagerBuilder.h>
 
 #ifdef __cplusplus
@@ -48,6 +49,7 @@ void ll_support_pass_manager_builder_set_enable_vectorize(LLVMPassManagerBuilder
 void ll_support_enable_fast_math(LLVMValueRef);
 LLVMBool ll_support_is_constant_int(LLVMValueRef);
 LLVMValueRef ll_support_metadata_loop_unroll(LLVMContextRef);
+LLVMBool ll_support_create_mcjit_compiler(LLVMExecutionEngineRef*, LLVMModuleRef, char**);
 
 #ifdef __cplusplus
 }
