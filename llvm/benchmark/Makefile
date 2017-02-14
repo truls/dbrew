@@ -14,7 +14,7 @@ LLVM_MODULES = bitwriter core ipo mcjit scalaropts support vectorize x86codegen
 
 CFLAGS=-g -std=c99 -I../include -I../../include/priv -I../../include $(WFLAGS) \
 	   `$(LLVM_CONFIG) --cppflags` -D_POSIX_C_SOURCE=200809 \
-	   -DSTENCIL_INTERLINES=$(INTERLINES) -O3 -msse2 -msse3 -mssse3
+	   -DSTENCIL_INTERLINES=$(INTERLINES) -O3 -march=native -mno-avx
 LDFLAGS = `$(LLVM_CONFIG) --ldflags` -g
 LDLIBS = `$(LLVM_CONFIG) --libs $(LLVM_MODULES)` -lstdc++ -lm -lz -ldl -lpthread -ltinfo
 
