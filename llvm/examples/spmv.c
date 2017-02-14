@@ -109,10 +109,9 @@ main(void)
     };
 
     LLState* state = ll_engine_init();
-    ll_engine_enable_unsafe_pointer_optimizations(state, true);
     ll_engine_enable_fast_math(state, true);
     ll_engine_enable_full_loop_unroll(state, true);
-    LLFunction* fn = ll_decode_function(r, (uintptr_t) spmv_asm, &config, state);
+    LLFunction* fn = ll_decode_function((uintptr_t) spmv_asm, (DecodeFunc) dbrew_decode, r, &config, state);
     LLFunction* fnspec = ll_function_specialize(fn, 0, (uintptr_t) rawMatrix, sizeof(rawMatrix), state);
 
     ll_engine_optimize(state, 3);
