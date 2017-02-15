@@ -797,6 +797,7 @@ RegIndex getUnusedReg(RContext* c, Operand* otherOp, bool* inUse)
     for (int i = RI_GPMax - 1; i > 0; i--) {
         if (c->r->es->reg_state[i].cState == CS_DEAD) {
             tmpReg = i;
+            *inUse = false;
             return tmpReg;
         }
     }

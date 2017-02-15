@@ -132,7 +132,7 @@ void initRewriter(Rewriter* r)
     if (r->capBB == 0) {
         // default
         if (r->capBBCapacity == 0) r->capBBCapacity = 10000;
-        r->capBB = (CBB*) malloc(sizeof(CBB) * r->capBBCapacity);
+        r->capBB = (CBB*) calloc(sizeof(CBB), r->capBBCapacity);
     }
     r->capBBCount = 0;
     r->currentCapBB = 0;
@@ -214,7 +214,7 @@ void setParams(Rewriter* r, EmuState* es, FunctionConfig* fc, bool initial,
         return;
     }
 
-    int restCount;
+    int restCount = 0;
 
     if (parCount > CC_MAXREGPAR) {
         restCount = parCount - CC_MAXREGPAR;
