@@ -49,21 +49,6 @@
  * functions and statically allocated data.
  */
 
-int getSelfFd(char** fileName)
-{
-#define FILE_BUF_SIZE 100
-    char buf[FILE_BUF_SIZE];
-    ssize_t count;
-
-    count = readlink("/proc/self/exe", buf, FILE_BUF_SIZE);
-    buf[count] = '\0';
-    if (fileName) {
-        // FIXME: we need to free this
-        *fileName = strdup(buf);
-    }
-    return open(buf, O_RDONLY);
-}
-
 int initElfData(Rewriter* r, int pid)
 {
     int ret = 0;
@@ -83,16 +68,10 @@ int initElfData(Rewriter* r, int pid)
     d->dwfl = dwfl_begin(d->callbacks);
 
     dwfl_report_begin(d->dwfl);
-    //d->this = dwfl_report_elf(d->dwfl, "This_module", fileName, fd, 0, 0);
     ret = dwfl_linux_proc_report(d->dwfl, pid);
     assert (ret == 0);
-    // Assert (ret != 0)
-    //if (ret < 0)
-    //    return ret;
     ret = dwfl_report_end(d->dwfl, NULL, NULL);
 
-    // cleanup
-    //free(fileName);
     return ret;
 }
 
@@ -107,9 +86,6 @@ bool addrToSym(Rewriter* r, uint64_t addr, AddrSymInfo* retInfo)
     }
 
     mod = dwfl_addrmodule(r->elf->dwfl, addr);
-    // TODO: Use Elf* pointer for this and see if we can use it to get info
-    // about shared libraryes m.m.
-    const char* name = dwfl_module_addrinfo(mod, addr, &offset, &syminfo,
                                             NULL, NULL, NULL);
     if (!name) {
         return false;
@@ -131,7 +107,8 @@ int symFromModuleCB(Dwfl_Module* mod,
 {
     char* buf = (char*) arg;
     GElf_Addr* saddr = (GElf_Addr* ) buf;
-    const char* needle = buf + 8;
+    const char* needle = buf + sizeof(uint64_t);
+
 
     int symbs = dwfl_module_getsymtab(mod);
     for (int i = 0; i < symbs; i++){
@@ -148,19 +125,19 @@ int symFromModuleCB(Dwfl_Module* mod,
 
 uint64_t symToAddr(Rewriter* r, const char* symName)
 {
-    char buf[8 + ELF_MAX_NAMELEN];
+    char buf[sizeof(uint64_t) + ELF_MAX_NAMELEN];
     uint64_t* addr = (uint64_t*) buf;
     char* name = buf + 8;
     strncpy(name, symName, ELF_MAX_NAMELEN);
     dwfl_getmodules(r->elf->dwfl, &symFromModuleCB, buf, 0);
+
     return *addr;
 }
 
 static
 SourceFile* allocSourceFile(void)
 {
-    SourceFile* new = malloc(sizeof(SourceFile));
-    memset(new, 0, sizeof(SourceFile));
+    SourceFile* new = calloc(sizeof(SourceFile), 1);
     return new;
 }
 
@@ -185,7 +162,8 @@ SourceFile* initSourceFile(const char* fileName,
     struct stat buf;
     fstat(fd, &buf);
     char* srcFile = mmap(0, buf.st_size, PROT_READ | PROT_WRITE, MAP_PRIVATE, fd, 0);
-    // Close the file handle
+    // mmap(2) states: "On the other hand, closing the file descriptor does not
+    // unmap the region."
     close(fd);
 
     SourceFile* new = allocSourceFile();
@@ -197,42 +175,6 @@ SourceFile* initSourceFile(const char* fileName,
     new->fileLen = buf.st_size;
     new->next = NULL;
 
-    // Hackish (?) exploration based way to initialize address boundaries
-    // FIXME: This didn't work
-    /*int ret;
-    size_t nlines;
-    Dwfl_Line* line;
-    Dwarf_Addr bias;
-    Dwarf_Addr addr;
-    Dwarf_Line* dwline;
-    ret = dwfl_getsrclines(cudie, &nlines);
-    assert(!(ret < 0));
-    line = dwfl_onesrcline(cudie, 0);
-    dwline = dwfl_dwarf_line(line, &bias);
-    ret = dwarf_lineaddr(dwline, &addr);
-    assert (!(ret < 0));
-    new->start = addr;// + bias;
-
-    line = dwfl_onesrcline(cudie, nlines - 1);
-    dwline = dwfl_dwarf_line(line, &bias);
-    ret = dwarf_lineaddr(dwline, &addr);
-    assert (!(ret < 0));
-    new->len = addr - new->start;//(addr + bias) - new->start;*/
-
-    /*dwarf_lowpc(cudie, &new->start);
-    uint64_t highpc;
-    dwarf_highpc(cudie, &highpc);
-    assert(highpc > new->start);
-    new->len = highpc - new->start;*/
-
-    /*if (!r->elf->sf) {
-            r->elf->sf = new;
-    } else {
-        SourceFile* next;
-        for (next = r->elf->sf; next->next != 0; next = next->next);
-        next->next = new;
-        }*/
-
     return new;
 }
 
@@ -240,10 +182,6 @@ static
 SourceFile* findSourceFile(SourceFile* s, const char* fn)
 {
     while(s) {
-        /*if (a >= s->start && a <= s->start + s->len) {
-            return s;
-            break;
-            }*/
         // FIXME: Don't match based on filename
         if (strcmp(s->filePath, fn) == 0) {
             return s;
@@ -252,12 +190,6 @@ SourceFile* findSourceFile(SourceFile* s, const char* fn)
     }
     return 0;
 }
-
-/*static
-getSourceFile(SourceFile* s, const char* fn)
-{
-    SourceFile* sf = findSourceFile(s, fn);
-    if (!sf)*/
 
 static
 void scanLines(SourceFile* s, int lineno)
@@ -297,7 +229,6 @@ char* getLine(SourceFile* s, int lineno)
 
 char* getSourceLine(Rewriter* r, const char* fp, int lineno)
 {
-    //SourceFile* s = findSourceFile(r->elf->sf, addr);
     SourceFile* s = findSourceFile(r->elf->sf, fp);
 
     if (s) {
@@ -314,17 +245,10 @@ bool addrToLine(Rewriter* r, uint64_t addr, ElfAddrInfo* retInfo)
     assert(retInfo);
 
     bool ret;
-
-    //Dwarf_Die* die;
-    Dwarf_Die* cuDie;
-    //Dwarf_Addr bias;
     Dwfl_Line* line;
     Dwfl_Module* mod;
 
-    //dwfl_addrdie(r->elf->dwfl, addr, &bias);
     mod = dwfl_addrmodule(r->elf->dwfl, addr);
-    //die = dwfl_module_addrdie(r->elf->this, addr, &bias);
-    //line = dwfl_module_getsrc(r->elf->this, addr);
     line = dwfl_module_getsrc(mod, addr);
 
     const char* name;
@@ -347,7 +271,6 @@ bool addrToLine(Rewriter* r, uint64_t addr, ElfAddrInfo* retInfo)
         SourceFile* sf;
         sf = findSourceFile(r->elf->sf, name);
         if (!sf) {
-            //cuDie = dwfl_linecu(line);
             compdir = dwfl_line_comp_dir(line);
             sf = initSourceFile(name, compdir);
             assert(sf);

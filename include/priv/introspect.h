@@ -22,8 +22,6 @@
 
 #include "config.h"
 
-// FIXME: Configure properly
-
 #include "dbrew.h"
 
 #include <stddef.h>
@@ -81,13 +79,11 @@ typedef struct _SourceFile {
 typedef struct _ElfContext {
     Dwfl* dwfl;
     SourceFile* sf;
-    // FIXME: Do we need these here or can they be declared in function
     Dwfl_Callbacks* callbacks;
     char* debuginfo_path;
 } ElfContext;
 
 // Return a file descriptor to actual current path
-int getSelfFd(char** filename);
 int initElfData(Rewriter* r, int pid);
 void freeElfData(Rewriter* r);
 bool addrToLine(Rewriter* r, uint64_t addr, ElfAddrInfo* retInfo);
@@ -96,8 +92,6 @@ bool addrToSym(Rewriter* r, uint64_t addr, AddrSymInfo* retInfo);
 uint64_t symToAddr(Rewriter* r, const char* symName);
 
 // Line handling functions
-//SourceFile* initSourceFile(Rewriter* r, const char* filename);
-//char* getSourceLine(Rewriter* r, uint64_t addr, int lineno);
 char* getSourceLine(Rewriter* r, const char* fp, int lineno);
 void freeSourceFile(SourceFile* s);
 
