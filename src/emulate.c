@@ -2510,7 +2510,7 @@ void processInstr(RContext* c, Instr* instr)
         }
 
         // Check function config flags to see what to do
-        FunctionConfig* fc = config_get_function(r, v1.val);
+        FunctionConfig* fc = config_find_function(r, v1.val);
         if (fc && fc->flags & FC_BypassEmu) {
 
             if (fc->flags & FC_KeepCallInstr) {
