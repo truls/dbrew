@@ -82,22 +82,45 @@ bool addrToSym(Rewriter* r, uint64_t addr, AddrSymInfo* retInfo)
     Dwfl_Module* mod;
     Elf64_Sym syminfo;
     GElf_Off offset;
+    const char* name;
 
     if (!addr) {
         return false;
     }
 
     mod = dwfl_addrmodule(r->elf->dwfl, addr);
-                                            NULL, NULL, NULL);
-    if (!name) {
+    if (!mod) {
         return false;
     }
 
-    strncpy(retInfo->name, name, ELF_MAX_NAMELEN);
-    retInfo->offset = offset;
-    retInfo->size = syminfo.st_size;
+    name = dwfl_module_addrinfo(mod, addr, &offset, &syminfo,
+                                            NULL, NULL, NULL);
+    // Got a symbol.. Return it.
+    if (name) {
+        strncpy(retInfo->name, name, ELF_MAX_NAMELEN);
+        retInfo->offset = offset;
+        retInfo->size = syminfo.st_size;
 
-    return true;
+        return true;
+    }
+
+    // Didn't get a symbol. Try plan B: Iterate through the symbol table and
+    // and match addresses
+    int nsyms = dwfl_module_getsymtab(mod);
+    for (int i = 0; i < nsyms; i++) {
+        GElf_Sym sym;
+        GElf_Addr address;
+        name = dwfl_module_getsym_info(mod, i, &sym, &address, NULL, NULL, NULL);
+        //printf("Got symbol %s on offset %lu == %lu\n", name, sym.st_value,  addr);
+        if (address == addr) {
+            strncpy(retInfo->name, name, ELF_MAX_NAMELEN);
+            retInfo->offset = 0;
+            retInfo->size = sym.st_size;
+
+            return true;
+        }
+    }
+    return false;
 }
 
 static
