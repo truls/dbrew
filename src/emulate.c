@@ -173,6 +173,15 @@ void freeEmuState(Rewriter* r)
 {
     if (!r->es) return;
 
+    for (int i = 0; i < r->savedStateCount; i++) {
+        EmuState* es = r->savedState[i];
+        if (!es)
+            continue;
+        free(es->stack);
+        free(es->stackState);
+        free(es);
+        r->savedState[i] = 0;
+    }
     free(r->es->stack);
     free(r->es->stackState);
     free(r->es);
