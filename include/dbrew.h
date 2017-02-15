@@ -205,7 +205,7 @@ void dbrew_config_function_parmap(Rewriter* r, uint64_t f, int parcount, uint64_
 
 // Macros for setting up parameter map
 // TODO: check bitdefs
-#define PNone(n)     ((uint64_t) 0b0000)
+#define PNone(n)     ((uint64_t) 0b0000 << 4*(n - 1))
 #define SRPInt(n)    ((uint64_t) 0b1101 << 4*(n - 1))
 #define SRPFloat(n)  ((uint64_t) 0b1110 << 4*(n - 1))
 #define SRPOther(n)  ((uint64_t) 0b1111 << 4*(n - 1))
