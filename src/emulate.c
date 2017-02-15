@@ -2555,6 +2555,9 @@ void processInstr(RContext* c, Instr* instr)
             Operand o;
 
             // push address of instruction after CALL onto stack
+            // This will trigger a stack adjustment instruction to be
+            // captured. This is desired, since it causes the correct
+            // stack-alignment for the called function.
             copyOperand(&o, getImmOp(VT_64, instr->addr + instr->len));
             initUnaryInstr(&i, IT_PUSH, &o);
             processInstr(c, &i);
