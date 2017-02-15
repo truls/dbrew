@@ -22,7 +22,7 @@ WFLAGS=$(WFLAGS_BASE)
 WFLAGS_CXX=$(WFLAGS_CXX_BASE)
 endif
 
-CFLAGS=`$(LLVM_CONFIG) --cppflags` -O0 -g -std=c99 -Iinclude -I../include/priv \
+CFLAGS=`$(LLVM_CONFIG) --cppflags` -O2 -g -std=c99 -Iinclude -I../include/priv \
        -I../include $(WFLAGS)
 CXXFLAGS=`$(LLVM_CONFIG) --cppflags` -O0 -g -std=c++11 -Iinclude $(WFLAGS_CXX)
 LDFLAGS = `$(LLVM_CONFIG) --ldflags` -g

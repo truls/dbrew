@@ -183,7 +183,19 @@ ll_engine_optimize(LLState* state, int level)
 
     // Run inliner early.
     LLVMAddAlwaysInlinerPass(pm);
-    LLVMRunPassManager(pm, state->module);
+
+    // Run some light-weight optimization passes before the main O3 pipeline
+    if (level >= 1)
+    {
+        // Simple pass to remove trivially redundant instructions.
+        LLVMAddEarlyCSEPass(pm);
+
+        // Run an additional GVN pass to remove a lot of unused instructions.
+        LLVMAddGVNPass(pm);
+
+        // InstrCombine will also remove some bloat
+        LLVMAddInstructionCombiningPass(pm);
+    }
 
     LLVMPassManagerBuilderSetOptLevel(pmb, level);
     ll_support_pass_manager_builder_set_enable_vectorize(pmb, level >= 3);
