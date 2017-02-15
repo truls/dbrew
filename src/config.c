@@ -129,12 +129,6 @@ MemRangeConfig* mrc_find(CaptureConfig* cc, MemRangeType type, uint64_t addr)
 }
 
 static
-FunctionConfig* fc_find(CaptureConfig* cc, uint64_t func)
-{
-    return (FunctionConfig*) mrc_find(cc, MR_Function, func);
-}
-
-static
 FunctionConfig* fc_get(CaptureConfig* cc, uint64_t func)
 {
     MemRangeConfig* fc;

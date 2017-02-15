@@ -811,12 +811,6 @@ void processOpc(OpcInfo* oi, DContext* c)
 // put M of RM encoding in op 1
 static void parseM1(DContext* c) { parseModRM(c, c->vt, RTS_G, &c->o1, 0, 0); }
 
-// put R of RM encoding in op 1
-static void parseR1(DContext* c)
-{
-    parseModRM(c, c->vt, RTS_G, &c->o2, 0, 0);
-}
-
 // RM encoding for 2 GP registers
 static void parseRM(DContext* c)
 {
