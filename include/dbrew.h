@@ -176,7 +176,7 @@ int dbrew_generated_size(Rewriter* r);
 
 // Attempt to look up the symbol of symbol and return its start address. Returns
 // 0 on error;
-uint64_t dbrew_util_symbname_to_ptr(Rewriter* r, const char* symbname);
+uint64_t dbrew_util_symname_to_ptr(Rewriter* r, const char* symname);
 
 // configure rewriter
 void dbrew_config_reset(Rewriter* r);
