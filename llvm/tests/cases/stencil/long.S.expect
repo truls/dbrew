@@ -9,7 +9,7 @@ define i64 @test(i8* noalias nocapture readonly, i8* noalias nocapture readonly,
   br i1 %7, label %13, label %8
 
 ; <label>:8                                       ; preds = %4
-  %9 = getelementptr i8, i8* %0, i64 8
+  %9 = getelementptr i8, i8* %0, i64 8, !asm.reg.rdi !0
   %10 = bitcast i8* %1 to i64*
   br label %15
 
@@ -28,10 +28,10 @@ define i64 @test(i8* noalias nocapture readonly, i8* noalias nocapture readonly,
   %19 = getelementptr i8, i8* %17, i64 8
   %20 = bitcast i8* %19 to i64*
   %21 = load i64, i64* %20, align 8
-  %22 = add i64 %21, %3
+  %22 = add i64 %21, %3, !asm.reg.r8 !0
   %23 = bitcast i8* %17 to i64*
   %24 = load i64, i64* %23, align 8
-  %25 = add i64 %24, %2
+  %25 = add i64 %24, %2, !asm.reg.r10 !0
   %26 = getelementptr i64, i64* %10, i64 %22
   %27 = bitcast i64* %26 to i64**
   %28 = load i64*, i64** %27, align 8
@@ -41,9 +41,9 @@ define i64 @test(i8* noalias nocapture readonly, i8* noalias nocapture readonly,
   %32 = bitcast i8* %31 to i64*
   %33 = load i64, i64* %32, align 8
   %34 = mul i64 %33, %30, !asm.reg.r8 !0
-  %35 = add i64 %34, %16
-  %36 = add i64 %18, 1
-  %37 = getelementptr i8, i8* %17, i64 24
+  %35 = add i64 %34, %16, !asm.reg.rax !0
+  %36 = add i64 %18, 1, !asm.reg.r9 !0
+  %37 = getelementptr i8, i8* %17, i64 24, !asm.reg.rdi !0
   %38 = icmp eq i64 %36, %6
   br i1 %38, label %11, label %15
 }

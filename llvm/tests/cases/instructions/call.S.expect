@@ -5,12 +5,14 @@ target triple = "x86_64-pc-linux-gnu"
 declare i64 @test_add(i64) #0
 
 define i64 @test(i64) {
-  %2 = tail call i64 @test_add(i64 %0)
-  %3 = add i64 %2, %0
+  %2 = tail call i64 @test_add(i64 %0), !asm.reg.rax !0
+  %3 = add i64 %2, %0, !asm.reg.rax !0
   ret i64 %3
 }
 
 attributes #0 = { inlinehint }
+
+!0 = !{}
 
 Result: 30
 Result: 30

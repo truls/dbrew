@@ -28,6 +28,7 @@
 #include <llvm-c/Core.h>
 
 #include <instr.h>
+#include <printer.h>
 
 #include <llbasicblock-internal.h>
 
@@ -906,6 +907,13 @@ ll_basic_block_rename_register(LLBasicBlock* bb, Reg reg, Reg current, LLState* 
 void
 ll_basic_block_set_register(LLBasicBlock* bb, RegisterFacet facet, Reg reg, LLVMValueRef value, bool clearOthers, LLState* state)
 {
+    if (!LLVMIsConstant(value))
+    {
+        char buffer[20];
+        int len = snprintf(buffer, sizeof(buffer), "asm.reg.%s", regName(reg));
+        LLVMSetMetadata(value, LLVMGetMDKindIDInContext(state->context, buffer, len), state->emptyMD);
+    }
+
     if (LLVMTypeOf(value) != ll_register_facet_type(facet, state))
         warn_if_reached();
 

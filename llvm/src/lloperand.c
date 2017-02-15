@@ -209,7 +209,63 @@ ll_operand_get_type(OperandDataType dataType, int bits, LLState* state)
 }
 
 /**
- * Cast a value to an integer type to store it in the register file.
+ * Store a value in a general purpose register.
+ *
+ * \private
+ *
+ * \author Alexis Engelke
+ *
+ * \param value The value to cast
+ * \param dataType The data type
+ * \param operand The register operand
+ * \param state The module state
+ **/
+static void
+ll_operand_store_gp(LLVMValueRef value, OperandDataType dataType, Operand* operand, LLState* state)
+{
+    int operandWidth = ll_operand_get_type_length(dataType, operand);
+    LLVMTypeRef i64 = LLVMInt64TypeInContext(state->context);
+    LLVMTypeRef operandIntType = LLVMIntTypeInContext(state->context, operandWidth);
+
+    LLVMValueRef result = NULL;
+
+    value = LLVMBuildSExtOrBitCast(state->builder, value, operandIntType, "");
+    LLVMValueRef value64 = LLVMBuildZExtOrBitCast(state->builder, value, i64, "");
+    if (operand->reg.rt == RT_GP32 || operand->reg.rt == RT_GP64)
+        result = value64;
+    else
+    {
+        uint64_t mask = 0;
+        if (operand->reg.rt == RT_GP8Leg && operand->reg.ri >= RI_AH && operand->reg.ri < RI_R8L)
+        {
+            mask = 0xff00;
+            value64 = LLVMBuildShl(state->builder, value64, LLVMConstInt(i64, 8, false), "");
+        }
+        else if (operand->reg.rt == RT_GP8 || operand->reg.rt == RT_GP8Leg)
+            mask = 0xff;
+        else if (operand->reg.rt == RT_GP16)
+            mask = 0xffff;
+        else
+            warn_if_reached();
+
+        LLVMValueRef current = ll_get_register(operand->reg, FACET_I64, state);
+        LLVMValueRef masked = LLVMBuildAnd(state->builder, current, LLVMConstInt(i64, ~mask, false), "");
+        result = LLVMBuildOr(state->builder, masked, value64, "");
+    }
+
+    ll_set_register(operand->reg, FACET_I64, result, true, state);
+    if (operand->reg.rt == RT_GP32)
+        ll_set_register(operand->reg, FACET_I32, value, false, state);
+    if (operand->reg.rt == RT_GP16)
+        ll_set_register(operand->reg, FACET_I16, value, false, state);
+    if (operand->reg.rt == RT_GP8)
+        ll_set_register(operand->reg, FACET_I8, value, false, state);
+    if (operand->reg.rt == RT_GP8Leg)
+        ll_set_register(operand->reg, FACET_I8H, value, false, state);
+}
+
+/**
+ * Store a value in a vector (SSE/AVX) register.
  *
  * \private
  *
@@ -220,146 +276,98 @@ ll_operand_get_type(OperandDataType dataType, int bits, LLState* state)
  * \param operand The register operand
  * \param zeroHandling Handling of unused upper parts of the register
  * \param state The module state
- * \returns The casted value to an integer of the register type
  **/
-static LLVMValueRef
-ll_cast_to_int(LLVMValueRef value, OperandDataType dataType, Operand* operand, PartialRegisterHandling zeroHandling, LLState* state)
+static void
+ll_operand_store_vreg(LLVMValueRef value, OperandDataType dataType, Operand* operand, PartialRegisterHandling zeroHandling, LLState* state)
 {
     LLVMTypeRef i32 = LLVMInt32TypeInContext(state->context);
     LLVMTypeRef i64 = LLVMInt64TypeInContext(state->context);
 
     int operandWidth = ll_operand_get_type_length(dataType, operand);
-    LLVMTypeRef operandIntType = LLVMIntTypeInContext(state->context, operandWidth);
-
     LLVMValueRef result = NULL;
 
-    if (zeroHandling == REG_DEFAULT)
+    if (!opIsVReg(operand))
+        warn_if_reached();
+
+    LLVMTypeRef iVec = LLVMIntTypeInContext(state->context, LL_VECTOR_REGISTER_SIZE);
+    LLVMTypeRef i128 = LLVMIntTypeInContext(state->context, 128);
+
+    LLVMValueRef current = ll_get_register(operand->reg, FACET_IVEC, state);
+    if (zeroHandling == REG_ZERO_UPPER_AVX)
     {
-        LLVMValueRef current = ll_get_register(operand->reg, FACET_I64, state);
-        if (!opIsGPReg(operand))
-            warn_if_reached();
+        current = LLVMConstNull(iVec);
+    }
+    else if (zeroHandling == REG_ZERO_UPPER_SSE)
+    {
+        // Ehem, we have to construct the mask first.
+        // It is all-ones with the lowest 128-bit being zero.
+        LLVMValueRef mask = LLVMConstNot(LLVMConstZExtOrBitCast(LLVMConstAllOnes(i128), iVec));
+        current = LLVMBuildAnd(state->builder, current, mask, "");
+    }
 
-        value = LLVMBuildSExtOrBitCast(state->builder, value, operandIntType, "");
-        LLVMValueRef value64 = LLVMBuildZExtOrBitCast(state->builder, value, i64, "");
-        if (operand->reg.rt == RT_GP32 || operand->reg.rt == RT_GP64)
-            result = value64;
-        else
+#if LL_VECTOR_REGISTER_SIZE >= 256
+    LLVMValueRef current128 = ll_get_register(operand->reg, FACET_I128, state);
+    if (zeroHandling == REG_ZERO_UPPER_AVX || zeroHandling == REG_ZERO_UPPER_SSE)
+        current128 = LLVMConstNull(i128);
+#endif
+
+    LLVMTypeRef valueType = LLVMTypeOf(value);
+    bool valueIsVector = LLVMGetTypeKind(valueType) == LLVMVectorTypeKind;
+
+    int elementCount = valueIsVector ? LLVMGetVectorSize(valueType) : 1;
+    int totalCount = elementCount * LL_VECTOR_REGISTER_SIZE / operandWidth;
+
+    if (valueIsVector)
+    {
+        LLVMTypeRef vectorType = LLVMVectorType(LLVMGetElementType(valueType), totalCount);
+        LLVMValueRef vectorCurrent = LLVMBuildBitCast(state->builder, current, vectorType, "");
+
+        LLVMValueRef maskElements[totalCount];
+        for (int i = 0; i < totalCount; i++)
+            maskElements[i] = LLVMConstInt(i32, i, false);
+        for (int i = elementCount; i < totalCount; i++)
+            maskElements[i] = LLVMConstInt(i32, elementCount, false);
+        LLVMValueRef mask = LLVMConstVector(maskElements, totalCount);
+        LLVMValueRef enlarged = LLVMBuildShuffleVector(state->builder, value, LLVMGetUndef(valueType), mask, "");
+
+        for (int i = elementCount; i < totalCount; i++)
+            maskElements[i] = LLVMConstInt(i32, totalCount + i, false);
+        mask = LLVMConstVector(maskElements, totalCount);
+        result = LLVMBuildShuffleVector(state->builder, enlarged, vectorCurrent, mask, "");
+
+        result = LLVMBuildBitCast(state->builder, result, iVec, "");
+        ll_set_register(operand->reg, FACET_IVEC, result, true, state);
+
+#if LL_VECTOR_REGISTER_SIZE >= 256
+        // Induce some common facets via i128 for better SSE support
+        if (operandWidth == 128)
         {
-            uint64_t mask = 0;
-            if (operand->reg.rt == RT_GP8Leg && operand->reg.ri >= RI_AH && operand->reg.ri < RI_R8L)
-            {
-                mask = 0xff00;
-                value64 = LLVMBuildShl(state->builder, value64, LLVMConstInt(i64, 8, false), "");
-            }
-            else if (operand->reg.rt == RT_GP8 || operand->reg.rt == RT_GP8Leg)
-                mask = 0xff;
-            else if (operand->reg.rt == RT_GP16)
-                mask = 0xffff;
-            else
-                warn_if_reached();
-
-            LLVMValueRef masked = LLVMBuildAnd(state->builder, current, LLVMConstInt(i64, ~mask, false), "");
-            result = LLVMBuildOr(state->builder, masked, value64, "");
+            LLVMValueRef sseReg = LLVMBuildBitCast(state->builder, value, i128, "");
+            ll_set_register(operand->reg, FACET_I128, sseReg, false, state);
         }
-
-        ll_set_register(operand->reg, FACET_I64, result, true, state);
-        if (operand->reg.rt == RT_GP32)
-            ll_set_register(operand->reg, FACET_I32, value, false, state);
-        if (operand->reg.rt == RT_GP16)
-            ll_set_register(operand->reg, FACET_I16, value, false, state);
-        if (operand->reg.rt == RT_GP8)
-            ll_set_register(operand->reg, FACET_I8, value, false, state);
-        if (operand->reg.rt == RT_GP8Leg)
-            ll_set_register(operand->reg, FACET_I8H, value, false, state);
+#endif
     }
     else
     {
-        if (!opIsVReg(operand))
-            warn_if_reached();
+        LLVMTypeRef vectorType = LLVMVectorType(valueType, totalCount);
+        LLVMValueRef vectorCurrent = LLVMBuildBitCast(state->builder, current, vectorType, "");
 
-        LLVMTypeRef iVec = LLVMIntTypeInContext(state->context, LL_VECTOR_REGISTER_SIZE);
-        LLVMTypeRef i128 = LLVMIntTypeInContext(state->context, 128);
+        LLVMValueRef constZero = LLVMConstInt(i64, 0, false);
+        result = LLVMBuildInsertElement(state->builder, vectorCurrent, value, constZero, "");
+        result = LLVMBuildBitCast(state->builder, result, iVec, "");
 
-        LLVMValueRef current = ll_get_register(operand->reg, FACET_IVEC, state);
-        if (zeroHandling == REG_ZERO_UPPER_AVX)
-        {
-            current = LLVMConstNull(iVec);
-        }
-        else if (zeroHandling == REG_ZERO_UPPER_SSE)
-        {
-            // Ehem, we have to construct the mask first.
-            // It is all-ones with the lowest 128-bit being zero.
-            LLVMValueRef mask = LLVMConstNot(LLVMConstZExtOrBitCast(LLVMConstAllOnes(i128), iVec));
-            current = LLVMBuildAnd(state->builder, current, mask, "");
-        }
+        ll_set_register(operand->reg, FACET_IVEC, result, true, state);
 
 #if LL_VECTOR_REGISTER_SIZE >= 256
-        LLVMValueRef current128 = ll_get_register(operand->reg, FACET_I128, state);
-        if (zeroHandling == REG_ZERO_UPPER_AVX || zeroHandling == REG_ZERO_UPPER_SSE)
-            current128 = LLVMConstNull(i128);
+        // Induce some common facets via i128 for better SSE support
+        LLVMTypeRef vectorType128 = LLVMVectorType(valueType, 128 / operandWidth);
+        LLVMValueRef vectorCurrent128 = LLVMBuildBitCast(state->builder, current128, vectorType128, "");
+
+        LLVMValueRef sseReg = LLVMBuildInsertElement(state->builder, vectorCurrent128, value, constZero, "");
+        sseReg = LLVMBuildBitCast(state->builder, sseReg, i128, "");
+        ll_set_register(operand->reg, FACET_I128, sseReg, false, state);
 #endif
-
-
-        LLVMTypeRef valueType = LLVMTypeOf(value);
-        bool valueIsVector = LLVMGetTypeKind(valueType) == LLVMVectorTypeKind;
-
-        int elementCount = valueIsVector ? LLVMGetVectorSize(valueType) : 1;
-        int totalCount = elementCount * LL_VECTOR_REGISTER_SIZE / operandWidth;
-
-        if (valueIsVector)
-        {
-            LLVMTypeRef vectorType = LLVMVectorType(LLVMGetElementType(valueType), totalCount);
-            LLVMValueRef vectorCurrent = LLVMBuildBitCast(state->builder, current, vectorType, "");
-
-            LLVMValueRef maskElements[totalCount];
-            for (int i = 0; i < totalCount; i++)
-                maskElements[i] = LLVMConstInt(i32, i, false);
-            for (int i = elementCount; i < totalCount; i++)
-                maskElements[i] = LLVMConstInt(i32, elementCount, false);
-            LLVMValueRef mask = LLVMConstVector(maskElements, totalCount);
-            LLVMValueRef enlarged = LLVMBuildShuffleVector(state->builder, value, LLVMGetUndef(valueType), mask, "");
-
-            for (int i = elementCount; i < totalCount; i++)
-                maskElements[i] = LLVMConstInt(i32, totalCount + i, false);
-            mask = LLVMConstVector(maskElements, totalCount);
-            result = LLVMBuildShuffleVector(state->builder, enlarged, vectorCurrent, mask, "");
-
-            result = LLVMBuildBitCast(state->builder, result, iVec, "");
-            ll_set_register(operand->reg, FACET_IVEC, result, true, state);
-
-#if LL_VECTOR_REGISTER_SIZE >= 256
-            // Induce some common facets via i128 for better SSE support
-            if (operandWidth == 128)
-            {
-                LLVMValueRef sseReg = LLVMBuildBitCast(state->builder, value, i128, "");
-                ll_set_register(operand->reg, FACET_I128, sseReg, false, state);
-            }
-#endif
-        }
-        else
-        {
-            LLVMTypeRef vectorType = LLVMVectorType(valueType, totalCount);
-            LLVMValueRef vectorCurrent = LLVMBuildBitCast(state->builder, current, vectorType, "");
-
-            LLVMValueRef constZero = LLVMConstInt(i64, 0, false);
-            result = LLVMBuildInsertElement(state->builder, vectorCurrent, value, constZero, "");
-            result = LLVMBuildBitCast(state->builder, result, iVec, "");
-
-            ll_set_register(operand->reg, FACET_IVEC, result, true, state);
-
-#if LL_VECTOR_REGISTER_SIZE >= 256
-            // Induce some common facets via i128 for better SSE support
-            LLVMTypeRef vectorType128 = LLVMVectorType(valueType, 128 / operandWidth);
-            LLVMValueRef vectorCurrent128 = LLVMBuildBitCast(state->builder, current128, vectorType128, "");
-
-            LLVMValueRef sseReg = LLVMBuildInsertElement(state->builder, vectorCurrent128, value, constZero, "");
-            sseReg = LLVMBuildBitCast(state->builder, sseReg, i128, "");
-            ll_set_register(operand->reg, FACET_I128, sseReg, false, state);
-#endif
-        }
     }
-
-    return result;
 }
 
 /**
@@ -518,45 +526,28 @@ ll_operand_load(OperandDataType dataType, Alignment alignment, Operand* operand,
 {
     int operandWidth = ll_operand_get_type_length(dataType, operand);
     LLVMValueRef result = NULL;
-    LLVMValueRef address;
-    LLVMTypeRef type = ll_operand_get_type(dataType, operandWidth, state);
 
-    switch (operand->type)
+    if (opIsImm(operand))
     {
-        case OT_Imm8:
-        case OT_Imm16:
-        case OT_Imm32:
-        case OT_Imm64:
-            result = LLVMConstInt(type, operand->val, false);
-            break;
-        case OT_Reg8:
-        case OT_Reg16:
-        case OT_Reg32:
-        case OT_Reg64:
-        case OT_Reg128:
-        case OT_Reg256:
-        case OT_Reg512:
-            result = ll_get_register(operand->reg, ll_operand_get_facet(dataType, operand), state);
-            break;
-        case OT_Ind8:
-        case OT_Ind16:
-        case OT_Ind32:
-        case OT_Ind64:
-        case OT_Ind128:
-        case OT_Ind256:
-        case OT_Ind512:
-            address = ll_operand_get_address(dataType, operand, state);
-            result = LLVMBuildLoad(state->builder, address, "");
-            if (alignment == ALIGN_MAXIMUM)
-                LLVMSetAlignment(result, operandWidth / 8);
-            else
-                LLVMSetAlignment(result, alignment);
-            break;
-        case OT_MAX:
-        case OT_None:
-        default:
-            warn_if_reached();
-            break;
+        LLVMTypeRef type = ll_operand_get_type(dataType, operandWidth, state);
+        result = LLVMConstInt(type, operand->val, false);
+    }
+    else if (opIsReg(operand))
+    {
+        result = ll_get_register(operand->reg, ll_operand_get_facet(dataType, operand), state);
+    }
+    else if (opIsInd(operand))
+    {
+        LLVMValueRef address = ll_operand_get_address(dataType, operand, state);
+        result = LLVMBuildLoad(state->builder, address, "");
+        if (alignment == ALIGN_MAXIMUM)
+            LLVMSetAlignment(result, operandWidth / 8);
+        else
+            LLVMSetAlignment(result, alignment);
+    }
+    else
+    {
+        warn_if_reached();
     }
 
     return result;
@@ -579,54 +570,38 @@ ll_operand_load(OperandDataType dataType, Alignment alignment, Operand* operand,
 void
 ll_operand_store(OperandDataType dataType, Alignment alignment, Operand* operand, PartialRegisterHandling zeroHandling, LLVMValueRef value, LLState* state)
 {
-    LLVMValueRef address;
-    LLVMValueRef result;
-
-    int operandWidth = ll_operand_get_type_length(dataType, operand);
-
-    switch (operand->type)
+    if (opIsReg(operand))
     {
-        case OT_Reg8:
-        case OT_Reg16:
-        case OT_Reg32:
-        case OT_Reg64:
-        case OT_Reg128:
-        case OT_Reg256:
-        case OT_Reg512:
-            {
-                result = ll_cast_to_int(value, dataType, operand, zeroHandling, state);
-                if (!LLVMIsConstant(result))
-                {
-                    char buffer[20];
-                    int len = snprintf(buffer, sizeof(buffer), "asm.reg.%s", regName(operand->reg));
-                    LLVMSetMetadata(result, LLVMGetMDKindIDInContext(state->context, buffer, len), state->emptyMD);
-                }
-            }
-            break;
-        case OT_Ind8:
-        case OT_Ind16:
-        case OT_Ind32:
-        case OT_Ind64:
-        case OT_Ind128:
-        case OT_Ind256:
-        case OT_Ind512:
-            address = ll_operand_get_address(dataType, operand, state);
-            result = LLVMBuildBitCast(state->builder, value, LLVMGetElementType(LLVMTypeOf(address)), "");
-            result = LLVMBuildStore(state->builder, result, address);
-            if (alignment == ALIGN_MAXIMUM)
-                LLVMSetAlignment(result, operandWidth / 8);
-            else
-                LLVMSetAlignment(result, alignment);
-            break;
-        case OT_Imm8:
-        case OT_Imm16:
-        case OT_Imm32:
-        case OT_Imm64:
-        case OT_MAX:
-        case OT_None:
-        default:
-            warn_if_reached();
-            break;
+        if (zeroHandling == REG_DEFAULT)
+        {
+            if (!opIsGPReg(operand))
+                warn_if_reached();
+
+            ll_operand_store_gp(value, dataType, operand, state);
+        }
+        else
+        {
+            if (!opIsVReg(operand))
+                warn_if_reached();
+
+            ll_operand_store_vreg(value, dataType, operand, zeroHandling, state);
+        }
+    }
+    else if (opIsInd(operand))
+    {
+        int operandWidth = ll_operand_get_type_length(dataType, operand);
+        LLVMValueRef address = ll_operand_get_address(dataType, operand, state);
+        LLVMValueRef result = LLVMBuildBitCast(state->builder, value, LLVMGetElementType(LLVMTypeOf(address)), "");
+        LLVMValueRef store = LLVMBuildStore(state->builder, result, address);
+
+        if (alignment == ALIGN_MAXIMUM)
+            LLVMSetAlignment(store, operandWidth / 8);
+        else
+            LLVMSetAlignment(store, alignment);
+    }
+    else
+    {
+        warn_if_reached();
     }
 }
 
