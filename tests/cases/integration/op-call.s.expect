@@ -12,27 +12,30 @@ Decoding BB test ...
              test+10:  41 ff d6              call    %r14
 Emulate 'test: mov $test+14,%r14'
 Emulate 'test+10: call %r14'
-Capture 'H-call' (into test|0 + 1)
+Capture 'sub $0x8,%rsp' (into test|0 + 1)
+Capture 'H-call' (into test|0 + 2)
 Decoding BB test+14 ...
              test+14:  b8 00 00 00 00        mov     $0x0,%eax
              test+19:  c3                    ret    
 Emulate 'test+14: mov $0x0,%eax'
 Emulate 'test+19: ret'
-Capture 'H-ret' (into test|0 + 2)
+Capture 'H-ret' (into test|0 + 3)
 Decoding BB test+13 ...
              test+13:  c3                    ret    
 Emulate 'test+13: ret'
-Capture 'H-ret' (into test|0 + 3)
-Capture 'mov $0x0,%rax' (into test|0 + 4)
-Capture 'ret' (into test|0 + 5)
-Generating code for BB test|0 (6 instructions)
+Capture 'H-ret' (into test|0 + 4)
+Capture 'mov $0x0,%rax' (into test|0 + 5)
+Capture 'ret' (into test|0 + 6)
+Generating code for BB test|0 (7 instructions)
   I 0 : H-call                           (test|0)+0   
-  I 1 : H-call                           (test|0)+0   
-  I 2 : H-ret                            (test|0)+0   
-  I 3 : H-ret                            (test|0)+0   
-  I 4 : mov     $0x0,%rax                (test|0)+0    48 31 c0
-  I 5 : ret                              (test|0)+3    c3
-Generated: 4 bytes (pass1: 30)
-BB gen (2 instructions):
-                 gen:  48 31 c0              xor     %rax,%rax
-               gen+3:  c3                    ret    
+  I 1 : sub     $0x8,%rsp                (test|0)+0    48 83 ec 08
+  I 2 : H-call                           (test|0)+4   
+  I 3 : H-ret                            (test|0)+4   
+  I 4 : H-ret                            (test|0)+4   
+  I 5 : mov     $0x0,%rax                (test|0)+4    48 31 c0
+  I 6 : ret                              (test|0)+7    c3
+Generated: 8 bytes (pass1: 34)
+BB gen (3 instructions):
+                 gen:  48 83 ec 08           sub     $0x8,%rsp
+               gen+4:  48 31 c0              xor     %rax,%rax
+               gen+7:  c3                    ret    

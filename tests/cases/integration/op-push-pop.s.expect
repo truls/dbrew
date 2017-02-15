@@ -29,35 +29,71 @@ Decoding BB test ...
              test+55:  48 01 d0              add     %rdx,%rax
              test+58:  c3                    ret    
 Emulate 'test: pushq $0x5b'
+Capture 'sub $0x8,%rsp' (into test|0 + 1)
 Emulate 'test+2: pushq $0xffffffffff555556'
+Capture 'sub $0x8,%rsp' (into test|0 + 2)
 Emulate 'test+7: pushq $0xfffffffffffffff0'
+Capture 'sub $0x8,%rsp' (into test|0 + 3)
 Emulate 'test+9: mov $0xbbb,%rbx'
 Emulate 'test+16: push %bx'
+Capture 'sub $0x2,%rsp' (into test|0 + 4)
 Emulate 'test+18: pushw $0xccc'
+Capture 'sub $0x2,%rsp' (into test|0 + 5)
 Emulate 'test+22: mov $0xdddddddddddd,%rbx'
 Emulate 'test+32: push %rbx'
+Capture 'sub $0x8,%rsp' (into test|0 + 6)
 Emulate 'test+33: pop %r9'
+Capture 'add $0x8,%rsp' (into test|0 + 7)
 Emulate 'test+35: pop %dx'
+Capture 'add $0x2,%rsp' (into test|0 + 8)
 Emulate 'test+37: pop %cx'
+Capture 'add $0x2,%rsp' (into test|0 + 9)
 Emulate 'test+39: pop %r10'
+Capture 'add $0x8,%rsp' (into test|0 + 10)
 Emulate 'test+41: pop %rbx'
+Capture 'add $0x8,%rsp' (into test|0 + 11)
 Emulate 'test+42: pop %rax'
+Capture 'add $0x8,%rsp' (into test|0 + 12)
 Emulate 'test+43: add %r9,%rax'
 Emulate 'test+46: add %rbx,%rax'
 Emulate 'test+49: add %r10,%rax'
 Emulate 'test+52: add %rcx,%rax'
 Emulate 'test+55: add %rdx,%rax'
 Emulate 'test+58: ret'
-Capture 'H-ret' (into test|0 + 1)
-Capture 'mov $0xdddddd334c05,%rax' (into test|0 + 2)
-Capture 'ret' (into test|0 + 3)
-Generating code for BB test|0 (4 instructions)
+Capture 'H-ret' (into test|0 + 13)
+Capture 'mov $0xdddddd334c05,%rax' (into test|0 + 14)
+Capture 'ret' (into test|0 + 15)
+Generating code for BB test|0 (16 instructions)
   I 0 : H-call                           (test|0)+0   
-  I 1 : H-ret                            (test|0)+0   
-  I 2 : mov     $0xdddddd334c05,%rax     (test|0)+0    48 b8 05 4c 33 dd dd dd 00 00
-  I 3 : ret                              (test|0)+10   c3
-Generated: 11 bytes (pass1: 37)
-BB gen (2 instructions):
-                 gen:  48 b8 05 4c 33 dd dd  mov     $0xdddddd334c05,%rax
-               gen+7:  dd 00 00            
-              gen+10:  c3                    ret    
+  I 1 : sub     $0x8,%rsp                (test|0)+0    48 83 ec 08
+  I 2 : sub     $0x8,%rsp                (test|0)+4    48 83 ec 08
+  I 3 : sub     $0x8,%rsp                (test|0)+8    48 83 ec 08
+  I 4 : sub     $0x2,%rsp                (test|0)+12   48 83 ec 02
+  I 5 : sub     $0x2,%rsp                (test|0)+16   48 83 ec 02
+  I 6 : sub     $0x8,%rsp                (test|0)+20   48 83 ec 08
+  I 7 : add     $0x8,%rsp                (test|0)+24   48 83 c4 08
+  I 8 : add     $0x2,%rsp                (test|0)+28   48 83 c4 02
+  I 9 : add     $0x2,%rsp                (test|0)+32   48 83 c4 02
+  I10 : add     $0x8,%rsp                (test|0)+36   48 83 c4 08
+  I11 : add     $0x8,%rsp                (test|0)+40   48 83 c4 08
+  I12 : add     $0x8,%rsp                (test|0)+44   48 83 c4 08
+  I13 : H-ret                            (test|0)+48  
+  I14 : mov     $0xdddddd334c05,%rax     (test|0)+48   48 b8 05 4c 33 dd dd dd 00 00
+  I15 : ret                              (test|0)+58   c3
+Generated: 59 bytes (pass1: 85)
+BB gen (14 instructions):
+                 gen:  48 83 ec 08           sub     $0x8,%rsp
+               gen+4:  48 83 ec 08           sub     $0x8,%rsp
+               gen+8:  48 83 ec 08           sub     $0x8,%rsp
+              gen+12:  48 83 ec 02           sub     $0x2,%rsp
+              gen+16:  48 83 ec 02           sub     $0x2,%rsp
+              gen+20:  48 83 ec 08           sub     $0x8,%rsp
+              gen+24:  48 83 c4 08           add     $0x8,%rsp
+              gen+28:  48 83 c4 02           add     $0x2,%rsp
+              gen+32:  48 83 c4 02           add     $0x2,%rsp
+              gen+36:  48 83 c4 08           add     $0x8,%rsp
+              gen+40:  48 83 c4 08           add     $0x8,%rsp
+              gen+44:  48 83 c4 08           add     $0x8,%rsp
+              gen+48:  48 b8 05 4c 33 dd dd  mov     $0xdddddd334c05,%rax
+              gen+55:  dd 00 00            
+              gen+58:  c3                    ret    
