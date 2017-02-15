@@ -2263,7 +2263,7 @@ GenerateError* generate(Rewriter* r, CBB* cbb)
             char* line = NULL;
             // FIXME: This is a hack. Handle e.g. different file, same lineno
             static int curLineno = 0;
-            if (*addrinfo->filePath) {
+            if (haveIntrospection() && addrinfo && *addrinfo->filePath) {
                 //printf("%s\n", addrinfo->filePath);
                 line = getSourceLine(r, addrinfo->filePath, addrinfo->lineno);
             }
@@ -2274,7 +2274,7 @@ GenerateError* generate(Rewriter* r, CBB* cbb)
             printf("  I%2d : %-32s", i, instr2string(instr, 1, 0, cbb->fc));
             printf(" (%s)+%-3d",
                    cbb_prettyName(cbb), (int)(instr->addr - buf0));
-            if (*addrinfo->filePath && haveIntrospection()) {
+            if (haveIntrospection() && addrinfo && *addrinfo->filePath) {
                 printf(" %-35s", bytes2string(instr, 0, used));
                 printf(" captured from: %s", addrinfo->fileName);
                 if (addrinfo->lineno > 0) {
