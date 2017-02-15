@@ -111,6 +111,9 @@ int symFromModuleCB(Dwfl_Module* mod,
     GElf_Addr* saddr = (GElf_Addr* ) buf;
     const char* needle = buf + sizeof(uint64_t);
 
+    // If name contains @ we match it against dynamically relocated
+    // symbols. So, for example. memcpy@plt will match memcpy@@GLIBC_2.14
+    char* atloc = strrchr(needle, '@');
 
     int symbs = dwfl_module_getsymtab(mod);
     for (int i = 0; i < symbs; i++){
@@ -118,7 +121,16 @@ int symFromModuleCB(Dwfl_Module* mod,
         const char* name = dwfl_module_getsym_info(mod, i, &sym, saddr,
                                              NULL, NULL, NULL);
         //printf("Checking name %s == %s\n", name, needle);
-        if (name && (strncmp(name, needle, ELF_MAX_NAMELEN) == 0)) {
+        //printf("Checking name %s\n", name);
+
+        // Two cases: name containing and not containing '@'
+        if (atloc && name) {
+            // Only check "base" of name
+            char* nameatloc = strchr(name, '@');
+            if (nameatloc && strncmp(name, needle, nameatloc - name) == 0) {
+                return DWARF_CB_ABORT;
+            }
+        } else if (!atloc && name && (strncmp(name, needle, ELF_MAX_NAMELEN) == 0)) {
             return DWARF_CB_ABORT;
         }
     }
