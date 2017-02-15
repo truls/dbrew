@@ -160,16 +160,52 @@ void freeRewriter(Rewriter* r)
     free(r);
 }
 
+static
+void setStackParams(Rewriter* r, EmuState* es, FunctionConfig* fc, bool initial,
+                    int parCount, uint64_t params[static parCount])
+{
+    MetaState ms;
+    ValType vt = VT_64;
+
+    if (!initial)
+        return;
+
+    for (int i = parCount; i != 0; i--) {
+        const int parNo = CC_MAXREGPAR + i - 1;
+
+        if (fc->par_state[parNo].cState == CS_STATIC2) {
+            initMetaState(&ms, CS_STATIC2);
+        } else {
+            initMetaState(&ms, CS_DYNAMIC);
+        }
+        ms.parDep = expr_newPar(r->ePool, parNo, r->cc ? fc->par_name[i] : 0);
+
+        pushValue(es, vt, params[i - 1], ms);
+    }
+
+    // Called function assumes stack after return address have been pushed by
+    // call instr
+    initMetaState(&ms, CS_DEAD);
+    pushValue(es, vt, 0, ms);
+}
 
 static
 void setParRegState(Rewriter* r, EmuState* es, FunctionConfig* fc) {
-    //FunctionConfig* fc = config_find_function(r, ptr);
 
     if (fc == NULL) {
         return;
     }
 
-    for(int i = 0; i < fc->parCount; i++) {
+    int restCount;
+
+    if (parCount > CC_MAXREGPAR) {
+        restCount = parCount - CC_MAXREGPAR;
+        parCount = CC_MAXREGPAR;
+    }
+
+    // Set register passed parameters states
+    for (int i = 0; i < parCount; i++) {
+        es->reg[getRegIndex(i)] = params[i];
         //MetaState* ms = &(es->reg_state[parReg[i]]);
         MetaState* ms = &(es->reg_state[getRegIndex(i)]);
         if (r->cc && (i<CC_MAXPARAM)) {
@@ -177,8 +213,12 @@ void setParRegState(Rewriter* r, EmuState* es, FunctionConfig* fc) {
         } else {
             initMetaState(ms, CS_DYNAMIC);
         }
-        ms->parDep = expr_newPar(r->ePool, i, // TODO: WTF?
+        ms->parDep = expr_newPar(r->ePool, i,
                                  r->cc ? fc->par_name[i] : 0);
+    }
+
+    if (restCount > 0) {
+        setStackParams(r, es, fc, true, restCount, &params[CC_MAXREGPAR]);
     }
 }
 
@@ -233,6 +273,9 @@ Error* emulateAndCapture(Rewriter* r, int parCount, uint64_t* par)
 
     es->reg[RI_SP] = (uint64_t) (es->stackStart + es->stackSize);
     initMetaState(&(es->reg_state[RI_SP]), CS_STACKRELATIVE);
+
+    // Set initial function parameter register values
+    setParams(r, es, r->entry_func, true, parCount, par);
 
     // traverse all paths and generate CBBs
 
@@ -320,12 +363,12 @@ Error* emulateAndCapture(Rewriter* r, int parCount, uint64_t* par)
 
             if (cxt.exit) assert(i == dbb->count - 1);
             nextbb_addr = processKnownTargets(&cxt, cxt.exit);
+
+            // FIXME: Reenable this
             // If we're about to process a new function, check if we need to set
             // static parameters
-            FunctionConfig* fc = config_find_function(r, nextbb_addr);
-            setParRegState(r, es, fc);
-
-
+            //FunctionConfig* fc = config_find_function(r, nextbb_addr);
+            //setParams(r, es, fc, false, fc->parCount, fc->pa);
 
             if (r->showEmuState) {
                 if (nextbb_addr != 0) es->regIP = nextbb_addr;
@@ -358,7 +401,7 @@ Error* vEmulateAndCapture(Rewriter* r, va_list args)
 {
     static Error e;
     int i, parCount;
-    uint64_t par[6];
+    uint64_t par[CC_MAXPARAM];
 
     parCount = r->entry_func->parCount;
     if (parCount == -1) {
@@ -367,9 +410,11 @@ Error* vEmulateAndCapture(Rewriter* r, va_list args)
         return &e;
     }
 
-    if (parCount > 6) {
+    // TODO: The limitation on the number of parameters is completely artificial
+    // now. Get rid of it
+    if (parCount > CC_MAXPARAM) {
         setError(&e, ET_InvalidRequest, EM_Rewriter, r,
-                 "number of parameters >6 not supported");
+                 "number of parameters >16 not supported");
         return &e;
     }
 

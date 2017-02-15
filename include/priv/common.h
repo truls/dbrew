@@ -74,6 +74,7 @@ struct _CBB {
 
 char* cbb_prettyName(CBB* bb);
 
+#define CC_MAXREGPAR    6
 #define CC_MAXPARAM     16
 #define CC_MAXCALLDEPTH 5
 

@@ -80,4 +80,9 @@ void processInstr(RContext*, Instr *instr);
 // process call or jump to known location
 uint64_t processKnownTargets(RContext* c, uint64_t f);
 
+// Push a value with specific meta state to stack without going through the
+// ordinary instruction emulation machinery. Used for pushing function parameter
+// values to stack.
+void pushValue(EmuState* es, ValType vt, uint64_t v, MetaState ms);
+
 #endif // EMULATE_H
