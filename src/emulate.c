@@ -884,7 +884,7 @@ void captureToOffset(RContext* c, Instr* instr, int offset, bool generated)
                              cbb->count - offset);
 
     ElfAddrInfo* info = addCaptureInfo(c, offset);
-    if (generated) {
+    if (info && generated) {
         strncpy(info->filePath, "<generated>", ELF_MAX_NAMELEN);
         info->fileName = info->filePath;
         info->lineno = 0;
