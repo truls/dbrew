@@ -190,6 +190,84 @@ ll_register_facet_type(RegisterFacet facet, LLState* state)
     return NULL;
 }
 
+static Reg
+ll_register_for_facet(RegisterFacet facet, Reg reg)
+{
+    if (regIsGP(reg))
+    {
+        switch (facet)
+        {
+            case FACET_I8: return getReg(RT_GP8, reg.ri);
+            case FACET_I8H: return getReg(reg.ri < 8 ? RT_GP8Leg : RT_GP8, reg.ri);
+            case FACET_I16: return getReg(RT_GP16, reg.ri);
+            case FACET_I32: return getReg(RT_GP32, reg.ri);
+            case FACET_I64:
+            case FACET_PTR:
+            case FACET_I128:
+            case FACET_I256:
+            case FACET_F32:
+            case FACET_F64:
+            case FACET_V16I8:
+            case FACET_V8I16:
+            case FACET_V4I32:
+            case FACET_V2I64:
+            case FACET_V2F32:
+            case FACET_V4F32:
+            case FACET_V2F64:
+    #if LL_VECTOR_REGISTER_SIZE >= 256
+            case FACET_V32I8:
+            case FACET_V16I16:
+            case FACET_V8I32:
+            case FACET_V4I64:
+            case FACET_V8F32:
+            case FACET_V4F64:
+    #endif
+                return getReg(RT_GP64, reg.ri);
+            case FACET_COUNT:
+            default:
+                warn_if_reached();
+        }
+    }
+    else if (regIsV(reg))
+    {
+        switch (facet)
+        {
+            case FACET_I8:
+            case FACET_I8H:
+            case FACET_I16:
+            case FACET_I32:
+            case FACET_I64:
+            case FACET_PTR:
+            case FACET_I128:
+            case FACET_F32:
+            case FACET_F64:
+            case FACET_V16I8:
+            case FACET_V8I16:
+            case FACET_V4I32:
+            case FACET_V2I64:
+            case FACET_V2F32:
+            case FACET_V4F32:
+            case FACET_V2F64:
+                return getReg(RT_XMM, reg.ri);
+            case FACET_I256:
+    #if LL_VECTOR_REGISTER_SIZE >= 256
+            case FACET_V32I8:
+            case FACET_V16I16:
+            case FACET_V8I32:
+            case FACET_V4I64:
+            case FACET_V8F32:
+            case FACET_V4F64:
+    #endif
+                return getReg(RT_YMM, reg.ri);
+            case FACET_COUNT:
+            default:
+                warn_if_reached();
+        }
+    }
+
+    return reg;
+}
+
 /**
  * Create a new basic block.
  *
@@ -489,6 +567,7 @@ ll_basic_block_build_ir(LLBasicBlock* bb, LLState* state)
 
     LLVMPositionBuilderAtEnd(state->builder, bb->llvmBB);
 
+    char buffer[20];
     for (int i = 0; i < RI_GPMax; i++)
     {
         for (size_t k = 0; k < FACET_COUNT; k++)
@@ -497,6 +576,9 @@ ll_basic_block_build_ir(LLBasicBlock* bb, LLState* state)
 
             bb->gpRegisters[i].facets[k] = phiNode;
             bb->phiNodesGpRegisters[i].facets[k] = phiNode;
+
+            int len = snprintf(buffer, sizeof(buffer), "asm.reg.%s", regName(ll_register_for_facet(k, getReg(RT_GP64, i))));
+            LLVMSetMetadata(phiNode, LLVMGetMDKindIDInContext(state->context, buffer, len), state->emptyMD);
         }
     }
 
@@ -508,7 +590,9 @@ ll_basic_block_build_ir(LLBasicBlock* bb, LLState* state)
 
             bb->sseRegisters[i].facets[k] = phiNode;
             bb->phiNodesSseRegisters[i].facets[k] = phiNode;
-        }
+
+            int len = snprintf(buffer, sizeof(buffer), "asm.reg.%s", regName(ll_register_for_facet(k, getReg(RT_XMM, i))));
+            LLVMSetMetadata(phiNode, LLVMGetMDKindIDInContext(state->context, buffer, len), state->emptyMD);        }
     }
 
     for (int i = 0; i < RFLAG_Max; i++)
@@ -910,7 +994,7 @@ ll_basic_block_set_register(LLBasicBlock* bb, RegisterFacet facet, Reg reg, LLVM
     if (!LLVMIsConstant(value))
     {
         char buffer[20];
-        int len = snprintf(buffer, sizeof(buffer), "asm.reg.%s", regName(reg));
+        int len = snprintf(buffer, sizeof(buffer), "asm.reg.%s", regName(ll_register_for_facet(facet, reg)));
         LLVMSetMetadata(value, LLVMGetMDKindIDInContext(state->context, buffer, len), state->emptyMD);
     }
 

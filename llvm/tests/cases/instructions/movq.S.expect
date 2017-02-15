@@ -6,7 +6,7 @@ define i64 @test(i64) #0 {
   %2 = insertelement <2 x i64> undef, i64 %0, i64 0
   %3 = bitcast <2 x i64> %2 to <4 x i32>
   %4 = extractelement <4 x i32> %3, i32 0, !asm.reg.eax !0
-  %5 = zext i32 %4 to i64, !asm.reg.eax !0
+  %5 = zext i32 %4 to i64, !asm.reg.rax !0
   ret i64 %5
 }
 

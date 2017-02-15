@@ -7,7 +7,7 @@ define i64 @test(i64) #0 {
   %3 = icmp slt i32 %2, 0
   %4 = select i1 %3, i32 0, i32 %2, !asm.reg.eax !0
   %5 = sub i32 0, %4, !asm.reg.eax !0
-  %6 = zext i32 %5 to i64, !asm.reg.eax !0
+  %6 = zext i32 %5 to i64, !asm.reg.rax !0
   ret i64 %6
 }
 

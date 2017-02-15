@@ -4,7 +4,7 @@ target triple = "x86_64-pc-linux-gnu"
 ; Function Attrs: norecurse nounwind readnone
 define i64 @test(i64) #0 {
   %2 = trunc i64 %0 to i8, !asm.reg.ch !0
-  %3 = add i8 %2, 1, !asm.reg.ch !0, !asm.reg.cl !0
+  %3 = add i8 %2, 1, !asm.reg.cl !0, !asm.reg.ch !0
   %4 = zext i8 %3 to i64
   %5 = shl nuw nsw i64 %4, 8
   %6 = or i64 %4, %5

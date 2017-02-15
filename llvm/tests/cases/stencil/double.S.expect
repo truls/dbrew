@@ -19,9 +19,9 @@ define i64 @test(i8* noalias nocapture readonly, i8* noalias nocapture readonly,
   ret i64 %13
 
 ; <label>:14                                      ; preds = %14, %8
-  %15 = phi i64 [ 0, %8 ], [ %36, %14 ]
-  %16 = phi i8* [ %9, %8 ], [ %35, %14 ]
-  %17 = phi double [ 0.000000e+00, %8 ], [ %34, %14 ]
+  %15 = phi i64 [ 0, %8 ], [ %36, %14 ], !asm.reg.rax !0
+  %16 = phi i8* [ %9, %8 ], [ %35, %14 ], !asm.reg.rdi !0
+  %17 = phi double [ 0.000000e+00, %8 ], [ %34, %14 ], !asm.reg.xmm0 !0
   %18 = getelementptr i8, i8* %16, i64 8
   %19 = bitcast i8* %18 to i64*
   %20 = load i64, i64* %19, align 8
