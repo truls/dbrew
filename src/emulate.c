@@ -2986,3 +2986,28 @@ uint64_t processKnownTargets(RContext* c, uint64_t f)
 
     return f;
 }
+
+// Push a value with specific meta state to stack without going through the
+// ordinary instruction emulation machinery. Used for pushing function parameter
+// values to stack.
+void pushValue(EmuState* es, ValType vt, uint64_t v, MetaState ms)
+{
+    EmuValue ev = emuValue(v, vt, ms);
+
+    switch (vt) {
+    case VT_64:
+    case VT_32:
+    case VT_8:
+        es->reg[RI_SP] -= 8;
+        break;
+    case VT_16:
+        es->reg[RI_SP] -= 2;
+        break;
+    default:
+        assert(0);
+    }
+
+    EmuValue addr = emuValue(es->reg[RI_SP], vt, es->reg_state[RI_SP]);
+    setMemValue(&ev, &addr, es, vt, true);
+    setMemState(es, &addr, vt, ms, true);
+}
