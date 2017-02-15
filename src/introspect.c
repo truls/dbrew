@@ -60,10 +60,12 @@ int initElfData(Rewriter* r, int pid)
     r->elf = calloc(sizeof(ElfContext), 1);
     d = r->elf;
 
-    d->callbacks = malloc(sizeof(Dwfl_Callbacks));
-    d->callbacks->find_debuginfo = dwfl_standard_find_debuginfo;
-    d->callbacks->debuginfo_path = &d->debuginfo_path;
-    d->callbacks->find_elf = dwfl_linux_proc_find_elf;
+    d->callbacks = calloc(sizeof(Dwfl_Callbacks), 1);
+    *d->callbacks = (Dwfl_Callbacks) {
+        .find_debuginfo = dwfl_standard_find_debuginfo,
+        .debuginfo_path = &d->debuginfo_path,
+        .find_elf = dwfl_linux_proc_find_elf
+    };
 
     d->dwfl = dwfl_begin(d->callbacks);
 
@@ -167,13 +169,16 @@ SourceFile* initSourceFile(const char* fileName,
     close(fd);
 
     SourceFile* new = allocSourceFile();
-    new->maxLines = 1000;
+    *new = (SourceFile) {
+        .maxLines = 1000,
+        .linePtr = NULL,
+        .basePtr = srcFile,
+        .curPtr = srcFile,
+        .fileLen = buf.st_size,
+        .next = NULL,
+    };
     new->linePtr = malloc(new->maxLines * sizeof(char*));
     strncpy(new->filePath, fileName, ELF_MAX_NAMELEN);
-    new->basePtr = srcFile;
-    new->curPtr = srcFile;
-    new->fileLen = buf.st_size;
-    new->next = NULL;
 
     return new;
 }
