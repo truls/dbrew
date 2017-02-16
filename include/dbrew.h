@@ -198,22 +198,23 @@ void dbrew_config_function_par_setstatic(Rewriter* r, uint64_t f, int parNum);
 void dbrew_config_function_setflags(Rewriter* r, uint64_t f, int flags);
 void dbrew_config_function_parmap(Rewriter* r, uint64_t f, int parcount, uint64_t map);
 
-// Macros for setting up parameter map
-// TODO: check bitdefs
-#define PNone(n)     ((uint64_t) 0b0000 << 4*(n - 1))
-#define SRPInt(n)    ((uint64_t) 0b1101 << 4*(n - 1))
-#define SRPFloat(n)  ((uint64_t) 0b1110 << 4*(n - 1))
-#define SRPOther(n)  ((uint64_t) 0b1111 << 4*(n - 1))
-#define SPInt(n)     ((uint64_t) 0b1001 << 4*(n - 1))
-#define SPFloat(n)   ((uint64_t) 0b1010 << 4*(n - 1))
-#define SPOther(n)   ((uint64_t) 0b1011 << 4*(n - 1))
-#define DRPInt(n)    ((uint64_t) 0b0101 << 4*(n - 1))
-#define DRPFloat(n)  ((uint64_t) 0b0110 << 4*(n - 1))
-#define DRPOther(n)  ((uint64_t) 0b0111 << 4*(n - 1))
-#define DPInt(n)     ((uint64_t) 0b0001 << 4*(n - 1))
-#define DPFloat(n)   ((uint64_t) 0b0010 << 4*(n - 1))
-#define DPOther(n)   ((uint64_t) 0b1100 << 4*(n - 1))
-#define PVariadic(n) ((uint64_t) 0b1100 << 4*(n - 1))
+// Macros for defining the parameter map of functions
+#define __PTDef(s,r,t,n) ((uint64_t) (s << 3 | r << 2 | t) << 4*(n - 1))
+#define PNone(n)     __PTDef(0,0,0,n)
+#define SRPInt(n)    __PTDef(1,1,1,n)
+#define SRPFloat(n)  __PTDef(1,1,2,n)
+#define SRPOther(n)  __PTDef(1,1,3,n)
+#define SPInt(n)     __PTDef(1,0,1,n)
+#define SPFloat(n)   __PTDef(1,0,2,n)
+#define SPOther(n)   __PTDef(1,0,3,n)
+#define DRPInt(n)    __PTDef(0,1,1,n)
+#define DRPFloat(n)  __PTDef(0,1,4,n)
+#define DRPOther(n)  __PTDef(0,1,3,n)
+#define DPInt(n)     __PTDef(0,0,1,n)
+#define DPFloat(n)   __PTDef(0,0,2,n)
+#define DPOther(n)   __PTDef(0,0,3,n)
+#define PVariadic(n) __PTDef(1,1,0,n) // Special pattern
+#undef _TDef
 
 // convenience functions, using default rewriter
 void dbrew_def_verbose(bool decode, bool emuState, bool emuSteps);
