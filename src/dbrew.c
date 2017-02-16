@@ -181,29 +181,34 @@ void dbrew_def_verbose(bool decode, bool emuState, bool emuSteps)
 
 // Act as drop-in replacement assuming the function is returning an integer
 // This does not make use of captured code
-uint64_t dbrew_emulate(Rewriter* r, ...)
+uint64_t dbrew_emulate_v(Rewriter* r, va_list argptr)
 {
-    va_list argptr;
-
-    va_start(argptr, r);
     vEmulateAndCapture(r, argptr);
-    va_end(argptr);
 
     // integer return value is in RAX according to calling convention
     return r->es->reg[RI_A];
 }
 
-uint64_t dbrew_rewrite(Rewriter* r, ...)
+uint64_t dbrew_emulate(Rewriter* r, ...)
 {
     va_list argptr;
+    uint64_t ret;
+
+    va_start(argptr, r);
+    ret = dbrew_emulate_v(r, argptr);
+    va_end(argptr);
+
+    return ret;
+}
+
+uint64_t dbrew_rewrite_v(Rewriter* r, va_list argptr)
+{
     Error* e;
 
     // Set colorful output state
     setColors(r->colorfulOutput);
 
-    va_start(argptr, r);
     e = vEmulateAndCapture(r, argptr);
-    va_end(argptr);
 
     if (!e) {
         RContext c;
@@ -228,18 +233,27 @@ uint64_t dbrew_rewrite(Rewriter* r, ...)
     return r->generatedCodeAddr;
 }
 
-uint64_t dbrew_rewrite_func(uint64_t f, ...)
+uint64_t dbrew_rewrite(Rewriter* r, ...)
+{
+    va_list argptr;
+    uint64_t ret;
+
+    va_start(argptr, r);
+    ret = dbrew_rewrite_v(r, argptr);
+    va_end(argptr);
+
+    return ret;
+}
+
+uint64_t dbrew_rewrite_func_v(uint64_t f, va_list argptr)
 {
     Rewriter* r;
-    va_list argptr;
     Error* e;
 
     r = getDefaultRewriter();
     dbrew_set_function(r, f);
 
-    va_start(argptr, f);
     e = vEmulateAndCapture(r, argptr);
-    va_end(argptr);
 
     if (!e) {
         RContext c;
@@ -259,4 +273,16 @@ uint64_t dbrew_rewrite_func(uint64_t f, ...)
     }
 
     return r->generatedCodeAddr;
+}
+
+uint64_t dbrew_rewrite_func(uint64_t f, ...)
+{
+    va_list argptr;
+    uint64_t ret;
+
+    va_start(argptr, f);
+    ret = dbrew_rewrite_func_v(f, argptr);
+    va_end(argptr);
+
+    return ret;
 }

@@ -97,6 +97,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdarg.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -225,12 +226,15 @@ void dbrew_def_verbose(bool decode, bool emuState, bool emuSteps);
 
 // Act as drop-in replacement assuming the function is returning an integer
 uint64_t dbrew_emulate(Rewriter* r, ...);
+uint64_t dbrew_emulate_v(Rewriter* r, va_list argptr);
 
 // rewrite configured function, return pointer to rewritten code
 uint64_t dbrew_rewrite(Rewriter* r, ...);
+uint64_t dbrew_rewrite_v(Rewriter* r, va_list argptr);
 
 // rewrite <f> using default config, return pointer to rewritten code
 uint64_t dbrew_rewrite_func(uint64_t f, ...);
+uint64_t dbrew_rewrite_func_v(uint64_t f, va_list argptr);
 
 
 // Vector API:
