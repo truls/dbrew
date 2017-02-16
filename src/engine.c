@@ -22,7 +22,6 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-#include <unistd.h>
 
 #include "common.h"
 #include "printer.h"
@@ -153,7 +152,6 @@ void initRewriter(Rewriter* r)
     if (r->ePool == 0)
         r->ePool = expr_allocPool(1000);
 
-    initElfData(r, getpid());
 }
 
 void freeRewriter(Rewriter* r)

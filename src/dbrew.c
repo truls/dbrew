@@ -23,6 +23,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>
+#include <unistd.h>
 
 #include "buffers.h"
 #include "common.h"
@@ -42,7 +43,10 @@
 
 Rewriter* dbrew_new(void)
 {
-    return allocRewriter();
+    Rewriter* r = allocRewriter();
+    initElfData(r, getpid());
+
+    return r;
 }
 
 void dbrew_free(Rewriter* r)
