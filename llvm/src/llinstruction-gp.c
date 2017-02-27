@@ -175,19 +175,51 @@ ll_instruction_incdec(Instr* instr, LLState* state)
 }
 
 void
-ll_instruction_imul(Instr* instr, LLState* state)
+ll_instruction_mul(Instr* instr, LLState* state)
 {
     LLVMValueRef operand1;
     LLVMValueRef operand2;
     LLVMValueRef result = NULL;
 
-    // TODO: handle variant with one operand
-    if (instr->form == OF_2)
+    if (instr->form == OF_1) // This covers IT_MUL as well
+    {
+        LLVMOpcode ext = instr->type == IT_IMUL ? LLVMSExt : LLVMZExt;
+        LLVMTypeRef targetHalfType = LLVMIntTypeInContext(state->context, opTypeWidth(&instr->dst));
+        LLVMTypeRef targetType = LLVMIntTypeInContext(state->context, opTypeWidth(&instr->dst) * 2);
+        Operand* regOp = getRegOp(getReg(getGPRegType(opValType(&instr->dst)), RI_A));
+
+        operand1 = ll_operand_load(OP_SI, ALIGN_MAXIMUM, &instr->dst, state);
+        operand2 = ll_operand_load(OP_SI, ALIGN_MAXIMUM, regOp, state);
+
+        operand1 = LLVMBuildCast(state->builder, ext, operand1, targetType, "");
+        operand2 = LLVMBuildCast(state->builder, ext, operand2, targetType, "");
+
+        result = LLVMBuildMul(state->builder, operand1, operand2, "");
+
+        if (opTypeWidth(&instr->dst) == 8)
+        {
+            ll_operand_store(OP_SI, ALIGN_MAXIMUM, getRegOp(getReg(RT_GP16, RI_A)), REG_DEFAULT, result, state);
+        }
+        else
+        {
+            LLVMValueRef resultA = LLVMBuildTrunc(state->builder, result, targetHalfType, "");
+            LLVMValueRef resultD = LLVMBuildLShr(state->builder, result, LLVMConstInt(targetType, opTypeWidth(&instr->dst), false), "");
+            resultD = LLVMBuildTrunc(state->builder, resultD, targetHalfType, "");
+
+            regOp = getRegOp(getReg(getGPRegType(opValType(&instr->dst)), RI_A));
+            ll_operand_store(OP_SI, ALIGN_MAXIMUM, regOp, REG_DEFAULT, resultA, state);
+
+            regOp = getRegOp(getReg(getGPRegType(opValType(&instr->dst)), RI_D));
+            ll_operand_store(OP_SI, ALIGN_MAXIMUM, regOp, REG_DEFAULT, resultD, state);
+        }
+    }
+    else if (instr->form == OF_2)
     {
         operand1 = ll_operand_load(OP_SI, ALIGN_MAXIMUM, &instr->dst, state);
         operand2 = ll_operand_load(OP_SI, ALIGN_MAXIMUM, &instr->src, state);
         operand2 = LLVMBuildSExtOrBitCast(state->builder, operand2, LLVMTypeOf(operand1), "");
         result = LLVMBuildMul(state->builder, operand1, operand2, "");
+        ll_operand_store(OP_SI, ALIGN_MAXIMUM, &instr->dst, REG_DEFAULT, result, state);
     }
     else if (instr->form == OF_3)
     {
@@ -195,13 +227,12 @@ ll_instruction_imul(Instr* instr, LLState* state)
         operand2 = ll_operand_load(OP_SI, ALIGN_MAXIMUM, &instr->src2, state);
         operand2 = LLVMBuildSExtOrBitCast(state->builder, operand2, LLVMTypeOf(operand1), "");
         result = LLVMBuildMul(state->builder, operand1, operand2, "");
+        ll_operand_store(OP_SI, ALIGN_MAXIMUM, &instr->dst, REG_DEFAULT, result, state);
     }
     else
     {
         warn_if_reached();
     }
-
-    ll_operand_store(OP_SI, ALIGN_MAXIMUM, &instr->dst, REG_DEFAULT, result, state);
 }
 
 void
