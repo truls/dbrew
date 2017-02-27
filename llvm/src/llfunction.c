@@ -419,6 +419,21 @@ ll_function_dispose(LLFunction* function)
 }
 
 /**
+ * Dump the LLVM IR of the function.
+ *
+ * \author Alexis Engelke
+ *
+ * \param state The function
+ **/
+void
+ll_function_dump(LLFunction* function)
+{
+    char* value = LLVMPrintValueToString(function->llvmFunction);
+    puts(value);
+    LLVMDisposeMessage(value);
+}
+
+/**
  * Add a basic block to the function. Only valid for defined functions, where
  * the IR is not built yet.
  *
