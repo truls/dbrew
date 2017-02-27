@@ -1,8 +1,6 @@
 // Start-stop timer implementation by Alexis Engelke, 2015.
 // Licensed under the MIT license. See the LICENSE file.
 
-#define _POSIX_C_SOURCE 200809L
-
 #include <time.h>
 #include "timer.h"
 

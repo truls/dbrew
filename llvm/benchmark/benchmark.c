@@ -233,8 +233,8 @@ struct BenchmarkArgs {
 typedef struct BenchmarkArgs BenchmarkArgs;
 
 struct BenchmarkStencilConfig {
-    void* kernelfn;
-    void* linefn;
+    StencilFunction kernelfn;
+    StencilLineFunction linefn;
     void* data;
 };
 
@@ -297,7 +297,7 @@ benchmark_run2(bool isFirst, const BenchmarkArgs* args, const BenchmarkStencilCo
     LLFunction* llfn = NULL;
     Rewriter* r = NULL;
 
-    uintptr_t baseFunction = (uintptr_t) (args->useLineKernel ? config->linefn : config->kernelfn);
+    uintptr_t baseFunction = args->useLineKernel ? (uintptr_t) config->linefn : (uintptr_t) config->kernelfn;
     uintptr_t processedFunction;
 
     JTimerCont(&timerTotal);

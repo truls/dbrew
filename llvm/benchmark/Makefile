@@ -8,7 +8,7 @@ WFLAGS_BASE=-Wall -Wextra -Wmissing-field-initializers -Wunused-parameter \
 			-Wwrite-strings -Winline -Wformat-nonliteral -Wformat-security \
 			-Wswitch-default -Winit-self -Wnested-externs -Wstrict-prototypes \
 			-Wmissing-include-dirs -Wundef -Wmissing-format-attribute \
-			-Wswitch-enum -Wswitch -Waggregate-return
+			-Wswitch-enum -Wswitch -Waggregate-return -pedantic
 
 LLVM_MODULES = bitwriter core ipo mcjit scalaropts support vectorize x86codegen
 
