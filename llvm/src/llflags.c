@@ -314,6 +314,47 @@ ll_flags_set_cf_add(LLVMValueRef result, LLVMValueRef lhs, LLState* state)
     LLVMSetMetadata(ll_get_flag(RFLAG_CF, state), LLVMGetMDKindIDInContext(state->context, "asm.flag.cf", 11), state->emptyMD);
 }
 
+void
+ll_flags_set_of_imul(LLVMValueRef result, LLVMValueRef lhs, LLVMValueRef rhs, LLState* state)
+{
+    LLVMTypeRef intType = LLVMTypeOf(lhs);
+    LLVMTypeRef intLargeType = LLVMIntTypeInContext(state->context, LLVMGetIntTypeWidth(intType) * 2);
+    LLVMValueRef overflowFlag;
+
+    if (state->enableOverflowIntrinsics)
+    {
+        LLVMValueRef intrinsicSmulWithOverflow = ll_support_get_intrinsic(state->module, LL_INTRINSIC_SMUL_WITH_OVERFLOW, &intType, 1);
+        LLVMValueRef args[2] = { lhs, rhs };
+        LLVMValueRef packedData = LLVMBuildCall(state->builder, intrinsicSmulWithOverflow, args, 2, "");
+        overflowFlag = LLVMBuildExtractValue(state->builder, packedData, 1, "");
+    }
+    else
+    {
+        LLVMValueRef longResult;
+        LLVMValueRef shortResult;
+
+        if (LLVMTypeOf(result) != intLargeType)
+        {
+            lhs = LLVMBuildCast(state->builder, LLVMSExt, lhs, intLargeType, "");
+            rhs = LLVMBuildCast(state->builder, LLVMSExt, rhs, intLargeType, "");
+            longResult = LLVMBuildMul(state->builder, lhs, rhs, "");
+            shortResult = result;
+        }
+        else
+        {
+            longResult = result;
+            shortResult = LLVMBuildTrunc(state->builder, result, intType, "");
+        }
+
+        shortResult = LLVMBuildSExt(state->builder, shortResult, intLargeType, "");
+        overflowFlag = LLVMBuildICmp(state->builder, LLVMIntNE, longResult, shortResult, "");
+    }
+
+    ll_set_flag(RFLAG_OF, overflowFlag, state);
+    ll_set_flag(RFLAG_CF, overflowFlag, state);
+    LLVMSetMetadata(overflowFlag, LLVMGetMDKindIDInContext(state->context, "asm.flag.of", 11), state->emptyMD);
+}
+
 /**
  * Set the parity flag of a result. This is not really optimized since no one is
  * using this anyway.

@@ -42,6 +42,7 @@ void ll_flags_set_zf(LLVMValueRef, LLState*);
 void ll_flags_set_sf(LLVMValueRef, LLState*);
 void ll_flags_set_pf(LLVMValueRef, LLState*);
 void ll_flags_set_of_sub(LLVMValueRef, LLVMValueRef, LLVMValueRef, LLState*);
+void ll_flags_set_of_imul(LLVMValueRef, LLVMValueRef, LLVMValueRef, LLState*);
 
 void ll_flags_set_sub(LLVMValueRef, LLVMValueRef, LLVMValueRef, LLState*);
 void ll_flags_set_add(LLVMValueRef, LLVMValueRef, LLVMValueRef, LLState*);
