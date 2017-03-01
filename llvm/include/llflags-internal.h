@@ -36,6 +36,13 @@
 
 
 LLVMValueRef ll_flags_condition(InstrType, InstrType, LLState*);
+
+void ll_flags_set_af(LLVMValueRef, LLVMValueRef, LLVMValueRef, LLState*);
+void ll_flags_set_zf(LLVMValueRef, LLState*);
+void ll_flags_set_sf(LLVMValueRef, LLState*);
+void ll_flags_set_pf(LLVMValueRef, LLState*);
+void ll_flags_set_of_sub(LLVMValueRef, LLVMValueRef, LLVMValueRef, LLState*);
+
 void ll_flags_set_sub(LLVMValueRef, LLVMValueRef, LLVMValueRef, LLState*);
 void ll_flags_set_add(LLVMValueRef, LLVMValueRef, LLVMValueRef, LLState*);
 void ll_flags_set_bit(LLState*, LLVMValueRef, LLVMValueRef, LLVMValueRef);

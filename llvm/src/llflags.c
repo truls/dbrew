@@ -145,7 +145,7 @@ ll_flags_condition(InstrType type, InstrType base, LLState* state)
  * \param rhs The second operand
  * \param state The module state
  **/
-static void
+void
 ll_flags_set_af(LLVMValueRef result, LLVMValueRef lhs, LLVMValueRef rhs, LLState* state)
 {
     LLVMValueRef xor1 = LLVMBuildXor(state->builder, lhs, result, "");
@@ -166,7 +166,7 @@ ll_flags_set_af(LLVMValueRef result, LLVMValueRef lhs, LLVMValueRef rhs, LLState
  * \param result The result of the operation
  * \param state The module state
  **/
-static void
+void
 ll_flags_set_zf(LLVMValueRef result, LLState* state)
 {
     ll_set_flag(RFLAG_ZF, LLVMBuildICmp(state->builder, LLVMIntEQ, result, LLVMConstInt(LLVMTypeOf(result), 0, false), ""), state);
@@ -184,7 +184,7 @@ ll_flags_set_zf(LLVMValueRef result, LLState* state)
  * \param result The result of the operation
  * \param state The module state
  **/
-static void
+void
 ll_flags_set_sf(LLVMValueRef result, LLState* state)
 {
     ll_set_flag(RFLAG_SF, LLVMBuildICmp(state->builder, LLVMIntSLT, result, LLVMConstInt(LLVMTypeOf(result), 0, false), ""), state);
@@ -204,7 +204,7 @@ ll_flags_set_sf(LLVMValueRef result, LLState* state)
  * \param rhs The second operand
  * \param state The module state
  **/
-static void
+void
 ll_flags_set_of_sub(LLVMValueRef result, LLVMValueRef lhs, LLVMValueRef rhs, LLState* state)
 {
     LLVMTypeRef intType = LLVMTypeOf(result);
@@ -325,7 +325,7 @@ ll_flags_set_cf_add(LLVMValueRef result, LLVMValueRef lhs, LLState* state)
  * \param result The result of the operation
  * \param state The module state
  **/
-static void
+void
 ll_flags_set_pf(LLVMValueRef result, LLState* state)
 {
     LLVMTypeRef i1 = LLVMInt1TypeInContext(state->context);
