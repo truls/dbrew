@@ -240,11 +240,12 @@ ll_instruction_lea(Instr* instr, LLState* state)
 {
     LLVMTypeRef i8 = LLVMInt8TypeInContext(state->context);
     LLVMTypeRef i64 = LLVMInt64TypeInContext(state->context);
+    LLVMTypeRef targetType = LLVMIntTypeInContext(state->context, opTypeWidth(&instr->dst));
     LLVMTypeRef pi8 = LLVMPointerType(i8, 0);
 
     if (!opIsInd(&(instr->src)))
         warn_if_reached();
-    if (!opIsReg(&instr->dst) || instr->dst.reg.rt != RT_GP64)
+    if (!opIsReg(&instr->dst))
         warn_if_reached();
 
     LLVMValueRef result = ll_operand_get_address(OP_SI, &instr->src, state);
@@ -262,8 +263,11 @@ ll_instruction_lea(Instr* instr, LLState* state)
         base = LLVMBuildAdd(state->builder, base, offset, "");
     }
 
-    ll_set_register(instr->dst.reg, FACET_I64, base, true, state);
-    ll_set_register(instr->dst.reg, FACET_PTR, result, false, state);
+    base = LLVMBuildTruncOrBitCast(state->builder, base, targetType, "");
+    ll_operand_store(OP_SI, ALIGN_MAXIMUM, &instr->dst, REG_DEFAULT, base, state);
+
+    if (instr->dst.reg.rt == RT_GP64)
+        ll_set_register(instr->dst.reg, FACET_PTR, result, false, state);
 }
 
 void
