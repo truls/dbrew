@@ -93,6 +93,7 @@ static const ConversionDescriptor descriptors[IT_Max] = {
 
     // Defined in llinstruction-stack.c
     [IT_PUSH] = CD_FUNCTION(ll_instruction_stack),
+    [IT_PUSHFQ] = CD_FUNCTION(ll_instruction_stack),
     [IT_POP] = CD_FUNCTION(ll_instruction_stack),
     [IT_LEAVE] = CD_FUNCTION(ll_instruction_stack),
 
