@@ -145,7 +145,16 @@ ll_instruction_notneg(Instr* instr, LLState* state)
     if (instr->type == IT_NEG)
     {
         result = LLVMBuildNeg(state->builder, operand1, "");
+
+        LLVMValueRef zero = LLVMConstNull(LLVMTypeOf(operand1));
+        LLVMValueRef cf = LLVMBuildICmp(state->builder, LLVMIntNE, operand1, zero, "");
         ll_flags_invalidate(state);
+        ll_set_flag(RFLAG_CF, cf, state);
+        ll_flags_set_pf(result, state);
+        ll_flags_set_zf(result, state);
+        ll_flags_set_sf(result, state);
+        ll_flags_set_af(result, zero, operand1, state);
+        ll_flags_set_of_sub(result, zero, operand1, state);
     }
     else // IT_NOT
         result = LLVMBuildNot(state->builder, operand1, "");
