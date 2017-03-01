@@ -73,7 +73,8 @@ ll_instruction_call(Instr* instr, LLState* state)
             function = state->functions[i];
 
     if (function == NULL)
-        warn_if_reached();
+        return;
+        // warn_if_reached();
 
     LLVMValueRef llvmFunction = function->llvmFunction;
     LLVMAddFunctionAttr(llvmFunction, LLVMInlineHintAttribute);
@@ -116,24 +117,18 @@ ll_instruction_ret(Instr* instr, LLState* state)
     LLVMValueRef result = NULL;
 
     if (retTypeKind == LLVMPointerTypeKind)
-    {
-        LLVMValueRef value = ll_operand_load(OP_SI, ALIGN_MAXIMUM, getRegOp(getReg(RT_GP64, RI_A)), state);
-        result = LLVMBuildIntToPtr(state->builder, value, retType, "");
-    }
+        result = ll_get_register(getReg(RT_GP64, RI_A), FACET_PTR, state);
     else if (retTypeKind == LLVMIntegerTypeKind)
         // TODO: Non 64-bit integers!
-        result = ll_operand_load(OP_SI, ALIGN_MAXIMUM, getRegOp(getReg(RT_GP64, RI_A)), state);
+        result = ll_get_register(getReg(RT_GP64, RI_A), FACET_I64, state);
     else if (retTypeKind == LLVMFloatTypeKind)
-        result = ll_operand_load(OP_SF32, ALIGN_MAXIMUM, getRegOp(getReg(RT_XMM, RI_XMM0)), state);
+        result = ll_get_register(getReg(RT_XMM, RI_XMM0), FACET_F32, state);
     else if (retTypeKind == LLVMDoubleTypeKind)
-        result = ll_operand_load(OP_SF64, ALIGN_MAXIMUM, getRegOp(getReg(RT_XMM, RI_XMM0)), state);
+        result = ll_get_register(getReg(RT_XMM, RI_XMM0), FACET_F64, state);
     else if (retTypeKind == LLVMVoidTypeKind)
         result = NULL;
     else
-    {
-        result = NULL;
         warn_if_reached();
-    }
 
     if (result != NULL)
         LLVMBuildRet(state->builder, result);
