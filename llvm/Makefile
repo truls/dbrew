@@ -41,13 +41,20 @@ HEADERS = $(wildcard include/*.h)
 
 .PHONY: all clean test
 
-all: libdbrew-llvm.a
+TESTS=correctness
+TEST_TARGETS=$(addprefix test_, $(TESTS))
+
+all: libdbrew-llvm.a $(TEST_TARGETS)
 
 libdbrew-llvm.a: $(OBJS_C) $(OBJS_CXX) $(HEADERS)
-	ar rcs $@ $^
+	ar rcs $@ $(OBJS_C) $(OBJS_CXX)
 
 clean:
-	rm -f $(OBJS_C) $(OBJS_CXX) libdbrew-llvm.a
+	rm -f $(OBJS_C) $(OBJS_CXX) libdbrew-llvm.a $(TEST_TARGETS)
 
-test: libdbrew-llvm.a
+$(TEST_TARGETS): test_%: libdbrew-llvm.a
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ test/$*.c `pkg-config --cflags --libs glib-2.0` -L. -ldbrew-llvm -L.. -ldbrew $(LDLIBS)
+
+test: libdbrew-llvm.a $(TEST_TARGETS)
+	$(foreach TARGET,$(TEST_TARGETS),gtester --verbose --keep-going ./$(TARGET))
 	export LDFLAGS="$(LDFLAGS)" && export LDLIBS="$(LDLIBS)" && cd tests && ./test.py

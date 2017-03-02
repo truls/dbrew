@@ -7,6 +7,7 @@ addons:
       - ubuntu-toolchain-r-test
       - llvm-toolchain-precise-3.8
     packages: &default_pkgs
+      - libglib2.0-dev
       - libstdc++6-4.9-dbg
       - python3
       - llvm-3.8-dev
@@ -109,6 +110,8 @@ install:
   - export CXX=$COMPILERCXX
   - $CC --version
   - $CXX --version
+  - pkg-config --cflags glib-2.0
+  - pkg-config --libs glib-2.0
   - $LLVM_CONFIG --version
   - $LLVM_CONFIG --cflags
   - $LLVM_CONFIG --cxxflags
