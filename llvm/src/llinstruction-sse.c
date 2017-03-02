@@ -113,7 +113,7 @@ ll_instruction_movhps(Instr* instr, LLState* state)
         // the upper half of the register.
         opOverwriteType(&instr->dst, VT_128);
 
-        // XXX: Hack to make life more simple...
+        // XXX: Hack to make life more simple... this is actually illegal.
         opOverwriteType(&instr->src, VT_128);
 
         LLVMValueRef maskElements[4];
@@ -181,8 +181,8 @@ ll_instruction_unpckl(Instr* instr, LLState* state)
     LLVMValueRef maskElements[4];
     LLVMValueRef mask;
 
-    // XXX: Hack. Actually, we are doing it wrong by loading 128-bits from
-    // memory instead of 64. However, this makes life much more simple...
+    // This is actually legal as an implementation "MAY only fetch 64-bit".
+    // See Intel SDM Vol. 2B 4-696 (Dec. 2016).
     opOverwriteType(&instr->src, VT_128);
 
     if (instr->type == IT_UNPCKLPS)

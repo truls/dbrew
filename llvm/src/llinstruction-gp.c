@@ -58,7 +58,7 @@ ll_instruction_movgp(Instr* instr, LLState* state)
 
         if (instr->type == IT_MOVZX)
             operand1 = LLVMBuildZExtOrBitCast(state->builder, operand1, targetType, "");
-        else if (instr->type == IT_MOVSX)
+        else if (instr->type == IT_MOVSX) // There was a case when MOV was sign-extending, too...
             operand1 = LLVMBuildSExtOrBitCast(state->builder, operand1, targetType, "");
 
         ll_operand_store(OP_SI, ALIGN_MAXIMUM, &instr->dst, REG_DEFAULT, operand1, state);
