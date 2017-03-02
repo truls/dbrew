@@ -139,6 +139,11 @@ void dbrew_printer_showbytes(Rewriter* r, bool v)
     r->printBytes = v;
 }
 
+void dbrew_return_orig_on_fail(Rewriter* r, bool v)
+{
+    r->returnOrigOnFail = v;
+}
+
 uint64_t dbrew_generated_code(Rewriter* r)
 {
     return r->generatedCodeAddr;
@@ -229,9 +234,14 @@ uint64_t dbrew_rewrite_v(Rewriter* r, va_list argptr)
     }
 
     if (e) {
-        // on error, return original function
-        logError(e, (char*) "Stopped rewriting; return original");
-        r->generatedCodeAddr = r->entry_func->start;
+        if (r->returnOrigOnFail) {
+            // on error, return original function
+            logError(e, (char*) "Stopped rewriting; return original");
+            r->generatedCodeAddr = r->entry_func->start;
+        } else {
+            logError(e, (char*) "Stopped rewriting; returning 0");
+            r->generatedCodeAddr = 0;
+        }
     }
 
     return r->generatedCodeAddr;

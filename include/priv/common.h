@@ -344,6 +344,9 @@ struct _Rewriter {
     bool showDecoding, showEmuState, showEmuSteps, showOptSteps,
         colorfulOutput;
 
+    // return original on rewriting fail
+    bool returnOrigOnFail;
+
     // printer config
     bool printBytes;
 
