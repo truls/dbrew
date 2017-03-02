@@ -1,4 +1,4 @@
-//!compile = {cc} {ccflags} {ldflags} -I. -I../../include -I../../include/priv -I../include -std=c99 -g -o {outfile} {infile} {driver} ../../libdbrew.a ../libdbrew-llvm.a {ldlibs}
+//!compile = {cc} {ccflags} {ldflags} -I. -I../../include -I../../include/priv -I../include -std=c99 -g -o {outfile} {infile} {driver} ../../libdbrew.a ../libdbrew-llvm.a -lstdc++ {ldlibs}
 
 #include <stdio.h>
 #include <stdbool.h>
