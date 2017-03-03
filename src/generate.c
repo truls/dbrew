@@ -1933,7 +1933,7 @@ int genCall(GContext* c)
         return genDigitRM(c, 0xEB, 0, dst, 0);
     } else {
         // TODO: There are more encodings
-        return genDigitRM(c, 0xFF, 2, dst, 0);
+        return genDigitRM(c, 0xFF, 2, dst, GEN_DefOpVT64);
     }
 }
 
@@ -2102,6 +2102,7 @@ GenerateError* generate(Rewriter* r, CBB* cbb)
                 break;
             case IT_CALL:
                 used = genCall(&cxt);
+                break;
             case IT_CLTQ:
                 used = genCltq(&cxt);
                 break;
