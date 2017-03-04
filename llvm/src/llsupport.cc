@@ -27,6 +27,7 @@
 #include <llvm/IR/Intrinsics.h>
 #include <llvm/IR/Module.h>
 #include <llvm/IR/Operator.h>
+#include <llvm/Support/CommandLine.h>
 #include <llvm/Transforms/IPO/PassManagerBuilder.h>
 #include <llvm-c/ExecutionEngine.h>
 #include <llvm-c/Transforms/PassManagerBuilder.h>
@@ -207,6 +208,19 @@ ll_support_create_mcjit_compiler(LLVMExecutionEngineRef* OutJIT, LLVMModuleRef M
     }
     *OutError = strdup(Error.c_str());
     return 1;
+}
+
+/**
+ * Pass arguments in environment variable DBREWLLVM_OPTS to LLVM.
+ *
+ * \author Alexis Engelke
+ **/
+__attribute__((constructor))
+static
+void
+ll_support_pass_arguments(void)
+{
+    llvm::cl::ParseEnvironmentOptions("dbrewllvm", "DBREWLLVM_OPTS");
 }
 
 /**
