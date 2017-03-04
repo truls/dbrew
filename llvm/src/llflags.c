@@ -524,8 +524,10 @@ ll_flags_set_shl(LLState* state, LLVMValueRef result, LLVMValueRef lhs, LLVMValu
 {
     // TODO
     ll_flags_invalidate(state);
+    ll_flags_set_zf(result, state);
+    ll_flags_set_sf(result, state);
+    ll_flags_set_pf(result, state);
 
-    (void) result;
     (void) lhs;
     (void) rhs;
 }
@@ -535,8 +537,10 @@ ll_flags_set_shr(LLState* state, LLVMValueRef result, LLVMValueRef lhs, LLVMValu
 {
     // TODO
     ll_flags_invalidate(state);
+    ll_flags_set_zf(result, state);
+    ll_flags_set_sf(result, state);
+    ll_flags_set_pf(result, state);
 
-    (void) result;
     (void) lhs;
     (void) rhs;
 }
@@ -546,8 +550,10 @@ ll_flags_set_sar(LLState* state, LLVMValueRef result, LLVMValueRef lhs, LLVMValu
 {
     // TODO
     ll_flags_invalidate(state);
+    ll_flags_set_zf(result, state);
+    ll_flags_set_sf(result, state);
+    ll_flags_set_pf(result, state);
 
-    (void) result;
     (void) lhs;
     (void) rhs;
 }
