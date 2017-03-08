@@ -304,7 +304,11 @@ char* prettyAddress(Rewriter* r, uint64_t a, FunctionConfig* fc)
     // If none found, then try getting the info from elf
     AddrSymInfo info;
     if (r && addrToSym(r, a, &info)) {
-        sprintf(buf, "0x%lx <%s+%ld>", a, info.name, info.offset);
+        if (info.offset > 0) {
+            sprintf(buf, "0x%lx <%s+%ld>", a, info.name, info.offset);
+        } else {
+            sprintf(buf, "0x%lx <%s>", a, info.name);
+        }
         return buf;
     }
 
