@@ -2075,6 +2075,9 @@ void processInstr(RContext* c, Instr* instr)
                 initUnaryInstr(&in, IT_CALL, tmpRegOp);
                 //initUnaryInstr(&in, IT_CALL, &instr->dst);
                 capture(c, &in);
+                if (fc->flags & FC_SetReturnDynamic) {
+                    initMetaState(&es->reg_state[RI_A], CS_DYNAMIC);
+                }
                 if (saveTmpReg) {
                     capture(c, &restoreTmpReg);
                 }
