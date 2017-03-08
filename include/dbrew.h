@@ -121,6 +121,7 @@ typedef enum _FunctionConfigFlags {
                                     // to be != 0;
     FC_RequireGtZeroReturn = 1<<6, // Similar, but require >0
     FC_RequireGteZeroReturn = 1<<7, // Similar, but require >=0
+    FC_SetReturnDynamic = 1<<8, // Set rax to dynamic after function capturing
 } FunctionConfigFlags;
 
 // opaque data structures used in interface
