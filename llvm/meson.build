@@ -9,4 +9,10 @@ cpp_flags = ['-Wall', '-Wextra', '-Wmissing-field-initializers',
 
 llvm_inc = include_directories('include/', '.')
 
+install_headers('include/dbrew-llvm.h',
+                'include/llcommon.h',
+                'include/lldecoder.h',
+                'include/llengine.h',
+                'include/llfunction.h')
+
 subdir('src')

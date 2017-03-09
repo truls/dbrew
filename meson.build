@@ -103,7 +103,7 @@ pkg.generate(libraries: libdbrew,
              filebase: 'dbrew',
              name: 'libdbrew',
              description: 'A library for performing dynamic binary rewriting',
-             libraries: [libdbrew,'-ldw',llvm_libs])
+             libraries: [libdbrew,libdbrew_llvm,'-ldw','-lstdc++',llvm_libs])
 
 # Add target for running clang-tidy
 # clang_tidy = find_program('clang_tidy', 'git', 'xargs')
