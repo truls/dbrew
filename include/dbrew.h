@@ -159,6 +159,10 @@ void dbrew_printer_showbytes(Rewriter* r, bool v);
 // config for returning original code on rewriting failure
 void dbrew_return_orig_on_fail(Rewriter* r, bool v);
 
+// should immediate call addresses larger than supported immediate values be
+// transformed
+void dbrew_keep_large_call_addrs(Rewriter* r, bool v);
+
 // decode a piece of x86 binary code starting add address <f>
 DBB* dbrew_decode(Rewriter* r, uint64_t f);
 

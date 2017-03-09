@@ -96,6 +96,8 @@ Rewriter* allocRewriter(void)
     // default: assembly printer shows bytes
     r->printBytes = true;
 
+    r->keepLargeCallAddrs = false;
+
     return r;
 }
 

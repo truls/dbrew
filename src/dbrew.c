@@ -144,6 +144,11 @@ void dbrew_return_orig_on_fail(Rewriter* r, bool v)
     r->returnOrigOnFail = v;
 }
 
+void dbrew_keep_large_call_addrs(Rewriter* r, bool v)
+{
+    r->keepLargeCallAddrs = v;
+}
+
 uint64_t dbrew_generated_code(Rewriter* r)
 {
     return r->generatedCodeAddr;
