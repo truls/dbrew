@@ -2054,27 +2054,33 @@ void processInstr(RContext* c, Instr* instr)
                         Operand* o1 = getRegOp(getReg(RT_GP64, ri));
                         Operand* o2 = getImmOp(VT_64, r->es->reg[ri]);
                         initBinaryInstr(&in, IT_MOV, VT_64, o1, o2);
+                        // TODO: Capture genreated
                         capture(c, &in);
                     }
                 }
-                // Load address into register
+
+                bool saveTmpReg = false;
                 Instr restoreTmpReg;
-                bool saveTmpReg;
-                RegIndex freeReg = getUnusedReg(c, NULL, &saveTmpReg);
-                Operand* tmpRegOp = getRegOp(getReg(RT_GP64, freeReg));
-                // TODO: Move into common function shared with captureToOffset
-                if (saveTmpReg) {
-                    Instr push;
-                    initUnaryInstr(&restoreTmpReg, IT_POP, tmpRegOp);
-                    initUnaryInstr(&push, IT_PUSH, tmpRegOp);
-                    capture(c, &push);
+                if (r->keepLargeCallAddrs) {
+                    initUnaryInstr(&in, IT_CALL, &instr->dst);
+                } else {
+                    // Load address into register
+                    RegIndex freeReg = getUnusedReg(c, NULL, &saveTmpReg);
+                    Operand* tmpRegOp = getRegOp(getReg(RT_GP64, freeReg));
+                    // TODO: Move into common function shared with captureToOffset
+                    if (saveTmpReg) {
+                        Instr push;
+                        initUnaryInstr(&restoreTmpReg, IT_POP, tmpRegOp);
+                        initUnaryInstr(&push, IT_PUSH, tmpRegOp);
+                        capture(c, &push);
+                    }
+                    Operand* o2 = getImmOp(VT_64, v1.val);
+                    initBinaryInstr(&in, IT_MOV, VT_64, tmpRegOp, o2);
+                    capture(c, &in);
+                    initUnaryInstr(&in, IT_CALL, tmpRegOp);
                 }
-                Operand* o2 = getImmOp(VT_64, v1.val);
-                initBinaryInstr(&in, IT_MOV, VT_64, tmpRegOp, o2);
                 capture(c, &in);
-                initUnaryInstr(&in, IT_CALL, tmpRegOp);
-                //initUnaryInstr(&in, IT_CALL, &instr->dst);
-                capture(c, &in);
+
                 if (fc->flags & FC_SetReturnDynamic) {
                     initMetaState(&es->reg_state[RI_A], CS_DYNAMIC);
                 }

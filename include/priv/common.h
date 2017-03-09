@@ -328,6 +328,9 @@ struct _Rewriter {
     // debug output
     bool showDecoding, showEmuState, showEmuSteps, showOptSteps;
 
+    // Don't rewrite call instructions to avoid impossible immediates
+    bool keepLargeCallAddrs;
+
     // printer config
     bool printBytes;
 
