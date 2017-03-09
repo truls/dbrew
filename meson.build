@@ -25,6 +25,7 @@ inc = include_directories('include/', 'include/priv', '.')
 # config.h generation
 conf = configuration_data()
 
+llvm_libs = ''
 if get_option('enable_llvm')
   message('LLVM support requested')
   llvm_conf = find_program('llvm-config-64')
@@ -102,8 +103,7 @@ pkg.generate(libraries: libdbrew,
              filebase: 'dbrew',
              name: 'libdbrew',
              description: 'A library for performing dynamic binary rewriting',
-             requires_private: 'libdw',
-             libraries_private: llvm_libs)
+             libraries: [libdbrew,'-ldw',llvm_libs])
 
 # Add target for running clang-tidy
 # clang_tidy = find_program('clang_tidy', 'git', 'xargs')
