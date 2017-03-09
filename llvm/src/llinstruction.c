@@ -81,6 +81,7 @@ typedef struct ConversionDescriptor ConversionDescriptor;
 static const ConversionDescriptor descriptors[IT_Max] = {
     [IT_HINT_CALL] = CD_NOP(),
     [IT_HINT_RET] = CD_NOP(),
+    [IT_HINT_CALLRET] = CD_NOP(),
 
     [IT_NOP] = CD_NOP(),
 
