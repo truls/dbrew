@@ -1968,6 +1968,74 @@ void emuBypassCall(RContext* c, FunctionConfig* fc)
     }
 }
 
+// Captures static value loads for function parameters
+static
+void loadStaticPars(RContext* c, int parCount)
+{
+    assert(parCount <= 6 &&
+           "More than 6 parameters not supported");
+
+    Instr in;
+    // Load values of known parameter registers before call
+    // TODO: Handle stack arguments (parcount > 6 and variadic)
+    for (int i = 0; i < parCount; i++) {
+        RegIndex ri = getRegIndex(i);
+        if (msIsStatic(c->r->es->reg_state[ri])) {
+            Operand* o1 = getRegOp(getReg(RT_GP64, ri));
+            Operand* o2 = getImmOp(VT_64, c->r->es->reg[ri]);
+            initBinaryInstr(&in, IT_MOV, VT_64, o1, o2);
+            captureGenerated(c, &in);
+        }
+    }
+}
+
+static
+void handleBypassEmu(RContext* c, FunctionConfig* fc, Instr* instr, EmuValue* v1)
+{
+    EmuState* es = c->r->es;
+    Rewriter* r = c->r;
+
+    // TODO: It might be required to both execute a bypass call and keep
+    // the call instruction in cases where rest of program depends on
+    // return value
+    if (fc->flags & FC_KeepCallInstr) {
+
+        loadStaticPars(c, fc->parCount);
+
+        Instr in;
+        bool saveTmpReg = false;
+        Instr restoreTmpReg;
+        if (r->keepLargeCallAddrs) {
+            initUnaryInstr(&in, IT_CALL, &instr->dst);
+        } else {
+            // Load address into register
+            RegIndex freeReg = getUnusedReg(c, NULL, &saveTmpReg);
+            Operand* tmpRegOp = getRegOp(getReg(RT_GP64, freeReg));
+            // TODO: Move into common function shared with captureToOffset
+            if (saveTmpReg) {
+                Instr push;
+                initUnaryInstr(&restoreTmpReg, IT_POP, tmpRegOp);
+                initUnaryInstr(&push, IT_PUSH, tmpRegOp);
+                capture(c, &push);
+            }
+            Operand* o2 = getImmOp(VT_64, v1->val);
+            initBinaryInstr(&in, IT_MOV, VT_64, tmpRegOp, o2);
+            capture(c, &in);
+            initUnaryInstr(&in, IT_CALL, tmpRegOp);
+        }
+        capture(c, &in);
+
+        if (fc->flags & FC_SetReturnDynamic) {
+            initMetaState(&es->reg_state[RI_A], CS_DYNAMIC);
+        }
+        if (saveTmpReg) {
+            capture(c, &restoreTmpReg);
+        }
+    } else {
+        emuBypassCall(c, fc);
+    }
+}
+
 // process an instruction
 // if this changes control flow, c.exit is set accordingly
 void processInstr(RContext* c, Instr* instr)
@@ -2043,53 +2111,7 @@ void processInstr(RContext* c, Instr* instr)
         // Check function config flags to see what to do
         FunctionConfig* fc = config_get_function(r, v1.val);
         if (fc && fc->flags & FC_BypassEmu) {
-
-            if (fc->flags & FC_KeepCallInstr) {
-                Instr in;
-                // Load values of known parameter registers before call
-                // TODO: Handle stack arguments (parcount > 6 and variadic)
-                for (int i = 0; i < fc->parCount; i++) {
-                    RegIndex ri = getRegIndex(i);
-                    if (msIsStatic(c->r->es->reg_state[ri])) {
-                        Operand* o1 = getRegOp(getReg(RT_GP64, ri));
-                        Operand* o2 = getImmOp(VT_64, r->es->reg[ri]);
-                        initBinaryInstr(&in, IT_MOV, VT_64, o1, o2);
-                        // TODO: Capture genreated
-                        capture(c, &in);
-                    }
-                }
-
-                bool saveTmpReg = false;
-                Instr restoreTmpReg;
-                if (r->keepLargeCallAddrs) {
-                    initUnaryInstr(&in, IT_CALL, &instr->dst);
-                } else {
-                    // Load address into register
-                    RegIndex freeReg = getUnusedReg(c, NULL, &saveTmpReg);
-                    Operand* tmpRegOp = getRegOp(getReg(RT_GP64, freeReg));
-                    // TODO: Move into common function shared with captureToOffset
-                    if (saveTmpReg) {
-                        Instr push;
-                        initUnaryInstr(&restoreTmpReg, IT_POP, tmpRegOp);
-                        initUnaryInstr(&push, IT_PUSH, tmpRegOp);
-                        capture(c, &push);
-                    }
-                    Operand* o2 = getImmOp(VT_64, v1.val);
-                    initBinaryInstr(&in, IT_MOV, VT_64, tmpRegOp, o2);
-                    capture(c, &in);
-                    initUnaryInstr(&in, IT_CALL, tmpRegOp);
-                }
-                capture(c, &in);
-
-                if (fc->flags & FC_SetReturnDynamic) {
-                    initMetaState(&es->reg_state[RI_A], CS_DYNAMIC);
-                }
-                if (saveTmpReg) {
-                    capture(c, &restoreTmpReg);
-                }
-            } else {
-                emuBypassCall(c, fc);
-            }
+            handleBypassEmu(c, fc, instr, &v1);
         } else {
             Instr i;
             Operand o;
