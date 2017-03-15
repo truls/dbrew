@@ -202,6 +202,7 @@ typedef enum _VectorizeReq {
 MemRangeConfig* config_find_memrange(Rewriter* r, MemRangeType mrt, uint64_t addr);
 FunctionConfig* config_find_function(Rewriter* r, uint64_t f);
 FunctionConfig* config_get_function(Rewriter* r, uint64_t f);
+InstrType config_lookup_intrinsic(FunctionConfig* cc);
 void config_free(Rewriter* r);
 
 //

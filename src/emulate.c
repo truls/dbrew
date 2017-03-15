@@ -38,6 +38,7 @@
 #include "introspect.h"
 #include "config.h"
 #include "colors.h"
+#include "stubs.h"
 
 /*------------------------------------------------------------*/
 /* x86_64 capturing emulator
@@ -2421,30 +2422,39 @@ void handleBypassEmu(RContext* c, FunctionConfig* fc, Instr* instr, EmuValue* v1
     // TODO: It might be required to both execute a bypass call and keep
     // the call instruction in cases where rest of program depends on
     // return value
-    if (fc->flags & FC_KeepCallInstr) {
+    if (fc->flags & FC_KeepCallInstr ||
+        fc->flags & FC_IntrinsicHint) {
 
         loadStaticPars(c, fc->parCount);
 
         Instr in;
         bool saveTmpReg = false;
         Instr restoreTmpReg;
-        if (r->keepLargeCallAddrs) {
-            initUnaryInstr(&in, IT_CALL, &instr->dst);
+        if (fc->flags & FC_IntrinsicHint) {
+            InstrType ty = config_lookup_intrinsic(fc);
+            // TODO: Raise error
+            assert(ty != IT_Invalid);
+            initSimpleInstr(&in, ty);
+            captureStub(c, ty);
         } else {
-            // Load address into register
-            RegIndex freeReg = getUnusedReg(c, NULL, &saveTmpReg);
-            Operand* tmpRegOp = getRegOp(getReg(RT_GP64, freeReg));
-            // TODO: Move into common function shared with captureToOffset
-            if (saveTmpReg) {
-                Instr push;
-                initUnaryInstr(&restoreTmpReg, IT_POP, tmpRegOp);
-                initUnaryInstr(&push, IT_PUSH, tmpRegOp);
-                capture(c, &push);
+            if (r->keepLargeCallAddrs) {
+                initUnaryInstr(&in, IT_CALL, &instr->dst);
+            } else {
+                // Load address into register
+                RegIndex freeReg = getUnusedReg(c, NULL, &saveTmpReg);
+                Operand* tmpRegOp = getRegOp(getReg(RT_GP64, freeReg));
+                // TODO: Move into common function shared with captureToOffset
+                if (saveTmpReg) {
+                    Instr push;
+                    initUnaryInstr(&restoreTmpReg, IT_POP, tmpRegOp);
+                    initUnaryInstr(&push, IT_PUSH, tmpRegOp);
+                    capture(c, &push);
+                }
+                Operand* o2 = getImmOp(VT_64, v1->val);
+                initBinaryInstr(&in, IT_MOV, VT_64, tmpRegOp, o2);
+                capture(c, &in);
+                initUnaryInstr(&in, IT_CALL, tmpRegOp);
             }
-            Operand* o2 = getImmOp(VT_64, v1->val);
-            initBinaryInstr(&in, IT_MOV, VT_64, tmpRegOp, o2);
-            capture(c, &in);
-            initUnaryInstr(&in, IT_CALL, tmpRegOp);
         }
         capture(c, &in);
 
