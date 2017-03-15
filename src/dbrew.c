@@ -132,6 +132,7 @@ void dbrew_optverbose(Rewriter* r, bool v)
 
 void dbrew_colorful_output(Rewriter* r, bool v) {
     r->colorfulOutput = v;
+    setColors(v);
 }
 
 void dbrew_printer_showbytes(Rewriter* r, bool v)
