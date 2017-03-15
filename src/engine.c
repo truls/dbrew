@@ -98,6 +98,9 @@ Rewriter* allocRewriter(void)
 
     r->keepLargeCallAddrs = false;
 
+    // default: Return original on rewriting failure
+    r->returnOrigOnFail = true;
+
     return r;
 }
 
