@@ -123,6 +123,9 @@ typedef enum _InstrType {
     IT_HINT_CALL, // starting inlining of another function at this point
     IT_HINT_RET,  // ending inlining at this point
     IT_HINT_CALLRET, // was return value of call
+
+    // Libc intrinsic hints
+    IT_LIBC_MEMCPY,
     //
     IT_NOP,
     IT_CLTQ, IT_CWTL, IT_CQTO,

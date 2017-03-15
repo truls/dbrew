@@ -432,6 +432,8 @@ const char* instrName(InstrType it, int* pOpCount)
     case IT_HINT_RET:  n = "H-ret"; break;
     case IT_HINT_CALLRET: n = "H-call-ret"; break;
 
+    case IT_LIBC_MEMCPY: n = "H-libc-memcpy"; break;
+
     case IT_NOP:     n = "nop"; break;
     case IT_RET:     n = "ret"; break;
     case IT_LEAVE:   n = "leave"; break;

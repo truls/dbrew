@@ -196,7 +196,8 @@ typedef enum _VectorizeReq {
 
 FunctionConfig* config_find_function(Rewriter* r, uint64_t f);
 FunctionConfig* config_get_function(Rewriter* r, uint64_t f);
-
+InstrType config_lookup_intrinsic(FunctionConfig* cc);
+void config_free(Rewriter* r);
 
 //
 // Emulation

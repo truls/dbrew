@@ -34,8 +34,10 @@
 #include "expr.h"
 #include "error.h"
 #include "vector.h"
-
-
+#include "introspect.h"
+#include "config.h"
+#include "colors.h"
+#include "stubs.h"
 
 /*------------------------------------------------------------*/
 /* x86_64 capturing emulator
@@ -1990,21 +1992,23 @@ void loadStaticPars(RContext* c, int parCount)
 }
 
 static
-void handleBypassEmu(RContext* c, FunctionConfig* fc, Instr* instr, EmuValue* v1)
+void captureKeepCall(RContext* c, FunctionConfig* fc, Instr* instr, EmuValue* v1)
 {
-    EmuState* es = c->r->es;
+    Instr in;
+    Instr restoreTmpReg;
+    bool saveTmpReg = false;
+
     Rewriter* r = c->r;
 
-    // TODO: It might be required to both execute a bypass call and keep
-    // the call instruction in cases where rest of program depends on
-    // return value
-    if (fc->flags & FC_KeepCallInstr) {
+    loadStaticPars(c, fc->parCount);
 
-        loadStaticPars(c, fc->parCount);
-
-        Instr in;
-        bool saveTmpReg = false;
-        Instr restoreTmpReg;
+    if (fc->flags & FC_IntrinsicHint) {
+        InstrType ty = config_lookup_intrinsic(fc);
+        // TODO: Raise error
+        assert(ty != IT_Invalid);
+        initSimpleInstr(&in, ty);
+        captureStub(c, ty);
+    } else {
         if (r->keepLargeCallAddrs) {
             initUnaryInstr(&in, IT_CALL, &instr->dst);
         } else {
@@ -2023,13 +2027,29 @@ void handleBypassEmu(RContext* c, FunctionConfig* fc, Instr* instr, EmuValue* v1
             capture(c, &in);
             initUnaryInstr(&in, IT_CALL, tmpRegOp);
         }
-        capture(c, &in);
+    }
+    capture(c, &in);
+    if (saveTmpReg) {
+        capture(c, &restoreTmpReg);
+    }
+}
+
+static
+void handleBypassEmu(RContext* c, FunctionConfig* fc, Instr* instr, EmuValue* v1)
+{
+    EmuState* es = c->r->es;
+    Rewriter* r = c->r;
+
+    // TODO: It might be required to both execute a bypass call and keep
+    // the call instruction in cases where rest of program depends on
+    // return value
+    if (fc->flags & FC_KeepCallInstr ||
+        fc->flags & FC_IntrinsicHint) {
+
+        captureKeepCall(c, fc, instr, v1);
 
         if (fc->flags & FC_SetReturnDynamic) {
             initMetaState(&es->reg_state[RI_A], CS_DYNAMIC);
-        }
-        if (saveTmpReg) {
-            capture(c, &restoreTmpReg);
         }
     } else {
         emuBypassCall(c, fc);
@@ -2094,7 +2114,6 @@ void processInstr(RContext* c, Instr* instr)
         break;
 
     case IT_CALL: {
-        // TODO: keep call. For now, we always inline
         getOpValue(&v1, es, &(instr->dst));
         if (es->depth >= MAX_CALLDEPTH) {
             setEmulatorError(c, instr, ET_BufferOverflow,

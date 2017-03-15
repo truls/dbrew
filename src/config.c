@@ -18,10 +18,22 @@
  */
 
 #include "common.h"
+#include "instr.h"
 
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
+
+// Map of function names to pseudo instructions.
+typedef struct IntrMapEntry IntrMapEntry;
+struct IntrMapEntry {
+    char name[20];
+    InstrType instr;
+};
+#define INTR_MAP_SIZE 1
+static const IntrMapEntry intrMap[INTR_MAP_SIZE] = {
+    {"memcpy", IT_LIBC_MEMCPY}
+};
 
 static
 void cc_init(CaptureConfig* cc)
@@ -157,6 +169,15 @@ FunctionConfig* config_find_function(Rewriter* r, uint64_t f)
         return (FunctionConfig*) mrc;
     }
     return 0;
+}
+
+InstrType config_lookup_intrinsic(FunctionConfig* cc) {
+    for (int i = 0; i < INTR_MAP_SIZE; i++) {
+        if (strcmp(intrMap[i].name, cc->name) == 0) {
+            return intrMap[i].instr;
+        }
+    }
+    return IT_Invalid;
 }
 
 FunctionConfig* config_get_function(Rewriter* r, uint64_t f)

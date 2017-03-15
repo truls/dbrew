@@ -67,6 +67,7 @@ int pushCaptureBB(RContext *c, CBB* bb);
 CBB* popCaptureBB(Rewriter* r);
 Instr* newCapInstr(RContext *c);
 void capture(RContext* c, Instr* instr);
+void captureGenerated(RContext* c, Instr* instr);
 void captureRet(RContext* c, Instr* orig, EmuState* es);
 
 // clone a decoded BB as a CBB
