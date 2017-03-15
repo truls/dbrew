@@ -83,6 +83,8 @@ static const ConversionDescriptor descriptors[IT_Max] = {
     [IT_HINT_RET] = CD_NOP(),
     [IT_HINT_CALLRET] = CD_NOP(),
 
+    [IT_LIBC_MEMCPY] = CD_FUNCTION(ll_instruction_memcpy),
+
     [IT_NOP] = CD_NOP(),
 
     // Defined in llinstruction-callret.c

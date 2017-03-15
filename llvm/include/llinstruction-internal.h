@@ -60,6 +60,8 @@ void ll_instruction_movhps(Instr* instr, LLState* state);
 void ll_instruction_movhpd(Instr* instr, LLState* state);
 void ll_instruction_unpckl(Instr* instr, LLState* state);
 
+void ll_instruction_memcpy(Instr* instr, LLState* state);
+
 void ll_generate_instruction(Instr*, LLState*);
 
 #endif
