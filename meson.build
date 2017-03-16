@@ -22,6 +22,8 @@ add_global_link_arguments('-no-pie', language: 'cpp')
 
 inc = include_directories('include/', 'include/priv', '.')
 
+pkgconf_libs = []
+
 # config.h generation
 conf = configuration_data()
 
@@ -66,9 +68,11 @@ if get_option('enable_llvm')
   llvm_ccflags = _fc
 
   libllvm = declare_dependency(link_args: llvm_libs)
-    conf.set('HAVE_LLVM', true)
-    subdir('llvm')
-    llvm_dep = declare_dependency(link_with: libdbrew_llvm)
+  conf.set('HAVE_LLVM', true)
+  subdir('llvm')
+  llvm_dep = declare_dependency(link_with: libdbrew_llvm)
+
+  pkgconf_libs += [llvm_libs, libdbrew_llvm, '-lstdc++']
   else
     error('LLVM config not found (llvm-config-64 not in path)')
   endif
@@ -82,6 +86,7 @@ if get_option('enable_libdw')
   message('libdw support requested')
   libdw = dependency('libdw', required: true)
   conf.set('HAVE_LIBDW', true)
+  pkgconf_libs += ['-ldw']
 endif
 
 config_h = configure_file(input: 'config.h.in',
@@ -92,18 +97,18 @@ subdir('src')
 subdir('tests')
 subdir('examples')
 
+pkgconf_libs += ['libdbrew']
 
 # Install defs
 install_headers('include/dbrew.h')
-libs = [libdbrew, libdw, llvm_dep]
 pkg = import('pkgconfig')
-pkg.generate(libraries: libdbrew,
-             subdirs: '.',
+
+pkg.generate(subdirs: '.',
              version: '0.1',
              filebase: 'dbrew',
              name: 'libdbrew',
              description: 'A library for performing dynamic binary rewriting',
-             libraries: [libdbrew,libdbrew_llvm,'-ldw','-lstdc++',llvm_libs])
+             libraries: pkgconf_libs)
 
 # Add target for running clang-tidy
 # clang_tidy = find_program('clang_tidy', 'git', 'xargs')
