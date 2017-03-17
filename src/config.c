@@ -100,12 +100,16 @@ MemRangeConfig* mrc_new(MemRangeType type, char* name,
         mrc = (MemRangeConfig*) fc;
         // type == MR_Function specific configuration
         fc->parCount = -1; // unknown
-        for(int i=0; i < CC_MAXPARAM; i++) {
+        for (int i = 0; i < CC_MAXPARAM; i++) {
           initMetaState(&(fc->par_state[i]), CS_DYNAMIC);
-        }
-        for(int i=0; i < CC_MAXPARAM; i++) {
           fc->par_name[i] = 0;
+          fc->parMap[i] = (ParMap) {
+              .parType = ParDisabled,
+              .isReturn = 0,
+              .isStatic = 0
+          };
         }
+        fc->flags = 0;
     }
     else {
         mrc = (MemRangeConfig*) malloc(sizeof(MemRangeConfig));
