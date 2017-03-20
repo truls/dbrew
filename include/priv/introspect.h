@@ -43,6 +43,7 @@ typedef struct _ElfAddrInfo {
 typedef struct _AddrSymInfo {
     uint64_t size;
     uint64_t offset;
+    uint64_t addr;
     char name[ELF_MAX_NAMELEN];
 } AddrSymInfo;
 

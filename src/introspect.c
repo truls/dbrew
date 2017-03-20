@@ -100,7 +100,7 @@ bool addrToSym(Rewriter* r, uint64_t addr, AddrSymInfo* retInfo)
         strncpy(retInfo->name, name, ELF_MAX_NAMELEN);
         retInfo->offset = offset;
         retInfo->size = syminfo.st_size;
-
+        retInfo->addr = addr - offset;
         return true;
     }
 
@@ -116,7 +116,7 @@ bool addrToSym(Rewriter* r, uint64_t addr, AddrSymInfo* retInfo)
             strncpy(retInfo->name, name, ELF_MAX_NAMELEN);
             retInfo->offset = 0;
             retInfo->size = sym.st_size;
-
+            retInfo->addr = addr - offset;
             return true;
         }
     }
