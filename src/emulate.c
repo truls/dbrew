@@ -2827,38 +2827,44 @@ void processInstr(RContext* c, Instr* instr)
 
         // FIXME: Set flags!
         getOpValue(&v1, es, &(instr->dst));
+
         // TODO: raise "division by 0" exception
-        assert(v1.val != 0);
         cs = combineState(es->reg_state[RI_D].cState,
                           es->reg_state[RI_A].cState, 1);
         cs = combineState(cs, v1.state.cState, 0);
 
-        switch(instr->dst.type) {
-        case OT_Reg32:
-        case OT_Ind32:
-            v = (es->reg[RI_D] << 32) + (es->reg[RI_A] & ((1ul<<32)-1) );
-            v1.val = (int32_t) v1.val;
-            quRes = v / v1.val;
-            assert(quRes < (1u<<31)); // fits into 32 bit (TODO: raise exc)
-            modRes = v % v1.val;
-            break;
+        // Only emulate value if result of operation is static
+        if (msIsStatic(v1.state)) {
+            assert(v1.val != 0);
 
-        case OT_Reg64:
-        case OT_Ind64:
-            // FIXME: should use rdx
-            quRes = es->reg[RI_A] / v1.val;
-            modRes = es->reg[RI_A] % v1.val;
-            break;
+            switch(instr->dst.type) {
+            case OT_Reg32:
+            case OT_Ind32:
+                v = (es->reg[RI_D] << 32) + (es->reg[RI_A] & ((1ul<<32)-1) );
+                v1.val = (int32_t) v1.val;
+                quRes = v / v1.val;
+                assert(quRes < (1u<<31)); // fits into 32 bit (TODO: raise exc)
+                modRes = v % v1.val;
+                break;
 
-        default:
-            setEmulatorError(c, instr, ET_UnsupportedOperands, 0);
-            return;
+            case OT_Reg64:
+            case OT_Ind64:
+                // FIXME: should use rdx
+                quRes = es->reg[RI_A] / v1.val;
+                modRes = es->reg[RI_A] % v1.val;
+                break;
+
+            default:
+                setEmulatorError(c, instr, ET_UnsupportedOperands, 0);
+                return;
+            }
+
+            es->reg[RI_A] = quRes;
+            es->reg[RI_D] = modRes;
         }
 
         captureIDiv(c, instr, cs, es);
 
-        es->reg[RI_A] = quRes;
-        es->reg[RI_D] = modRes;
         initMetaState(&(es->reg_state[RI_D]), cs);
         initMetaState(&(es->reg_state[RI_A]), cs);
         break;
