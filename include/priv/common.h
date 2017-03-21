@@ -166,6 +166,12 @@ struct _FunctionConfig
 
     // Store function parameter maps
     ParMap parMap[CC_MAXPARAM];
+
+    // Specifies the maximum recursion depth allowed for the function. Values <=
+    // 0 means unlimited depth unlimited. When specified depth is reached,
+    // further calls to the function will be replaced by a call to the original
+    // function.
+    int maxRecDepth;
 };
 
 struct _CaptureConfig

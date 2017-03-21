@@ -212,6 +212,7 @@ void dbrew_config_function_parcount(Rewriter* r, uint64_t f, int parCount);
 void dbrew_config_function_par_setstatic(Rewriter* r, uint64_t f, int parNum);
 void dbrew_config_function_setflags(Rewriter* r, uint64_t f, int flags);
 void dbrew_config_function_parmap(Rewriter* r, uint64_t f, int parcount, uint64_t map);
+void dbrew_config_function_recdepth(Rewriter* r, uint64_t f, int recursionDepth);
 
 // Macros for defining the parameter map of functions
 #define __PTDef(s,r,t,n) ((uint64_t) (s << 3 | r << 2 | t) << 4*(n - 1))

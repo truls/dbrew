@@ -2478,6 +2478,43 @@ void handleBypassEmu(RContext* c, FunctionConfig* fc, Instr* instr, EmuValue* v1
     }
 }
 
+// Check if current callstack contains more than the allowed number of recursive
+// calls.
+static
+bool recLimitReached(Rewriter* r, EmuState* es, int depth)
+{
+    AddrSymInfo si;
+
+    if (es->depth <= 1) {
+        return false;
+    }
+
+    uint64_t prevVal = 0;
+    uint64_t addr;
+    int curRunlength = 0;
+    for (int i = es->depth - 1; i > 0; i--) {
+        // Try to get base address of function
+        if (addrToSym(r, es->ret_stack[i], &si)) {
+            addr = si.addr;
+        } else {
+            // Otherwise, use ret addr and hope for the best
+            addr = es->ret_stack[i];
+        }
+        if (! prevVal) {
+            prevVal = addr;
+        }
+        if (prevVal == addr) {
+            curRunlength++;
+            if (curRunlength > depth) {
+                return true;
+            }
+        } else {
+            return false;
+        }
+    }
+    return false;
+}
+
 // process an instruction
 // if this changes control flow, c.exit is set accordingly
 void processInstr(RContext* c, Instr* instr)
@@ -2613,24 +2650,34 @@ void processInstr(RContext* c, Instr* instr)
             Instr i;
             Operand o;
 
-            // push address of instruction after CALL onto stack
-            // This will trigger a stack adjustment instruction to be
-            // captured. This is desired, since it causes the correct
-            // stack-alignment for the called function.
-            copyOperand(&o, getImmOp(VT_64, instr->addr + instr->len));
-            initUnaryInstr(&i, IT_PUSH, &o);
-            processInstr(c, &i);
-            if (c->e) return; // error
 
             es->ret_stack[es->depth++] = o.val;
 
-            if (r->addInliningHints) {
-                initSimpleInstr(&i, IT_HINT_CALL);
-                capture(c, &i);
+            bool reachedRecLimit = false;
+            if (fc && (fc->maxRecDepth > 0)) {
+                reachedRecLimit = recLimitReached(r, es, fc->maxRecDepth);
             }
 
-            // address to jump to
-            c->exit = v1.val;
+            if (reachedRecLimit) {
+                captureKeepCall(c, fc, instr, &v1);
+                es->depth--;
+            } else {
+                // push address of instruction after CALL onto stack
+                // This will trigger a stack adjustment instruction to be
+                // captured. This is desired, since it causes the correct
+                // stack-alignment for the called function.
+                initUnaryInstr(&i, IT_PUSH, &o);
+                processInstr(c, &i);
+                if (c->e) return; // error
+
+                if (r->addInliningHints) {
+                    initSimpleInstr(&i, IT_HINT_CALL);
+                    capture(c, &i);
+                }
+
+                // address to jump to
+                c->exit = v1.val;
+            }
         }
         break;
     }

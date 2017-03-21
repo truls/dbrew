@@ -110,6 +110,7 @@ MemRangeConfig* mrc_new(MemRangeType type, char* name,
           };
         }
         fc->flags = 0;
+        fc->maxRecDepth = 0;
     }
     else {
         mrc = (MemRangeConfig*) malloc(sizeof(MemRangeConfig));
@@ -331,4 +332,11 @@ void dbrew_config_function_parmap(Rewriter* r, uint64_t f, int parcount, uint64_
         }
     }
 
+}
+
+void dbrew_config_function_recdepth(Rewriter* r, uint64_t f, int recursionDepth)
+{
+    FunctionConfig* fc = fc_get(cc_get(r), f);
+
+    fc->maxRecDepth = recursionDepth;
 }
