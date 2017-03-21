@@ -1289,6 +1289,7 @@ void getMemValue(EmuValue* v, EmuValue* addr, EmuState* es, ValType t,
     }
 
     assert(!shouldBeStack);
+    v->type = t;
     initMetaState(&(v->state), CS_DYNAMIC);
     // explicit request to make memory access result static
     if (addr->state.cState == CS_STATIC2) {
@@ -1296,9 +1297,14 @@ void getMemValue(EmuValue* v, EmuValue* addr, EmuState* es, ValType t,
     } // Mark values from immutable memory regions as static
     else if (config_find_memrange(r, MR_ConstantData, addr->val)) {
         v->state.cState = CS_STATIC;
+    } else {
+        v->val = 0;
+        // Don't try to look up dynamic memory values. Emulation result
+        // shouldn't depend on them and we have no idea if dynamic values points
+        // to valid memory.
+        return;
     }
 
-    v->type = t;
     switch(t) {
     case VT_8:  v->val = *(uint8_t*) addr->val; break;
     case VT_16: v->val = *(uint16_t*) addr->val; break;
@@ -1585,8 +1591,10 @@ void setOpValue(EmuValue* v, EmuState* es, Operand* o)
     case OT_Ind16:
     case OT_Ind32:
     case OT_Ind64:
-        getOpAddr(&addr, es, o);
-        setMemValue(v, &addr, es, opValType(o), 0);
+        if (msIsStatic(v->state)) {
+            getOpAddr(&addr, es, o);
+            setMemValue(v, &addr, es, opValType(o), 0);
+        }
         return;
 
     default: assert(0);
