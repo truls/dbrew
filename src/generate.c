@@ -1359,13 +1359,14 @@ int genIMul(GContext* cxt)
         }
         break;
 
+    case OT_Imm16:
     case OT_Imm32:
         if (opValType(src) != opValType(dst)) return -1;
         switch(dst->type) {
         case OT_Reg32:
         case OT_Reg64:
             // use 'imul r,r/m 32/64,imm32' (0x69/r RMI)
-            return genModRMI(cxt, 0x69, dst, dst, src, 0);
+            return genModRMI(cxt, 0x69, dst, dst, src, GEN_66OnVT16);
 
         default: return -1;
         }
