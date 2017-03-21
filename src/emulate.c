@@ -2275,6 +2275,7 @@ void emulateRet(RContext* c, Instr* instr)
         addr = emuValue(es->reg[RI_SP], VT_64, es->reg_state[RI_SP]);
         getMemValue(&v, &addr, es, VT_64, 1);
         es->reg[RI_SP] += 8;
+        captureStackAdjust(c, 8);
 
         if (v.val != es->ret_stack[es->depth]) {
             setEmulatorError(c, instr,
