@@ -934,7 +934,6 @@ void captureToOffset(RContext* c, Instr* instr, int offset, bool generated)
     }
 }
 
-static
 void captureGenerated(RContext* c, Instr* instr)
 {
     captureToOffset(c, instr, 0, true);
