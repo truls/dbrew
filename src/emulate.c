@@ -2414,6 +2414,49 @@ void loadStaticPars(RContext* c, int parCount)
 }
 
 static
+void captureKeepCall(RContext* c, FunctionConfig* fc, Instr* instr, EmuValue* v1)
+{
+    Instr in;
+    Instr restoreTmpReg;
+    bool saveTmpReg = false;
+
+    Rewriter* r = c->r;
+
+    loadStaticPars(c, fc->parCount);
+
+    if (fc->flags & FC_IntrinsicHint) {
+        InstrType ty = config_lookup_intrinsic(fc);
+        // TODO: Raise error
+        assert(ty != IT_Invalid);
+        initSimpleInstr(&in, ty);
+        captureStub(c, ty);
+    } else {
+        if (r->keepLargeCallAddrs) {
+            initUnaryInstr(&in, IT_CALL, &instr->dst);
+        } else {
+            // Load address into register
+            RegIndex freeReg = getUnusedReg(c, NULL, &saveTmpReg);
+            Operand* tmpRegOp = getRegOp(getReg(RT_GP64, freeReg));
+            // TODO: Move into common function shared with captureToOffset
+            if (saveTmpReg) {
+                Instr push;
+                initUnaryInstr(&restoreTmpReg, IT_POP, tmpRegOp);
+                initUnaryInstr(&push, IT_PUSH, tmpRegOp);
+                capture(c, &push);
+            }
+            Operand* o2 = getImmOp(VT_64, v1->val);
+            initBinaryInstr(&in, IT_MOV, VT_64, tmpRegOp, o2);
+            capture(c, &in);
+            initUnaryInstr(&in, IT_CALL, tmpRegOp);
+        }
+    }
+    capture(c, &in);
+    if (saveTmpReg) {
+        capture(c, &restoreTmpReg);
+    }
+}
+
+static
 void handleBypassEmu(RContext* c, FunctionConfig* fc, Instr* instr, EmuValue* v1)
 {
     EmuState* es = c->r->es;
@@ -2425,44 +2468,10 @@ void handleBypassEmu(RContext* c, FunctionConfig* fc, Instr* instr, EmuValue* v1
     if (fc->flags & FC_KeepCallInstr ||
         fc->flags & FC_IntrinsicHint) {
 
-        loadStaticPars(c, fc->parCount);
-
-        Instr in;
-        bool saveTmpReg = false;
-        Instr restoreTmpReg;
-        if (fc->flags & FC_IntrinsicHint) {
-            InstrType ty = config_lookup_intrinsic(fc);
-            // TODO: Raise error
-            assert(ty != IT_Invalid);
-            initSimpleInstr(&in, ty);
-            captureStub(c, ty);
-        } else {
-            if (r->keepLargeCallAddrs) {
-                initUnaryInstr(&in, IT_CALL, &instr->dst);
-            } else {
-                // Load address into register
-                RegIndex freeReg = getUnusedReg(c, NULL, &saveTmpReg);
-                Operand* tmpRegOp = getRegOp(getReg(RT_GP64, freeReg));
-                // TODO: Move into common function shared with captureToOffset
-                if (saveTmpReg) {
-                    Instr push;
-                    initUnaryInstr(&restoreTmpReg, IT_POP, tmpRegOp);
-                    initUnaryInstr(&push, IT_PUSH, tmpRegOp);
-                    capture(c, &push);
-                }
-                Operand* o2 = getImmOp(VT_64, v1->val);
-                initBinaryInstr(&in, IT_MOV, VT_64, tmpRegOp, o2);
-                capture(c, &in);
-                initUnaryInstr(&in, IT_CALL, tmpRegOp);
-            }
-        }
-        capture(c, &in);
+        captureKeepCall(c, fc, instr, v1);
 
         if (fc->flags & FC_SetReturnDynamic) {
             initMetaState(&es->reg_state[RI_A], CS_DYNAMIC);
-        }
-        if (saveTmpReg) {
-            capture(c, &restoreTmpReg);
         }
     } else {
         emuBypassCall(c, fc);
@@ -2583,7 +2592,6 @@ void processInstr(RContext* c, Instr* instr)
         break;
 
     case IT_CALL: {
-        // TODO: keep call. For now, we always inline
         getOpValue(&v1, es, &(instr->dst));
         if (es->depth >= MAX_CALLDEPTH) {
             setEmulatorError(c, instr, ET_BufferOverflow,
