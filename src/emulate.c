@@ -2432,9 +2432,7 @@ void emuBypassCall(RContext* c, FunctionConfig* fc)
 static
 void loadStaticPars(RContext* c, int parCount)
 {
-    assert(parCount <= 6 &&
-           "More than 6 parameters not supported");
-
+    parCount = parCount > 6 ? 6 : parCount;
     Instr in;
     // Load values of known parameter registers before call
     // TODO: Handle stack arguments (parcount > 6 and variadic)
