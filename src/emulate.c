@@ -1949,7 +1949,8 @@ void captureCmp(RContext* c, Instr* orig, EmuState* es, CaptureState cs)
         o = getImmOp(opval.type, opval.val);
 
     initBinaryInstr(&i, IT_CMP, orig->vtype, &(orig->dst), o);
-    applyStaticToInd(&(i.dst), es);
+    // FIXME: What to do here?
+    //applyStaticToInd(&(i.dst), es);
     applyStaticToInd(&(i.src), es);
     capture(c, &i);
 }
