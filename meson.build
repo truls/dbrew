@@ -72,7 +72,7 @@ if get_option('enable_llvm')
   subdir('llvm')
   llvm_dep = declare_dependency(link_with: libdbrew_llvm)
 
-  pkgconf_libs += [llvm_libs, libdbrew_llvm, '-lstdc++']
+  pkgconf_libs += [libdbrew_llvm, llvm_libs, '-lstdc++']
   else
     error('LLVM config not found (llvm-config-64 not in path)')
   endif
@@ -86,7 +86,7 @@ if get_option('enable_libdw')
   message('libdw support requested')
   libdw = dependency('libdw', required: true)
   conf.set('HAVE_LIBDW', true)
-  pkgconf_libs += ['-ldw']
+  pkgconf_libs += ['-ldw', '-lelf']
 endif
 
 config_h = configure_file(input: 'config.h.in',
@@ -97,7 +97,7 @@ subdir('src')
 subdir('tests')
 subdir('examples')
 
-pkgconf_libs += ['libdbrew']
+pkgconf_libs = [libdbrew] + pkgconf_libs
 
 # Install defs
 install_headers('include/dbrew.h')
