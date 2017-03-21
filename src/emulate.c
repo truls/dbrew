@@ -98,6 +98,12 @@ bool msIsDynamic(MetaState ms)
 }
 
 static
+bool msIsStackrelative(MetaState ms)
+{
+    return ms.cState == CS_STACKRELATIVE;
+}
+
+static
 EmuValue emuValue(uint64_t v, ValType t, MetaState s)
 {
     EmuValue ev;
@@ -1907,14 +1913,30 @@ void captureCmp(RContext* c, Instr* orig, EmuState* es, CaptureState cs)
     EmuValue opval;
     Instr i;
     Operand *o;
+    Operand* dst = &(orig->dst);
+    Operand newDst;
+    Operand* immOp;
 
     if (csIsStatic(cs)) return;
 
     getOpValue(&opval, es, &(orig->dst));
     if (msIsStatic(opval.state)) {
         // cannot replace dst with imm: no such encoding => update dst
-        initBinaryInstr(&i, IT_MOV, opval.type,
-                        &(orig->dst), getImmOp(opval.type, opval.val));
+        // For indirect static values, load the value of the register used as
+        // base for the relative addressing rather than the value itself. Except
+        // when register is stackrelative (i.e. rbp or esp)
+        if (opIsInd(dst) && msIsStatic(opval.state) &&
+            (! msIsStackrelative(es->reg_state[regGP64Index(dst->reg)]))) {
+            copyOperand(&newDst, getRegOp(dst->reg));
+            getRegValue(&opval, es, dst->reg, VT_64);
+            immOp = getImmOp(opval.type, opval.val);
+        } else {
+            copyOperand(&newDst, dst);
+            immOp = getImmOp(opval.type, opval.val);
+        }
+       initBinaryInstr(&i, IT_MOV, opval.type,
+                       //&(orig->dst), getImmOp(opval.type, opval.val));
+                       &newDst, immOp);
         capture(c, &i);
     }
 
