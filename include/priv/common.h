@@ -266,6 +266,9 @@ struct _EmuState {
     uint64_t ret_stack[MAX_CALLDEPTH];
     int depth;
 
+    // Inhibibt loop unrolling
+    bool inhibitLoopUnroll;
+
 };
 
 
