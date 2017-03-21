@@ -153,8 +153,6 @@ typedef enum _InstrType {
 
     IT_SFENCE, IT_LFENCE,
 
-    IT_PUSHF, IT_POPF,
-
     // Single byte instructions (and rep)
     IT_MOVS, IT_REP_MOVS,
 
