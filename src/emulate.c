@@ -2460,7 +2460,6 @@ static
 void handleBypassEmu(RContext* c, FunctionConfig* fc, Instr* instr, EmuValue* v1)
 {
     EmuState* es = c->r->es;
-    Rewriter* r = c->r;
 
     // TODO: It might be required to both execute a bypass call and keep
     // the call instruction in cases where rest of program depends on
@@ -2651,6 +2650,7 @@ void processInstr(RContext* c, Instr* instr)
             Operand o;
 
 
+            copyOperand(&o, getImmOp(VT_64, instr->addr + instr->len));
             es->ret_stack[es->depth++] = o.val;
 
             bool reachedRecLimit = false;
