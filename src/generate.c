@@ -524,6 +524,30 @@ void setGenInfo(GContext* c,
 }
 
 
+// If soruce and dest have same width where source is an Imm and dst is a reg,
+// reduce both to the same operator width
+static
+void reduceImmReg64to32(Operand** srcIn, Operand** dstIn)
+{
+    static Operand newSrc;
+    static Operand newDst;
+
+    Operand* dst = *dstIn;
+    Operand* src = *srcIn;
+
+    if (src->type == OT_Imm64 && (opIsReg(dst) && (opValType(dst) == VT_64))) {
+        int64_t v = (int64_t) src->val;
+        if ((v > -(1l << 31)) && (v < (1l << 31))) {
+            newSrc.type = OT_Imm32;
+            newSrc.val = (uint32_t) (int32_t) v;
+            newDst.type = OT_Reg32;
+            newDst.reg = dst->reg;
+            *srcIn = &newSrc;
+            *dstIn = &newDst;
+        }
+    }
+}
+
 // if imm64 and value fitting into imm32, return imm32 version
 // otherwise, or if operand is not imm, just return the original
 static
@@ -1304,6 +1328,7 @@ int genIMul(GContext* cxt)
     Operand* dst =  &(cxt->instr->dst);
 
     // if src is imm, try to reduce width
+    reduceImmReg64to32(&src, &dst);
     src = reduceImm64to32(src);
     src = reduceImm32to8(src);
 
