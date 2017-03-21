@@ -162,6 +162,8 @@ void resetEmuState(EmuState* es)
     initMetaState(&(es->regIP_state), CS_STATIC);
 
     es->depth = 0;
+
+    es->inhibitLoopUnroll = false;
 }
 
 EmuState* allocEmuState(int size)
@@ -338,6 +340,7 @@ void copyEmuState(EmuState* dst, EmuState* src)
     dst->depth = src->depth;
     for(i = 0; i < src->depth; i++)
         dst->ret_stack[i] = src->ret_stack[i];
+    dst->inhibitLoopUnroll = src->inhibitLoopUnroll;
 }
 
 static
@@ -1811,7 +1814,7 @@ void captureBinaryOp(RContext* c, Instr* orig, EmuState* es, EmuValue* res)
 
     if (msIsStatic(res->state)) {
         // force results to become unknown?
-        if (c->r->cc->force_unknown[es->depth]) {
+        if (c->r->cc->force_unknown[es->depth] || es->inhibitLoopUnroll) {
             initMetaState(&(res->state), CS_DYNAMIC);
         }
         else {
@@ -1892,7 +1895,7 @@ void captureLea(RContext* c, Instr* orig, EmuState* es, EmuValue* res)
 
     assert(opIsReg(&(orig->dst)));
     if (msIsStatic(res->state)) {
-        if (c->r->cc->force_unknown[es->depth]) {
+        if (c->r->cc->force_unknown[es->depth || es->inhibitLoopUnroll]) {
             // force results to become unknown => load value into dest
 
             initMetaState(&(res->state), CS_DYNAMIC);
@@ -2280,6 +2283,7 @@ void emulateRet(RContext* c, Instr* instr)
         }
         // return to address
         c->exit = es->ret_stack[es->depth];
+        es->inhibitLoopUnroll = false;
     }
 }
 
@@ -2679,6 +2683,8 @@ void processInstr(RContext* c, Instr* instr)
             Instr i;
             Operand o;
 
+            // Should loop unrolling be inhibited in this function?
+            es->inhibitLoopUnroll = fc && (fc->flags & FC_InhibitLoopUnroll);
 
             copyOperand(&o, getImmOp(VT_64, instr->addr + instr->len));
             es->ret_stack[es->depth++] = o.val;
