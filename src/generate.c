@@ -2296,7 +2296,9 @@ GenerateError* generate(Rewriter* r, CBB* cbb)
             }
             if (line && curLineno != addrinfo -> lineno) {
                 curLineno = addrinfo->lineno;
-                cprintf(CFGreen, "\n  %s\n", line);
+                // Leading newline in separate printf to get colors in less
+                printf("\n ");
+                cprintf(CFGreen, "%s\n", line);
             }
             printf("  I%2d : %-32s", i, instr2string(instr, 1, 0, cbb->fc));
             printf(" (%s)+%-3d",
