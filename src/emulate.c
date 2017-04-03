@@ -2436,7 +2436,7 @@ void loadStaticPars(RContext* c, int parCount)
     // Load values of known parameter registers before call
     // TODO: Handle stack arguments (parcount > 6 and variadic)
     for (int i = 0; i < parCount; i++) {
-        RegIndex ri = getRegIndex(i);
+        RegIndex ri = getParRegIndex(i);
         if (msIsStatic(c->r->es->reg_state[ri])) {
             Operand* o1 = getRegOp(getReg(RT_GP64, ri));
             Operand* o2 = getImmOp(VT_64, c->r->es->reg[ri]);

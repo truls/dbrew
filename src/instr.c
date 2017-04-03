@@ -693,7 +693,7 @@ void attachPassthrough(Instr* i, VexPrefix vp,
     i->ptOpc[2] = (uint8_t) b3;
 }
 
-RegIndex getRegIndex(int pos) {
+RegIndex getParRegIndex(int pos) {
     const int maxPars = 6;
     // calling convention x86-64: parameters are stored in registers
     // see https://en.wikipedia.org/wiki/X86_calling_conventions

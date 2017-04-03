@@ -344,6 +344,6 @@ void initTernaryInstr(Instr* i, InstrType it,
 void attachPassthrough(Instr* i, VexPrefix vp, PrefixSet set,
                        OperandEncoding enc, StateChange sc,
                        int b1, int b2, int b3);
-RegIndex getRegIndex(int pos);
+RegIndex getParRegIndex(int pos);
 
 #endif // INSTR_H
