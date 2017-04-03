@@ -207,10 +207,12 @@ void setParRegState(Rewriter* r, EmuState* es, FunctionConfig* fc) {
 
     // Set register passed parameters states
     for (int i = 0; i < parCount; i++) {
-        es->reg[getRegIndex(i)] = params[i];
+        es->reg[getParRegIndex(i)] = params[i];
         //MetaState* ms = &(es->reg_state[parReg[i]]);
         MetaState* ms = &(es->reg_state[getRegIndex(i)]);
         if (r->cc && (i<CC_MAXPARAM)) {
+        MetaState* ms = &(es->reg_state[getParRegIndex(i)]);
+        if (r->cc && (i<CC_MAXPARAM) && fc->par_state[i].cState == CS_STATIC2) {
             *ms = fc->par_state[i];
         } else {
             initMetaState(ms, CS_DYNAMIC);
