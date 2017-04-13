@@ -208,6 +208,9 @@ int main(int argc, char* argv[])
         af = apply3;
         s = 0;
         break;
+    default:
+        printf("Invalid code version value\n");
+        return 1;
     }
 
     if (rewriteApplyLoop) {
