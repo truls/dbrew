@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from subprocess import STDOUT, check_output, CalledProcessError
+from subprocess import STDOUT, PIPE, check_output, run, CalledProcessError
 from os import path
 import sys
 
@@ -13,7 +13,9 @@ expectFile = testCase + ".expect"
 filterFile = testCase + ".expect_filter"
 
 try:
-    result = check_output(sys.argv[2:], stderr=STDOUT, universal_newlines=True)
+    result = run(sys.argv[2:], stdout=PIPE, stderr=PIPE, universal_newlines=True, check=True)
+    stderr = result.stderr
+    result = result.stdout
     if path.isfile(filterFile):
         result = check_output(["/bin/sh", "-c", filterFile], input=result, universal_newlines=True)
 except CalledProcessError as e:
@@ -33,7 +35,12 @@ result = [line + "\n" for line in result.splitlines()]
 
 if result != comparison:
     print("== FAIL (output) ==")
+    if stderr and stdout:
+        print("== stdout: ==")
     import difflib
     for line in difflib.unified_diff(comparison, result):
         sys.stdout.write(line)
+    if stderr:
+        print("== stderr: ==")
+        print(stderr)
     exit(1)
