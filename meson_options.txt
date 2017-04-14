@@ -1,5 +1,3 @@
-# -*- mode: python -*-
-
 option('enable_libdw', type: 'boolean', value: false,
        description: 'Enable ELF introspection through parsing own elf')
 option('enable_llvm', type: 'boolean', value: false,

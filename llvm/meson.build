@@ -1,5 +1,3 @@
-# -*- mode: python -*-
-
 cpp_flags = ['-Wall', '-Wextra', '-Wmissing-field-initializers',
              '-Wmissing-declarations', '-Winit-self',
              '-Wredundant-decls', '-Wshadow', '-Wpointer-arith',

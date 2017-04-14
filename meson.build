@@ -1,5 +1,3 @@
-# -*- mode: python -*-
-
 project('dbrew', 'c', 'cpp', version: '1.0.0', license: 'LGPL-v2',
         default_options: ['c_std=gnu11', 'cpp_std=gnu++14'])
 
@@ -27,6 +25,7 @@ pkgconf_libs = []
 # config.h generation
 conf = configuration_data()
 
+# FIXME: Get rid of this mess. Some progress here: https://github.com/mesonbuild/meson/issues/1611
 llvm_libs = ''
 if get_option('enable_llvm')
   message('LLVM support requested')
@@ -37,42 +36,14 @@ if get_option('enable_llvm')
       error('Requires at least LLVM version 3.8.1')
     endif
 
-  llvm_inc = run_command(llvm_conf, '--includedir').stdout().strip()
-  llvm_libs = run_command(llvm_conf, '--libs').stdout().strip()
-  llvm_lib = cc.find_library('LLVM')
-  llvm_cflags = run_command(llvm_conf, '--cflags').stdout().strip().split(' ')
-  llvm_ccflags = run_command(llvm_conf, '--cppflags').stdout().strip().split(' ')
-  _fc = []
-  foreach f : llvm_cflags
-    # XXX: This shouldn't be needed
-    if f != ''
-    if f != '-fPIC'
-    if get_option('buildtype') == 'debug'
-      # Filter when optimization is disabled (Fedora specific I think?)
-      if f != '-Wp,-D_FORTIFY_SOURCE=2'
-        _fc += [f]
-      endif
-      else
-      _fc += [f]
-    endif
-    endif
-    endif
-  endforeach
-  llvm_cflags = _fc
-  _fc = []
-  foreach p : llvm_ccflags
-    if f != ''
-      _fc += [f]
-    endif
-  endforeach
-  llvm_ccflags = _fc
+    llvm_inc = run_command(llvm_conf, '--includedir').stdout().strip()
+    llvm_libs = run_command(llvm_conf, '--libs').stdout().strip()
+    libllvm = declare_dependency(link_args: llvm_libs)
+    conf.set('HAVE_LLVM', true)
+    subdir('llvm')
+    llvm_dep = declare_dependency(link_with: libdbrew_llvm)
 
-  libllvm = declare_dependency(link_args: llvm_libs)
-  conf.set('HAVE_LLVM', true)
-  subdir('llvm')
-  llvm_dep = declare_dependency(link_with: libdbrew_llvm)
-
-  pkgconf_libs += [libdbrew_llvm, llvm_libs, '-lstdc++']
+    pkgconf_libs += [libdbrew_llvm, llvm_libs, '-lstdc++']
   else
     error('LLVM config not found (llvm-config-64 not in path)')
   endif
@@ -109,7 +80,3 @@ pkg.generate(subdirs: '.',
              name: 'libdbrew',
              description: 'A library for performing dynamic binary rewriting',
              libraries: pkgconf_libs)
-
-# Add target for running clang-tidy
-# clang_tidy = find_program('clang_tidy', 'git', 'xargs')
-# custom_target('tidy', input: ['compile_commands.json'], 
