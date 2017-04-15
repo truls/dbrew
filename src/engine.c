@@ -181,43 +181,49 @@ void freeRewriter(Rewriter* r)
 
 static
 void setStackParams(Rewriter* r, EmuState* es, FunctionConfig* fc, bool initial,
-                    int parCount, uint64_t params[static parCount])
+                    int parCount, uint64_t* params)
 {
     MetaState ms;
     ValType vt = VT_64;
-
-    if (!initial)
-        return;
 
     for (int i = parCount; i != 0; i--) {
         const int parNo = CC_MAXREGPAR + i - 1;
 
         if (fc->par_state[parNo].cState == CS_STATIC2) {
             initMetaState(&ms, CS_STATIC2);
-        } else {
+        } else if (initial) {
             initMetaState(&ms, CS_DYNAMIC);
         }
-        ms.parDep = expr_newPar(r->ePool, parNo, r->cc ? fc->par_name[i] : 0);
 
-        pushValue(es, vt, params[i - 1], ms);
+        if (initial) {
+            ms.parDep = expr_newPar(r->ePool, parNo, r->cc ? fc->par_name[i] : 0);
+        }
+
+        if (params) {
+            pushValue(es, vt, params[i - 1], ms);
+        }
     }
 
     // Called function assumes stack after return address have been pushed by
     // call instr
-    initMetaState(&ms, CS_DEAD);
-    pushValue(es, vt, 0, ms);
+    if (initial) {
+        initMetaState(&ms, CS_DEAD);
+        pushValue(es, vt, 0, ms);
+    }
 }
 
+// Set function param register states and, optimally (if params != NULL) set
+// their values as well
 static
 void setParams(Rewriter* r, EmuState* es, FunctionConfig* fc, bool initial,
-               int parCount, uint64_t params[static parCount])
+               uint64_t* params)
 {
-
     if (fc == NULL) {
         return;
     }
 
     int restCount = 0;
+    int parCount = fc->parCount;
 
     if (parCount > CC_MAXREGPAR) {
         restCount = parCount - CC_MAXREGPAR;
@@ -226,8 +232,9 @@ void setParams(Rewriter* r, EmuState* es, FunctionConfig* fc, bool initial,
 
     // Set register passed parameters states
     for (int i = 0; i < parCount; i++) {
-        es->reg[getParRegIndex(i)] = params[i];
-        //MetaState* ms = &(es->reg_state[parReg[i]]);
+        if (params) {
+            es->reg[getParRegIndex(i)] = params[i];
+        }
         MetaState* ms = &(es->reg_state[getParRegIndex(i)]);
         if (r->cc && (i<CC_MAXPARAM) && fc->par_state[i].cState == CS_STATIC2) {
             *ms = fc->par_state[i];
@@ -236,12 +243,15 @@ void setParams(Rewriter* r, EmuState* es, FunctionConfig* fc, bool initial,
             // dynamic for initial entry functions.
             initMetaState(ms, CS_DYNAMIC);
         }
-        ms->parDep = expr_newPar(r->ePool, i,
-                                 r->cc ? fc->par_name[i] : 0);
+        if (initial) {
+            ms->parDep = expr_newPar(r->ePool, i,
+                                     r->cc ? fc->par_name[i] : 0);
+        }
     }
 
     if (restCount > 0) {
-        setStackParams(r, es, fc, true, restCount, &params[CC_MAXREGPAR]);
+        setStackParams(r, es, fc, initial, restCount,
+                       params ? &params[CC_MAXREGPAR] : 0);
     }
 }
 
@@ -265,7 +275,7 @@ void setParams(Rewriter* r, EmuState* es, FunctionConfig* fc, bool initial,
  * value of the emulated function)
  */
 static
-Error* emulateAndCapture(Rewriter* r, int parCount, uint64_t* par)
+Error* emulateAndCapture(Rewriter* r, uint64_t* par)
 {
     int i, esID;
     EmuState* es;
@@ -293,7 +303,7 @@ Error* emulateAndCapture(Rewriter* r, int parCount, uint64_t* par)
     initMetaState(&(es->reg_state[RI_SP]), CS_STACKRELATIVE);
 
     // Set initial function parameter register values
-    setParams(r, es, r->entry_func, true, parCount, par);
+    setParams(r, es, r->entry_func, true, par);
 
     // traverse all paths and generate CBBs
 
@@ -405,7 +415,9 @@ Error* emulateAndCapture(Rewriter* r, int parCount, uint64_t* par)
             //FunctionConfig* fc = config_find_function(r, nextbb_addr);
             //setParams(r, es, fc, false, fc->parCount, fc->pa);
 
+            FunctionConfig* fc = config_find_function(r, nextbb_addr);
 
+            setParams(r, es, fc, false, 0);
 
             if (r->showEmuState) {
                 if (nextbb_addr != 0) {
@@ -462,7 +474,7 @@ Error* vEmulateAndCapture(Rewriter* r, va_list args)
         par[i] = va_arg(args, uint64_t);
     }
 
-    return emulateAndCapture(r, parCount, par);
+    return emulateAndCapture(r, par);
 }
 
 
