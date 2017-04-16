@@ -100,7 +100,7 @@ foreach test : tests
   testExec = executable(test.get(0) + '.test.out',
                         files(test.get(0)), test.get(1),
                         c_args: c_args,
-                        link_with: libdbrew,
+                        link_with: libdbrew_test,
                         include_directories: inc)
 
   # Run arguments, passed to wrapper script
