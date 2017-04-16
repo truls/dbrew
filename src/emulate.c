@@ -2369,7 +2369,16 @@ void emulateSETcc(RContext* c,
 static
 void emuBypassCall(RContext* c, FunctionConfig* fc)
 {
+    assert(fc);
     EmuState* es = c->r->es;
+
+    // Require ms of register to match states specified by parmap
+    // TODO: Instead of assert: Should raise error and fall back to regular emulation
+    for (int i = 0; i < fc->parCount; i++) {
+        if (msIsStatic(fc->par_state[i])) {
+            assert(msIsStatic(es->reg_state[getParRegIndex(i)]));
+        }
+    }
 
     // TODO: Handle stack arguments (parcount > 6 and variadic)
     uint64_t retval;
