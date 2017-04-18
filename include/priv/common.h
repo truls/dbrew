@@ -206,6 +206,7 @@ typedef enum _VectorizeReq {
 
 
 MemRangeConfig* config_find_memrange(Rewriter* r, MemRangeType mrt, uint64_t addr);
+MemRangeConfig* config_next_memrange(MemRangeConfig* mrc, MemRangeType mrt);
 FunctionConfig* config_find_function(Rewriter* r, uint64_t f);
 FunctionConfig* config_get_function(Rewriter* r, uint64_t f);
 InstrType config_lookup_intrinsic(FunctionConfig* cc);
@@ -279,6 +280,10 @@ struct _EmuState {
     uint64_t stackStart, stackAccessed, stackTop; // virtual stack boundaries
     // capture state of stack
     MetaState *stackState;
+
+    // memory
+    int memRangesSize;
+    uint8_t* memRanges;
 
     // own return stack
     uint64_t ret_stack[MAX_CALLDEPTH];

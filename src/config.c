@@ -134,6 +134,8 @@ MemRangeConfig* mrc_find(CaptureConfig* cc, MemRangeType type, uint64_t addr)
     mrc = cc->range_configs;
     while(mrc) {
         if ((type == MR_Unknown) || (mrc->type == type)) {
+            // if addr == 0, return first match
+            if (addr == 0) return mrc;
             // on exact match, size does not matter
             if (addr == mrc->start) return mrc;
             // check if we fall into address range
@@ -161,6 +163,8 @@ FunctionConfig* fc_get(CaptureConfig* cc, uint64_t func)
 
 // DBrew internal, called by other modules
 
+// Returns memrange encompassing addr and with type mrt. Returns 0 if no such
+// memrange is found and returns the first memrange of type mrt if addr is 0
 MemRangeConfig* config_find_memrange(Rewriter* r, MemRangeType mrt, uint64_t addr)
 {
     CaptureConfig* cc = cc_get(r);
@@ -169,6 +173,24 @@ MemRangeConfig* config_find_memrange(Rewriter* r, MemRangeType mrt, uint64_t add
         assert(mrc->type == mrt);
         return mrc;
     }
+    return 0;
+}
+
+// Returns the next memrange of type mrt following mr
+MemRangeConfig* config_next_memrange(MemRangeConfig* mr, MemRangeType mrt)
+{
+    if (! mr) {
+        return 0;
+    }
+
+    mr = mr->next;
+    while (mr) {
+        if (mr->type == MR_Unknown || mr->type == mrt) {
+            return mr;
+        }
+        mr = mr->next;
+    }
+
     return 0;
 }
 

@@ -166,7 +166,21 @@ void resetEmuState(EmuState* es)
     es->inhibitLoopUnroll = false;
 }
 
-EmuState* allocEmuState(int size)
+// Calculates the combined size of all defined memranges which need to be
+// treated as part of the emu state.
+static
+int memRangesSize(Rewriter* r)
+{
+    int size = 0;
+    for (MemRangeConfig* mrc = config_find_memrange(r, MR_MutableData, 0);
+         mrc != 0;
+         mrc = config_next_memrange(mrc, MR_MutableData)) {
+        size += mrc->size;
+    }
+    return size;
+}
+
+EmuState* allocEmuState(Rewriter* r, int size)
 {
     EmuState* es;
 
@@ -174,6 +188,8 @@ EmuState* allocEmuState(int size)
     es->stackSize = size;
     es->stack = (uint8_t*) malloc(size);
     es->stackState = (MetaState*) malloc(sizeof(MetaState) * size);
+    es->memRangesSize = memRangesSize(r);
+    es->memRanges = es->memRangesSize ? malloc(es->memRangesSize) : 0;
 
     return es;
 }
@@ -191,6 +207,7 @@ void freeEmuState(Rewriter* r)
         free(es);
         r->savedState[i] = 0;
     }
+    free(r->es->memRanges);
     free(r->es->stack);
     free(r->es->stackState);
     free(r->es);
@@ -285,6 +302,11 @@ bool esIsEqual(EmuState* es1, EmuState* es2)
         }
     }
 
+    if (es1->memRangesSize != es2->memRangesSize &&
+        memcmp(es1->memRanges, es2->memRanges, es1->memRangesSize) == 0) {
+        return false;
+    }
+
     return true;
 }
 
@@ -337,6 +359,10 @@ void copyEmuState(EmuState* dst, EmuState* src)
     }
     assert(dst->stackTop == dst->stackStart + dst->stackSize);
 
+    // Copy mutable memory regions
+    dst->memRangesSize = src->memRangesSize;
+    memcpy(dst->memRanges, src->memRanges, dst->memRangesSize);
+
     dst->depth = src->depth;
     for(i = 0; i < src->depth; i++)
         dst->ret_stack[i] = src->ret_stack[i];
@@ -349,7 +375,7 @@ EmuState* cloneEmuState(EmuState* src)
     EmuState* dst;
 
     // allocate only stack space that was accessed in source
-    dst = allocEmuState(src->stackTop - src->stackAccessed);
+    dst = allocEmuState(src->r, src->stackTop - src->stackAccessed);
     copyEmuState(dst, src);
 
     // remember that we cloned dst from src
@@ -365,6 +391,7 @@ int saveEmuState(RContext* c)
     static Error e;
     int i;
     Rewriter* r = c->r;
+    EmuState* newEs;
 
     if (r->showEmuSteps)
         printf("Saving current emulator state: ");
@@ -386,7 +413,19 @@ int saveEmuState(RContext* c)
         c->e = &e;
         return -1;
     }
-    r->savedState[i] = cloneEmuState(r->es);
+    newEs = cloneEmuState(r->es);
+
+    // TODO we don't have to copy the memranges in copyEmuState when doing this
+    int curPos = 0;
+    for (MemRangeConfig* mrc = config_find_memrange(r, MR_MutableData, 0);
+         mrc != 0;
+         mrc = config_next_memrange(mrc, MR_MutableData)) {
+        memcpy(newEs->memRanges + curPos, (void*) mrc->start, mrc->size);
+        printf("Saved value %d to %p\n", *((int*) mrc->start), (void*) mrc->start);
+        curPos += mrc->size;
+    }
+
+    r->savedState[i] = newEs;
     r->savedStateCount++;
 
     return i;
@@ -396,7 +435,18 @@ void restoreEmuState(Rewriter* r, int esID)
 {
     assert((esID >= 0) && (esID < r->savedStateCount));
     assert(r->savedState[esID] != 0);
+
     copyEmuState(r->es, r->savedState[esID]);
+
+    int curPos = 0;
+    for (MemRangeConfig* mrc = config_find_memrange(r, MR_MutableData, 0);
+         mrc != 0;
+         mrc = config_next_memrange(mrc, MR_MutableData)) {
+        memcpy((void*) mrc->start, r->es->memRanges + curPos, mrc->size);
+        printf("Restored value %d to %p\n", *((int*) mrc->start), (void*) mrc->start);
+        curPos += mrc->size;
+    }
+
 }
 
 static

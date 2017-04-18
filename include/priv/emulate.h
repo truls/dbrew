@@ -51,7 +51,7 @@
 // exported functions
 
 // get a new emulator state with stack size <size>
-EmuState* allocEmuState(int size);
+EmuState* allocEmuState(Rewriter* r, int size);
 void freeEmuState(Rewriter* r);
 void resetEmuState(EmuState* es);
 // save current emulator state for later rollback, return ID
