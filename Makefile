@@ -34,7 +34,7 @@ ifeq ($(CCNAME),$(filter $(CCNAME),gcc cc icc))
  # clang does not know these options
  SNIPPETSFLAGS=$(OPTFLAGS) -mno-vzeroupper -mpreferred-stack-boundary=5
 
-else ifeq ($(shell $(CC) --version | head -c 5),clang)
+else ifeq ($(shell $(CC) -v 2>&1 | grep -c "clang version"), 1)
  # clang
  $(info ** clang detected: $(CC))
  CFLAGS += -fno-pie
@@ -44,8 +44,12 @@ else
 endif
 
 SRCS = $(wildcard src/*.c)
+HEADERS = $(wildcard include/*.h)
 OBJS = $(SRCS:.c=.o)
-HEADERS = $(wildcard include/*.h include/priv/*.h)
+DEPS = $(SRCS:.c=.d)
+
+# instruct GCC to produce dependency files
+CFLAGS += -MMD -MP
 
 SUBDIRS=tests examples
 .PHONY: $(SUBDIRS)
@@ -65,9 +69,12 @@ examples: libdbrew.a
 	cd examples && $(MAKE) OPTS='$(OPTFLAGS)' CC=$(CC)
 
 clean:
-	rm -rf *~ *.o $(OBJS) libdbrew.a
+	rm -f *~ *.o $(OBJS) $(DEPS) libdbrew.a
 	$(MAKE) clean -C tests
 	cd examples && make clean
+
+# include previously generated dependency rules if existing
+-include $(DEPS)
 
 tidy: compile_commands.json
 	git ls-files '*.c' | xargs -P 1 -I{} clang-tidy -header-filter=.* -p . {}; fi

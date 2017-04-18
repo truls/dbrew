@@ -1599,15 +1599,19 @@ static
 int genCltq(GContext* cxt)
 {
     uint8_t* buf = cxt->buf;
-    ValType vt =  cxt->instr->vtype;
-
-    switch(vt) {
-    case VT_32: buf[0] = 0x98; return 1;
-    case VT_64: buf[0] = 0x48; buf[1] = 0x98; return 2;
-    default: return -1;
-    }
-    return 0;
+    buf[0] = 0x48;
+    buf[1] = 0x98;
+    return 2;
 }
+
+static
+int genCwtl(GContext* cxt)
+{
+    uint8_t* buf = cxt->buf;
+    buf[0] = 0x98;
+    return 1;
+}
+
 
 static
 int genCqto(GContext* cxt)
@@ -1826,6 +1830,9 @@ GenerateError* generate(Rewriter* r, CBB* cbb)
             case IT_CLTQ:
                 used = genCltq(&cxt);
                 break;
+            case IT_CWTL:
+                used = genCwtl(&cxt);
+                break;
             case IT_CQTO:
                 used = genCqto(&cxt);
                 break;
@@ -1945,10 +1952,12 @@ GenerateError* generate(Rewriter* r, CBB* cbb)
         usedTotal += used;
 
         if (r->showEmuSteps) {
-            printf("  I%2d : %-32s", i, instr2string(instr, 1, 0));
-            printf(" (%s)+%-3d %s\n",
-                   cbb_prettyName(cbb), (int)(instr->addr - buf0),
-                   bytes2string(instr, 0, used));
+            printf("  I%2d : %-32s", i, instr2string(instr, 1, cbb->fc));
+            printf(" (%s)+%-3d",
+                   cbb_prettyName(cbb), (int)(instr->addr - buf0));
+            if (r->printBytes)
+                printf(" %s", bytes2string(instr, 0, used));
+            printf("\n");
         }
 
         useCodeStorage(r->cs, used);

@@ -1,0 +1,72 @@
+>>> Testcase unknown par = 1.
+Saving current emulator state: new with esID 0
+Capture 'H-call' (into test|0 + 0)
+Processing BB (test|0)
+Emulation Static State (esID 0, call depth 0):
+  Registers: %rsp (R 0)
+  Flags: (none)
+  Stack: (none)
+Decoding BB test ...
+                test:  48 89 f8              mov     %rdi,%rax
+              test+3:  48 83 e0 00           and     $0x0,%rax
+              test+7:  48 89 fb              mov     %rdi,%rbx
+             test+10:  48 83 e3 ff           and     $0xffffffffffffffff,%rbx
+             test+14:  48 01 d8              add     %rbx,%rax
+             test+17:  c3                    ret    
+Emulate 'test: mov %rdi,%rax'
+Capture 'mov %rdi,%rax' (into test|0 + 1)
+Emulate 'test+3: and $0x0,%rax'
+Emulate 'test+7: mov %rdi,%rbx'
+Capture 'mov %rdi,%rbx' (into test|0 + 2)
+Emulate 'test+10: and $0xffffffffffffffff,%rbx'
+Emulate 'test+14: add %rbx,%rax'
+Capture 'mov %rbx,%rax' (into test|0 + 3)
+Emulate 'test+17: ret'
+Capture 'H-ret' (into test|0 + 4)
+Capture 'ret' (into test|0 + 5)
+Generating code for BB test|0 (6 instructions)
+  I 0 : H-call                           (test|0)+0   
+  I 1 : mov     %rdi,%rax                (test|0)+0    48 89 f8
+  I 2 : mov     %rdi,%rbx                (test|0)+3    48 89 fb
+  I 3 : mov     %rbx,%rax                (test|0)+6    48 89 d8
+  I 4 : H-ret                            (test|0)+9   
+  I 5 : ret                              (test|0)+9    c3
+Generated: 10 bytes (pass1: 36)
+BB gen (4 instructions):
+                 gen:  48 89 f8              mov     %rdi,%rax
+               gen+3:  48 89 fb              mov     %rdi,%rbx
+               gen+6:  48 89 d8              mov     %rbx,%rax
+               gen+9:  c3                    ret    
+>>> Testcase known par = 1.
+Saving current emulator state: new with esID 0
+Capture 'H-call' (into test|0 + 0)
+Processing BB (test|0)
+Emulation Static State (esID 0, call depth 0):
+  Registers: %rsp (R 0), %rdi (0x1)
+  Flags: (none)
+  Stack: (none)
+Decoding BB test ...
+                test:  48 89 f8              mov     %rdi,%rax
+              test+3:  48 83 e0 00           and     $0x0,%rax
+              test+7:  48 89 fb              mov     %rdi,%rbx
+             test+10:  48 83 e3 ff           and     $0xffffffffffffffff,%rbx
+             test+14:  48 01 d8              add     %rbx,%rax
+             test+17:  c3                    ret    
+Emulate 'test: mov %rdi,%rax'
+Emulate 'test+3: and $0x0,%rax'
+Emulate 'test+7: mov %rdi,%rbx'
+Emulate 'test+10: and $0xffffffffffffffff,%rbx'
+Emulate 'test+14: add %rbx,%rax'
+Emulate 'test+17: ret'
+Capture 'H-ret' (into test|0 + 1)
+Capture 'mov $0x1,%rax' (into test|0 + 2)
+Capture 'ret' (into test|0 + 3)
+Generating code for BB test|0 (4 instructions)
+  I 0 : H-call                           (test|0)+0   
+  I 1 : H-ret                            (test|0)+0   
+  I 2 : mov     $0x1,%rax                (test|0)+0    48 c7 c0 01 00 00 00
+  I 3 : ret                              (test|0)+7    c3
+Generated: 8 bytes (pass1: 34)
+BB gen (2 instructions):
+                 gen:  48 c7 c0 01 00 00 00  mov     $0x1,%rax
+               gen+7:  c3                    ret    

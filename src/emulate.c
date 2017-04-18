@@ -642,12 +642,12 @@ char* cbb_prettyName(CBB* bb)
     static char buf[100];
     int off;
 
-    if ((bb->fc == 0) || (bb->fc->func > bb->dec_addr))
+    if ((bb->fc == 0) || (bb->fc->start > bb->dec_addr))
         off = sprintf(buf, "0x%lx", bb->dec_addr);
-    else if (bb->fc->func == bb->dec_addr)
+    else if (bb->fc->start == bb->dec_addr)
         off = sprintf(buf, "%s", bb->fc->name);
     else
-        off = sprintf(buf, "%s+%lx", bb->fc->name, bb->dec_addr - bb->fc->func);
+        off = sprintf(buf, "%s+%lx", bb->fc->name, bb->dec_addr - bb->fc->start);
 
     if (bb->esID >=0)
         sprintf(buf+off, "|%d", bb->esID);
@@ -709,7 +709,7 @@ void capture(RContext* c, Instr* instr)
 
     if (r->showEmuSteps)
         printf("Capture '%s' (into %s + %d)\n",
-               instr2string(instr, 0, 0), cbb_prettyName(cbb), cbb->count);
+               instr2string(instr, 0, cbb->fc), cbb_prettyName(cbb), cbb->count);
 
     newInstr = newCapInstr(c);
     if (c->e) return;
@@ -874,6 +874,9 @@ CaptureState setFlagsBit(EmuState* es, InstrType it,
     s = combineState4Flags(v1->state.cState, v2->state.cState);
     // xor op,op results in known zero
     if ((it == IT_XOR) && sameOperands) s = CS_STATIC;
+    if ((it == IT_AND) &&
+        ((msIsStatic(v1->state) && (v1->val == 0)) ||
+         (msIsStatic(v2->state) && (v2->val == 0)))) s = CS_STATIC;
 
     // carry/overflow always cleared
     es->flag[FT_Carry] = 0;
@@ -1179,25 +1182,22 @@ void setMemState(EmuState* es, EmuValue* addr, ValType t, MetaState ms,
 static
 void addRegToValue(EmuValue* v, EmuState* es, Reg r, int scale)
 {
-    if (r.rt == RT_None) return;
-    assert(r.rt == RT_GP64 ||
-           r.rt == RT_IP);
-
     switch (r.rt) {
-    case RT_GP64:
-        v->state.cState = combineState(v->state.cState,
-                                       es->reg_state[r.ri].cState, 0);
-        v->val += scale * es->reg[r.ri];
+     case RT_GP64:
+         v->state.cState = combineState(v->state.cState,
+                                        es->reg_state[r.ri].cState, 0);
+         v->val += scale * es->reg[r.ri];
+         break;
+     case RT_IP:
+        // as IP is known for a given instruction, the resulting
+        // state of v stays the same.
+        // scale always 1 for IP-relative addressing
+        assert(scale == 1);
+        v->val += es->regIP;
         break;
-    case RT_IP:
-        v->state.cState = combineState(v->state.cState,
-                                       es->regIP_state.cState, 0);
-        v->val += scale * es->regIP;
-        break;
-    default:
-        assert(0);
-    }
-
+     default:
+         assert(0);
+     }
 }
 
 // get resulting address (and state) for memory operands
@@ -1563,6 +1563,8 @@ void captureBinaryOp(RContext* c, Instr* orig, EmuState* es, EmuValue* res)
             ((orig->type == IT_SHL) && (opval.val == 0)) ||
             ((orig->type == IT_SHR) && (opval.val == 0)) ||
             ((orig->type == IT_SAR) && (opval.val == 0)) ||
+            ((orig->type == IT_OR)  && (opval.val == 0)) ||
+            ((orig->type == IT_AND) && (opval.val == (uint64_t)-1l)) ||
             ((orig->type == IT_IMUL) && (opval.val == 1))) {
             // adding 0 / multiplying with 1 changes nothing...
             return;
@@ -1801,20 +1803,21 @@ void capturePassThrough(RContext* c, Instr* orig, EmuState* es)
 // this ends a captured BB, queuing new paths to be traced
 static
 void captureJcc(RContext* c, InstrType it,
-                uint64_t branchTarget, uint64_t fallthroughTarget,
-                bool didBranch)
+                uint64_t branchTarget, uint64_t fallthroughTarget)
 {
     CBB *cbb, *cbbBR, *cbbFT;
     int esID;
     Rewriter* r = c->r;
 
     // do not end BB and assume jump fixed?
+    // TODO: this config is a hack which should be removed
     if (r->cc->branches_known) return;
 
     cbb = popCaptureBB(r);
     cbb->endType = it;
-    // use observed behavior from trace as hint for code generation
-    cbb->preferBranch = didBranch;
+    // use static prediction: 1st follow branch if backwards
+    // need to remember is this for code generation
+    cbb->preferBranch = (branchTarget < fallthroughTarget);
 
     esID = saveEmuState(c);
     cbbFT = getCaptureBB(c, fallthroughTarget, esID);
@@ -1825,7 +1828,7 @@ void captureJcc(RContext* c, InstrType it,
     cbb->nextBranch = cbbBR;
 
     // entry pushed last will be processed first
-    if (didBranch) {
+    if (cbb->preferBranch) {
         pushCaptureBB(c, cbbFT);
         pushCaptureBB(c, cbbBR);
     }
@@ -1940,24 +1943,25 @@ void processInstr(RContext* c, Instr* instr)
 
         switch(vt) {
         case VT_32:
-            v1.val = ((uint32_t) v1.val + (uint32_t) v2.val);
+            vres.val = ((uint32_t) v1.val + (uint32_t) v2.val);
             break;
 
         case VT_64:
-            v1.val = v1.val + v2.val;
+            vres.val = v1.val + v2.val;
             break;
 
         default:
             setEmulatorError(c, instr, ET_UnsupportedOperands, 0);
             return;
         }
-
+        vres.type = vt;
         cs = combineState(v1.state.cState, v2.state.cState, 0);
-        initMetaState(&(v1.state), cs);
-        // for capture we need state of original dst, do it before setting dst
-        captureBinaryOp(c, instr, es, &v1);
-        setOpValue(&v1, es, &(instr->dst));
-        setOpState(v1.state, es, &(instr->dst));
+        initMetaState(&(vres.state), cs);
+
+        // for capture we need state of dst, do before setting dst
+        captureBinaryOp(c, instr, es, &vres);
+        setOpValue(&vres, es, &(instr->dst));
+        setOpState(vres.state, es, &(instr->dst));
         break;
 
     case IT_CALL: {
@@ -1997,15 +2001,15 @@ void processInstr(RContext* c, Instr* instr)
     }
 
     case IT_CLTQ:
-        switch(instr->vtype) {
-        case VT_32:
-            es->reg[RI_A] = (int32_t) (int16_t) es->reg[RI_A];
-            break;
-        case VT_64:
-            es->reg[RI_A] = (int64_t) (int32_t) es->reg[RI_A];
-            break;
-        default: assert(0);
-        }
+        // cltq: sign-extend eax to rax
+        es->reg[RI_A] = (int64_t) (int32_t) es->reg[RI_A];
+        if (!msIsStatic(es->reg_state[RI_A]))
+            capture(c, instr);
+        break;
+
+    case IT_CWTL:
+        // cwtl: sign-extend ax to eax
+        es->reg[RI_A] = (int32_t) (int16_t) es->reg[RI_A];
         if (!msIsStatic(es->reg_state[RI_A]))
             capture(c, instr);
         break;
@@ -2048,12 +2052,12 @@ void processInstr(RContext* c, Instr* instr)
         default: assert(0);
         }
         assert(opValType(&(instr->src)) == opValType(&(instr->dst)));
-        getOpValue(&v1, es, &(instr->src));
-        captureCMov(c, instr, es, &v1, es->flag_state[ft], cond);
+        getOpValue(&vres, es, &(instr->src));
+        captureCMov(c, instr, es, &vres, es->flag_state[ft], cond);
         // FIXME? if cond state unknown, set destination state always to unknown
         if (cond == true) {
-            setOpValue(&v1, es, &(instr->dst));
-            setOpState(v1.state, es, &(instr->dst));
+            setOpValue(&vres, es, &(instr->dst));
+            setOpState(vres.state, es, &(instr->dst));
         }
         break;
     }
@@ -2075,24 +2079,27 @@ void processInstr(RContext* c, Instr* instr)
 
     case IT_DEC:
         getOpValue(&v1, es, &(instr->dst));
+
+        vres.type = v1.type;
+        initMetaState(&(vres.state), v1.state.cState);
         switch(instr->dst.type) {
         case OT_Reg32:
         case OT_Ind32:
-            v1.val = (uint32_t)(((int32_t) v1.val) - 1);
+            vres.val = (uint32_t)(((int32_t) v1.val) - 1);
             break;
 
         case OT_Reg64:
         case OT_Ind64:
-            v1.val = (uint64_t)(((int64_t) v1.val) - 1);
+            vres.val = (uint64_t)(((int64_t) v1.val) - 1);
             break;
 
         default:
             setEmulatorError(c, instr, ET_UnsupportedOperands, 0);
             return;
         }
-        captureUnaryOp(c, instr, es, &v1);
-        setOpValue(&v1, es, &(instr->dst));
-        setOpState(v1.state, es, &(instr->dst));
+        captureUnaryOp(c, instr, es, &vres);
+        setOpValue(&vres, es, &(instr->dst));
+        setOpState(vres.state, es, &(instr->dst));
         break;
 
     case IT_IMUL:
@@ -2176,30 +2183,33 @@ void processInstr(RContext* c, Instr* instr)
     }
     case IT_INC:
         getOpValue(&v1, es, &(instr->dst));
+
+        vres.type = v1.type;
+        initMetaState(&(vres.state), v1.state.cState);
         switch(instr->dst.type) {
         case OT_Reg32:
         case OT_Ind32:
-            v1.val = (uint32_t)(((int32_t) v1.val) + 1);
+            vres.val = (uint32_t)(((int32_t) v1.val) + 1);
             break;
 
         case OT_Reg64:
         case OT_Ind64:
-            v1.val = (uint64_t)(((int64_t) v1.val) + 1);
+            vres.val = (uint64_t)(((int64_t) v1.val) + 1);
             break;
 
         default:
             setEmulatorError(c, instr, ET_UnsupportedOperands, 0);
             return;
         }
-        captureUnaryOp(c, instr, es, &v1);
-        setOpValue(&v1, es, &(instr->dst));
-        setOpState(v1.state, es, &(instr->dst));
+        captureUnaryOp(c, instr, es, &vres);
+        setOpValue(&vres, es, &(instr->dst));
+        setOpState(vres.state, es, &(instr->dst));
         break;
 
     case IT_JO:
         if (msIsDynamic(es->flag_state[FT_Overflow])) {
-            captureJcc(c, IT_JO, instr->dst.val, instr->addr + instr->len,
-                       es->flag[FT_Overflow]);
+            captureJcc(c, IT_JO, instr->dst.val, instr->addr + instr->len);
+            // fallthrough to set value of c->exit to non-zero
         }
         if (es->flag[FT_Overflow] == true)
             c->exit = instr->dst.val;
@@ -2209,8 +2219,7 @@ void processInstr(RContext* c, Instr* instr)
 
     case IT_JNO:
         if (msIsDynamic(es->flag_state[FT_Overflow])) {
-            captureJcc(c, IT_JNO, instr->dst.val, instr->addr + instr->len,
-                        !es->flag[FT_Overflow]);
+            captureJcc(c, IT_JNO, instr->dst.val, instr->addr + instr->len);
         }
         if (es->flag[FT_Overflow] == false)
             c->exit = instr->dst.val;
@@ -2220,8 +2229,7 @@ void processInstr(RContext* c, Instr* instr)
 
     case IT_JC:
         if (msIsDynamic(es->flag_state[FT_Carry])) {
-            captureJcc(c, IT_JC, instr->dst.val, instr->addr + instr->len,
-                       es->flag[FT_Carry]);
+            captureJcc(c, IT_JC, instr->dst.val, instr->addr + instr->len);
         }
         if (es->flag[FT_Carry] == true)
             c->exit = instr->dst.val;
@@ -2231,8 +2239,7 @@ void processInstr(RContext* c, Instr* instr)
 
     case IT_JNC:
         if (msIsDynamic(es->flag_state[FT_Carry])) {
-            captureJcc(c, IT_JNC, instr->dst.val, instr->addr + instr->len,
-                        !es->flag[FT_Carry]);
+            captureJcc(c, IT_JNC, instr->dst.val, instr->addr + instr->len);
         }
         if (es->flag[FT_Carry] == false)
             c->exit = instr->dst.val;
@@ -2242,8 +2249,7 @@ void processInstr(RContext* c, Instr* instr)
 
     case IT_JZ:
         if (msIsDynamic(es->flag_state[FT_Zero])) {
-            captureJcc(c, IT_JZ, instr->dst.val, instr->addr + instr->len,
-                       es->flag[FT_Zero]);
+            captureJcc(c, IT_JZ, instr->dst.val, instr->addr + instr->len);
         }
         if (es->flag[FT_Zero] == true)
             c->exit = instr->dst.val;
@@ -2253,8 +2259,7 @@ void processInstr(RContext* c, Instr* instr)
 
     case IT_JNZ:
         if (msIsDynamic(es->flag_state[FT_Zero])) {
-            captureJcc(c, IT_JNZ, instr->dst.val, instr->addr + instr->len,
-                        !es->flag[FT_Zero]);
+            captureJcc(c, IT_JNZ, instr->dst.val, instr->addr + instr->len);
         }
         if (es->flag[FT_Zero] == false)
             c->exit = instr->dst.val;
@@ -2265,8 +2270,7 @@ void processInstr(RContext* c, Instr* instr)
     case IT_JBE:
         if (msIsDynamic(es->flag_state[FT_Carry]) ||
             msIsDynamic(es->flag_state[FT_Zero])) {
-            captureJcc(c, IT_JLE, instr->dst.val, instr->addr + instr->len,
-                        es->flag[FT_Carry] || es->flag[FT_Zero]);
+            captureJcc(c, IT_JLE, instr->dst.val, instr->addr + instr->len);
         }
         if ((es->flag[FT_Carry] == true) ||
             (es->flag[FT_Zero] == true))
@@ -2278,8 +2282,7 @@ void processInstr(RContext* c, Instr* instr)
     case IT_JA:
         if (msIsDynamic(es->flag_state[FT_Carry]) ||
             msIsDynamic(es->flag_state[FT_Zero])) {
-            captureJcc(c, IT_JG, instr->dst.val, instr->addr + instr->len,
-                       !es->flag[FT_Carry] && !es->flag[FT_Zero]);
+            captureJcc(c, IT_JG, instr->dst.val, instr->addr + instr->len);
         }
         if ((es->flag[FT_Carry] == false) &&
             (es->flag[FT_Zero] == false))
@@ -2290,8 +2293,7 @@ void processInstr(RContext* c, Instr* instr)
 
     case IT_JS:
         if (msIsDynamic(es->flag_state[FT_Sign])) {
-            captureJcc(c, IT_JS, instr->dst.val, instr->addr + instr->len,
-                       es->flag[FT_Sign]);
+            captureJcc(c, IT_JS, instr->dst.val, instr->addr + instr->len);
         }
         if (es->flag[FT_Sign] == true)
             c->exit = instr->dst.val;
@@ -2301,8 +2303,7 @@ void processInstr(RContext* c, Instr* instr)
 
     case IT_JNS:
         if (msIsDynamic(es->flag_state[FT_Sign])) {
-            captureJcc(c, IT_JNS, instr->dst.val, instr->addr + instr->len,
-                        !es->flag[FT_Sign]);
+            captureJcc(c, IT_JNS, instr->dst.val, instr->addr + instr->len);
         }
         if (es->flag[FT_Sign] == false)
             c->exit = instr->dst.val;
@@ -2312,8 +2313,7 @@ void processInstr(RContext* c, Instr* instr)
 
     case IT_JP:
         if (msIsDynamic(es->flag_state[FT_Parity])) {
-            captureJcc(c, IT_JP, instr->dst.val, instr->addr + instr->len,
-                       es->flag[FT_Parity]);
+            captureJcc(c, IT_JP, instr->dst.val, instr->addr + instr->len);
         }
         if (es->flag[FT_Parity] == true)
             c->exit = instr->dst.val;
@@ -2323,8 +2323,7 @@ void processInstr(RContext* c, Instr* instr)
 
     case IT_JNP:
         if (msIsDynamic(es->flag_state[FT_Parity])) {
-            captureJcc(c, IT_JNP, instr->dst.val, instr->addr + instr->len,
-                        !es->flag[FT_Parity]);
+            captureJcc(c, IT_JNP, instr->dst.val, instr->addr + instr->len);
         }
         if (es->flag[FT_Parity] == false)
             c->exit = instr->dst.val;
@@ -2335,8 +2334,7 @@ void processInstr(RContext* c, Instr* instr)
     case IT_JLE:
         if (msIsDynamic(es->flag_state[FT_Zero]) ||
             msIsDynamic(es->flag_state[FT_Sign])) {
-            captureJcc(c, IT_JLE, instr->dst.val, instr->addr + instr->len,
-                        es->flag[FT_Zero] || es->flag[FT_Sign]);
+            captureJcc(c, IT_JLE, instr->dst.val, instr->addr + instr->len);
         }
         if ((es->flag[FT_Zero] == true) ||
             (es->flag[FT_Sign] == true)) c->exit = instr->dst.val;
@@ -2347,8 +2345,7 @@ void processInstr(RContext* c, Instr* instr)
     case IT_JG:
         if (msIsDynamic(es->flag_state[FT_Zero]) ||
             msIsDynamic(es->flag_state[FT_Sign])) {
-            captureJcc(c, IT_JG, instr->dst.val, instr->addr + instr->len,
-                       !es->flag[FT_Zero] && !es->flag[FT_Sign]);
+            captureJcc(c, IT_JG, instr->dst.val, instr->addr + instr->len);
         }
         if ((es->flag[FT_Zero] == false) &&
             (es->flag[FT_Sign] == false)) c->exit = instr->dst.val;
@@ -2359,8 +2356,7 @@ void processInstr(RContext* c, Instr* instr)
     case IT_JL:
         if (msIsDynamic(es->flag_state[FT_Sign]) ||
             msIsDynamic(es->flag_state[FT_Overflow])) {
-            captureJcc(c, IT_JL, instr->dst.val, instr->addr + instr->len,
-                       es->flag[FT_Sign] != es->flag[FT_Overflow]);
+            captureJcc(c, IT_JL, instr->dst.val, instr->addr + instr->len);
         }
         if (es->flag[FT_Sign] != es->flag[FT_Overflow])
             c->exit = instr->dst.val;
@@ -2371,8 +2367,7 @@ void processInstr(RContext* c, Instr* instr)
     case IT_JGE:
         if (msIsDynamic(es->flag_state[FT_Sign]) ||
             msIsDynamic(es->flag_state[FT_Overflow])) {
-            captureJcc(c, IT_JGE, instr->dst.val, instr->addr + instr->len,
-                       es->flag[FT_Sign] == es->flag[FT_Overflow]);
+            captureJcc(c, IT_JGE, instr->dst.val, instr->addr + instr->len);
         }
         if (es->flag[FT_Sign] == es->flag[FT_Overflow])
             c->exit = instr->dst.val;
@@ -2422,15 +2417,15 @@ void processInstr(RContext* c, Instr* instr)
         case OT_Reg32:
         case OT_Reg64:
             assert(opIsInd(&(instr->src)));
-            getOpAddr(&v1, es, &(instr->src));
+            getOpAddr(&vres, es, &(instr->src));
             if (opValType(&(instr->dst)) == VT_32) {
-                v1.val = (uint32_t) v1.val;
-                v1.type = VT_32;
+                vres.val = (uint32_t) vres.val;
+                vres.type = VT_32;
             }
-            captureLea(c, instr, es, &v1);
+            captureLea(c, instr, es, &vres);
             // may overwrite a state needed for correct capturing
-            setOpValue(&v1, es, &(instr->dst));
-            setOpState(v1.state, es, &(instr->dst));
+            setOpValue(&vres, es, &(instr->dst));
+            setOpState(vres.state, es, &(instr->dst));
             break;
 
         default:assert(0);
@@ -2458,42 +2453,81 @@ void processInstr(RContext* c, Instr* instr)
     }
 
     case IT_MOV:
-    case IT_MOVSX: // converting move
+    case IT_MOVSX: { // converting move
+        ValType dst_t = opValType(&(instr->dst));
+        getOpValue(&vres, es, &(instr->src));
+
         switch(instr->src.type) {
+        case OT_Reg8:
+        case OT_Ind8:
+        case OT_Imm8:
+            switch (dst_t) {
+            case VT_8:
+                break;
+            case VT_16:
+                vres.val = (int16_t) (int8_t) vres.val;
+                vres.type = VT_16;
+                break;
+            case VT_32:
+                vres.val = (int32_t) (int8_t) vres.val;
+                vres.type = VT_32;
+                break;
+            case VT_64:
+                vres.val = (int64_t) (int8_t) vres.val;
+                vres.type = VT_64;
+                break;
+            default:
+                assert(0);
+            }
+            break;
+
+        case OT_Reg16:
+        case OT_Ind16:
+        case OT_Imm16:
+            switch (dst_t) {
+            case VT_16:
+                break;
+            case VT_32:
+                vres.val = (int32_t) (int16_t) vres.val;
+                vres.type = VT_32;
+                break;
+            case VT_64:
+                vres.val = (int64_t) (int16_t) vres.val;
+                vres.type = VT_64;
+                break;
+            default:
+                assert(0);
+            }
+            break;
+
         case OT_Reg32:
         case OT_Ind32:
-        case OT_Imm32: {
-            ValType dst_t = opValType(&(instr->dst));
+        case OT_Imm32:
             assert(dst_t == VT_32 || dst_t == VT_64);
-            getOpValue(&v1, es, &(instr->src));
             if (dst_t == VT_64) {
                 // also a regular mov may sign-extend: imm32->64
                 // assert(instr->type == IT_MOVSX);
                 // sign extend lower 32 bit to 64 bit
-                v1.val = (int64_t) (int32_t) v1.val;
-                v1.type = VT_64;
+                vres.val = (int64_t) (int32_t) vres.val;
+                vres.type = VT_64;
             }
-            captureMov(c, instr, es, &v1);
-            setOpValue(&v1, es, &(instr->dst));
-            setOpState(v1.state, es, &(instr->dst));
             break;
-        }
 
         case OT_Reg64:
         case OT_Ind64:
         case OT_Imm64:
-            assert(opValType(&(instr->dst)) == VT_64);
-            getOpValue(&v1, es, &(instr->src));
-            captureMov(c, instr, es, &v1);
-            setOpValue(&v1, es, &(instr->dst));
-            setOpState(v1.state, es, &(instr->dst));
+            assert(dst_t == VT_64);
             break;
 
         default:
             setEmulatorError(c, instr, ET_UnsupportedOperands, 0);
             return;
         }
+        captureMov(c, instr, es, &vres);
+        setOpValue(&vres, es, &(instr->dst));
+        setOpState(vres.state, es, &(instr->dst));
         break;
+    }
 
     case IT_NOP:
         // nothing to do
@@ -2612,42 +2646,46 @@ void processInstr(RContext* c, Instr* instr)
         getOpValue(&v1, es, &(instr->dst));
         getOpValue(&v2, es, &(instr->src));
 
-        switch(opValType(&(instr->dst))) {
+        vt = opValType(&(instr->dst));
+        vres.type = vt;
+        cs = combineState(v1.state.cState, v2.state.cState, 0);
+        initMetaState(&(vres.state), cs);
+        switch(vt) {
         case VT_8:
             switch (instr->type) {
-            case IT_SHL: v1.val = (uint8_t) (v1.val << (v2.val & 7)); break;
-            case IT_SHR: v1.val = (uint8_t) (v1.val >> (v2.val & 7)); break;
+            case IT_SHL: vres.val = (uint8_t) (v1.val << (v2.val & 7)); break;
+            case IT_SHR: vres.val = (uint8_t) (v1.val >> (v2.val & 7)); break;
             case IT_SAR:
-                v1.val = (uint8_t) ((int8_t)v1.val >> (v2.val & 7)); break;
+                vres.val = (uint8_t) ((int8_t)v1.val >> (v2.val & 7)); break;
             default: assert(0);
             }
             break;
 
         case VT_16:
             switch (instr->type) {
-            case IT_SHL: v1.val = (uint16_t) (v1.val << (v2.val & 15)); break;
-            case IT_SHR: v1.val = (uint16_t) (v1.val >> (v2.val & 15)); break;
+            case IT_SHL: vres.val = (uint16_t) (v1.val << (v2.val & 15)); break;
+            case IT_SHR: vres.val = (uint16_t) (v1.val >> (v2.val & 15)); break;
             case IT_SAR:
-                v1.val = (uint16_t) ((int16_t)v1.val >> (v2.val & 15)); break;
+                vres.val = (uint16_t) ((int16_t)v1.val >> (v2.val & 15)); break;
             default: assert(0);
             }
             break;
 
         case VT_32:
             switch (instr->type) {
-            case IT_SHL: v1.val = (uint32_t) (v1.val << (v2.val & 31)); break;
-            case IT_SHR: v1.val = (uint32_t) (v1.val >> (v2.val & 31)); break;
+            case IT_SHL: vres.val = (uint32_t) (v1.val << (v2.val & 31)); break;
+            case IT_SHR: vres.val = (uint32_t) (v1.val >> (v2.val & 31)); break;
             case IT_SAR:
-                v1.val = (uint32_t) ((int32_t)v1.val >> (v2.val & 31)); break;
+                vres.val = (uint32_t) ((int32_t)v1.val >> (v2.val & 31)); break;
             default: assert(0);
             }
             break;
 
         case VT_64:
             switch (instr->type) {
-            case IT_SHL: v1.val = v1.val << (v2.val & 63); break;
-            case IT_SHR: v1.val = v1.val >> (v2.val & 63); break;
-            case IT_SAR: v1.val = ((int64_t)v1.val >> (v2.val & 63)); break;
+            case IT_SHL: vres.val = v1.val << (v2.val & 63); break;
+            case IT_SHR: vres.val = v1.val >> (v2.val & 63); break;
+            case IT_SAR: vres.val = ((int64_t)v1.val >> (v2.val & 63)); break;
             default: assert(0);
             }
             break;
@@ -2656,10 +2694,10 @@ void processInstr(RContext* c, Instr* instr)
             setEmulatorError(c, instr, ET_UnsupportedOperands, 0);
             return;
         }
-        v1.state.cState = combineState(v1.state.cState, v2.state.cState, 0);
-        captureBinaryOp(c, instr, es, &v1);
-        setOpValue(&v1, es, &(instr->dst));
-        setOpState(v1.state, es, &(instr->dst));
+
+        captureBinaryOp(c, instr, es, &vres);
+        setOpValue(&vres, es, &(instr->dst));
+        setOpState(vres.state, es, &(instr->dst));
         break;
 
     case IT_SUB:
@@ -2684,23 +2722,24 @@ void processInstr(RContext* c, Instr* instr)
 
         switch(vt) {
         case VT_32:
-            v1.val = ((uint32_t) v1.val - (uint32_t) v2.val);
+            vres.val = ((uint32_t) v1.val - (uint32_t) v2.val);
             break;
 
         case VT_64:
-            v1.val = v1.val - v2.val;
+            vres.val = v1.val - v2.val;
             break;
 
         default:
             setEmulatorError(c, instr, ET_UnsupportedOperands, 0);
             return;
         }
-
-        v1.state.cState = combineState(v1.state.cState, v2.state.cState, 0);
+        vres.type = vt;
+        cs = combineState(v1.state.cState, v2.state.cState, 0);
+        initMetaState(&(vres.state), cs);
         // for capturing we need state of original dst, do before setting dst
-        captureBinaryOp(c, instr, es, &v1);
-        setOpValue(&v1, es, &(instr->dst));
-        setOpState(v1.state, es, &(instr->dst));
+        captureBinaryOp(c, instr, es, &vres);
+        setOpValue(&vres, es, &(instr->dst));
+        setOpState(vres.state, es, &(instr->dst));
         break;
 
     case IT_TEST:
@@ -2719,18 +2758,21 @@ void processInstr(RContext* c, Instr* instr)
         getOpValue(&v2, es, &(instr->src));
 
         assert(v1.type == v2.type);
-        v1.state.cState = setFlagsBit(es, instr->type, &v1, &v2,
-                                      opIsEqual(&(instr->dst), &(instr->src)));
+        cs = setFlagsBit(es, instr->type, &v1, &v2,
+                         opIsEqual(&(instr->dst), &(instr->src)));
         switch(instr->type) {
-        case IT_AND: v1.val = v1.val & v2.val; break;
-        case IT_XOR: v1.val = v1.val ^ v2.val; break;
-        case IT_OR:  v1.val = v1.val | v2.val; break;
+        case IT_AND: vres.val = v1.val & v2.val; break;
+        case IT_XOR: vres.val = v1.val ^ v2.val; break;
+        case IT_OR:  vres.val = v1.val | v2.val; break;
         default: assert(0);
         }
+        vres.type = v1.type;
+        initMetaState(&(vres.state), cs);
+
         // for capturing we need state of original dst
-        captureBinaryOp(c, instr, es, &v1);
-        setOpValue(&v1, es, &(instr->dst));
-        setOpState(v1.state, es, &(instr->dst));
+        captureBinaryOp(c, instr, es, &vres);
+        setOpValue(&vres, es, &(instr->dst));
+        setOpState(vres.state, es, &(instr->dst));
         break;
 
     case IT_ADDSS:

@@ -35,7 +35,7 @@ void cc_init(CaptureConfig* cc)
     cc->hasReturnFP = false;
     cc->parCount = -1; // unknown
     cc->branches_known = false;
-    cc->function_configs = 0;
+    cc->range_configs = 0;
 
 }
 
@@ -47,9 +47,9 @@ void cc_free(CaptureConfig* cc)
     for(int i=0; i < CC_MAXPARAM; i++)
         free(cc->par_name[i]);
 
-    FunctionConfig* fc = cc->function_configs;
+    MemRangeConfig* fc = cc->range_configs;
     while(fc) {
-        FunctionConfig* next = fc->next;
+        MemRangeConfig* next = fc->next;
         free(fc);
         fc = next;
     }
@@ -78,30 +78,44 @@ CaptureConfig* cc_get(Rewriter* r)
 }
 
 static
-FunctionConfig* fc_new(uint64_t func, char* name, int size,
-                       FunctionConfig* next)
+MemRangeConfig* mrc_new(MemRangeType type, char* name,
+                       uint64_t start, int size,
+                       MemRangeConfig* next, CaptureConfig* cc)
 {
-    FunctionConfig* fc;
+    MemRangeConfig* mrc;
 
-    fc = (FunctionConfig*) malloc(sizeof(FunctionConfig));
-    fc->name = (name == 0) ? 0 : strdup(name);
-    fc->func = func;
-    fc->size = size;
-    fc->next = next;
+    if (type == MR_Function) {
+        FunctionConfig* fc = (FunctionConfig*) malloc(sizeof(FunctionConfig));
+        mrc = (MemRangeConfig*) fc;
+    }
+    else
+        mrc = (MemRangeConfig*) malloc(sizeof(MemRangeConfig));
 
-    return fc;
+    mrc->type = type;
+    mrc->name = (name == 0) ? 0 : strdup(name);
+    mrc->start = start;
+    mrc->size = size;
+    mrc->next = next;
+    mrc->cc = cc;
+
+    return mrc;
 }
 
 static
-FunctionConfig* fc_find(CaptureConfig* cc, uint64_t func)
+MemRangeConfig* mrc_find(CaptureConfig* cc, MemRangeType type, uint64_t addr)
 {
-    FunctionConfig* fc = cc->function_configs;
-    while(fc) {
-        // on exact match, size does not matter
-        if (func == fc->func) return fc;
-        // check if we fall into address range
-        if ((func > fc->func) && (func < fc->func+fc->size)) return fc;
-        fc = fc->next;
+    MemRangeConfig* mrc;
+
+    mrc = cc->range_configs;
+    while(mrc) {
+        if ((type == MR_Unknown) || (mrc->type == type)) {
+            // on exact match, size does not matter
+            if (addr == mrc->start) return mrc;
+            // check if we fall into address range
+            if ((addr > mrc->start) && (addr < mrc->start+mrc->size))
+                return mrc;
+        }
+        mrc = mrc->next;
     }
     return 0;
 }
@@ -109,15 +123,15 @@ FunctionConfig* fc_find(CaptureConfig* cc, uint64_t func)
 static
 FunctionConfig* fc_get(CaptureConfig* cc, uint64_t func)
 {
-    FunctionConfig* fc;
+    MemRangeConfig* fc;
 
-    fc = fc_find(cc, func);
+    fc = mrc_find(cc, MR_Function, func);
     if (!fc) {
-        fc = fc_new(func, 0, 0, cc->function_configs);
-        cc->function_configs = fc;
+        fc = mrc_new(MR_Function, 0, func, 0, cc->range_configs, cc);
+        cc->range_configs = fc;
     }
-
-    return fc;
+    assert(fc->type == MR_Function);
+    return (FunctionConfig*) fc;
 }
 
 // DBrew internal, called by other modules
@@ -125,7 +139,12 @@ FunctionConfig* fc_get(CaptureConfig* cc, uint64_t func)
 FunctionConfig* config_find_function(Rewriter* r, uint64_t f)
 {
     CaptureConfig* cc = cc_get(r);
-    return fc_find(cc, f);
+    MemRangeConfig* mrc = mrc_find(cc, MR_Function, f);
+    if (mrc) {
+        assert(mrc->type == MR_Function);
+        return (FunctionConfig*) mrc;
+    }
+    return 0;
 }
 
 
@@ -202,4 +221,17 @@ void dbrew_config_function_setsize(Rewriter* r, uint64_t f, int size)
     CaptureConfig* cc = cc_get(r);
     FunctionConfig* fc = fc_get(cc, f);
     fc->size = size;
+}
+
+void dbrew_config_set_memrange(Rewriter* r, char* name, bool isWritable,
+                               uint64_t start, int size)
+{
+    MemRangeConfig* mrc;
+    CaptureConfig* cc = cc_get(r);
+
+    // TODO: check that we do not specify overlapping ranges
+
+    mrc = mrc_new(isWritable ? MR_MutableData : MR_ConstantData,
+                  name, start, size, cc->range_configs, cc);
+    cc->range_configs = mrc;
 }

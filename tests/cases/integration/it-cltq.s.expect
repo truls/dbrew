@@ -1,0 +1,91 @@
+>>> Testcase unknown par = 1.
+Saving current emulator state: new with esID 0
+Capture 'H-call' (into test|0 + 0)
+Processing BB (test|0)
+Emulation Static State (esID 0, call depth 0):
+  Registers: %rsp (R 0)
+  Flags: (none)
+  Stack: (none)
+Decoding BB test ...
+                test:  89 f8                 mov     %edi,%eax
+              test+2:  48 98                 cltq   
+              test+4:  48 89 c2              mov     %rax,%rdx
+              test+7:  89 f0                 mov     %esi,%eax
+              test+9:  98                    cwtl   
+             test+10:  48 01 d0              add     %rdx,%rax
+             test+13:  c3                    ret    
+Emulate 'test: mov %edi,%eax'
+Capture 'mov %edi,%eax' (into test|0 + 1)
+Emulate 'test+2: cltq'
+Capture 'cltq' (into test|0 + 2)
+Emulate 'test+4: mov %rax,%rdx'
+Capture 'mov %rax,%rdx' (into test|0 + 3)
+Emulate 'test+7: mov %esi,%eax'
+Capture 'mov %esi,%eax' (into test|0 + 4)
+Emulate 'test+9: cwtl'
+Capture 'cwtl' (into test|0 + 5)
+Emulate 'test+10: add %rdx,%rax'
+Capture 'add %rdx,%rax' (into test|0 + 6)
+Emulate 'test+13: ret'
+Capture 'H-ret' (into test|0 + 7)
+Capture 'ret' (into test|0 + 8)
+Generating code for BB test|0 (9 instructions)
+  I 0 : H-call                           (test|0)+0   
+  I 1 : mov     %edi,%eax                (test|0)+0    89 f8
+  I 2 : cltq                             (test|0)+2    48 98
+  I 3 : mov     %rax,%rdx                (test|0)+4    48 89 c2
+  I 4 : mov     %esi,%eax                (test|0)+7    89 f0
+  I 5 : cwtl                             (test|0)+9    98
+  I 6 : add     %rdx,%rax                (test|0)+10   48 01 d0
+  I 7 : H-ret                            (test|0)+13  
+  I 8 : ret                              (test|0)+13   c3
+Generated: 14 bytes (pass1: 40)
+BB gen (7 instructions):
+                 gen:  89 f8                 mov     %edi,%eax
+               gen+2:  48 98                 cltq   
+               gen+4:  48 89 c2              mov     %rax,%rdx
+               gen+7:  89 f0                 mov     %esi,%eax
+               gen+9:  98                    cwtl   
+              gen+10:  48 01 d0              add     %rdx,%rax
+              gen+13:  c3                    ret    
+>>> Testcase known par = 1.
+Saving current emulator state: new with esID 0
+Capture 'H-call' (into test|0 + 0)
+Processing BB (test|0)
+Emulation Static State (esID 0, call depth 0):
+  Registers: %rsp (R 0), %rdi (0x1)
+  Flags: (none)
+  Stack: (none)
+Decoding BB test ...
+                test:  89 f8                 mov     %edi,%eax
+              test+2:  48 98                 cltq   
+              test+4:  48 89 c2              mov     %rax,%rdx
+              test+7:  89 f0                 mov     %esi,%eax
+              test+9:  98                    cwtl   
+             test+10:  48 01 d0              add     %rdx,%rax
+             test+13:  c3                    ret    
+Emulate 'test: mov %edi,%eax'
+Emulate 'test+2: cltq'
+Emulate 'test+4: mov %rax,%rdx'
+Emulate 'test+7: mov %esi,%eax'
+Capture 'mov %esi,%eax' (into test|0 + 1)
+Emulate 'test+9: cwtl'
+Capture 'cwtl' (into test|0 + 2)
+Emulate 'test+10: add %rdx,%rax'
+Capture 'add $0x1,%rax' (into test|0 + 3)
+Emulate 'test+13: ret'
+Capture 'H-ret' (into test|0 + 4)
+Capture 'ret' (into test|0 + 5)
+Generating code for BB test|0 (6 instructions)
+  I 0 : H-call                           (test|0)+0   
+  I 1 : mov     %esi,%eax                (test|0)+0    89 f0
+  I 2 : cwtl                             (test|0)+2    98
+  I 3 : add     $0x1,%rax                (test|0)+3    48 83 c0 01
+  I 4 : H-ret                            (test|0)+7   
+  I 5 : ret                              (test|0)+7    c3
+Generated: 8 bytes (pass1: 34)
+BB gen (4 instructions):
+                 gen:  89 f0                 mov     %esi,%eax
+               gen+2:  98                    cwtl   
+               gen+3:  48 83 c0 01           add     $0x1,%rax
+               gen+7:  c3                    ret    

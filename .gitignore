@@ -1,6 +1,7 @@
 *.o
 *.a
 *.out
+*.d
 
 # ignore stuff from various IDEs
 dbrew.creator.user

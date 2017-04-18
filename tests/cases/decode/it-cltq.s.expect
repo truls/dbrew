@@ -1,0 +1,8 @@
+BB f1 (7 instructions):
+                  f1:  89 f8                 mov     %edi,%eax
+                f1+2:  48 98                 cltq   
+                f1+4:  48 89 c2              mov     %rax,%rdx
+                f1+7:  66 89 f0              mov     %si,%ax
+               f1+10:  98                    cwtl   
+               f1+11:  48 01 d0              add     %rdx,%rax
+               f1+14:  c3                    ret    

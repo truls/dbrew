@@ -87,6 +87,9 @@ Rewriter* allocRewriter(void)
     r->showEmuSteps = false;
     r->showOptSteps = false;
 
+    // default: assembly printer shows bytes
+    r->printBytes = true;
+
     return r;
 }
 
@@ -301,6 +304,7 @@ Error* emulateAndCapture(Rewriter* r, int parCount, uint64_t* par)
                 return cxt.e;
             }
 
+            if (cxt.exit) assert(i == dbb->count - 1);
             nextbb_addr = processKnownTargets(&cxt, cxt.exit);
 
             if (r->showEmuState) {
@@ -321,7 +325,7 @@ Error* emulateAndCapture(Rewriter* r, int parCount, uint64_t* par)
             captureRet(&cxt, instr, es);
             if (cxt.e) return cxt.e;
 
-            // go to next path to trace
+            // finish current BB, go to next path to process
             cbb = popCaptureBB(r);
             cbb->endType = IT_RET;
         }

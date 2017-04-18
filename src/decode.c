@@ -1582,9 +1582,11 @@ void decode_8F_0(DContext* c)
 static
 void decode_98(DContext* c)
 {
-    // cltq (Intel: cdqe - sign-extend eax to rax)
-    c->vt = (c->rex & REX_MASK_W) ? VT_64 : VT_32;
-    addSimple(c->r, c, IT_CLTQ, c->vt);
+    // cltq/cwtl (sign-extend eax to rax / ax to eax, Intel: cdqe)
+    if (c->rex & REX_MASK_W)
+        addSimple(c->r, c, IT_CLTQ, VT_None);
+    else
+        addSimple(c->r, c, IT_CWTL, VT_None);
 }
 
 static
@@ -1593,6 +1595,26 @@ void decode_99(DContext* c)
     // cqto (Intel: cqo - sign-extend rax to rdx/rax, eax to edx/eax)
     c->vt = (c->rex & REX_MASK_W) ? VT_128 : VT_64;
     addSimple(c->r, c, IT_CQTO, c->vt);
+}
+
+static
+void decode_9C(DContext* c)
+{
+    // pushf/pushfq
+    if (c->ps & PS_66)
+        addSimple(c->r, c, IT_PUSHF, VT_Implicit);
+    else
+        addSimple(c->r, c, IT_PUSHFQ, VT_Implicit);
+}
+
+static
+void decode_9D(DContext* c)
+{
+    // popf/popfq
+    if (c->ps & PS_66)
+        addSimple(c->r, c, IT_POPF, VT_Implicit);
+    else
+        addSimple(c->r, c, IT_POPFQ, VT_Implicit);
 }
 
 
@@ -1604,7 +1626,8 @@ void decode_B0(DContext* c)
     int ri = (c->opc1 & 7);
     if (c->rex & REX_MASK_B) ri += 8;
     if ((c->opc1 >= 0xB0) && (c->opc1 <= 0xB7)) c->vt = VT_8;
-    c->o1.reg = getReg(getGPRegType(c->vt), (RegIndex)ri);
+    RegType rt = c->hasRex ? getGPRegType(c->vt) : getLegGPRegType(c->vt);
+    c->o1.reg = getReg(rt, (RegIndex)ri);
     c->o1.type = getGPRegOpType(c->vt);
     parseImm(c, c->vt, &c->o2, true);
     addBinaryOp(c->r, c, IT_MOV, c->vt, &c->o1, &c->o2);
@@ -2110,6 +2133,8 @@ void initDecodeTables(void)
 
     setOpcH(0x98, decode_98); // cltq
     setOpcH(0x99, decode_99); // cqto
+    setOpcH(0x9C, decode_9C); // pushf
+    setOpcH(0x9D, decode_9D); // popf
 
     // 0xA8: test al,imm8
     // 0xA9: test ax/eax/rax,imm16/32/32se
@@ -2398,6 +2423,15 @@ void initDecodeTables(void)
     setOpcP(0x0F6F, PS_66, IT_MOVDQA, VT_128, parseRMVV, addBInsImp, attach);
     setOpcP(0x0F6F, PS_No, IT_MOVQ,   VT_64,  parseRMVV, addBInsImp, attach);
 
+    // VEX.128.66.0F.WIG 6F: vmovdqa xmm1,xmm2/m128 (RM)
+    // VEX.128.66.0F.WIG 7F: vmovdqa xmm2/m128,xmm1 (MR)
+    // VEX.256.66.0F.WIG 6F: vmovdqa ymm1,ymm2/m256 (RM)
+    // VEX.256.66.0F.WIG 7F: vmovdqa ymm2/m256,ymm1 (MR)
+    setOpcPV(VEX_128, 0x0F6F, PS_66, IT_VMOVDQA, VT_128, parseRMVV, addBInsImp, attach);
+    setOpcPV(VEX_128, 0x0F7F, PS_66, IT_VMOVDQA, VT_128, parseMRVV, addBInsImp, attach);
+    setOpcPV(VEX_256, 0x0F6F, PS_66, IT_VMOVDQA, VT_256, parseRMVV, addBInsImp, attach);
+    setOpcPV(VEX_256, 0x0F7F, PS_66, IT_VMOVDQA, VT_256, parseMRVV, addBInsImp, attach);
+
     // VEX.128.F3.0F.WIG 6F: vmovdqu xmm1,xmm2/m128 (RM)
     // VEX.128.F3.0F.WIG 7F: vmovdqu xmm2/m128,xmm1 (MR)
     // VEX.256.F3.0F.WIG 6F: vmovdqu ymm1,ymm2/m256 (RM)
@@ -2468,6 +2502,12 @@ void initDecodeTables(void)
     setOpcH(0x0FD6, decode0F_D6); // movq xmm2/m64,xmm1 (MR)
     setOpcH(0x0FD7, decode0F_D7); // pmovmskb r,xmm 64/128 (RM)
     setOpcH(0x0FDA, decode0F_DA); // pminub xmm,xmm/m 64/128 (RM)
+
+    // VEX.128.66.0F.WIG E7: vmovntdq m128, xmm1 (MR)
+    // VEX.256.66.0F.WIG E7: vmovntdq m256, ymm1 (MR)
+    setOpcPV(VEX_128, 0x0FE7, PS_66, IT_VMOVNTDQ, VT_128, parseMRVV, addBInsImp, attach);
+    setOpcPV(VEX_256, 0x0FE7, PS_66, IT_VMOVNTDQ, VT_256, parseMRVV, addBInsImp, attach);
+
     setOpcH(0x0FEF, decode0F_EF); // pxor xmm1,xmm2/m 64/128 (RM)
 }
 
@@ -2540,7 +2580,7 @@ DBB* dbrew_decode(Rewriter* r, uint64_t f)
     dbb->size = cxt.off;
 
     if (r->showDecoding)
-        dbrew_print_decoded(dbb);
+        dbrew_print_decoded(dbb, r->printBytes);
 
     return dbb;
 }
