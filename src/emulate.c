@@ -1332,8 +1332,8 @@ void getRegValue(EmuValue* v, EmuState* es, Reg r, ValType t)
 }
 
 static
-void getMemValue(EmuValue* v, EmuValue* addr, EmuState* es, ValType t,
-                 bool shouldBeStack)
+void getMemValueForce(EmuValue* v, EmuValue* addr, EmuState* es, ValType t,
+                      bool shouldBeStack, bool forceResolve)
 {
     EmuValue off;
     int isOnStack;
@@ -1355,7 +1355,7 @@ void getMemValue(EmuValue* v, EmuValue* addr, EmuState* es, ValType t,
     } // Mark values from immutable memory regions as static
     else if (config_find_memrange(r, MR_ConstantData, addr->val)) {
         v->state.cState = CS_STATIC;
-    } else {
+    } else if (! forceResolve) {
         v->val = 0;
         // Don't try to look up dynamic memory values. Emulation result
         // shouldn't depend on them and we have no idea if dynamic values points
@@ -1371,6 +1371,13 @@ void getMemValue(EmuValue* v, EmuValue* addr, EmuState* es, ValType t,
     default: assert(0);
     }
 }
+
+static
+void getMemValue(EmuValue* v, EmuValue* addr, EmuState* es, ValType t,
+                 bool shouldBeStack) {
+    getMemValueForce(v, addr, es, t, shouldBeStack, false);
+}
+
 
 // reading memory using segment override (fs/gs)
 static
@@ -1578,7 +1585,7 @@ void getOpValue(EmuValue* v, EmuState* es, Operand* o)
         }
         else {
             getOpAddr(&addr, es, o);
-            getMemValue(v, &addr, es, opValType(o), 0);
+            getMemValueForce(v, &addr, es, opValType(o), 0, o->reg.rt == RT_IP);
         }
         return;
 
