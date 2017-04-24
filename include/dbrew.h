@@ -123,6 +123,8 @@ typedef enum _FunctionConfigFlags {
     FC_SetReturnDynamic = 1<<8, // Set rax to dynamic after function capturing
     FC_IntrinsicHint = 1<<9, // Replace function call with intrinsic hint
     FC_InhibitLoopUnroll = 1<<10, // Inhibit loop unrolling in function
+    FC_ForceStaticParams = 1<<11, // Force static parameters static when
+                                  // function is called during rewriting
 } FunctionConfigFlags;
 
 // opaque data structures used in interface
