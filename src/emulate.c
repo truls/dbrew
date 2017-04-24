@@ -1656,7 +1656,7 @@ void setOpValue(EmuValue* v, EmuState* es, Operand* o)
     case OT_Ind16:
     case OT_Ind32:
     case OT_Ind64:
-        if (msIsStatic(v->state)) {
+        if (msIsStatic(v->state) || msIsStackrelative(v->state)) {
             getOpAddr(&addr, es, o);
             setMemValue(v, &addr, es, opValType(o), 0);
         }
