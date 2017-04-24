@@ -416,8 +416,9 @@ Error* emulateAndCapture(Rewriter* r, uint64_t* par)
             //setParams(r, es, fc, false, fc->parCount, fc->pa);
 
             FunctionConfig* fc = config_find_function(r, nextbb_addr);
-
-            setParams(r, es, fc, false, 0);
+            if (fc && fc->flags & FC_ForceStaticParams) {
+              setParams(r, es, fc, false, 0);
+            }
 
             if (r->showEmuState) {
                 if (nextbb_addr != 0) {
