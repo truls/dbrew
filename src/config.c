@@ -163,10 +163,25 @@ FunctionConfig* fc_get(CaptureConfig* cc, uint64_t func)
 
 // DBrew internal, called by other modules
 
-// Returns memrange encompassing addr and with type mrt. Returns 0 if no such
-// memrange is found and returns the first memrange of type mrt if addr is 0
+// Returns the first defined memrange of type mrt. Returns 0 if no such memrange
+// exists
+MemRangeConfig* config_find_first_memrange(Rewriter* r, MemRangeType mrt)
+{
+    CaptureConfig* cc = cc_get(r);
+    MemRangeConfig* mrc = mrc_find(cc, mrt, 0);
+    if (mrc) {
+        assert(mrc->type == mrt);
+        return mrc;
+    }
+    return 0;
+}
+
+// Returns memrange encompassing addr and with type mrt. Returns 0 if no
+// memrange of matching type is found.
 MemRangeConfig* config_find_memrange(Rewriter* r, MemRangeType mrt, uint64_t addr)
 {
+    if (!addr) return 0;
+
     CaptureConfig* cc = cc_get(r);
     MemRangeConfig* mrc = mrc_find(cc, mrt, addr);
     if (mrc) {

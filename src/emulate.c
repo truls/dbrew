@@ -172,7 +172,7 @@ static
 int memRangesSize(Rewriter* r)
 {
     int size = 0;
-    for (MemRangeConfig* mrc = config_find_memrange(r, MR_MutableData, 0);
+    for (MemRangeConfig* mrc = config_find_first_memrange(r, MR_MutableData);
          mrc != 0;
          mrc = config_next_memrange(mrc, MR_MutableData)) {
         size += mrc->size;
@@ -188,6 +188,8 @@ EmuState* allocEmuState(Rewriter* r, int size)
     es->stackSize = size;
     es->stack = (uint8_t*) malloc(size);
     es->stackState = (MetaState*) malloc(sizeof(MetaState) * size);
+    // TODO: Don't count the size of memory areas every time we alloc an
+    // emuState -- it remains static throughout the emulation.
     es->memRangesSize = memRangesSize(r);
     es->memRanges = es->memRangesSize ? malloc(es->memRangesSize) : 0;
 
@@ -417,11 +419,10 @@ int saveEmuState(RContext* c)
 
     // TODO we don't have to copy the memranges in copyEmuState when doing this
     int curPos = 0;
-    for (MemRangeConfig* mrc = config_find_memrange(r, MR_MutableData, 0);
+    for (MemRangeConfig* mrc = config_find_first_memrange(r, MR_MutableData);
          mrc != 0;
          mrc = config_next_memrange(mrc, MR_MutableData)) {
         memcpy(newEs->memRanges + curPos, (void*) mrc->start, mrc->size);
-        printf("Saved value %d to %p\n", *((int*) mrc->start), (void*) mrc->start);
         curPos += mrc->size;
     }
 
@@ -439,11 +440,10 @@ void restoreEmuState(Rewriter* r, int esID)
     copyEmuState(r->es, r->savedState[esID]);
 
     int curPos = 0;
-    for (MemRangeConfig* mrc = config_find_memrange(r, MR_MutableData, 0);
+    for (MemRangeConfig* mrc = config_find_first_memrange(r, MR_MutableData);
          mrc != 0;
          mrc = config_next_memrange(mrc, MR_MutableData)) {
         memcpy((void*) mrc->start, r->es->memRanges + curPos, mrc->size);
-        printf("Restored value %d to %p\n", *((int*) mrc->start), (void*) mrc->start);
         curPos += mrc->size;
     }
 
@@ -3248,8 +3248,12 @@ void processInstr(RContext* c, Instr* instr)
 
     case IT_MOV:
     case IT_MOVSX: { // converting move
+        EmuValue opAddr;
         ValType dst_t = opValType(&(instr->dst));
         getOpValue(&vres, es, &(instr->src));
+
+        if (instr->src.seg == OSO_None && opIsInd(&(instr->src)))
+            getOpAddr(&opAddr, es, &(instr->src));
 
         switch(instr->src.type) {
         case OT_Reg8:
@@ -3323,7 +3327,7 @@ void processInstr(RContext* c, Instr* instr)
         }
         // If source points to a known memory area, set static meta state and
         // don't capture
-        if (opIsInd(&(instr->src)) && config_find_memrange(r, MR_ConstantData, vres.val)) {
+        if (opIsInd(&(instr->src)) && config_find_memrange(r, MR_ConstantData, opAddr.val)) {
             MetaState st;
             initMetaState(&st, CS_STATIC);
             vres.state = st;

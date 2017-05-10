@@ -204,7 +204,7 @@ typedef enum _VectorizeReq {
     VR_DoubleX4_RP   // scalar double => 4x double vector, ret + par1 pointer
 } VectorizeReq;
 
-
+MemRangeConfig* config_find_first_memrange(Rewriter* r, MemRangeType mrt);
 MemRangeConfig* config_find_memrange(Rewriter* r, MemRangeType mrt, uint64_t addr);
 MemRangeConfig* config_next_memrange(MemRangeConfig* mrc, MemRangeType mrt);
 FunctionConfig* config_find_function(Rewriter* r, uint64_t f);
