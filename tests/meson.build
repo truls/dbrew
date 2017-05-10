@@ -112,10 +112,4 @@ foreach test : tests
 endforeach
 
 
-    # Run arguments, passed to wrapper script
-    args = files('test-meson.py') + files(test.get(0)) + [testExec.full_path()]
-    if test.length() > 2
-        args += test.get(2)
-    endif
-    test(test.get(0), python3, args: args, workdir: meson.current_source_dir())
 endforeach
