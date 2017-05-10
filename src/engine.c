@@ -290,7 +290,7 @@ Error* emulateAndCapture(Rewriter* r, uint64_t* par)
     cxt.e = 0;
 
     if (!r->es)
-        r->es = allocEmuState(1024);
+        r->es = allocEmuState(r, 2048);
     resetEmuState(r->es);
     r->es->r = r;
     es = r->es;
