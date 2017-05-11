@@ -1,5 +1,6 @@
 language: cpp
 sudo: false
+dist: trusty
 
 addons:
   apt:
@@ -12,6 +13,7 @@ addons:
       - python3
       - llvm-3.8-dev
       - libllvm3.8
+      - libdw-dev
 
 matrix:
   include:
@@ -51,77 +53,14 @@ matrix:
             - *default_pkgs
             - gcc-6
             - g++-6
-    - compiler: clang
-      env:
-        - COMPILERC=clang-3.6
-        - COMPILERCXX=clang++-3.6
-      addons:
-        apt:
-          sources:
-            - *default_srcs
-            - llvm-toolchain-precise-3.6
-          packages:
-            - *default_pkgs
-            - clang-3.6
-    - compiler: clang
-      env:
-        - COMPILERC=clang-3.7
-        - COMPILERCXX=clang++-3.7
-      addons:
-        apt:
-          sources:
-            - *default_srcs
-            - llvm-toolchain-precise-3.7
-          packages:
-            - *default_pkgs
-            - clang-3.7
-    - compiler: clang
-      env:
-        - COMPILERC=clang-3.8
-        - COMPILERCXX=clang++-3.8
-      addons:
-        apt:
-          sources:
-            - *default_srcs
-            - llvm-toolchain-precise-3.8
-          packages:
-            - *default_pkgs
-            - clang-3.8
-    - compiler: clang
-      env:
-        - COMPILERC=clang
-        - COMPILERCXX=clang++
-        - CLANGV=3.9.0
 
-# TODO: Eventually cache clang
+
 install:
-  # - export LLVM_VERSION=3.8.1
-  - if [ -n "$CLANGV" ]; then mkdir $HOME/clang+llvm-$CLANGV; fi
-  - if [ -n "$CLANGV" ]; then export PATH=$HOME/clang+llvm-$CLANGV/bin:$PATH; fi
-  - if [ -n "$CLANGV" ]; then export LD_LIBRARY_PATH=$HOME/clang+llvm-$CLANGV/lib:$LD_LIBRARY_PATH; fi
-  - if [ -n "$CLANGV" ]; then wget http://llvm.org/releases/$CLANGV/clang+llvm-$CLANGV-x86_64-linux-gnu-ubuntu-14.04.tar.xz -O $HOME/clang+llvm-$CLANGV.tar.xz; fi
-  - if [ -n "$CLANGV" ]; then tar xf $HOME/clang+llvm-$CLANGV.tar.xz -C $HOME/clang+llvm-$CLANGV --strip-components 1; fi
-  # - if [ "$CLANGV" != "$LLVM_VERSION" ]; then mkdir $HOME/clang+llvm-$LLVM_VERSION; fi
-  # - if [ "$CLANGV" != "$LLVM_VERSION" ]; then wget http://llvm.org/releases/$LLVM_VERSION/clang+llvm-$LLVM_VERSION-x86_64-linux-gnu-ubuntu-14.04.tar.xz -O $HOME/clang+llvm-$LLVM_VERSION.tar.xz; fi
-  # - if [ "$CLANGV" != "$LLVM_VERSION" ]; then tar xf $HOME/clang+llvm-$LLVM_VERSION.tar.xz -C $HOME/clang+llvm-$LLVM_VERSION --strip-components 1; fi
-  # - export LLVM_CONFIG=$HOME/clang+llvm-$LLVM_VERSION/bin/llvm-config
-  - export LLVM_CONFIG=llvm-config-3.8
-  - export CC=$COMPILERC
-  - export CXX=$COMPILERCXX
-  - $CC --version
-  - $CXX --version
-  - pkg-config --cflags glib-2.0
-  - pkg-config --libs glib-2.0
-  - $LLVM_CONFIG --version
-  - $LLVM_CONFIG --cflags
-  - $LLVM_CONFIG --cxxflags
-  - $LLVM_CONFIG --cppflags
-  - $LLVM_CONFIG --ldflags
-  - $LLVM_CONFIG --libs
-  - $LLVM_CONFIG --system-libs
-  - $LLVM_CONFIG --components
-  - $LLVM_CONFIG --shared-mode
+  - wget https://github.com/ninja-build/ninja/releases/download/v1.7.2/ninja-linux.zip && unzip -q ninja-linux.zip -d build;
+  - pip3 install meson
+
 
 script:
-  - make -j4 CI=1 LLVM_CONFIG=$LLVM_CONFIG CC=$COMPILERC
-  - make test CI=1 LLVM_CONFIG=$LLVM_CONFIG CC=$COMPILERC
+  - meson build -Denable_dwfl=true -enable_llvm=true
+  - ninja -C build
+  - ninja -C build test
