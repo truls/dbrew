@@ -1705,6 +1705,20 @@ int genCmp(GContext* cxt)
 }
 
 static
+int genCall(GContext* c)
+{
+    Operand* dst = &(c->instr->dst);
+
+    // TODO: Testing needed
+    if (opIsImm(dst)) {
+        return genDigitRM(c, 0xEB, 0, dst, 0);
+    } else {
+        // TODO: There are more encodings
+        return genDigitRM(c, 0xFF, 2, dst, GEN_DefOpVT64);
+    }
+}
+
+static
 int genVec(GContext* c)
 {
     Instr* instr = c->instr;
@@ -1826,6 +1840,9 @@ GenerateError* generate(Rewriter* r, CBB* cbb)
             switch(instr->type) {
             case IT_ADD:
                 used = genAdd(&cxt);
+                break;
+            case IT_CALL:
+                used = genCall(&cxt);
                 break;
             case IT_CLTQ:
                 used = genCltq(&cxt);
